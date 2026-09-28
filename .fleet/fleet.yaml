@@ -1,1 +1,2 @@
-version: 1
+runtime:
+  roles: { reason: pi@agy/model, insight: pi@agy/model, wisdom: pi@agy/model }
