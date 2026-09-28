@@ -29,9 +29,9 @@ tasks:
       1) pnpm add tailwindcss @tailwindcss/vite；
       2) vite.config.ts 注册 tailwindcss() 插件；
       3) src/styles/theme.css 顶部（@fontsource import 之前）追加 `@import "tailwindcss";`，其余内容不动；
-      4) pnpm build 通过后 git commit（必须 commit，信息用 conventional 风格）。
+      4) pnpm build 通过即完成。禁止 git commit / stash / reset——改动必须保留在工作区未提交状态（fleet 会自动暂存、提交并合并）。
       禁止创建 tailwind.config.js（v4 为 CSS-first）。
-      完成判据（审阅按此核对 diff，勿额外加码）：package.json dependencies 含 tailwindcss 与 @tailwindcss/vite；vite.config.ts 有 tailwindcss() 插件注册；theme.css 首部有该 import；pnpm build 退出码 0；有 git commit。
+      完成判据（审阅按此核对 diff，勿额外加码）：package.json dependencies 含 tailwindcss 与 @tailwindcss/vite；vite.config.ts 有 tailwindcss() 插件注册；theme.css 首部有该 import；pnpm build 退出码 0；git status --short 非空（改动留在工作区，未提交）。
   - id: shadcn-init
     agentRole: reason
     dependsOn: [tw-setup]
@@ -40,8 +40,8 @@ tasks:
       1) tsconfig.json 与 tsconfig.node.json 的 compilerOptions 增加 baseUrl "." 与 paths {"@/*":["./src/*"]}；vite.config.ts 增加 resolve.alias 将 '@' 指向 src（用 path.resolve）；
       2) 非交互完成 init：底层选 base（Base UI），Vite 项目、RSC=false、tsx；样式任选（后续任务覆盖 token）；
       3) 依次 add：button input label textarea select checkbox switch dialog alert-dialog tooltip toast badge tabs separator scroll-area skeleton field card；
-      4) pnpm build 通过后 git commit。
-      完成判据（审阅按此核对，勿额外加码）：components.json 存在且 base 指向 Base UI 系；src/components/ui/ 下存在上列组件文件且可被 import；src/lib/utils.ts（或等价位置）有 cn()；tsconfig paths 生效；pnpm build 退出码 0；有 git commit。
+      4) pnpm build 通过即完成；禁止 git commit，改动留工作区。
+      完成判据（审阅按此核对，勿额外加码）：components.json 存在且 base 指向 Base UI 系；src/components/ui/ 下存在上列组件文件且可被 import；src/lib/utils.ts（或等价位置）有 cn()；tsconfig paths 生效；pnpm build 退出码 0；git status --short 非空（改动留在工作区，未提交）。
   - id: theme-map
     agentRole: reason
     dependsOn: [shadcn-init]
@@ -53,8 +53,8 @@ tasks:
       - 保留 @fontsource IBM Plex Sans/Mono import；--font-sans/--font-mono 指向 IBM Plex；body 字号 13px、repeating-linear-gradient 双向 24px 网格背景、方形滚动条样式保留在全局 CSS；
       - 用 `@theme inline` 将语义变量暴露为工具类；
       - 本任务不删除 .btn/.input/.select 等旧原子样式（下一任务替换完再删）；
-      4) pnpm build 通过后 git commit。
-      完成判据（审阅按此核对，勿额外加码）：全局 CSS 中上列语义变量与值逐项存在；@theme inline 块存在；@fontsource import 与网格纹理保留；pnpm build 退出码 0；有 git commit。
+      4) pnpm build 通过即完成；禁止 git commit，改动留工作区。
+      完成判据（审阅按此核对，勿额外加码）：全局 CSS 中上列语义变量与值逐项存在；@theme inline 块存在；@fontsource import 与网格纹理保留；pnpm build 退出码 0；git status --short 非空（改动留在工作区，未提交）。
   - id: comp-migrate
     agentRole: reason
     dependsOn: [theme-map]
@@ -71,7 +71,7 @@ tasks:
       - App.tsx：booting 态用 Skeleton/Spinner；
       - 迁移完成后删除 theme.css 中被替代的旧原子样式（.btn/.input/.select/.toast 等）并确认全仓无引用残留；
       - zustand store（src/store/）、src/lib/、src/types/ 零改动；所有 invoke IPC 调用保持原语义。
-      完成判据（审阅按此核对，勿额外加码）：组件 import 自 @/components/ui/*；旧原子类在 CSS 与 TSX 中均无残留引用；git diff 显示 src/store、src/lib、src/types 无改动；pnpm build 退出码 0；有 git commit。
+      完成判据（审阅按此核对，勿额外加码）：组件 import 自 @/components/ui/*；旧原子类在 CSS 与 TSX 中均无残留引用；git diff 显示 src/store、src/lib、src/types 无改动；pnpm build 退出码 0；git status --short 非空（改动留在工作区，未提交）。
   - id: verify-fix
     agentRole: reason
     dependsOn: [comp-migrate]
@@ -81,7 +81,7 @@ tasks:
       2) grep 全仓合规：无 space-y-*；TSX 无裸色值类（bg-[#...]/text-[#...] 例外需在总结说明）；Dialog/AlertDialog 均有 Title；组件内图标无尺寸类；无 asChild 残留（base 底层用 render）；
       3) 核对：ToastHost 为队列实现；写操作有 AlertDialog 确认与置灰门控；Tooltip 就位；
       4) theme.css 无死代码；
-      5) 修复项 git commit。
+      5) 修复项同样保持工作区未提交。
       完成判据：上列 grep 与 build 全绿；输出总结（变更文件清单、token 映射表、遗留事项）。
 acceptance:
   - given: Tailwind v4 已接入
