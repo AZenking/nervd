@@ -19,6 +19,9 @@ export async function deletePat(): Promise<boolean> {
 export async function checkConnection(): Promise<OrgSummary[]> {
   return invoke('check_connection');
 }
+export async function listProjects(search?: string): Promise<{ id: string; name: string }[]> {
+  return invoke('list_projects', { search });
+}
 
 export async function listWorkitems(p: {
   category: Category; spaceIdentifier: string; nextToken?: string;

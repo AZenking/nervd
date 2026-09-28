@@ -1,4 +1,4 @@
-//! 流水线轮询：扫描组织内运行中的流水线 → 状态迁移 → 前端事件 + 系统通知
+//! 流水线轮询：latestPipelineRun 状态迁移 → 前端事件 + 系统通知（openapi-rdc 版）
 
 use crate::yunxiao::YunxiaoClient;
 use crate::AppState;
@@ -9,7 +9,7 @@ use std::time::Duration;
 use tauri::Emitter;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(60);
-const MAX_PIPELINES: i64 = 20;
+const MAX_PIPELINES: &str = "20";
 const TERMINAL: [&str; 3] = ["SUCCESS", "FAIL", "CANCELED"];
 
 pub fn spawn(app: tauri::AppHandle, inner: AppState) {
@@ -42,45 +42,45 @@ async fn scan_once(
     org: &str,
     seen: &mut HashMap<String, String>,
 ) -> Result<(), String> {
-    // 1) 组织内运行中的流水线
     let resp = client
         .get(
-            &format!("/organization/{org}/pipelines"),
+            &format!("/oapi/v1/flow/organizations/{org}/pipelines"),
             &[
-                ("statusList", "RUNNING".to_string()),
-                ("maxResults", MAX_PIPELINES.to_string()),
-                ("nextToken", String::new()),
+                ("page", "1".to_string()),
+                ("perPage", MAX_PIPELINES.to_string()),
             ],
         )
         .await?;
     let pipelines = resp
-        .pointer("/pipelines/Pipeline")
-        .and_then(|x| x.as_array())
+        .as_array()
         .cloned()
-        .unwrap_or_default();
+        .unwrap_or_else(|| {
+            resp.get("pipelines")
+                .and_then(|x| x.as_array())
+                .cloned()
+                .unwrap_or_default()
+        });
 
     for p in &pipelines {
-        let pid = p.get("pipelineId").and_then(|x| x.as_i64()).unwrap_or(0);
-        let pname = p.get("pipelineName").and_then(|x| x.as_str()).unwrap_or("?");
+        let pid = p
+            .get("id")
+            .and_then(|x| x.as_i64())
+            .or_else(|| p.get("pipelineId").and_then(|x| x.as_i64()))
+            .unwrap_or(0);
+        let pname = p
+            .get("name")
+            .and_then(|x| x.as_str())
+            .or_else(|| p.get("pipelineName").and_then(|x| x.as_str()))
+            .unwrap_or("?");
         if pid == 0 {
             continue;
         }
-        // 2) 每条流水线取最近一次运行
-        let runs = client
+        let Ok(latest) = client
             .get(
-                &format!("/organization/{org}/pipelines/{pid}/pipelineRuns"),
-                &[
-                    ("maxResults", "1".to_string()),
-                    ("nextToken", String::new()),
-                ],
+                &format!("/oapi/v1/flow/organizations/{org}/pipelines/{pid}/runs/latestPipelineRun"),
+                &[],
             )
-            .await;
-        let Ok(runs) = runs else { continue };
-        let Some(latest) = runs
-            .pointer("/pipelineRuns/PipelineRun")
-            .and_then(|x| x.as_array())
-            .and_then(|a| a.first())
-            .cloned()
+            .await
         else {
             continue;
         };
@@ -95,7 +95,6 @@ async fn scan_once(
         }
         let key = format!("{pid}:{rid}");
         let prev = seen.insert(key.clone(), status.clone());
-        // RUNNING/WAITING → 终态 的迁移才通知
         let was_active = matches!(prev.as_deref(), Some("RUNNING") | Some("WAITING") | None);
         let now_terminal = TERMINAL.contains(&status.as_str());
         if was_active && now_terminal && prev.as_deref() != Some(status.as_str()) {

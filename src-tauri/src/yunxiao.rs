@@ -1,10 +1,11 @@
-//! 云效 OpenAPI（ROA REST）客户端 —— PAT 鉴权直连
-//! 端点依据 docs/yunxiao-api.md（提取自 aliyun CLI v3.5.1 内置元数据）
+//! 云效 OpenAPI（openapi-rdc /oapi/v1，PAT 鉴权）客户端
+//! 依据：alibabacloud-devops-mcp-server@0.3.64 源码逆向 + 真实冒烟验证
+//! 端点清单与契约见 docs/yunxiao-api.md 与 docs/ipc-contract.md
 
 use reqwest::{Client, Method};
 use serde_json::Value;
 
-pub const BASE: &str = "https://devops.cn-hangzhou.aliyuncs.com";
+pub const BASE: &str = "https://openapi-rdc.aliyuncs.com";
 
 #[derive(Clone)]
 pub struct YunxiaoClient {
@@ -28,10 +29,13 @@ impl YunxiaoClient {
         query: &[(&str, String)],
         body: Option<Value>,
     ) -> Result<Value, String> {
-        let mut q: Vec<(&str, String)> = query.to_vec();
-        q.push(("accessToken", self.pat.clone()));
         let url = format!("{BASE}{path}");
-        let mut rb = self.http.request(method, &url).query(&q);
+        let mut rb = self
+            .http
+            .request(method, &url)
+            .query(&query.to_vec())
+            .header("Accept", "application/json")
+            .header("x-yunxiao-token", &self.pat);
         if let Some(b) = body {
             rb = rb.json(&b);
         }
@@ -39,8 +43,25 @@ impl YunxiaoClient {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
         if !status.is_success() {
-            return Err(format!("YUNXIAO {status}: {}", truncate(&text, 300)));
+            // oapi/v1 错误体：{"errorCode":"...","errorMessage":"..."}
+            let msg = serde_json::from_str::<Value>(&text)
+                .ok()
+                .and_then(|v| {
+                    let code = v.get("errorCode").and_then(|x| x.as_str()).unwrap_or("");
+                    let m = v.get("errorMessage").and_then(|x| x.as_str()).unwrap_or("");
+                    if code.is_empty() && m.is_empty() {
+                        None
+                    } else {
+                        Some(format!("{code}: {m}"))
+                    }
+                })
+                .unwrap_or_else(|| truncate(&text, 200));
+            return Err(format!("YUNXIAO {status}: {msg}"));
         }
+        if text.trim().is_empty() {
+            return Ok(Value::Null);
+        }
+        // 运行触发等接口返回裸数字
         serde_json::from_str(&text).map_err(|e| format!("响应解析失败: {e}"))
     }
 
@@ -52,8 +73,8 @@ impl YunxiaoClient {
         self.req(Method::POST, path, query, Some(body)).await
     }
 
-    pub async fn put(&self, path: &str, query: &[(&str, String)]) -> Result<Value, String> {
-        self.req(Method::PUT, path, query, None).await
+    pub async fn put(&self, path: &str, query: &[(&str, String)], body: Value) -> Result<Value, String> {
+        self.req(Method::PUT, path, query, Some(body)).await
     }
 }
 

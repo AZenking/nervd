@@ -1,5 +1,5 @@
 //! 全部 Tauri 命令（IPC 表见 docs/ipc-contract.md §4）
-//! 写操作统一走 ensure_write 门控；返回 Result<T, String>
+//! 底层走 openapi-rdc /oapi/v1（PAT），写操作统一 ensure_write 门控
 
 use crate::credentials::{self, Settings};
 use crate::yunxiao::YunxiaoClient;
@@ -41,18 +41,42 @@ fn rebuild(state: &State<'_, AppState>, app: &tauri::AppHandle) {
     *state.client.lock().unwrap() = client;
 }
 
+// 响应取值助手（oapi/v1 字段风格：驼峰，状态/人是嵌套对象）
 fn s(v: &Value, key: &str) -> String {
-    v.get(key)
+    v.get(key).and_then(|x| x.as_str()).unwrap_or_default().to_string()
+}
+fn s2(v: &Value, a: &str, b: &str) -> String {
+    let x = s(v, a);
+    if x.is_empty() { s(v, b) } else { x }
+}
+fn nested_s(v: &Value, outer: &str, inner: &str) -> String {
+    v.get(outer)
+        .and_then(|o| o.get(inner))
         .and_then(|x| x.as_str())
         .unwrap_or_default()
         .to_string()
 }
-fn s_fallback(v: &Value, a: &str, b: &str) -> String {
-    let x = s(v, a);
-    if x.is_empty() { s(v, b) } else { x }
+fn i64_of(v: &Value, key: &str) -> Option<i64> {
+    v.get(key).and_then(|x| x.as_i64())
 }
-fn i64_of(v: &Value, key: &str) -> i64 {
-    v.get(key).and_then(|x| x.as_i64()).unwrap_or(0)
+fn as_array(v: &Value) -> Vec<Value> {
+    match v {
+        Value::Array(a) => a.clone(),
+        Value::Object(_) => {
+            // 兼容 {result:[...]} / {pipelines:[...]} 包装
+            for k in ["result", "pipelines", "items", "data"] {
+                if let Some(a) = v.get(k).and_then(|x| x.as_array()) {
+                    return a.clone();
+                }
+                // 二级包装 result.Result
+                if let Some(a) = v.get(k).and_then(|x| x.get("Result")).and_then(|x| x.as_array()) {
+                    return a.clone();
+                }
+            }
+            vec![]
+        }
+        _ => vec![],
+    }
 }
 
 // ---------- 凭证与设置 ----------
@@ -96,28 +120,51 @@ pub async fn delete_pat(app: tauri::AppHandle, state: State<'_, AppState>) -> Re
     Ok(true)
 }
 
+/// 验证 PAT：GET /oapi/v1/platform/user
 #[tauri::command]
 pub async fn check_connection(state: State<'_, AppState>) -> Result<Value, String> {
     let c = client_of(&state)?;
-    let resp = c.get("/organizations/list", &[]).await?;
-    let mut orgs = vec![];
-    if let Some(list) = resp
-        .pointer("/result/result")
-        .and_then(|x| x.as_array())
-    {
-        for o in list {
-            orgs.push(json!({
-                "organizationId": s(o, "organizationId"),
-                "organizationName": s(o, "organizationName"),
-                "accessLevel": o.get("accessLevel").and_then(|x| x.as_i64()),
-            }));
+    let resp = c.get("/oapi/v1/platform/user", &[]).await?;
+    Ok(json!([{
+        "organizationId": s(&resp, "lastOrganization"),
+        "organizationName": s(&resp, "name"),
+        "accessLevel": Value::Null,
+    }]))
+}
+
+/// 项目列表（设置页项目空间下拉）：POST projects:search
+#[tauri::command]
+pub async fn list_projects(state: State<'_, AppState>, search: Option<String>) -> Result<Value, String> {
+    let c = client_of(&state)?;
+    let org = org_of(&state)?;
+    let mut body = json!({ "page": 1, "perPage": 50 });
+    if let Some(kw) = search {
+        if !kw.trim().is_empty() {
+            body["name"] = json!(kw);
         }
     }
-    Ok(Value::Array(orgs))
+    let resp = c
+        .post(&format!("/oapi/v1/projex/organizations/{org}/projects:search"), &[], body)
+        .await?;
+    let items: Vec<Value> = as_array(&resp)
+        .iter()
+        .map(|p| {
+            let id = {
+                let a = s(p, "identifier");
+                if a.is_empty() { s(p, "id") } else { a }
+            };
+            json!({
+                "id": id,
+                "name": s(p, "name"),
+            })
+        })
+        .collect();
+    Ok(Value::Array(items))
 }
 
 // ---------- 工作项 ----------
 
+/// POST workitems:search（body: category/spaceId/spaceType/page/perPage）
 #[tauri::command]
 pub async fn list_workitems(
     state: State<'_, AppState>,
@@ -130,61 +177,93 @@ pub async fn list_workitems(
     if space_identifier.trim().is_empty() {
         return Err("NOT_CONFIGURED: 请先在设置中选择默认项目空间".into());
     }
-    let mut q = vec![
-        ("spaceType", "Project".to_string()),
-        ("spaceIdentifier", space_identifier),
-        ("category", category.clone()),
-        ("maxResults", "50".to_string()),
-    ];
-    if let Some(t) = next_token {
-        if !t.is_empty() {
-            q.push(("nextToken", t));
-        }
-    }
-    let resp = c.get(&format!("/organization/{org}/listWorkitems"), &q).await?;
-    let items: Vec<Value> = resp
-        .pointer("/workitems/workitem")
-        .and_then(|x| x.as_array())
-        .map(|arr| {
-            arr.iter()
-                .map(|w| {
-                    json!({
-                        "identifier": s(w, "identifier"),
-                        "workitemId": s(w, "id"),
-                        "subject": s(w, "subject"),
-                        "status": s(w, "status"),
-                        "statusStageName": s(w, "statusStageName"),
-                        "assignedTo": s(w, "assignedTo"),
-                        "spaceName": s(w, "spaceName"),
-                        "updatedAt": s(w, "updatedAt"),
-                        "category": category,
-                    })
-                })
-                .collect()
+    let page: u32 = next_token
+        .and_then(|t| t.parse().ok())
+        .unwrap_or(1);
+    let per_page = 50u32;
+    let body = json!({
+        "category": category,
+        "spaceId": space_identifier,
+        "spaceType": "Project",
+        "orderBy": "gmtModified",
+        "sort": "desc",
+        "page": page,
+        "perPage": per_page,
+    });
+    let resp = c
+        .post(&format!("/oapi/v1/projex/organizations/{org}/workitems:search"), &[], body)
+        .await?;
+    let items: Vec<Value> = as_array(&resp)
+        .iter()
+        .map(|w| {
+            let ident = {
+                let a = s(w, "identifier");
+                if a.is_empty() { s(w, "serialNumber") } else { a }
+            };
+            json!({
+                "identifier": ident,
+                "workitemId": s(w, "id"),
+                "subject": s(w, "subject"),
+                "status": nested_s(w, "status", "name"),
+                "statusStageName": nested_s(w, "status", "stageName"),
+                "assignedTo": nested_s(w, "assignedTo", "name"),
+                "spaceName": nested_s(w, "space", "name"),
+                "updatedAt": i64_of(w, "gmtModified").map(chrono_ms_to_local).unwrap_or_default(),
+                "category": category,
+            })
         })
-        .unwrap_or_default();
-    let next = resp
-        .get("nextToken")
-        .and_then(|x| x.as_str())
-        .filter(|t| !t.is_empty())
-        .map(|t| t.to_string());
+        .collect();
+    let next = if (items.len() as u32) >= per_page {
+        Some((page + 1).to_string())
+    } else {
+        None
+    };
     Ok(json!({ "items": items, "nextToken": next }))
+}
+
+fn chrono_ms_to_local(ms: i64) -> String {
+    // 无 chrono：用系统 date 不可取（无 shell）；手写 ms→UTC 粗转换仅用于展示
+    let secs = ms / 1000;
+    let days = secs / 86400;
+    let rem = secs % 86400;
+    let (h, mi, se) = (rem / 3600, (rem % 3600) / 60, rem % 60);
+    // 1970-01-01 起的天数 → 年月日（民用算法）
+    let (y, mo, d) = civil_from_days(days);
+    format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{se:02}")
+}
+
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as i64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 #[tauri::command]
 pub async fn get_workitem(state: State<'_, AppState>, workitem_id: String) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    c.get(&format!("/organization/{org}/workitems/{workitem_id}"), &[]).await
+    c.get(&format!("/oapi/v1/projex/organizations/{org}/workitems/{workitem_id}"), &[]).await
 }
 
 #[tauri::command]
 pub async fn list_workitem_comments(state: State<'_, AppState>, workitem_id: String) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    c.get(&format!("/organization/{org}/workitems/{workitem_id}/commentList"), &[]).await
+    c.get(
+        &format!("/oapi/v1/projex/organizations/{org}/workitems/{workitem_id}/comments"),
+        &[("page", "1".to_string()), ("perPage", "50".to_string())],
+    )
+    .await
 }
 
+/// PUT workitems/{id} body {status}
 #[tauri::command]
 pub async fn update_workitem_status(
     state: State<'_, AppState>,
@@ -194,9 +273,12 @@ pub async fn update_workitem_status(
     ensure_write(&state)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    // body 字段名以联调为准（云效 UpdateWorkItem 文档未随 CLI 元数据给出细粒度 schema）
-    let body = json!({ "identifier": workitem_id, "statusIdentifier": status_identifier });
-    c.post(&format!("/organization/{org}/workitems/update"), &[], body).await
+    c.put(
+        &format!("/oapi/v1/projex/organizations/{org}/workitems/{workitem_id}"),
+        &[],
+        json!({ "status": status_identifier }),
+    )
+    .await
 }
 
 // ---------- 仓库 / 分支 / commit ----------
@@ -206,7 +288,6 @@ pub async fn list_repos(state: State<'_, AppState>, search: Option<String>, page
     let c = client_of(&state)?;
     let org = org_of(&state)?;
     let mut q = vec![
-        ("organizationId", org),
         ("page", page.unwrap_or(1).to_string()),
         ("perPage", "50".to_string()),
     ];
@@ -215,24 +296,19 @@ pub async fn list_repos(state: State<'_, AppState>, search: Option<String>, page
             q.push(("search", kw));
         }
     }
-    let resp = c.get("/repository/list", &q).await?;
-    let items: Vec<Value> = resp
-        .pointer("/result/Result")
-        .and_then(|x| x.as_array())
-        .map(|arr| {
-            arr.iter()
-                .map(|r| {
-                    json!({
-                        "id": i64_of(r, "Id").max(i64_of(r, "id")),
-                        "name": s(r, "name"),
-                        "pathWithNamespace": s_fallback(r, "pathWithNamespace", "path_with_namespace"),
-                        "lastActivityAt": s_fallback(r, "lastActivityAt", "last_activity_at"),
-                    })
-                })
-                .filter(|r| r["id"].as_i64().unwrap_or(0) > 0)
-                .collect()
+    let resp = c.get(&format!("/oapi/v1/codeup/organizations/{org}/repositories"), &q).await?;
+    let items: Vec<Value> = as_array(&resp)
+        .iter()
+        .map(|r| {
+            json!({
+                "id": i64_of(r, "id").unwrap_or(0),
+                "name": s(r, "name"),
+                "pathWithNamespace": s2(r, "pathWithNamespace", "path_with_namespace"),
+                "lastActivityAt": s2(r, "lastActivityAt", "last_activity_at"),
+            })
         })
-        .unwrap_or_default();
+        .filter(|r| r["id"].as_i64().unwrap_or(0) > 0)
+        .collect();
     Ok(Value::Array(items))
 }
 
@@ -241,25 +317,29 @@ pub async fn list_branches(state: State<'_, AppState>, repo_id: i64, search: Opt
     let c = client_of(&state)?;
     let org = org_of(&state)?;
     let mut q = vec![
-        ("organizationId", org),
         ("page", "1".to_string()),
-        ("pageSize", "100".to_string()),
+        ("perPage", "100".to_string()),
     ];
     if let Some(kw) = search {
         if !kw.trim().is_empty() {
             q.push(("search", kw));
         }
     }
-    c.get(&format!("/repository/{repo_id}/branches"), &q).await
+    c.get(&format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/branches"), &q).await
 }
 
+/// POST branches?branch=&ref=（参数在 query）
 #[tauri::command]
 pub async fn create_branch(state: State<'_, AppState>, repo_id: i64, branch_name: String, ref_name: String) -> Result<Value, String> {
     ensure_write(&state)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let body = json!({ "branchName": branch_name, "ref": ref_name });
-    c.post(&format!("/repository/{repo_id}/branches"), &[("organizationId", org)], body).await
+    c.post(
+        &format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/branches"),
+        &[("branch", branch_name), ("ref", ref_name)],
+        json!({}),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -267,26 +347,30 @@ pub async fn list_repository_commits(state: State<'_, AppState>, repo_id: i64, p
     let c = client_of(&state)?;
     let org = org_of(&state)?;
     let q = vec![
-        ("organizationId", org),
         ("page", page.unwrap_or(1).to_string()),
-        ("pageSize", "50".to_string()),
+        ("perPage", "50".to_string()),
     ];
-    c.get(&format!("/repository/{repo_id}/commits"), &q).await
+    c.get(&format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/commits"), &q).await
 }
 
-// ---------- MR ----------
+// ---------- MR（oapi 里叫 changeRequests）----------
 
+/// 组织级列表，projectIds 过滤到本仓库
 #[tauri::command]
-pub async fn list_merge_requests(state: State<'_, AppState>, repo_id: i64, _state_filter: Option<String>) -> Result<Value, String> {
+pub async fn list_merge_requests(state: State<'_, AppState>, repo_id: i64, state_filter: Option<String>) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    // GitLab v4 兼容族（与 MergeMergeRequest 同族）；联调若 404 回退 /api/v4/projects/merge_requests/advanced_search
-    let q = vec![
-        ("organizationId", org),
+    let mut q = vec![
         ("page", "1".to_string()),
-        ("pageSize", "50".to_string()),
+        ("perPage", "50".to_string()),
+        ("projectIds", repo_id.to_string()),
     ];
-    c.get(&format!("/api/v4/projects/{repo_id}/merge_requests"), &q).await
+    if let Some(st) = state_filter {
+        if !st.is_empty() {
+            q.push(("state", st));
+        }
+    }
+    c.get(&format!("/oapi/v1/codeup/organizations/{org}/changeRequests"), &q).await
 }
 
 #[tauri::command]
@@ -305,11 +389,18 @@ pub async fn create_merge_request(
         "title": title,
         "sourceBranch": source_branch,
         "targetBranch": target_branch,
+        "sourceProjectId": repo_id.to_string(),
+        "targetProjectId": repo_id.to_string(),
     });
     if let Some(d) = description {
         body["description"] = json!(d);
     }
-    c.post(&format!("/repository/{repo_id}/merge_requests"), &[("organizationId", org)], body).await
+    c.post(
+        &format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/changeRequests"),
+        &[],
+        body,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -318,9 +409,9 @@ pub async fn merge_merge_request(state: State<'_, AppState>, repo_id: i64, local
     let c = client_of(&state)?;
     let org = org_of(&state)?;
     c.post(
-        &format!("/api/v4/projects/{repo_id}/merge_requests/{local_id}/merge"),
-        &[("organizationId", org)],
-        json!({}),
+        &format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/changeRequests/{local_id}/merge"),
+        &[],
+        json!({ "mergeType": "no-fast-forward" }),
     )
     .await
 }
@@ -331,24 +422,23 @@ pub async fn merge_merge_request(state: State<'_, AppState>, repo_id: i64, local
 pub async fn list_pipelines(state: State<'_, AppState>, max_results: Option<i64>) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let q = vec![("maxResults", max_results.unwrap_or(50).to_string())];
-    let resp = c.get(&format!("/organization/{org}/pipelines"), &q).await?;
-    let items: Vec<Value> = resp
-        .pointer("/pipelines/Pipeline")
-        .and_then(|x| x.as_array())
-        .map(|arr| {
-            arr.iter()
-                .map(|p| {
-                    json!({
-                        "pipelineId": i64_of(p, "pipelineId"),
-                        "pipelineName": s(p, "pipelineName"),
-                        "status": s(p, "status"),
-                        "updateTime": s(p, "updateTime"),
-                    })
-                })
-                .collect()
+    let q = vec![
+        ("page", "1".to_string()),
+        ("perPage", max_results.unwrap_or(20).to_string()),
+    ];
+    let resp = c.get(&format!("/oapi/v1/flow/organizations/{org}/pipelines"), &q).await?;
+    let items: Vec<Value> = as_array(&resp)
+        .iter()
+        .map(|p| {
+            json!({
+                "pipelineId": i64_of(p, "id").unwrap_or(0).max(i64_of(p, "pipelineId").unwrap_or(0)),
+                "pipelineName": s2(p, "name", "pipelineName"),
+                "status": nested_s(p, "latestRun", "status"),
+                "updateTime": s(p, "updateTime"),
+            })
         })
-        .unwrap_or_default();
+        .filter(|p| p["pipelineId"].as_i64().unwrap_or(0) > 0)
+        .collect();
     Ok(Value::Array(items))
 }
 
@@ -356,28 +446,27 @@ pub async fn list_pipelines(state: State<'_, AppState>, max_results: Option<i64>
 pub async fn list_pipeline_runs(state: State<'_, AppState>, pipeline_id: i64, max_results: Option<i64>) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let q = vec![("maxResults", max_results.unwrap_or(20).to_string())];
+    let q = vec![
+        ("page", "1".to_string()),
+        ("perPage", max_results.unwrap_or(5).to_string()),
+    ];
     let resp = c
-        .get(&format!("/organization/{org}/pipelines/{pipeline_id}/pipelineRuns"), &q)
+        .get(&format!("/oapi/v1/flow/organizations/{org}/pipelines/{pipeline_id}/runs"), &q)
         .await?;
-    let items: Vec<Value> = resp
-        .pointer("/pipelineRuns/PipelineRun")
-        .and_then(|x| x.as_array())
-        .map(|arr| {
-            arr.iter()
-                .map(|r| {
-                    json!({
-                        "pipelineRunId": i64_of(r, "pipelineRunId"),
-                        "status": s(r, "status"),
-                        "startTime": r.get("startTime").and_then(|x| x.as_i64()),
-                        "endTime": r.get("endTime").and_then(|x| x.as_i64()),
-                        "executorAccountId": s(r, "executorAccountId"),
-                        "triggerMode": r.get("triggerMode").and_then(|x| x.as_i64()),
-                    })
-                })
-                .collect()
+    let items: Vec<Value> = as_array(&resp)
+        .iter()
+        .map(|r| {
+            json!({
+                "pipelineRunId": i64_of(r, "pipelineRunId").unwrap_or(0),
+                "status": s(r, "status"),
+                "startTime": i64_of(r, "createTime"),
+                "endTime": i64_of(r, "updateTime"),
+                "executorAccountId": s(r, "creatorAccountId"),
+                "triggerMode": i64_of(r, "triggerMode"),
+            })
         })
-        .unwrap_or_default();
+        .filter(|r| r["pipelineRunId"].as_i64().unwrap_or(0) > 0)
+        .collect();
     Ok(Value::Array(items))
 }
 
@@ -385,23 +474,27 @@ pub async fn list_pipeline_runs(state: State<'_, AppState>, pipeline_id: i64, ma
 pub async fn get_pipeline_run(state: State<'_, AppState>, pipeline_id: i64, run_id: i64) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    c.get(&format!("/organization/{org}/pipelines/{pipeline_id}/pipelineRuns/{run_id}"), &[]).await
+    c.get(&format!("/oapi/v1/flow/organizations/{org}/pipelines/{pipeline_id}/runs/{run_id}"), &[]).await
 }
 
+/// POST runs body {params:{}} → 运行 ID
 #[tauri::command]
 pub async fn start_pipeline_run(state: State<'_, AppState>, pipeline_id: i64) -> Result<Value, String> {
     ensure_write(&state)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    c.post(&format!("/organizations/{org}/pipelines/{pipeline_id}/run"), &[], json!({})).await
+    c.post(
+        &format!("/oapi/v1/flow/organizations/{org}/pipelines/{pipeline_id}/runs"),
+        &[],
+        json!({ "params": {} }),
+    )
+    .await
 }
 
+/// oapi/v1 PAT 面未提供运行级停止端点（只有 deploy/job 级），明确报不支持
 #[tauri::command]
-pub async fn stop_pipeline_run(state: State<'_, AppState>, pipeline_id: i64, run_id: i64) -> Result<Value, String> {
-    ensure_write(&state)?;
-    let c = client_of(&state)?;
-    let org = org_of(&state)?;
-    c.put(&format!("/organization/{org}/pipelines/{pipeline_id}/pipelineRuns/{run_id}/stop"), &[]).await
+pub async fn stop_pipeline_run(_pipeline_id: i64, _run_id: i64) -> Result<Value, String> {
+    Err("UNSUPPORTED: 当前 oapi/v1 接口不支持停止整条运行（可在云效网页操作）".into())
 }
 
 #[tauri::command]
@@ -410,16 +503,28 @@ pub async fn get_job_logs(state: State<'_, AppState>, pipeline_id: i64, run_id: 
     let org = org_of(&state)?;
     let resp = c
         .get(
-            &format!("/organization/{org}/pipeline/{pipeline_id}/pipelineRun/{run_id}/job/{job_id}/logs"),
+            &format!("/oapi/v1/flow/organizations/{org}/pipelines/{pipeline_id}/runs/{run_id}/job/{job_id}/log"),
             &[],
         )
         .await?;
-    // 响应结构以联调为准：优先拼接 result 数组，否则整体序列化
-    if let Some(arr) = resp.get("result").and_then(|x| x.as_array()) {
+    // 响应结构以联调为准：数组逐行、或 {logs:[]}、或整体 JSON
+    if let Some(arr) = resp.as_array() {
         let mut out = String::new();
         for line in arr {
-            let t = serde_json::to_string_pretty(line).unwrap_or_default();
-            out.push_str(&t);
+            if let Some(t) = line.as_str() {
+                out.push_str(t);
+                out.push('\n');
+            } else {
+                out.push_str(&serde_json::to_string_pretty(line).unwrap_or_default());
+                out.push('\n');
+            }
+        }
+        return Ok(out);
+    }
+    if let Some(arr) = resp.get("logs").and_then(|x| x.as_array()) {
+        let mut out = String::new();
+        for line in arr {
+            out.push_str(&line.as_str().unwrap_or_default());
             out.push('\n');
         }
         return Ok(out);

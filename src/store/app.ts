@@ -11,6 +11,17 @@ import type {
 const pick = (o: unknown, ...path: string[]): unknown =>
   path.reduce<unknown>((acc, k) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[k] : undefined), o);
 const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
+/** 根数组或 result/data 包装统一解包 */
+const arr = (v: unknown): unknown[] => {
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === 'object') {
+    for (const k of ['result', 'data', 'items']) {
+      const x = (v as Record<string, unknown>)[k];
+      if (Array.isArray(x)) return x;
+    }
+  }
+  return [];
+};
 
 export interface Toast { text: string; kind: 'info' | 'ok' | 'fail' }
 
@@ -138,8 +149,8 @@ export const useApp = create<AppStore>((set, get) => ({
         api.getWorkitem(id),
         api.listWorkitemComments(id).catch(() => ({})),
       ]);
-      const comments = (pick(commentsRaw, 'commentList', 'result') as unknown[]) ?? [];
-      set({ detail, comments: Array.isArray(comments) ? comments : [] });
+      const comments = arr(commentsRaw);
+      set({ detail, comments });
     } catch (e) {
       get().setToast({ text: `详情加载失败：${String(e)}`, kind: 'fail' });
     } finally {
@@ -167,34 +178,34 @@ export const useApp = create<AppStore>((set, get) => ({
           api.listMergeRequests(repoId).catch(() => null),
         ]);
         const pattern = s.linkPattern;
-        for (const b of ((pick(br, 'result', 'result') as unknown[]) ?? [])) {
+        for (const b of arr(br)) {
           const name = str(pick(b, 'name'));
           if (name && matchesWorkitem(identifier, name, pattern)) {
             branches.push({ name, commit: pick(b, 'commit') as BranchInfo['commit'] });
           }
         }
-        for (const c of ((pick(cm, 'result') as unknown[]) ?? [])) {
+        for (const c of arr(cm)) {
           const msg = str(pick(c, 'message')) || str(pick(c, 'title'));
           if (msg && matchesWorkitem(identifier, msg, pattern)) {
             commits.push({
               sha: str(pick(c, 'sha')) || str(pick(c, 'id')),
               message: msg,
-              authorName: str(pick(c, 'authorName')) || str(pick(c, 'author', 'name')),
-              committedDate: str(pick(c, 'committedDate')),
+              authorName: str(pick(c, 'authorName')) || str(pick(c, 'author_name')) || str(pick(c, 'author', 'name')),
+              committedDate: str(pick(c, 'committedDate')) || str(pick(c, 'committed_date')) || str(pick(c, 'createdAt')),
             });
           }
         }
-        for (const m of ((pick(mr, 'result') as unknown[]) ?? [])) {
+        for (const m of arr(mr)) {
           const title = str(pick(m, 'title'));
           if (title && matchesWorkitem(identifier, title, pattern)) {
             mrs.push({
               localId: Number(pick(m, 'localId') ?? pick(m, 'local_id') ?? 0),
               title,
               state: str(pick(m, 'state')) || str(pick(m, 'status')),
-              sourceBranch: str(pick(m, 'sourceBranch')) || str(pick(m, 'src_branch')),
+              sourceBranch: str(pick(m, 'sourceBranch')) || str(pick(m, 'source_branch')),
               targetBranch: str(pick(m, 'targetBranch')) || str(pick(m, 'target_branch')),
               author: pick(m, 'author') as MrSummary['author'],
-              createdAt: str(pick(m, 'createdAt')),
+              createdAt: str(pick(m, 'createdAt')) || str(pick(m, 'gmtCreate')),
             });
           }
         }

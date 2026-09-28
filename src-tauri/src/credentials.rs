@@ -18,12 +18,15 @@ pub struct Settings {
     pub allow_write_ops: bool,
 }
 
+pub const LEGACY_LINK_PATTERN: &str = r"(?:REQ|BUG|TASK)[-_]?(\d+)";
+pub const DEFAULT_LINK_PATTERN: &str = r"([A-Za-z][A-Za-z0-9]{1,15}[-_]\d{1,})";
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
             organization_id: String::new(),
             default_space_identifier: String::new(),
-            link_pattern: r"(?:REQ|BUG|TASK)[-_]?(\d+)".to_string(),
+            link_pattern: DEFAULT_LINK_PATTERN.to_string(),
             watched_repos: vec![],
             allow_write_ops: false,
         }
@@ -41,7 +44,12 @@ pub fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 pub fn load_settings(app: &tauri::AppHandle) -> Settings {
     let Ok(path) = settings_path(app) else { return Settings::default() };
     let Ok(text) = std::fs::read_to_string(path) else { return Settings::default() };
-    serde_json::from_str(&text).unwrap_or_default()
+    let mut s: Settings = serde_json::from_str(&text).unwrap_or_default();
+    // 一次性迁移：旧默认正则（REQ/BUG/TASK 前缀）→ 项目无关新默认
+    if s.link_pattern == LEGACY_LINK_PATTERN {
+        s.link_pattern = DEFAULT_LINK_PATTERN.to_string();
+    }
+    s
 }
 
 pub fn save_settings(app: &tauri::AppHandle, s: &Settings) -> Result<(), String> {

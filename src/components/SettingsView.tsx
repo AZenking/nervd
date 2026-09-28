@@ -14,6 +14,7 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
     allowWriteOps: false,
   });
   const [repos, setRepos] = useState<{ id: number; name: string; pathWithNamespace?: string }[]>([]);
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
@@ -83,8 +84,24 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
         <input className="input" value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })} placeholder="60de7a68…" />
       </div>
       <div className="field">
-        <label>默认项目空间 ID</label>
-        <input className="input" value={form.defaultSpaceIdentifier} onChange={(e) => setForm({ ...form, defaultSpaceIdentifier: e.target.value })} placeholder="8fb83deb…" />
+        <label>默认项目空间</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input className="input" value={form.defaultSpaceIdentifier} onChange={(e) => setForm({ ...form, defaultSpaceIdentifier: e.target.value })} placeholder="先保存令牌后拉取，或手填项目标识" />
+          <button className="btn btn-sm" onClick={async () => {
+            try {
+              const list = await api.listProjects();
+              setProjects(list);
+              if (!list.length) setTestResult('未返回项目（检查令牌权限/组织）');
+            } catch (e) { setTestResult(`项目拉取失败：${String(e)}`); }
+          }}>拉取项目</button>
+        </div>
+        {projects.length > 0 && (
+          <select className="select" style={{ marginTop: 6 }} value={form.defaultSpaceIdentifier}
+            onChange={(e) => setForm({ ...form, defaultSpaceIdentifier: e.target.value })}>
+            <option value="">— 选择项目 —</option>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}（{p.id}）</option>)}
+          </select>
+        )}
       </div>
       <div className="field">
         <label>关联正则（分支/commit/MR 标题 → 工作项）</label>
