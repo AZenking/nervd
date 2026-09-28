@@ -38,6 +38,7 @@ pub fn run() {
             commands::save_pat,
             commands::delete_pat,
             commands::check_connection,
+            commands::list_projects,
             commands::list_workitems,
             commands::get_workitem,
             commands::list_workitem_comments,
