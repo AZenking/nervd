@@ -217,8 +217,14 @@ export const useApp = create<AppStore>((set, get) => ({
   async loadPipelines() {
     try {
       const pipelines = await api.listPipelines(20);
-      set({ pipelines });
-      for (const p of pipelines.slice(0, 10)) void get().loadRuns(p.pipelineId);
+      // 并行拉齐全部运行后一次性提交，避免逐条 set 造成 UI 连续刷新
+      const entries = await Promise.all(
+        pipelines.slice(0, 10).map(async (p) => {
+          const runs = await api.listPipelineRuns(p.pipelineId, 5).catch(() => []);
+          return [p.pipelineId, runs] as const;
+        }),
+      );
+      set({ pipelines, runsByPipeline: Object.fromEntries(entries) });
     } catch {
       /* 静默：流水线区失败不阻塞主流程 */
     }
