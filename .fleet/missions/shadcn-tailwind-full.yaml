@@ -1,0 +1,79 @@
+id: shadcn-tailwind-full
+goal: 将 nervd 前端 UI 从手写 theme.css 一次性迁移到 shadcn/ui（Base UI 底层）+ Tailwind CSS v4，保留 Hangar Control 工业暗色主题设计 token，pnpm build 零错误
+planningMode: execution
+maxReviewLoops: 2
+plan:
+  summary: 单任务全量执行：Tailwind v4 接入 → shadcn init + 组件 → token 映射 → 组件迁移 → 构建验证，一轮完成全部五阶段
+  rationale: docs/ui-selection.md 方案 B；多任务 DAG 下审阅者按 mission 整体裁决会打回部分工作（结构性矛盾），收敛为单任务
+requirements:
+  - id: req-tw4
+    text: Tailwind CSS v4 + @tailwindcss/vite 接入 Vite 8（CSS-first，无 tailwind.config.js）
+  - id: req-shadcn
+    text: shadcn/ui Base UI 底层 init，组件源码入库 src/components/ui/，别名 @/*
+  - id: req-theme
+    text: Hangar Control token 全量映射到 shadcn 语义变量（@theme inline）；IBM Plex、13px、radius 0、网格纹理、--sig-* 保留
+  - id: req-migrate
+    text: App.tsx 与 10 个组件迁移 shadcn + Tailwind；store/lib/types 与 IPC 零改动
+  - id: req-ux
+    text: Toast 队列化；WriteOpButton 加 Tooltip 与 AlertDialog 确认；allowWriteOps 门控保持
+  - id: req-build
+    text: pnpm build（tsc && vite build）零错误
+constraints:
+  - kind: maxDurationMs
+    value: 1500000
+tasks:
+  - id: full-migration
+    agentRole: reason
+    goal: |
+      在本仓（Tauri2 + React19 + Vite8 + zustand + lucide-react，包管理器 pnpm，macOS）一次性完成 shadcn/ui + Tailwind v4 全量迁移，共五阶段按序执行：
+
+      阶段一 · Tailwind v4 接入：
+      1) pnpm add tailwindcss @tailwindcss/vite；
+      2) vite.config.ts 注册 tailwindcss() 插件；
+      3) src/styles/theme.css 顶部（@fontsource import 之前）追加 `@import "tailwindcss";`；
+      4) 不创建 tailwind.config.js。
+
+      阶段二 · shadcn init：
+      1) tsconfig.json 与 tsconfig.node.json 的 compilerOptions 加 baseUrl "." 与 paths {"@/*":["./src/*"]}；vite.config.ts 加 resolve.alias '@' → src（path.resolve）；
+      2) pnpm dlx shadcn@latest init 非交互完成：底层 base（Base UI）、Vite、RSC=false、tsx，样式任选（阶段三会覆盖 token）；
+      3) pnpm dlx shadcn@latest add button input label textarea select checkbox switch dialog alert-dialog tooltip toast badge tabs separator scroll-area skeleton field card；
+      4) 确认 src/components/ui/ 组件齐全、cn() 就位。
+
+      阶段三 · 主题 token 映射（theme.css 现值）：
+      bg-0 #0b0e13 / bg-1 #11151d / bg-2 #181d28 / bg-3 #202634 / line #262d3d / line-strong #333c50 / ink-0 #e8ecf4 / ink-1 #9aa4b8 / ink-2 #5c6678 / accent #ff8a3d / sig-run #ffb454 / sig-ok #4ade80 / sig-fail #f87171 / sig-idle #6b7280。落位：
+      --background:#0b0e13；--card:#11151d；--popover:#181d28；--muted:#181d28、--muted-foreground:#9aa4b8；--foreground:#e8ecf4；--secondary:#202634、--secondary-foreground:#9aa4b8；--border:#262d3d、--input:#262d3d、--ring:#ff8a3d；--primary:#ff8a3d、--primary-foreground:#0b0e13；--destructive:#f87171；--radius:0px；
+      保留 --sig-run/--sig-ok/--sig-fail/--sig-idle 与 --rail-w:208px；保留 @fontsource IBM Plex import，--font-sans/--font-mono 指向 IBM Plex；body 13px、repeating-linear-gradient 双向 24px 网格背景、方形滚动条保留；用 `@theme inline` 暴露工具类。
+
+      阶段四 · 组件迁移（先读 /Users/charles/.agents/skills/shadcn/rules/ 下 styling.md/forms.md/composition.md/icons.md/base-vs-radix.md 并遵循：gap-* 禁 space-y-*；size-*；FieldGroup/Field 表单；Dialog/AlertDialog 必含 Title；按钮图标 data-icon 无尺寸类；语义 token 禁裸色值；Base UI 用 render 替代 asChild；浮层不手写 z-index）：
+      - SettingsView → FieldGroup/Field + Input/Select/Checkbox/Switch + Button（保存/测试连接/重新拉取）；
+      - WriteOpButton → Button + Tooltip，触发流水线等写操作经 AlertDialog 二次确认，allowWriteOps=false 置灰保持；
+      - Shell → ToastHost 改可堆叠 Base UI toast 队列；顶栏三栏 Tailwind 重排，侧栏 208px；
+      - WorkitemDetail/TracePane/PipelineCard → Card/Badge/Tabs/Separator，状态色 --sig-*；
+      - LogViewer → ScrollArea + font-mono；Sidebar 保持列表语义与选中态；StatusDot → --sig-* 圆点/Badge；App.tsx booting → Skeleton/Spinner；
+      - 删除 theme.css 中 .btn/.input/.select/.toast 等被替代的旧原子样式，全仓无引用残留；
+      - src/store/、src/lib/、src/types/ 零改动，invoke IPC 调用保持原语义。
+
+      阶段五 · 验证收口：
+      pnpm build 直到退出码 0；grep 自查无 space-y-*、TSX 无裸色值类、Dialog/AlertDialog 均有 Title、无 asChild 残留。
+
+      【契约 · 必读】全部完成后禁止 git commit / stash / reset——所有改动保留在工作区未提交状态（git status --short 非空），fleet 会自动暂存、提交并合并主仓。
+      完成判据（审阅按此核对，勿额外加码）：上列五阶段产物齐备；pnpm build 退出码 0；改动留在工作区。
+acceptance:
+  - given: 全量迁移完成
+    when: pnpm build
+    then: tsc 与 vite build 零错误
+  - given: shadcn 就位
+    when: 检查 components.json 与 src/components/ui/
+    then: base 为 Base UI 系，button/input/select/dialog/alert-dialog/tooltip/toast 等组件在库
+  - given: 主题映射完成
+    when: 检查全局 CSS
+    then: 语义变量与 Hangar Control token 一一对应，radius 0px，IBM Plex 与网格纹理保留
+  - given: 组件迁移完成
+    when: 审查 git diff
+    then: 组件用 shadcn + Tailwind，src/store、src/lib、src/types 无改动
+  - given: ToastHost 迁移完成
+    when: 审查实现
+    then: 可堆叠队列（非单条覆盖）
+  - given: allowWriteOps=false
+    when: 审查 WriteOpButton
+    then: 置灰保持且有 AlertDialog 二次确认
