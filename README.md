@@ -11,6 +11,7 @@
 ## 技术栈
 
 - **Tauri 2**（Rust 后端）+ **React 19 + TypeScript** + zustand
+- UI：**shadcn/ui（Base UI 底层）+ Tailwind CSS v4**，Hangar Control 工业暗色主题（IBM Plex / 13px 密排 / 直角）
 - 云效 OpenAPI（ROA REST，`devops.cn-hangzhou.aliyuncs.com`）直连，个人访问令牌（PAT）鉴权
 - 凭证存 macOS Keychain；写操作按 `allowWriteOps` 门控（只读令牌可安全使用）
 
