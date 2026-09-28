@@ -1,5 +1,6 @@
 import { useApp } from '../store/app';
 import type { PipelineRunSummary } from '../types';
+import { Button } from '@/components/ui/button';
 import { StatusDot } from './StatusDot';
 import { WriteOpButton } from './WriteOpButton';
 import * as api from '../lib/api';
@@ -30,10 +31,10 @@ export function PipelineCard({
   };
 
   return (
-    <div className="trace-item" style={{ display: 'block', padding: '8px 10px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div className="border-l-2 border-line bg-bg-1 px-2.5 py-2">
+      <div className="flex items-center gap-2">
         <StatusDot status={latest?.status} />
-        <span className="grow" style={{ color: 'var(--ink-0)' }}>{pipelineName}</span>
+        <span className="min-w-0 flex-1 truncate text-ink-0">{pipelineName}</span>
         <WriteOpButton
           label="运行"
           title={`触发 ${pipelineName}`}
@@ -45,12 +46,18 @@ export function PipelineCard({
             } catch (e) { setToast({ text: String(e), kind: 'fail' }); }
           }}
         />
-        <button className="btn btn-sm" disabled={!latest} onClick={() => void openLatestLogs()}>日志</button>
+        <Button variant="outline" size="sm" disabled={!latest} onClick={() => void openLatestLogs()}>
+          日志
+        </Button>
       </div>
       {latest && (
-        <div className="mono muted" style={{ fontSize: 11, marginTop: 4 }}>
-          #{latest.pipelineRunId} · {latest.status} · {TRIGGER[latest.triggerMode ?? 0] ?? '—'}
-          {latest.endTime ? ` · ${new Date(latest.endTime).toLocaleString('zh-CN', { hour12: false })}` : ''}
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-ink-2">
+          <span>#{latest.pipelineRunId}</span>
+          <span>· {latest.status}</span>
+          <span>· {TRIGGER[latest.triggerMode ?? 0] ?? '—'}</span>
+          {latest.endTime && (
+            <span>· {new Date(latest.endTime).toLocaleString('zh-CN', { hour12: false })}</span>
+          )}
         </div>
       )}
     </div>
