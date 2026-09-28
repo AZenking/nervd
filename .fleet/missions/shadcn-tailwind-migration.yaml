@@ -1,0 +1,92 @@
+id: shadcn-tailwind-migration
+goal: 将 nervd 前端 UI 从手写 theme.css 迁移到 shadcn/ui（Base UI 底层）+ Tailwind CSS v4，完整保留 Hangar Control 工业暗色主题，pnpm build 零错误
+planningMode: execution
+plan:
+  summary: 五步执行：Tailwind v4 接入 → shadcn init（base 底层）+ 组件添加 → 工业 token 映射到 shadcn 语义变量 → 全部组件迁移 → 构建验证与合规修复
+  rationale: docs/ui-selection.md 调研结论的方案 B，用户 2026-09-28 确认直接执行
+requirements:
+  - id: req-tw4
+    text: Tailwind CSS v4 + @tailwindcss/vite 插件接入 Vite 8（CSS-first 配置，不产生 tailwind.config.js），vite build 通过
+  - id: req-shadcn-init
+    text: shadcn/ui 以 Base UI 为底层完成 init（components.json 落地，别名 @/*），button/input/label/textarea/select/checkbox/switch/dialog/alert-dialog/tooltip/toast/badge/tabs/separator/scroll-area/skeleton/field/card 组件源码入库 src/components/ui/
+  - id: req-theme
+    text: theme.css 的 Hangar Control token 全量映射到 shadcn 语义 CSS 变量（@theme inline），保留 IBM Plex 字体、13px 密排、直角（radius 0）、body 网格纹理、--sig-* 信号色；视觉零回归
+  - id: req-migrate
+    text: App.tsx 与 10 个组件（Shell/Sidebar/WorkitemDetail/TracePane/LogViewer/PipelineCard/SettingsView/StatusDot/WriteOpButton）迁移到 shadcn 组件 + Tailwind 工具类；zustand store、src/lib、IPC 调用与类型契约零改动
+  - id: req-ux-upgrade
+    text: Toast 单条覆盖改为队列；WriteOpButton 加 Tooltip，触发类写操作经 AlertDialog 二次确认；allowWriteOps=false 时写按钮置灰与 IPC 双重门控保持
+  - id: req-build
+    text: pnpm build（tsc && vite build）零错误
+constraints:
+  - kind: maxDurationMs
+    value: 1200000
+tasks:
+  - id: tw-setup
+    agentRole: reflex
+    goal: |
+      在 nervd 仓（Tauri2+React19+Vite8，包管理器 pnpm）接入 Tailwind CSS v4：
+      1) pnpm add tailwindcss @tailwindcss/vite；
+      2) vite.config.ts 注册 tailwindcss() 插件；
+      3) src/styles/theme.css 顶部追加 `@import "tailwindcss";`（其余内容本任务不动）；
+      4) pnpm build 验证通过后 git 提交。
+      注意：不要创建 tailwind.config.js（v4 为 CSS-first 配置）。
+  - id: shadcn-init
+    agentRole: reflex
+    dependsOn: [tw-setup]
+    goal: |
+      shadcn/ui 初始化并添加组件（全部用 pnpm dlx shadcn@latest ...）：
+      1) tsconfig.json 与 tsconfig.node.json 的 compilerOptions 增加 baseUrl "." 与 paths {"@/*":["./src/*"]}；vite.config.ts 增加 resolve.alias 将 '@' 指向 src（path.resolve）；
+      2) 非交互完成 init：底层选 base（Base UI），Vite 项目、RSC=false、tsx；样式任选（后续任务会覆盖 token）；
+      3) 依次 add：button input label textarea select checkbox switch dialog alert-dialog tooltip toast badge tabs separator scroll-area skeleton field card；
+      4) 检查 src/components/ui/ 文件齐全、lib/utils 的 cn() 就位、import 路径正确；pnpm build 通过后 git 提交。
+  - id: theme-map
+    agentRole: reflex
+    dependsOn: [shadcn-init]
+    goal: |
+      把 theme.css 的 Hangar Control 工业主题映射到 shadcn 语义 token（视觉零回归）。原 token 参考（theme.css 现值）：
+      bg-0 #0b0e13 / bg-1 #11151d / bg-2 #181d28 / bg-3 #202634 / line #262d3d / line-strong #333c50 / ink-0 #e8ecf4 / ink-1 #9aa4b8 / ink-2 #5c6678 / accent #ff8a3d / sig-run #ffb454 / sig-ok #4ade80 / sig-fail #f87171 / sig-idle #6b7280。
+      映射要求：
+      - background=bg-0；card=bg-1；popover=bg-2；muted=bg-2、muted-foreground=ink-1；foreground=ink-0；secondary 系用 bg-3/ink-2；border 与 input=line，强边框 line-strong；ring=accent；primary=accent（primary-foreground 用深色保证对比）；destructive=sig-fail；--radius: 0px（工业直角风格）；
+      - 保留自定义 --sig-run/--sig-ok/--sig-fail/--sig-idle 信号 token 与 --rail-w:208px；
+      - 保留 @fontsource 的 IBM Plex Sans/Mono import，--font-sans/--font-mono 指向 IBM Plex；body 13px 基准、网格纹理背景（repeating-linear-gradient 双向 24px 网格）与方形滚动条样式移入全局 CSS；
+      - 用 Tailwind v4 的 `@theme inline` 将语义变量暴露为工具类；
+      - 本任务不删除 .btn/.input/.select 等旧原子样式（下一任务组件替换完再删），只做新增映射与去重；pnpm build 通过后 git 提交。
+  - id: comp-migrate
+    agentRole: reason
+    dependsOn: [theme-map]
+    goal: |
+      迁移 App.tsx 与全部组件到 shadcn 组件 + Tailwind 工具类。先读 /Users/charles/.agents/skills/shadcn/rules/ 下 styling.md/forms.md/composition.md/icons.md/base-vs-radix.md 并严格遵循（要点：gap-* 禁 space-y-*；等宽高用 size-*；表单用 FieldGroup/Field；Dialog/AlertDialog 必须含 Title；按钮内图标用 data-icon 且不加尺寸类；语义色 token 禁裸色值；Base UI 用 render 替代 asChild；组件内不手写 z-index）：
+      - SettingsView：FieldGroup/Field + Input/Select/Checkbox/Switch + Button（保存/测试连接/重新拉取项目）；
+      - WriteOpButton：Button + Tooltip；触发流水线等写操作经 AlertDialog 二次确认；allowWriteOps=false 置灰与双重门控保持；
+      - Shell：ToastHost 改 Base UI toast 队列；顶栏与三栏布局用 Tailwind 重排，侧栏宽保持 208px；
+      - WorkitemDetail/TracePane/PipelineCard：Card/Badge/Tabs/Separator 组合；状态色用 --sig-* token；
+      - LogViewer：ScrollArea + font-mono；
+      - Sidebar：列表语义与选中态保持；
+      - StatusDot：基于 --sig-* token 的 Badge/圆点；
+      - App.tsx：booting 态用 Skeleton/Spinner；
+      - 迁移完成后删除 theme.css 中被替代的旧原子样式（.btn/.input/.select/.toast 等死代码）；
+      - zustand store、src/lib、src/types、所有 invoke IPC 调用零改动；pnpm build 通过后 git 提交。
+  - id: verify-fix
+    agentRole: reason
+    dependsOn: [comp-migrate]
+    goal: |
+      验证并修复：1) pnpm build 零错误；2) grep 全仓检查合规——无 space-y-*、无裸色值类（text-#/bg-[#...] 例外需说明）、Dialog/AlertDialog 均有 Title、图标无尺寸类、无 asChild 残留（base 底层应为 render）；3) 核对 toast 队列、写操作门控、Tooltip 就位；4) theme.css 无死代码残留；发现问题修复后复跑 build 直到全绿；5) 输出总结：变更文件清单、token 映射表、遗留事项。
+acceptance:
+  - given: Tailwind v4 已接入
+    when: pnpm build
+    then: tsc 与 vite build 零错误，dist 产物生成
+  - given: shadcn init 完成
+    when: 检查 components.json 与 src/components/ui/
+    then: base=base 且 button/input/select/dialog/alert-dialog/tooltip/toast/checkbox/switch/field 等组件源码在库
+  - given: 主题映射完成
+    when: 审查全局 CSS
+    then: 深空石墨底、琥珀 accent、IBM Plex、13px、直角、网格纹理与 --sig-* 全部保留
+  - given: 组件迁移完成
+    when: 审查 src/components/ 与 git diff
+    then: 全部组件使用 shadcn + Tailwind，store/lib/types 无改动
+  - given: 流水线完成事件
+    when: 连续触发 toast
+    then: toast 队列化展示不互相覆盖
+  - given: allowWriteOps=false
+    when: 查看写操作按钮
+    then: 置灰且 IPC 门控不变

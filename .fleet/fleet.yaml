@@ -1,2 +1,3 @@
+version: 1
 runtime:
-  roles: { reason: pi@agy/model, insight: pi@agy/model, wisdom: pi@agy/model }
+  roles: { reason: pi@agy/gemini-3.1-pro, insight: pi@agy/gemini-3.1-pro, wisdom: pi@agy/gemini-3.1-pro }
