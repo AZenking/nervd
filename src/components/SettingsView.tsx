@@ -2,6 +2,36 @@ import { useEffect, useState } from 'react';
 import * as api from '../lib/api';
 import { useApp } from '../store/app';
 import type { Settings } from '../types';
+import { RefreshCwIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
+  FieldLegend,
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 
 export function SettingsView({ embedded = false }: { embedded?: boolean }) {
   const { settings, saveAll, setToast, connection } = useApp();
@@ -91,75 +121,162 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
     }));
   };
 
+  // Base UI Select 数据源（value:null 项即占位）
+  const projectItems = [
+    {
+      label: projects.length ? '— 选择项目 —' : settings?.hasPat ? '项目加载中…/点击刷新' : '先保存令牌后自动加载',
+      value: null,
+    },
+    ...projects.map((p) => ({ label: p.name, value: p.id })),
+  ];
+
   const card = (
-    <div className="settings-card">
-      <h1>nervd 设置</h1>
-      <p className="hint">
-        个人访问令牌：云效网页 → 个人设置 → 个人访问令牌；组织 ID 在 devops.aliyun.com/organization/&lt;此处&gt;
-      </p>
+    <Card className={cn('w-full min-w-0 max-w-[560px] border-line')}>
+      <CardHeader>
+        <CardTitle className="text-base">nervd 设置</CardTitle>
+        <CardDescription>
+          个人访问令牌：云效网页 → 个人设置 → 个人访问令牌；组织 ID 在 devops.aliyun.com/organization/&lt;此处&gt;
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="pat">
+              个人访问令牌{' '}
+              {settings?.hasPat && <span className="text-sig-ok">[已保存]</span>}
+            </FieldLabel>
+            <Input
+              id="pat"
+              type="password"
+              className="font-mono"
+              value={pat}
+              onChange={(e) => setPat(e.target.value)}
+              placeholder={settings?.hasPat ? '已保存（留空则不修改）' : 'agp_…'}
+            />
+          </Field>
 
-      <div className="field">
-        <label>个人访问令牌 {settings?.hasPat && <span style={{ color: 'var(--sig-ok)' }}>[已保存]</span>}</label>
-        <input className="input" type="password" value={pat} onChange={(e) => setPat(e.target.value)}
-          placeholder={settings?.hasPat ? '已保存（留空则不修改）' : 'agp_…'} />
-      </div>
-      <div className="field">
-        <label>组织 ID</label>
-        <input className="input" value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })} placeholder="60de7a68…" />
-      </div>
-      <div className="field">
-        <label>默认项目空间</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <select className="select" style={{ flex: 1 }} value={form.defaultSpaceIdentifier}
-            onChange={(e) => setForm({ ...form, defaultSpaceIdentifier: e.target.value })}>
-            <option value="">
-              {projects.length ? '— 选择项目 —' : settings?.hasPat ? '项目加载中…/点击刷新' : '先保存令牌后自动加载'}
-            </option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <button className="btn btn-sm" title="重新拉取项目列表" onClick={() => void loadProjects()}>↻</button>
-        </div>
-      </div>
-      <div className="field">
-        <label>关联正则（分支/commit/MR 标题 → 工作项）</label>
-        <input className="input" value={form.linkPattern} onChange={(e) => setForm({ ...form, linkPattern: e.target.value })} />
-      </div>
+          <Field>
+            <FieldLabel htmlFor="org">组织 ID</FieldLabel>
+            <Input
+              id="org"
+              className="font-mono"
+              value={form.organizationId}
+              onChange={(e) => setForm({ ...form, organizationId: e.target.value })}
+              placeholder="60de7a68…"
+            />
+          </Field>
 
-      <div className="field">
-        <label>追溯仓库（勾选后参与需求关联扫描{repos.length ? ` · ${repos.length} 个` : ''}）</label>
-        <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--line)', padding: 6 }}>
-          {repos.map((r) => (
-            <label key={r.id} className="checkline">
-              <input type="checkbox" checked={form.watchedRepos.includes(r.id)} onChange={() => toggleRepo(r.id)} />
-              <span className="mono" style={{ fontSize: 11 }}>{r.pathWithNamespace || r.name}</span>
-            </label>
-          ))}
-          {!repos.length && <div className="muted" style={{ fontSize: 11 }}>{settings?.hasPat ? '仓库加载中…' : '先保存令牌后自动加载'}</div>}
-        </div>
-      </div>
+          <Field>
+            <FieldLabel htmlFor="space">默认项目空间</FieldLabel>
+            <div className="flex gap-2">
+              <Select
+                items={projectItems}
+                value={form.defaultSpaceIdentifier}
+                onValueChange={(v) => setForm({ ...form, defaultSpaceIdentifier: v ?? '' })}
+              >
+                <SelectTrigger id="space" className="min-w-0 flex-1 font-mono">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {projectItems.map((it) => (
+                      <SelectItem key={it.value ?? '__placeholder__'} value={it.value}>
+                        {it.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                title="重新拉取项目列表"
+                aria-label="重新拉取项目列表"
+                onClick={() => void loadProjects()}
+              >
+                <RefreshCwIcon />
+              </Button>
+            </div>
+          </Field>
 
-      <label className="checkline">
-        <input type="checkbox" checked={form.allowWriteOps} onChange={(e) => setForm({ ...form, allowWriteOps: e.target.checked })} />
-        允许写操作（建分支 / MR / 合并 / 触发流水线 / 回写状态 —— 需写权限令牌）
-      </label>
+          <Field>
+            <FieldLabel htmlFor="pattern">关联正则（分支/commit/MR 标题 → 工作项）</FieldLabel>
+            <Input
+              id="pattern"
+              className="font-mono"
+              value={form.linkPattern}
+              onChange={(e) => setForm({ ...form, linkPattern: e.target.value })}
+            />
+          </Field>
 
-      <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-        <button className="btn btn-primary" disabled={saving} onClick={() => void save()}>{saving ? '保存中…' : '保存'}</button>
-        <button className="btn" onClick={() => void test()}>测试连接</button>
-        {connection === 'ok' && <span className="mono" style={{ color: 'var(--sig-ok)', alignSelf: 'center', fontSize: 11 }}>● 已连接</span>}
-      </div>
-      {testResult && <p className="mono" style={{ fontSize: 11, marginTop: 10, color: 'var(--ink-1)' }}>{testResult}</p>}
-    </div>
+          <Field>
+            <FieldLabel>追溯仓库（勾选后参与需求关联扫描{repos.length ? ` · ${repos.length} 个` : ''}）</FieldLabel>
+            <ScrollArea className="h-45 rounded-none border border-line">
+              <div className="flex flex-col gap-1 p-1.5">
+                {repos.map((r) => (
+                  <label
+                    key={r.id}
+                    className="flex cursor-pointer items-center gap-2 py-0.5 text-xs text-ink-1"
+                  >
+                    <Checkbox
+                      checked={form.watchedRepos.includes(r.id)}
+                      onCheckedChange={() => toggleRepo(r.id)}
+                    />
+                    <span className="font-mono text-[11px]">{r.pathWithNamespace || r.name}</span>
+                  </label>
+                ))}
+                {!repos.length && (
+                  <div className="p-1 text-[11px] text-ink-2">
+                    {settings?.hasPat ? '仓库加载中…' : '先保存令牌后自动加载'}
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </Field>
+
+          <FieldSet>
+            <FieldLegend variant="label">写操作</FieldLegend>
+            <Field orientation="horizontal">
+              <Switch
+                id="allow-write-ops"
+                checked={form.allowWriteOps}
+                onCheckedChange={(v) => setForm({ ...form, allowWriteOps: v })}
+              />
+              <FieldLabel htmlFor="allow-write-ops" className="font-normal text-xs">
+                允许写操作（建分支 / MR / 合并 / 触发流水线 / 回写状态 —— 需写权限令牌）
+              </FieldLabel>
+              <FieldDescription className="sr-only">写操作门控开关</FieldDescription>
+            </Field>
+          </FieldSet>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <Button disabled={saving} onClick={() => void save()}>
+              {saving ? '保存中…' : '保存'}
+            </Button>
+            <Button variant="outline" onClick={() => void test()}>
+              测试连接
+            </Button>
+            {connection === 'ok' && (
+              <span className="self-center font-mono text-[11px] text-sig-ok">● 已连接</span>
+            )}
+          </div>
+          {testResult && <p className="mt-2.5 font-mono text-[11px] text-ink-1">{testResult}</p>}
+        </FieldGroup>
+      </CardContent>
+    </Card>
   );
 
   if (embedded) return card;
   return (
     <>
-      <div className="topbar">
-        <span className="brand">nervd</span>
-        <span className="meta">初始配置</span>
+      <div className="flex h-9 shrink-0 items-center gap-3.5 border-b border-line bg-card px-3 select-none">
+        <span className="flex items-center gap-2 font-mono text-[13px] font-medium tracking-wide text-ink-0">
+          <span className="inline-block size-[7px] translate-y-px bg-primary" />
+          nervd
+        </span>
+        <span className="font-mono text-[11px] text-ink-2">初始配置</span>
       </div>
-      <div className="settings-wrap">{card}</div>
+      <div className="flex h-[calc(100%-36px)] justify-center overflow-y-auto py-10 px-5">{card}</div>
     </>
   );
 }
