@@ -23,7 +23,7 @@ constraints:
     value: 1200000
 tasks:
   - id: tw-setup
-    agentRole: reflex
+    agentRole: reason
     goal: |
       在本仓（Tauri2+React19+Vite8，包管理器 pnpm）接入 Tailwind CSS v4。逐步执行：
       1) pnpm add tailwindcss @tailwindcss/vite；
@@ -33,7 +33,7 @@ tasks:
       禁止创建 tailwind.config.js（v4 为 CSS-first）。
       完成判据（审阅按此核对 diff，勿额外加码）：package.json dependencies 含 tailwindcss 与 @tailwindcss/vite；vite.config.ts 有 tailwindcss() 插件注册；theme.css 首部有该 import；pnpm build 退出码 0；有 git commit。
   - id: shadcn-init
-    agentRole: reflex
+    agentRole: reason
     dependsOn: [tw-setup]
     goal: |
       shadcn/ui 初始化并添加组件（全部用 pnpm dlx shadcn@latest ...）：
@@ -43,7 +43,7 @@ tasks:
       4) pnpm build 通过后 git commit。
       完成判据（审阅按此核对，勿额外加码）：components.json 存在且 base 指向 Base UI 系；src/components/ui/ 下存在上列组件文件且可被 import；src/lib/utils.ts（或等价位置）有 cn()；tsconfig paths 生效；pnpm build 退出码 0；有 git commit。
   - id: theme-map
-    agentRole: reflex
+    agentRole: reason
     dependsOn: [shadcn-init]
     goal: |
       把 theme.css 的 Hangar Control 工业主题映射到 shadcn 语义 token。原值：bg-0 #0b0e13 / bg-1 #11151d / bg-2 #181d28 / bg-3 #202634 / line #262d3d / line-strong #333c50 / ink-0 #e8ecf4 / ink-1 #9aa4b8 / ink-2 #5c6678 / accent #ff8a3d / sig-run #ffb454 / sig-ok #4ade80 / sig-fail #f87171 / sig-idle #6b7280。
