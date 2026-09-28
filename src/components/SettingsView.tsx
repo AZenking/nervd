@@ -25,6 +25,25 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
     }
   }, [settings]);
 
+  // 已配置令牌时自动拉取项目与仓库列表，下拉/勾选直接可用
+  useEffect(() => {
+    if (settings?.hasPat && settings.organizationId) {
+      void loadProjects();
+      void loadRepos();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.hasPat, settings?.organizationId]);
+
+  const loadProjects = async () => {
+    try {
+      const list = await api.listProjects();
+      setProjects(list);
+      if (!list.length) setTestResult('未返回项目（检查令牌权限/组织）');
+    } catch (e) {
+      setTestResult(`项目拉取失败：${String(e)}`);
+    }
+  };
+
   const loadRepos = async () => {
     try {
       const list = await api.listRepos();
@@ -91,22 +110,15 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
       <div className="field">
         <label>默认项目空间</label>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input className="input" value={form.defaultSpaceIdentifier} onChange={(e) => setForm({ ...form, defaultSpaceIdentifier: e.target.value })} placeholder="先保存令牌后拉取，或手填项目标识" />
-          <button className="btn btn-sm" onClick={async () => {
-            try {
-              const list = await api.listProjects();
-              setProjects(list);
-              if (!list.length) setTestResult('未返回项目（检查令牌权限/组织）');
-            } catch (e) { setTestResult(`项目拉取失败：${String(e)}`); }
-          }}>拉取项目</button>
-        </div>
-        {projects.length > 0 && (
-          <select className="select" style={{ marginTop: 6 }} value={form.defaultSpaceIdentifier}
+          <select className="select" style={{ flex: 1 }} value={form.defaultSpaceIdentifier}
             onChange={(e) => setForm({ ...form, defaultSpaceIdentifier: e.target.value })}>
-            <option value="">— 选择项目 —</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}（{p.id}）</option>)}
+            <option value="">
+              {projects.length ? '— 选择项目 —' : settings?.hasPat ? '项目加载中…/点击刷新' : '先保存令牌后自动加载'}
+            </option>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-        )}
+          <button className="btn btn-sm" title="重新拉取项目列表" onClick={() => void loadProjects()}>↻</button>
+        </div>
       </div>
       <div className="field">
         <label>关联正则（分支/commit/MR 标题 → 工作项）</label>
@@ -114,16 +126,15 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
       </div>
 
       <div className="field">
-        <label>追溯仓库（勾选后参与需求关联扫描）</label>
-        <button className="btn btn-sm" onClick={() => void loadRepos()}>拉取仓库列表</button>
-        <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--line)', padding: 6, marginTop: 6 }}>
+        <label>追溯仓库（勾选后参与需求关联扫描{repos.length ? ` · ${repos.length} 个` : ''}）</label>
+        <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--line)', padding: 6 }}>
           {repos.map((r) => (
             <label key={r.id} className="checkline">
               <input type="checkbox" checked={form.watchedRepos.includes(r.id)} onChange={() => toggleRepo(r.id)} />
               <span className="mono" style={{ fontSize: 11 }}>{r.pathWithNamespace || r.name}</span>
             </label>
           ))}
-          {!repos.length && <div className="muted" style={{ fontSize: 11 }}>先保存令牌后拉取</div>}
+          {!repos.length && <div className="muted" style={{ fontSize: 11 }}>{settings?.hasPat ? '仓库加载中…' : '先保存令牌后自动加载'}</div>}
         </div>
       </div>
 
