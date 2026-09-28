@@ -1,3 +1,4 @@
 version: 1
 runtime:
-  roles: { reason: pi@agy/gemini-3.1-pro, insight: pi@agy/gemini-3.1-pro, wisdom: pi@agy/gemini-3.1-pro }
+  default: pi@zai-coding-cn/glm-5.2
+  roles: { reflex: pi@zai-coding-cn/glm-5.2, focus: pi@zai-coding-cn/glm-5.2, reason: pi@zai-coding-cn/glm-5.2, insight: pi@zai-coding-cn/glm-5.2, wisdom: pi@zai-coding-cn/glm-5.2 }
