@@ -436,5 +436,71 @@
     "seen": 1790581936.696394,
     "ast_hash": "f0402b67b6ce880f65666bb49e841696",
     "semantic_hash": ""
+  },
+  ".fleet/fleet.yaml": {
+    "mtime": 1790581946.4701989,
+    "seen": 1790581948.4469068,
+    "ast_hash": "785239bf5a3962cf87bf3a9d10b62e79",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/architecture/README.md": {
+    "mtime": 1790581938.4760292,
+    "seen": 1790581948.446908,
+    "ast_hash": "03655eac09af33c879936e2affd1fbc5",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/architecture/overview.md": {
+    "mtime": 1790581938.6210027,
+    "seen": 1790581948.446909,
+    "ast_hash": "a4e77b84ebb56be9066527ce75863ce5",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/decisions/DECISION-TEMPLATE.md": {
+    "mtime": 1790581938.4766803,
+    "seen": 1790581948.44691,
+    "ast_hash": "45fc1290f61ff50f13f3aa3f0f79e37a",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/decisions/README.md": {
+    "mtime": 1790581938.4765286,
+    "seen": 1790581948.44691,
+    "ast_hash": "edd077c14bbd40cae0954ba6f715c894",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/domains/README.md": {
+    "mtime": 1790581938.476227,
+    "seen": 1790581948.4469109,
+    "ast_hash": "f9268ae34d7e982c8e9f755275f9f714",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/domains/assets.md": {
+    "mtime": 1790581938.621169,
+    "seen": 1790581948.4469109,
+    "ast_hash": "8452cec81f9c76bb4fc174acf0db720f",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/glossary.md": {
+    "mtime": 1790581938.4774108,
+    "seen": 1790581948.446912,
+    "ast_hash": "bbe74fa2351e4bdb6815e26624274432",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/index.md": {
+    "mtime": 1790581938.6231022,
+    "seen": 1790581948.446912,
+    "ast_hash": "cae129e4c82f124726079d5d12ad81d3",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/infrastructure/README.md": {
+    "mtime": 1790581938.4763954,
+    "seen": 1790581948.446913,
+    "ast_hash": "be6df7aa70bf2e9b27e91a2032e8469e",
+    "semantic_hash": ""
+  },
+  ".fleet/wiki/infrastructure/tooling.md": {
+    "mtime": 1790581938.6212897,
+    "seen": 1790581948.446914,
+    "ast_hash": "83f240168bd0ff44cab39f71a72f2218",
+    "semantic_hash": ""
   }
 }

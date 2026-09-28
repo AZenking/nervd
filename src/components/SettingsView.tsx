@@ -47,6 +47,11 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
   };
 
   const save = async () => {
+    const space = form.defaultSpaceIdentifier.trim();
+    if (space && !/^[0-9a-f]{16,}$/i.test(space)) {
+      setTestResult(`✗ 项目空间必须是下拉选择的项目 ID（当前 "${space}" 像是名字）——点「拉取项目」后从下拉选`);
+      return;
+    }
     setSaving(true);
     try {
       await saveAll(form, pat.trim() || undefined);

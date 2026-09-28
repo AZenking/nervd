@@ -1,12 +1,12 @@
 # Graph Report - nervd  (2026-09-28)
 
 ## Corpus Check
-- 55 files · ~6,390 words
+- 65 files · ~6,765 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 5457 file(s) not represented in the graph (top: (none) 5454, .icns 1, .ico 1)
 
 ## Summary
-- 152 nodes · 138 edges · 22 communities (11 shown, 11 thin omitted)
+- 182 nodes · 167 edges · 24 communities (13 shown, 11 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
@@ -28,18 +28,20 @@
 - Tauri + React + Typescript
 - 26872cce6206f89dc0718ecf64caffef60d656a098912a1bb89ff21fb92e4226468d7592aa20b3c5f4f21454d09d06fde0cb674b2f7e5fae4b1f138bcd9cec-exec
 - scaffold-tmp
+- index.md
+- Repository Wiki
 
 ## God Nodes (most connected - your core abstractions)
 1. `compilerOptions` - 16 edges
 2. `compilerOptions` - 6 edges
-3. `scripts` - 5 edges
-4. `build` - 5 edges
-5. `bundle` - 4 edges
-6. `react` - 3 edges
-7. `app` - 3 edges
-8. `App()` - 3 edges
-9. `../dist/node/cli.js` - 2 edges
-10. `@vitejs/plugin-react` - 2 edges
+3. `Repository Wiki` - 6 edges
+4. `scripts` - 5 edges
+5. `build` - 5 edges
+6. `bundle` - 4 edges
+7. `ADR-NNN：<决策标题>` - 4 edges
+8. `react` - 3 edges
+9. `app` - 3 edges
+10. `App()` - 3 edges
 
 ## Surprising Connections (you probably didn't know these)
 - None detected - all connections are within the same source files.
@@ -47,7 +49,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (22 total, 11 thin omitted)
+## Communities (24 total, 11 thin omitted)
 
 ### Community 0 - "yunxiao-api.md"
 Cohesion: 0.09
@@ -93,22 +95,30 @@ Nodes (5): scripts, build, dev, preview, tauri
 Cohesion: 0.50
 Nodes (3): binStem, cli, path
 
+### Community 22 - "index.md"
+Cohesion: 0.08
+Nodes (14): src/ 一级结构（`src`）, 仓库总览, architecture 分区, ADR-NNN：<决策标题>, 决策, 后果, 背景, decisions 分区 (+6 more)
+
+### Community 23 - "Repository Wiki"
+Cohesion: 0.33
+Nodes (6): architecture, decisions, domains, glossary, infrastructure, Repository Wiki
+
 ## Knowledge Gaps
-- **100 isolated node(s):** `../dist/cli.mjs`, `name`, `private`, `version`, `type` (+95 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 122 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **116 isolated node(s):** `../dist/cli.mjs`, `name`, `private`, `version`, `type` (+111 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 138 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `dependencies` connect `dependencies` to `package.json`?**
-  _High betweenness centrality (0.033) - this node is a cross-community bridge._
-- **Why does `devDependencies` connect `devDependencies` to `package.json`?**
   _High betweenness centrality (0.023) - this node is a cross-community bridge._
+- **Why does `devDependencies` connect `devDependencies` to `package.json`?**
+  _High betweenness centrality (0.016) - this node is a cross-community bridge._
 - **Why does `scripts` connect `scripts` to `package.json`?**
-  _High betweenness centrality (0.015) - this node is a cross-community bridge._
+  _High betweenness centrality (0.011) - this node is a cross-community bridge._
 - **What connects `../dist/cli.mjs`, `name`, `private` to the rest of the system?**
-  _100 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _116 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `yunxiao-api.md` be split into smaller, more focused modules?**
   _Cohesion score 0.09090909090909091 - nodes in this community are weakly interconnected._
 - **Should `package.json` be split into smaller, more focused modules?**
