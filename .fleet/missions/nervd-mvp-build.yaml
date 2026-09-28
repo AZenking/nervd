@@ -1,0 +1,41 @@
+id: nervd-mvp-build
+goal: 并发实现 nervd（Tauri2+React 云效需求维度 CI/CD 工作台）MVP 四大模块——Rust 后端、TS 数据层、UI 视图、工业风主题
+planningMode: execution
+plan:
+  summary: 以仓库内 docs/ipc-contract.md 为冻结契约，四个文件面互不相交的写任务并发执行，结束后由主会话做集成构建
+  rationale: 契约与共享类型 src/types.ts 已由主会话提交（commit cb80690），任务只按分区实现，无协调需求
+requirements:
+  - id: r1
+    text: 严格遵循 docs/ipc-contract.md 的文件所有权（§1）、API 端点（§3）、命令清单（§4）、类型（src/types.ts 冻结）
+  - id: r2
+    text: rust-backend 交付 yunxiao.rs/commands.rs/credentials.rs/poller.rs/lib.rs 且 src-tauri 下 cargo check 通过
+  - id: r3
+    text: ts-datalayer 交付 src/lib/api.ts、src/lib/link.ts、src/store/app.ts，不得新增 npm 依赖
+  - id: r4
+    text: ui-views 交付 src/components/* 与 App.tsx/main.tsx，写操作按钮用 WriteOpButton 门控
+  - id: r5
+    text: theme-css 交付 src/styles/theme.css（§7 设计令牌 + IBM Plex 字体接入）并改 index.html 标题为 nervd
+constraints:
+  - kind: maxDurationMs
+    value: 3600000
+tasks:
+  - id: rust-backend
+    goal: 按契约 §2-§4 实现 src-tauri 全部 Rust 模块（YunxiaoClient ROA REST + 22 个 Tauri 命令 + keyring PAT + settings.json + 轮询通知），注册进 generate_handler!，cargo check 通过
+    agentRole: reason
+    dependsOn: []
+  - id: ts-datalayer
+    goal: 按契约 §5 实现 src/lib/api.ts（22 命令 invoke 包装）、src/lib/link.ts（extractWorkItemKeys）、src/store/app.ts（zustand），pnpm exec tsc --noEmit 通过
+    agentRole: reason
+    dependsOn: []
+  - id: ui-views
+    goal: 按契约 §6 实现 Shell 三栏布局、Sidebar 列表过滤分页、WorkitemDetail、TracePane 追溯链路、PipelineCard、LogViewer、WriteOpButton 门控、SettingsView 引导页、StatusDot，App/main 接线，tsc --noEmit 通过
+    agentRole: reason
+    dependsOn: []
+  - id: theme-css
+    goal: 按契约 §7 实现 src/styles/theme.css（设计令牌、IBM Plex @fontsource 接入、工程网格背景、全局排版规则），index.html 标题改 nervd，pnpm exec vite build 通过
+    agentRole: reflex
+    dependsOn: []
+acceptance:
+  - given: 四个任务全部完成合并
+    when: 主会话执行 pnpm exec tsc --noEmit 与 cargo check
+    then: 两者零错误且冻结文件未被修改

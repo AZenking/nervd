@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.fleet/runs/
+.fleet/worktrees/
+.fleet/wiki/
