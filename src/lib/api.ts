@@ -1,14 +1,23 @@
-// 22 个 Tauri 命令的 invoke 包装（契约 §4）
+// Tauri 命令的 invoke 包装（契约 §4）
 import { invoke } from '@tauri-apps/api/core';
 import type {
-  Category, OrgSummary, Settings, SettingsView, WorkitemPage,
+  Category, JenkinsConnection, OrgSummary, RepoCiSnapshot, Settings, SettingsView,
+  WorkitemPage, WorkitemSummary,
 } from '../types';
+
+/** 列表行 = WorkitemSummary + 后端增补字段 */
+export interface WorkitemRow extends WorkitemSummary {
+  relatedTo?: string[]; // 关联人姓名（commands.rs names_of 防御式提取）
+}
 
 export async function getSettings(): Promise<SettingsView> {
   return invoke('get_settings');
 }
 export async function saveSettings(settings: Settings): Promise<SettingsView> {
   return invoke('save_settings', { settings });
+}
+export async function saveWorkitemRepos(workitemId: string, repoIds: number[] | null): Promise<SettingsView> {
+  return invoke('save_workitem_repos', { workitemId, repoIds });
 }
 export async function savePat(pat: string): Promise<boolean> {
   return invoke('save_pat', { pat });
@@ -25,7 +34,7 @@ export async function listProjects(search?: string): Promise<{ id: string; name:
 
 export async function listWorkitems(p: {
   category: Category; spaceIdentifier: string; nextToken?: string;
-}): Promise<WorkitemPage> {
+}): Promise<WorkitemPage & { items: WorkitemRow[] }> {
   return invoke('list_workitems', p);
 }
 export async function getWorkitem(workitemId: string): Promise<Record<string, unknown>> {
@@ -41,6 +50,31 @@ export async function updateWorkitemStatus(workitemId: string, statusIdentifier:
 export async function listRepos(search?: string, page?: number): Promise<{ id: number; name: string; pathWithNamespace?: string; lastActivityAt?: string }[]> {
   return invoke('list_repos', { search, page });
 }
+
+export async function saveJenkinsToken(connectionId: string, token: string): Promise<boolean> {
+  return invoke('save_jenkins_token', { connectionId, token });
+}
+export async function deleteJenkinsToken(connectionId: string): Promise<boolean> {
+  return invoke('delete_jenkins_token', { connectionId });
+}
+export async function testJenkinsConnection(connection: JenkinsConnection, token?: string): Promise<string> {
+  return invoke('test_jenkins_connection', { connection, token });
+}
+export async function getJenkinsJob(connectionId: string, jobFullName: string): Promise<{
+  name: string; fullName: string; color: string; lastBuild?: { runId: string; status: string };
+}> {
+  return invoke('get_jenkins_job', { connectionId, jobFullName });
+}
+export async function getRepoCiSnapshot(repoId: number, maxResults = 5): Promise<RepoCiSnapshot> {
+  return invoke('get_repo_ci_snapshot', { repoId, maxResults });
+}
+export async function triggerRepoCi(repoId: number): Promise<unknown> {
+  return invoke('trigger_repo_ci', { repoId });
+}
+export async function getRepoCiLogs(repoId: number, runId: string): Promise<string> {
+  return invoke('get_repo_ci_logs', { repoId, runId });
+}
+
 export async function listBranches(repoId: number, search?: string): Promise<Record<string, unknown>> {
   return invoke('list_branches', { repoId, search });
 }

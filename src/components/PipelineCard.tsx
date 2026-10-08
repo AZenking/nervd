@@ -31,10 +31,10 @@ export function PipelineCard({
   };
 
   return (
-    <div className="border-l-2 border-line bg-bg-1 px-2.5 py-2">
+    <div className="rounded-md border border-border bg-background px-3 py-3">
       <div className="flex items-center gap-2">
         <StatusDot status={latest?.status} />
-        <span className="min-w-0 flex-1 truncate text-ink-0">{pipelineName}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{pipelineName}</span>
         <WriteOpButton
           label="运行"
           title={`触发 ${pipelineName}`}
@@ -46,12 +46,12 @@ export function PipelineCard({
             } catch (e) { setToast({ text: String(e), kind: 'fail' }); }
           }}
         />
-        <Button variant="outline" size="sm" disabled={!latest} onClick={() => void openLatestLogs()}>
+        <Button variant="ghost" size="sm" disabled={!latest} onClick={() => void openLatestLogs()}>
           日志
         </Button>
       </div>
       {latest && (
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-ink-2">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <span>#{latest.pipelineRunId}</span>
           <span>· {latest.status}</span>
           <span>· {TRIGGER[latest.triggerMode ?? 0] ?? '—'}</span>

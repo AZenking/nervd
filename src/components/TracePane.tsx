@@ -1,13 +1,9 @@
 import { useApp } from '../store/app';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { PipelineCard } from './PipelineCard';
+import { RepoCiCard } from './RepoCiCard';
 import { StatusDot } from './StatusDot';
 
 function PanelCard({
@@ -22,22 +18,91 @@ function PanelCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="gap-3 rounded-none border-0 border-b border-line bg-transparent py-2.5">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 border-b border-line pb-1.5 text-[11px] font-semibold tracking-[0.08em] uppercase text-ink-2">
-          {title}
-          {count !== undefined && <Badge variant="secondary" className="font-mono">{count}</Badge>}
-          {action && <span className="flex-1" />}
-          {action}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-3">{children}</CardContent>
-    </Card>
+    <section className="flex flex-col gap-3 px-4 py-4">
+      <div className="flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {count !== undefined && <Badge variant="secondary">{count}</Badge>}
+        {action && <span className="flex-1" />}
+        {action}
+      </div>
+      <div className="flex flex-col gap-3">{children}</div>
+      <Separator />
+    </section>
   );
 }
 
 export function TracePane() {
-  const { trace, traceLoading, pipelines, runsByPipeline, loadTrace } = useApp();
+  const { category, trace, traceLoading, repositories, pipelines, runsByPipeline, loadTrace } = useApp();
+
+  if (category === 'Req') {
+    const repoTraces = trace?.repositories ?? [];
+    return (
+      <div className="h-full min-h-0 overflow-y-auto">
+        <PanelCard
+          title="需求关联仓库"
+          count={repoTraces.length}
+          action={
+            <>
+              {traceLoading && <span className="text-xs text-muted-foreground">扫描中…</span>}
+              <Button variant="ghost" size="sm" onClick={() => void loadTrace()}>重扫</Button>
+            </>
+          }
+        >
+          {!repoTraces.length && (
+            <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+              {traceLoading ? '正在读取需求关联…' : '此需求未关联仓库。可在需求详情中选择仓库。'}
+            </div>
+          )}
+          {repoTraces.map((repoTrace) => {
+            const repo = repositories.find((item) => item.id === repoTrace.repoId);
+            const name = repo?.pathWithNamespace || repo?.name || `仓库 #${repoTrace.repoId}`;
+            return (
+              <article key={repoTrace.repoId} className="rounded-md border border-border bg-muted/20 p-3">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className="min-w-0 truncate font-mono text-xs font-semibold text-foreground">{name}</h3>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    {repoTrace.branches.length} 分支 · {repoTrace.commits.length} 提交 · {repoTrace.mergeRequests.length} MR
+                  </span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="text-[10px] font-medium text-muted-foreground">分支</div>
+                    {repoTrace.branches.map((branch) => (
+                      <div key={branch.name} className="rounded bg-background/70 px-2 py-1.5 font-mono text-[11px] text-foreground">{branch.name}</div>
+                    ))}
+                    {!repoTrace.branches.length && <span className="px-2 text-[11px] text-muted-foreground">无关联分支</span>}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="text-[10px] font-medium text-muted-foreground">提交</div>
+                    {repoTrace.commits.map((commit) => (
+                      <div key={commit.sha} className="flex min-w-0 items-center gap-2 rounded bg-background/70 px-2 py-1.5 text-[11px]" title={`${commit.authorName ?? ''} ${commit.committedDate ?? ''}`}>
+                        <span className="shrink-0 font-mono text-muted-foreground">{commit.sha.slice(0, 7)}</span>
+                        <span className="min-w-0 truncate text-foreground">{commit.message.split('\n')[0]}</span>
+                      </div>
+                    ))}
+                    {!repoTrace.commits.length && <span className="px-2 text-[11px] text-muted-foreground">无关联提交</span>}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="text-[10px] font-medium text-muted-foreground">合并请求</div>
+                    {repoTrace.mergeRequests.map((request) => (
+                      <div key={`${request.localId}-${request.title}`} className="flex min-w-0 items-center gap-2 rounded bg-background/70 px-2 py-1.5 text-[11px]">
+                        <StatusDot status={request.state.includes('merged') || request.state.includes('MERGED') ? 'SUCCESS' : request.state.includes('open') || request.state.includes('OPEN') ? 'RUNNING' : 'OTHER'} />
+                        <span className="min-w-0 truncate text-foreground" title={`${request.sourceBranch} → ${request.targetBranch}`}>
+                          !{request.localId} {request.title}
+                        </span>
+                      </div>
+                    ))}
+                    {!repoTrace.mergeRequests.length && <span className="px-2 text-[11px] text-muted-foreground">无关联 MR</span>}
+                  </div>
+                  <RepoCiCard repoId={repoTrace.repoId} repoName={name} />
+                </div>
+              </article>
+            );
+          })}
+        </PanelCard>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full min-h-0 overflow-y-auto">
@@ -45,59 +110,68 @@ export function TracePane() {
         title="追溯链路"
         action={
           <>
-            {traceLoading && <span className="font-mono text-xs font-normal text-ink-1">扫描中…</span>}
-            <Button variant="outline" size="sm" onClick={() => void loadTrace()}>重扫</Button>
+            {traceLoading && <span className="text-xs text-muted-foreground">扫描中…</span>}
+            <Button variant="ghost" size="sm" onClick={() => void loadTrace()}>重扫</Button>
           </>
         }
       >
-        <div className="flex flex-col gap-1">
-          <div className="text-[11px] font-semibold tracking-[0.08em] uppercase text-ink-2">
-            分支 <span className="font-mono font-normal text-ink-1">{trace?.branches.length ?? 0}</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="text-xs font-medium text-muted-foreground">
+            分支 <span className="ml-1 text-foreground">{trace?.branches.length ?? 0}</span>
           </div>
           {(trace?.branches ?? []).map((b) => (
-            <div key={b.name} className="mx-2 flex items-center gap-2 border-l-2 border-line bg-bg-1 px-2.5 py-1.5 font-mono text-[11.5px]">
-              <span className="text-sig-run">⑂</span>
-              <span className="min-w-0 flex-1 truncate text-ink-1">{b.name}</span>
+            <div key={b.name} className="flex items-center gap-2 rounded-md bg-background/70 px-2.5 py-2 text-xs">
+              <span className="text-muted-foreground">⑂</span>
+              <span className="min-w-0 flex-1 truncate font-mono text-foreground">{b.name}</span>
             </div>
           ))}
-          {trace && !trace.branches.length && <div className="p-2 text-center font-mono text-xs text-ink-2">无关联分支</div>}
+          {trace && !trace.branches.length && (
+            <div className="px-2 py-3 text-center text-xs text-muted-foreground">无关联分支</div>
+          )}
         </div>
 
-        <div className="mt-1 flex flex-col gap-1">
-          <div className="text-[11px] font-semibold tracking-[0.08em] uppercase text-ink-2">
-            提交 <span className="font-mono font-normal text-ink-1">{trace?.commits.length ?? 0}</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="text-xs font-medium text-muted-foreground">
+            提交 <span className="ml-1 text-foreground">{trace?.commits.length ?? 0}</span>
           </div>
           {(trace?.commits ?? []).map((c) => (
             <div
               key={c.sha}
-              className="mx-2 flex items-center gap-2 border-l-2 border-line bg-bg-1 px-2.5 py-1.5 font-mono text-[11.5px]"
+              className="flex items-center gap-2 rounded-md bg-background/70 px-2.5 py-2 text-xs"
               title={`${c.authorName ?? ''} ${c.committedDate ?? ''}`}
             >
-              <span className="text-ink-2">{c.sha.slice(0, 7)}</span>
-              <span className="min-w-0 flex-1 truncate text-ink-1">{c.message.split('\n')[0]}</span>
+              <span className="shrink-0 font-mono text-muted-foreground">{c.sha.slice(0, 7)}</span>
+              <span className="min-w-0 flex-1 truncate text-foreground">{c.message.split('\n')[0]}</span>
             </div>
           ))}
-          {trace && !trace.commits.length && <div className="p-2 text-center font-mono text-xs text-ink-2">无关联提交</div>}
+          {trace && !trace.commits.length && (
+            <div className="px-2 py-3 text-center text-xs text-muted-foreground">无关联提交</div>
+          )}
         </div>
 
-        <div className="mt-1 flex flex-col gap-1">
-          <div className="text-[11px] font-semibold tracking-[0.08em] uppercase text-ink-2">
-            合并请求 <span className="font-mono font-normal text-ink-1">{trace?.mergeRequests.length ?? 0}</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="text-xs font-medium text-muted-foreground">
+            合并请求 <span className="ml-1 text-foreground">{trace?.mergeRequests.length ?? 0}</span>
           </div>
           {(trace?.mergeRequests ?? []).map((m) => (
-            <div key={`${m.localId}-${m.title}`} className="mx-2 flex items-center gap-2 border-l-2 border-line bg-bg-1 px-2.5 py-1.5 font-mono text-[11.5px]">
+            <div
+              key={`${m.localId}-$${m.title}`}
+              className="flex items-center gap-2 rounded-md bg-background/70 px-2.5 py-2 text-xs"
+            >
               <StatusDot status={m.state.includes('merged') || m.state.includes('MERGED') ? 'SUCCESS' : m.state.includes('open') || m.state.includes('OPEN') ? 'RUNNING' : 'OTHER'} />
-              <span className="min-w-0 flex-1 truncate text-ink-1" title={`${m.sourceBranch} → ${m.targetBranch}`}>
+              <span className="min-w-0 flex-1 truncate text-foreground" title={`${m.sourceBranch} → ${m.targetBranch}`}>
                 !{m.localId} {m.title}
               </span>
             </div>
           ))}
-          {trace && !trace.mergeRequests.length && <div className="p-2 text-center font-mono text-xs text-ink-2">无关联 MR</div>}
+          {trace && !trace.mergeRequests.length && (
+            <div className="px-2 py-3 text-center text-xs text-muted-foreground">无关联 MR</div>
+          )}
         </div>
       </PanelCard>
 
       <PanelCard title="流水线" count={pipelines.length}>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {pipelines.map((p) => (
             <PipelineCard
               key={p.pipelineId}
@@ -106,7 +180,9 @@ export function TracePane() {
               runs={runsByPipeline[p.pipelineId] ?? []}
             />
           ))}
-          {!pipelines.length && <div className="p-2 text-center font-mono text-xs text-ink-2">无流水线</div>}
+          {!pipelines.length && (
+            <div className="px-2 py-3 text-center text-xs text-muted-foreground">无流水线</div>
+          )}
         </div>
       </PanelCard>
     </div>

@@ -1,5 +1,4 @@
-// nervd 共享类型 —— 冻结文件，见 docs/ipc-contract.md
-// 所有任务不得修改本文件；类型缺口在各自模块内定义。
+// nervd 共享 IPC 类型 —— 由主会话与 docs/ipc-contract.md 同步维护。
 
 export type Category = 'Req' | 'Bug' | 'Task';
 export type ConnectionState = 'unknown' | 'ok' | 'fail';
@@ -11,11 +10,31 @@ export interface Settings {
   linkPattern: string;
   watchedRepos: number[];
   allowWriteOps: boolean;
+  /** Explicit per-requirement repository overrides; presence with [] means no repos. */
+  workitemRepos: Record<string, number[]>;
+  jenkinsConnections: JenkinsConnection[];
+  repoCiBindings: Record<string, RepoCiBinding>;
 }
 
 export interface SettingsView extends Settings {
   hasPat: boolean;
+  jenkinsConnections: JenkinsConnectionView[];
 }
+
+export interface JenkinsConnection {
+  id: string;
+  name: string;
+  baseUrl: string;
+  username: string;
+}
+
+export interface JenkinsConnectionView extends JenkinsConnection {
+  hasToken: boolean;
+}
+
+export type RepoCiBinding =
+  | { provider: 'flow'; pipelineId: number; pipelineName: string }
+  | { provider: 'jenkins'; connectionId: string; jobFullName: string };
 
 export interface OrgSummary {
   organizationId: string;
@@ -88,6 +107,7 @@ export interface CommitSummary {
 
 export interface TraceResult {
   workitemId: string;
+  repositories: RepositoryTraceResult[];
   branches: BranchInfo[];
   commits: CommitSummary[];
   mergeRequests: MrSummary[];
@@ -95,9 +115,39 @@ export interface TraceResult {
   scannedAt: number;
 }
 
+export interface RepositoryTraceResult {
+  repoId: number;
+  branches: BranchInfo[];
+  commits: CommitSummary[];
+  mergeRequests: MrSummary[];
+}
+
+export interface CiRunSummary {
+  runId: string;
+  status: string;
+  startTime?: number;
+  durationMs?: number;
+  trigger?: string;
+}
+
+export interface RepoCiSnapshot {
+  provider: 'flow' | 'jenkins';
+  name: string;
+  status?: string;
+  runs: CiRunSummary[];
+}
+
 export interface PipelineRunEvent {
   pipelineId: number;
   pipelineName: string;
   runId: number;
   status: string;
+}
+
+export interface JenkinsBuildEvent {
+  connectionId: string;
+  jobFullName: string;
+  runId: string;
+  status: string;
+  repoIds: number[];
 }

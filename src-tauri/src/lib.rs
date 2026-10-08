@@ -2,15 +2,18 @@
 
 mod commands;
 mod credentials;
+mod jenkins;
 mod poller;
 mod yunxiao;
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 pub struct AppStateInner {
     pub client: Mutex<Option<Arc<yunxiao::YunxiaoClient>>>,
     pub settings: Mutex<credentials::Settings>,
+    pub jenkins_trigger_baselines: Mutex<HashMap<String, Vec<i64>>>,
 }
 pub type AppState = Arc<AppStateInner>;
 
@@ -27,6 +30,7 @@ pub fn run() {
             let inner: AppState = Arc::new(AppStateInner {
                 client: Mutex::new(client),
                 settings: Mutex::new(settings),
+                jenkins_trigger_baselines: Mutex::new(HashMap::new()),
             });
             app.manage(inner.clone());
             poller::spawn(app.handle().clone(), inner);
@@ -35,6 +39,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
             commands::save_settings,
+            commands::save_workitem_repos,
             commands::save_pat,
             commands::delete_pat,
             commands::check_connection,
@@ -55,7 +60,14 @@ pub fn run() {
             commands::get_pipeline_run,
             commands::start_pipeline_run,
             commands::stop_pipeline_run,
-            commands::get_job_logs
+            commands::get_job_logs,
+            commands::save_jenkins_token,
+            commands::delete_jenkins_token,
+            commands::test_jenkins_connection,
+            commands::get_jenkins_job,
+            commands::get_repo_ci_snapshot,
+            commands::trigger_repo_ci,
+            commands::get_repo_ci_logs
         ])
         .run(tauri::generate_context!())
         .expect("error while running nervd");

@@ -27,9 +27,22 @@
   "defaultSpaceIdentifier": "8fb83deb...", // 默认项目空间（可空）
   "linkPattern": "(?:REQ|BUG|TASK)[-_]?(\\d+)", // 分支/commit 提取工作项编号的正则
   "watchedRepos": [2709413],              // 追溯扫描的仓库 ID 列表
-  "allowWriteOps": false                  // 写操作总开关（只读凭证时保持 false）
+  "allowWriteOps": false,                 // 写操作总开关（只读凭证时保持 false）
+  "workitemRepos": {                      // 需求覆盖；键为稳定 workitemId，[] 表示显式不关联仓库
+    "workitem-uuid": [2709413, 2709414]
+  },
+  "jenkinsConnections": [{                // 仅保存非敏感连接资料
+    "id": "jenkins-prod", "name": "生产 Jenkins",
+    "baseUrl": "https://jenkins.example.com", "username": "ci-user"
+  }],
+  "repoCiBindings": {                      // 每个仓库一个当前 CI 绑定
+    "2709413": { "provider": "jenkins", "connectionId": "jenkins-prod", "jobFullName": "team/build" },
+    "2709414": { "provider": "flow", "pipelineId": 12345, "pipelineName": "release" }
+  }
 }
 ```
+- `workitemRepos` 只用于 `Req`；Bug/Task 继续扫描 `watchedRepos`。没有该需求的键时回退到 `watchedRepos`，空数组覆盖默认值。
+- 每个 Jenkins API Token 存在 macOS Keychain：service=`dev.nervd.app`，account=`jenkins:<connectionId>`；Token 不写入 `settings.json`。Jenkins 通过用户名与 API Token 做 HTTP Basic 认证。
 - 未配置 PAT 或 organizationId 时，UI 显示**引导页**（SettingsView）。
 
 ## 3. Rust 模块布局（rust-backend）
@@ -39,9 +52,10 @@ src-tauri/src/
 ├── lib.rs          // Builder、manage(AppState)、generate_handler!（全部命令）
 ├── main.rs         // 薄透传（模板已有，不动）
 ├── yunxiao.rs      // YunxiaoClient：ROA REST 客户端
-├── commands.rs     // 全部 #[tauri::command]
-├── credentials.rs  // keyring 读写 PAT + settings.json 读写
-└── poller.rs       // 流水线运行轮询 → 事件 + 系统通知
+├── commands/       // 按设置、仓库、工作项、Flow、CI 拆分 #[tauri::command]
+├── jenkins.rs      // Jenkins Remote Access API 客户端
+├── credentials.rs  // keyring 读写 PAT/Jenkins Token + settings.json 读写
+└── poller.rs       // Flow/Jenkins 构建轮询 → 事件 + 系统通知
 ```
 
 ### YunxiaoClient 要点
@@ -81,10 +95,11 @@ src-tauri/src/
 |---|---|---|---|
 | `get_settings` | — | `Settings`（PAT 永不返回，只返回 `hasPat: bool`） | |
 | `save_settings` | `settings: Settings` | `Settings` | 重建 client |
+| `save_workitem_repos` | `workitemId: String, repoIds: Option<Vec<i64>>` | `Settings` | 需求仓库覆盖；空数组为显式空列表，`null` 删除覆盖并回退默认 |
 | `save_pat` | `pat: String` | `bool` | 写 keyring，重建 client |
 | `delete_pat` | — | `bool` | |
 | `check_connection` | — | `Vec<OrgSummary>` | 调 ListOrganizations 验证 PAT+orgId |
-| `list_workitems` | `category: String, spaceIdentifier: String, nextToken: Option<String>` | `WorkitemPage` | |
+| `list_workitems` | `category: String, spaceIdentifier: String, nextToken: Option<String>` | `WorkitemPage`（items 增补 `relatedTo: string[]` 关联人姓名，防御式提取 `participant/participants/relatedUsers`，供列表按处理人/关联人过滤） | |
 | `get_workitem` | `workitemId: String` | `Value` | 详情 |
 | `list_workitem_comments` | `workitemId: String` | `Vec<Value>` | |
 | `list_repos` | `search: Option<String>, page: Option<i64>` | `Vec<RepoSummary>` | |
@@ -100,6 +115,13 @@ src-tauri/src/
 | `start_pipeline_run` | `pipelineId: i64` | `Value` | **写操作** |
 | `stop_pipeline_run` | `pipelineId: i64, runId: i64` | `Value` | **写操作** |
 | `get_job_logs` | `pipelineId: i64, runId: i64, jobId: i64` | `String` | 日志文本 |
+| `save_jenkins_token` | `connectionId: String, token: String` | `bool` | Keychain 保存 Jenkins API Token |
+| `delete_jenkins_token` | `connectionId: String` | `bool` | 仅在 Jenkins 实例已从设置移除后删除 Token |
+| `test_jenkins_connection` | `connection: JenkinsConnection, token?: String` | `String` | 验证 Jenkins 连通及认证；可用未保存的 Token 测试 |
+| `get_jenkins_job` | `connectionId: String, jobFullName: String` | `JenkinsJobInfo` | 查询 Job；支持 `folder/subfolder/job` |
+| `get_repo_ci_snapshot` | `repoId: i64, maxResults?: i64` | `RepoCiSnapshot` | 查询仓库当前绑定的 Flow/Jenkins Job 状态和近期构建 |
+| `trigger_repo_ci` | `repoId: i64` | `Value` | **写操作**；按仓库当前绑定触发，使用 Job 默认参数 |
+| `get_repo_ci_logs` | `repoId: i64, runId: String` | `String` | 读取当前绑定 Job 的指定构建日志 |
 | `update_workitem_status` | `workitemId: String, statusIdentifier: String` | `Value` | **写操作**（POST workitems/update） |
 
 **写操作门控**：`settings.allowWriteOps == false` 时，写操作命令直接返回
@@ -108,8 +130,17 @@ src-tauri/src/
 
 ## 5. TS 数据层（ts-datalayer）
 
+### 本机配置与追溯/CI 类型
+
+- `Settings.workitemRepos: Record<workitemId, repoId[]>`：仅 Req 覆盖默认仓库；属性存在且为空数组时表示显式不关联仓库。缺键回退 `watchedRepos`。
+- `Settings.jenkinsConnections: JenkinsConnection[]`：`{id, name, baseUrl, username}`；`SettingsView` 增补 `hasToken`，该字段由 Keychain 状态派生，不写入 JSON。
+- `Settings.repoCiBindings: Record<repoId, RepoCiBinding>`：每个仓库一个绑定，Flow 为 `{provider:'flow', pipelineId, pipelineName}`，Jenkins 为 `{provider:'jenkins', connectionId, jobFullName}`。
+- `TraceResult.repositories: RepositoryTraceResult[]`：每项含 `repoId`、命中的 `branches`、`commits` 和 `mergeRequests`，需求详情按仓库分别展示。
+- `RepoCiSnapshot`：`{provider, name, status?, runs: CiRunSummary[]}`；近期构建属于当前仓库 Job，不表示由某个需求触发。
+- Jenkins 轮询事件 `JenkinsBuildEvent`：`{connectionId, jobFullName, runId, status, repoIds}`。
+
 ```
-src/lib/api.ts    // 上述 22 个命令的 invoke 包装，函数名 = 命令名 camelCase，参数对象化
+src/lib/api.ts    // Tauri 命令的 invoke 包装，函数名 = 命令名 camelCase，参数对象化
 src/store/app.ts  // zustand store：settings、workitems 缓存、当前选中、watch 状态
 ```
 
@@ -131,16 +162,18 @@ src/components/
 ├── Shell.tsx              // 三栏：Sidebar | WorkitemPane | TracePane；顶栏 org/profile 状态
 ├── Sidebar.tsx            // 类别切换（Req/Bug/Task）+ 列表 + 搜索 + 分页
 ├── WorkitemDetail.tsx     // 详情：标题/状态/处理人/描述(纯文本)/评论
-├── TracePane.tsx          // 追溯：分支 → commit → MR → 流水线运行 四段时间线
+├── TracePane.tsx          // Req 按仓库展示分支/commit/MR 与当前 CI Job；Bug/Task 保留全局流水线
+├── RepoCiCard.tsx         // 仓库当前 Flow/Jenkins Job：状态、近期构建、触发与日志
 ├── PipelineCard.tsx       // 单条运行：状态色条、耗时、触发人、日志按钮
 ├── LogViewer.tsx          // 等宽日志查看（可滚动，自动滚底）
 ├── WriteOpButton.tsx      // 写操作按钮：allowWriteOps=false 时置灰 + tooltip
-├── SettingsView.tsx       // PAT/orgId/项目空间/关联正则/仓库勾选/写开关 + 连接测试
+├── SettingsView.tsx       // PAT/orgId/项目空间/默认仓库、Jenkins 实例、仓库 CI 绑定与写开关
 └── StatusDot.tsx          // 状态点：running=amber 脉冲, success=green, fail=red, 其他=灰
 ```
 
-- 事件监听（`@tauri-apps/api/event`）：`pipeline-run-finished`（payload：`{pipelineId, runId, status, pipelineName}`）→ 系统通知已由 Rust 侧发，前端只更新列表并 toast。
-- TracePane 匹配逻辑：对 `watchedRepos` 每个仓库拉分支 + 近页 commits + MR，用 `extractWorkItemKeys(branchName/commitMessage/MR title)` 对当前工作项编号命中。
+- 事件监听（`@tauri-apps/api/event`）：`pipeline-run-finished`（payload：`{pipelineId, runId, status, pipelineName}`）以及 `jenkins-build-finished`（payload：`{connectionId, jobFullName, runId, status, repoIds}`）→ 系统通知由 Rust 侧发，前端刷新相关仓库并 toast。
+- TracePane 对 Req 使用 `workitemRepos[workitemId]`（若键存在）或回退 `watchedRepos`，按仓库拉分支 + 近页 commits + MR，用 `extractWorkItemKeys(branchName/commitMessage/MR title)` 匹配当前工作项编号；Bug/Task 继续扫描 `watchedRepos`。
+- CI 构建记录属于仓库绑定的当前 Job，不标记为需求专属构建。Jenkins 触发使用默认参数；Flow 与 Jenkins 均通过 `allowWriteOps` 门控。
 - 工作项「编号」用列表返回的 `identifier`（如 `REQ-1234`）与详情 `subject` 等字段；正则默认 `(?:REQ|BUG|TASK)[-_]?(\d+)` 对 `identifier` 全量文本匹配。
 
 ## 7. 设计系统（theme-css）

@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 
 export function LogViewer() {
   const { logView, closeLogs } = useApp();
@@ -26,22 +27,24 @@ export function LogViewer() {
 
   return (
     <Dialog open={!!logView} onOpenChange={(open) => { if (!open) closeLogs(); }}>
-      <DialogContent showCloseButton={false} className="flex h-[min(600px,80vh)] w-[min(880px,90vw)] max-w-none flex-col gap-0 rounded-none border border-line-strong p-0">
-        <DialogHeader className="border-b border-line px-3 py-2">
-          <DialogTitle className="text-left font-mono text-xs font-medium text-ink-1">
+      <DialogContent showCloseButton={false} className="flex h-[min(600px,80vh)] w-[min(880px,90vw)] max-w-none flex-col gap-0 border border-border bg-popover p-0 shadow-xl">
+        <DialogHeader className="px-5 py-4">
+          <DialogTitle className="text-left text-sm font-medium text-foreground">
             {logView?.title ?? '日志'}
           </DialogTitle>
           <DialogDescription className="sr-only">流水线运行日志</DialogDescription>
         </DialogHeader>
+        <Separator />
         <ScrollArea className="min-h-0 flex-1">
           <div
             ref={bodyRef}
-            className="px-3 py-2.5 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap break-all text-ink-0"
+            className="bg-muted/20 px-5 py-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-foreground"
           >
             {logView?.text}
           </div>
         </ScrollArea>
-        <div className="flex justify-end border-t border-line px-3 py-2">
+        <Separator />
+        <div className="flex justify-end px-5 py-3">
           <Button variant="outline" size="sm" onClick={closeLogs}>关闭</Button>
         </div>
       </DialogContent>
