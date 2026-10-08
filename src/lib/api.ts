@@ -10,6 +10,13 @@ export interface WorkitemRow extends WorkitemSummary {
   relatedTo?: string[]; // 关联人姓名（commands.rs names_of 防御式提取）
 }
 
+/** 工作流状态选项（list_workitem_status 防御式映射产物） */
+export interface WorkitemStatusOption {
+  identifier: string;
+  name: string;
+  stageName: string;
+}
+
 export async function getSettings(): Promise<SettingsView> {
   return invoke('get_settings');
 }
@@ -45,6 +52,9 @@ export async function listWorkitemComments(workitemId: string): Promise<Record<s
 }
 export async function updateWorkitemStatus(workitemId: string, statusIdentifier: string): Promise<unknown> {
   return invoke('update_workitem_status', { workitemId, statusIdentifier });
+}
+export async function listWorkitemStatus(category: Category): Promise<WorkitemStatusOption[]> {
+  return invoke('list_workitem_status', { category });
 }
 
 export async function listRepos(search?: string, page?: number): Promise<{ id: number; name: string; pathWithNamespace?: string; lastActivityAt?: string }[]> {

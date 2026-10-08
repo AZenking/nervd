@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api';
+import type { WorkitemStatusOption } from '../lib/api';
 import { richTextToPlain } from '../lib/richtext';
 import { useApp } from '../store/app';
-import type { WorkitemSummary } from '../types';
+import type { Category, WorkitemSummary } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -185,7 +186,7 @@ export function WorkitemDetail() {
             <MrForm identifier={cur?.identifier ?? ''} subject={cur?.subject ?? ''} repoIds={isRequirement ? effectiveRepoIds : undefined} />
           </TabsContent>
           <TabsContent value="status" className="mt-4">
-            <StatusForm workitemId={selectedId} />
+            <StatusForm workitemId={selectedId} category={cur?.category} />
           </TabsContent>
         </Tabs>
       </section>
@@ -329,14 +330,65 @@ function MrForm({ identifier, subject, repoIds }: { identifier: string; subject:
   );
 }
 
-function StatusForm({ workitemId }: { workitemId: string }) {
+function StatusForm({ workitemId, category }: { workitemId: string; category?: Category }) {
   const { setToast } = useApp();
   const [st, setSt] = useState('');
+  const [options, setOptions] = useState<WorkitemStatusOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [manual, setManual] = useState(false);
+
+  // 按当前工作项 category 拉工作流状态；失败/为空时降级回手输 statusIdentifier
+  useEffect(() => {
+    let alive = true;
+    setOptions([]);
+    setManual(false);
+    if (!category) {
+      setManual(true);
+      return;
+    }
+    setLoading(true);
+    api.listWorkitemStatus(category)
+      .then((opts) => {
+        if (!alive) return;
+        if (opts.length) setOptions(opts);
+        else setManual(true);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setManual(true);
+        setToast({ text: `工作流状态接口不可用，已回退手输：${String(e)}`, kind: 'fail' });
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [category, setToast]);
+
+  const items = options.map((o) => ({
+    label: o.stageName ? `${o.name}（${o.stageName}）` : o.name,
+    value: o.identifier,
+  }));
+
   return (
     <FieldGroup className="gap-3">
       <Field>
-        <FieldLabel htmlFor="status-id" className="sr-only">statusIdentifier</FieldLabel>
-        <Input id="status-id" className="font-mono" value={st} onChange={(e) => setSt(e.target.value)} placeholder="statusIdentifier" />
+        <FieldLabel htmlFor="status-id" className="sr-only">状态</FieldLabel>
+        {loading ? (
+          <Input id="status-id" disabled className="font-mono" placeholder="加载工作流状态…" />
+        ) : manual || !items.length ? (
+          <Input id="status-id" className="font-mono" value={st} onChange={(e) => setSt(e.target.value)} placeholder="statusIdentifier" />
+        ) : (
+          <Select items={items} value={st} onValueChange={(v) => setSt(v ?? '')}>
+            <SelectTrigger id="status-id" className="w-full font-mono text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {items.map((it) => (
+                  <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        )}
       </Field>
       <WriteOpButton
         label="回写状态"
