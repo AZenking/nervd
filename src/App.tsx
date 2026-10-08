@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { Toaster, toast } from '@/components/ui/toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -7,6 +8,21 @@ import { Shell } from './components/Shell';
 import { SettingsView } from './components/SettingsView';
 import { useApp } from './store/app';
 import type { JenkinsBuildEvent, PipelineRunEvent } from './types';
+
+// 打开外部链接（经 plugin-opener）；被 scope 拒绝等失败场景降级为错误 toast
+function openExternal(url: string) {
+  void openUrl(url).catch((err) => {
+    toast.add({ title: '打开链接失败', description: String(err), type: 'error' });
+  });
+}
+
+// Jenkins job 页：{baseUrl}/job/{jobFullName 中每个 '/' → '/job/'}；baseUrl 缺失或非法时返回 null（toast 不带入口）
+function jenkinsJobUrl(baseUrl: string | undefined, jobFullName: string): string | null {
+  const trimmed = (baseUrl ?? '').trim().replace(/\/+$/, '');
+  if (!trimmed || !jobFullName) return null;
+  const scheme = /^https?:\/\//i.test(trimmed) ? '' : 'https://';
+  return `${scheme}${trimmed}/job/${jobFullName.split('/').join('/job/')}`;
+}
 
 // zustand 单条 toast → Base UI 可堆叠 toast 队列
 function ToastHost() {
@@ -22,7 +38,7 @@ function ToastHost() {
 }
 
 export default function App() {
-  const { booting, settings, init, setToast, loadPipelines, loadRepoCi } = useApp();
+  const { booting, settings, init, loadPipelines, loadRepoCi } = useApp();
 
   useEffect(() => {
     void init();
@@ -30,10 +46,16 @@ export default function App() {
 
   useEffect(() => {
     const un = listen<JenkinsBuildEvent>('jenkins-build-finished', (e) => {
-      const { jobFullName, runId, status, repoIds } = e.payload;
-      setToast({
-        text: `Jenkins ${jobFullName} #${runId} → ${status}`,
-        kind: status === 'SUCCESS' ? 'ok' : status === 'FAIL' || status === 'CANCELED' ? 'fail' : 'info',
+      const { connectionId, jobFullName, runId, status, repoIds } = e.payload;
+      // 事件监听不随 settings 重订阅，用 getState 取最新连接配置
+      const connection = useApp
+        .getState()
+        .settings?.jenkinsConnections.find((c) => c.id === connectionId);
+      const url = jenkinsJobUrl(connection?.baseUrl, jobFullName);
+      toast.add({
+        title: `Jenkins ${jobFullName} #${runId} → ${status}`,
+        type: status === 'SUCCESS' ? 'success' : status === 'FAIL' || status === 'CANCELED' ? 'error' : 'info',
+        ...(url ? { actionProps: { children: '查看', onClick: () => openExternal(url) } } : {}),
       });
       void Promise.all(repoIds.map((repoId) => loadRepoCi(repoId)));
     });
@@ -44,8 +66,13 @@ export default function App() {
 
   useEffect(() => {
     const un = listen<PipelineRunEvent>('pipeline-run-finished', (e) => {
-      const { pipelineName, runId, status } = e.payload;
-      setToast({ text: `${pipelineName} #${runId} → ${status}`, kind: status === 'SUCCESS' ? 'ok' : status === 'FAIL' ? 'fail' : 'info' });
+      const { pipelineId, pipelineName, runId, status } = e.payload;
+      const url = `https://flow.aliyun.com/pipelines/${pipelineId}/current`;
+      toast.add({
+        title: `${pipelineName} #${runId} → ${status}`,
+        type: status === 'SUCCESS' ? 'success' : status === 'FAIL' ? 'error' : 'info',
+        actionProps: { children: '查看', onClick: () => openExternal(url) },
+      });
       void loadPipelines();
     });
     return () => {
