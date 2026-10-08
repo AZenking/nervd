@@ -1,4 +1,5 @@
 import { useApp } from '../store/app';
+import type { TracePipelineRun } from '../lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -33,6 +34,8 @@ function PanelCard({
 
 export function TracePane() {
   const { category, trace, traceLoading, repositories, pipelines, runsByPipeline, loadTrace } = useApp();
+  // runs 为 types.ts PipelineRunSummary 的超集（api.ts TracePipelineRun），追溯链路已增补分支/流水线信息
+  const relatedRuns = (trace?.runs ?? []) as TracePipelineRun[];
 
   if (category === 'Req') {
     const repoTraces = trace?.repositories ?? [];
@@ -166,6 +169,41 @@ export function TracePane() {
           ))}
           {trace && !trace.mergeRequests.length && (
             <div className="px-2 py-3 text-center text-xs text-muted-foreground">无关联 MR</div>
+          )}
+        </div>
+      </PanelCard>
+
+      <PanelCard title="关联运行" count={relatedRuns.length}>
+        <div className="flex flex-col gap-1.5">
+          {(trace?.runs ?? []).length > 0 && (
+            <div className="text-xs font-medium text-muted-foreground">
+              按分支匹配 <span className="ml-1 text-foreground">{relatedRuns.length}</span> 条运行
+            </div>
+          )}
+          {relatedRuns.map((run) => (
+            <div
+              key={`${run.pipelineId ?? 0}-${run.pipelineRunId}`}
+              className="flex min-w-0 items-center gap-2 rounded-md bg-background/70 px-2.5 py-2 text-xs"
+              title={`${(run.branches ?? []).join('，')} · ${run.status}`}
+            >
+              <StatusDot status={run.status} />
+              <span className="min-w-0 flex-1 truncate text-foreground">
+                {run.pipelineName ?? `流水线 #${run.pipelineId ?? '—'}`} <span className="text-muted-foreground">#{run.pipelineRunId}</span>
+              </span>
+              {(run.branches ?? []).length > 0 && (
+                <span className="max-w-[40%] shrink-0 truncate font-mono text-muted-foreground">{run.branches!.join(', ')}</span>
+              )}
+              {(run.endTime ?? run.startTime) != null && (
+                <span className="shrink-0 text-muted-foreground">
+                  {new Date(run.endTime ?? run.startTime!).toLocaleString('zh-CN', { hour12: false })}
+                </span>
+              )}
+            </div>
+          ))}
+          {trace && !relatedRuns.length && (
+            <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+              无关联运行（按工作项匹配分支 × 仓库绑定流水线近 20 条运行交叉）
+            </div>
           )}
         </div>
       </PanelCard>

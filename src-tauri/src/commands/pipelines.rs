@@ -29,6 +29,51 @@ pub async fn list_pipelines(state: State<'_, AppState>, max_results: Option<i64>
     Ok(Value::Array(items))
 }
 
+/// 运行分支名防御式收集：候选字段 branchModeBranchs / runningBranchs / branches / runningBranch
+/// 及 sources[*] 的 branch 同义字段。元素可为字符串或 {value|branch|branchName} 对象；
+/// runningBranchs 实际为 {仓库URL: 分支名} 映射形态，对象字段取其值（云效 oapi 响应字段以联调为准）。
+fn branches_of(run: &Value) -> Vec<String> {
+    fn push_branch(out: &mut Vec<String>, value: &Value, keys: &[&str]) {
+        let name = match value {
+            Value::String(s) if !s.is_empty() => Some(s.clone()),
+            Value::Object(obj) => keys
+                .iter()
+                .find_map(|k| obj.get(*k).and_then(|x| x.as_str()))
+                .filter(|s| !s.is_empty())
+                .map(str::to_string),
+            _ => None,
+        };
+        if let Some(name) = name {
+            if !out.contains(&name) {
+                out.push(name);
+            }
+        }
+    }
+    fn push_field(out: &mut Vec<String>, run: &Value, key: &str) {
+        match run.get(key) {
+            Some(Value::Array(list)) => {
+                list.iter().for_each(|e| push_branch(out, e, &["value", "branch", "branchName"]));
+            }
+            // runningBranchs 等可能是 {仓库URL: 分支名} 映射
+            Some(Value::Object(map)) => {
+                map.values().for_each(|e| push_branch(out, e, &["value", "branch", "branchName"]));
+            }
+            _ => {}
+        }
+    }
+
+    let mut branches: Vec<String> = Vec::new();
+    for key in ["branchModeBranchs", "runningBranchs", "branches", "runningBranch"] {
+        push_field(&mut branches, run, key);
+    }
+    if let Some(sources) = run.get("sources").and_then(|x| x.as_array()) {
+        for src in sources {
+            push_branch(&mut branches, src, &["branch", "branchName", "value"]);
+        }
+    }
+    branches
+}
+
 #[tauri::command]
 pub async fn list_pipeline_runs(state: State<'_, AppState>, pipeline_id: i64, max_results: Option<i64>) -> Result<Value, String> {
     let c = client_of(&state)?;
@@ -43,6 +88,7 @@ pub async fn list_pipeline_runs(state: State<'_, AppState>, pipeline_id: i64, ma
     let items: Vec<Value> = as_array(&resp)
         .iter()
         .map(|r| {
+            let branches = branches_of(r);
             json!({
                 "pipelineRunId": i64_of(r, "pipelineRunId").unwrap_or(0),
                 "status": s(r, "status"),
@@ -50,6 +96,7 @@ pub async fn list_pipeline_runs(state: State<'_, AppState>, pipeline_id: i64, ma
                 "endTime": i64_of(r, "updateTime"),
                 "executorAccountId": s(r, "creatorAccountId"),
                 "triggerMode": i64_of(r, "triggerMode"),
+                "branches": branches,
             })
         })
         .filter(|r| r["pipelineRunId"].as_i64().unwrap_or(0) > 0)
