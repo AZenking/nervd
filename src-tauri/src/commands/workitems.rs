@@ -1,4 +1,4 @@
-use super::common::{as_array, client_of, ensure_write, i64_of, names_of, nested_s, org_of, s};
+use super::common::{as_array, client_of, ensure_write, i64_of, names_of, nested_s, org_of, s, s2};
 use crate::AppState;
 use serde_json::{json, Value};
 use tauri::State;
@@ -103,6 +103,97 @@ pub async fn list_workitem_comments(state: State<'_, AppState>, workitem_id: Str
         &[("page", "1".to_string()), ("perPage", "50".to_string())],
     )
     .await
+}
+
+/// GET listWorkflowStatus（docs/yunxiao-api.md ListWorkItemWorkFlowStatus；spaceIdentifier 取设置 defaultSpaceIdentifier）
+/// 先试 oapi/v1 形态，404/失败再退旧 ROA 形态；两形态均失败返回 UNSUPPORTED
+#[tauri::command]
+pub async fn list_workitem_status(
+    state: State<'_, AppState>,
+    category: String,
+) -> Result<Value, String> {
+    let c = client_of(&state)?;
+    let org = org_of(&state)?;
+    let space = {
+        let st = state.settings.lock().unwrap();
+        if st.default_space_identifier.trim().is_empty() {
+            return Err("NOT_CONFIGURED: 请先在设置中选择默认项目空间".into());
+        }
+        st.default_space_identifier.clone()
+    };
+    let query = [
+        ("spaceType", "Project".to_string()),
+        ("spaceIdentifier", space),
+        ("workitemCategoryIdentifier", category),
+    ];
+    let oapi_form =
+        format!("/oapi/v1/projex/organizations/{org}/workitems/workflow/listWorkflowStatus");
+    let roa_form = format!("/organization/{org}/workitems/workflow/listWorkflowStatus");
+    for path in [&oapi_form, &roa_form] {
+        if let Ok(v) = c.get(path, &query).await {
+            let items: Vec<Value> = status_array_of(&v)
+                .iter()
+                .filter_map(|e| {
+                    status_id_of(e).map(|identifier| json!({
+                        "identifier": identifier,
+                        "name": s(e, "name"),
+                        "stageName": s2(e, "stageName", "workflowStageName"),
+                    }))
+                })
+                .collect();
+            if !items.is_empty() {
+                return Ok(json!(items));
+            }
+        }
+    }
+    Err("UNSUPPORTED: 工作流状态接口不可用".into())
+}
+
+/// 状态条目标识：identifier|id|statusIdentifier 任一非空字段（字符串或数字）
+fn status_id_of(e: &Value) -> Option<String> {
+    for k in ["identifier", "id", "statusIdentifier"] {
+        if let Some(x) = e.get(k) {
+            if let Some(s) = x.as_str() {
+                if !s.is_empty() {
+                    return Some(s.to_string());
+                }
+            }
+            if let Some(n) = x.as_i64() {
+                return Some(n.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// 防御式解包状态数组：裸数组 / {result:[…]} / {statuses:{status:[…]}} 等包装形态下，
+/// 递归取首个「元素含状态字段」的数组
+fn status_array_of(v: &Value) -> Vec<Value> {
+    let is_entry = |e: &Value| status_id_of(e).is_some() || !s(e, "name").is_empty();
+    match v {
+        Value::Array(a) => {
+            if a.iter().any(is_entry) {
+                return a.clone();
+            }
+            for e in a {
+                let found = status_array_of(e);
+                if !found.is_empty() {
+                    return found;
+                }
+            }
+            vec![]
+        }
+        Value::Object(o) => {
+            for e in o.values() {
+                let found = status_array_of(e);
+                if !found.is_empty() {
+                    return found;
+                }
+            }
+            vec![]
+        }
+        _ => vec![],
+    }
 }
 
 /// PUT workitems/{id} body {status}
