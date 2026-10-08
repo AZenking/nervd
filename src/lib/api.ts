@@ -1,7 +1,7 @@
 // Tauri 命令的 invoke 包装（契约 §4）
 import { invoke } from '@tauri-apps/api/core';
 import type {
-  Category, JenkinsConnection, OrgSummary, RepoCiSnapshot, Settings, SettingsView,
+  Category, JenkinsConnection, OrgSummary, PipelineRunSummary, RepoCiSnapshot, Settings, SettingsView,
   WorkitemPage, WorkitemSummary,
 } from '../types';
 
@@ -15,6 +15,14 @@ export interface WorkitemStatusOption {
   identifier: string;
   name: string;
   stageName: string;
+}
+
+/** PipelineRunSummary 扩展行（types.ts 不可改，扩展字段在 api.ts 内定义）：
+ *  branches 由 Rust list_pipeline_runs 映射；pipelineId/pipelineName 由追溯链路增补 */
+export interface TracePipelineRun extends PipelineRunSummary {
+  branches?: string[];
+  pipelineId?: number;
+  pipelineName?: string;
 }
 
 export async function getSettings(): Promise<SettingsView> {
@@ -110,7 +118,7 @@ export async function mergeMergeRequest(repoId: number, localId: number): Promis
 export async function listPipelines(maxResults?: number): Promise<{ pipelineId: number; pipelineName: string; status?: string; updateTime?: string }[]> {
   return invoke('list_pipelines', { maxResults });
 }
-export async function listPipelineRuns(pipelineId: number, maxResults?: number): Promise<{ pipelineRunId: number; status: string; startTime?: number; endTime?: number; executorAccountId?: string; triggerMode?: number }[]> {
+export async function listPipelineRuns(pipelineId: number, maxResults?: number): Promise<TracePipelineRun[]> {
   return invoke('list_pipeline_runs', { pipelineId, maxResults });
 }
 export async function getPipelineRun(pipelineId: number, runId: number): Promise<Record<string, unknown>> {
