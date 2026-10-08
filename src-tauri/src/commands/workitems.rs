@@ -214,3 +214,95 @@ pub async fn update_workitem_status(
     .await
 }
 
+// ---------- 附件图片代理（富文本描述内联直显） ----------
+
+/// 代理响应大小上限：5MB
+const PROXY_MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
+
+/// SSRF 白名单：devops.aliyun.com 或 *.aliyuncs.com（含多级子域）
+fn proxy_host_allowed(host: &str) -> bool {
+    let h = host.trim_end_matches('.').to_ascii_lowercase();
+    h == "devops.aliyun.com" || h == "aliyuncs.com" || h.ends_with(".aliyuncs.com")
+}
+
+/// base64 标准字母表编码（不引入新依赖）
+fn base64_encode(data: &[u8]) -> String {
+    const TBL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let n = ((chunk[0] as u32) << 16)
+            | ((*chunk.get(1).unwrap_or(&0) as u32) << 8)
+            | (*chunk.get(2).unwrap_or(&0) as u32);
+        out.push(TBL[(n >> 18 & 63) as usize] as char);
+        out.push(TBL[(n >> 12 & 63) as usize] as char);
+        out.push(if chunk.len() > 1 { TBL[(n >> 6 & 63) as usize] as char } else { '=' });
+        out.push(if chunk.len() > 2 { TBL[(n & 63) as usize] as char } else { '=' });
+    }
+    out
+}
+
+/// GET 云效附件图片（x-yunxiao-token，与 YunxiaoClient 同一鉴权方式）。
+/// host 白名单（devops.aliyun.com / *.aliyuncs.com，重定向同样校验）+
+/// Content-Type image/* + ≤5MB，成功返回 data:<mime>;base64,<payload>；
+/// 鉴权被拒（401/403）等一律 Err（含状态码），不做任何绕过。
+#[tauri::command]
+pub async fn proxy_workitem_file(state: State<'_, AppState>, url: String) -> Result<String, String> {
+    let _ = client_of(&state)?; // 统一 NOT_CONFIGURED 口径
+    let pat = crate::credentials::load_pat()
+        .ok_or_else(|| "NOT_CONFIGURED: 请先在设置中保存个人访问令牌".to_string())?
+        .trim()
+        .to_string();
+    let parsed = reqwest::Url::parse(url.trim())
+        .map_err(|e| format!("PROXY 拒绝: URL 非法（{e}）"))?;
+    if parsed.scheme() != "https" {
+        return Err(format!("PROXY 拒绝: 仅允许 https（实际 {}）", parsed.scheme()));
+    }
+    let host = parsed
+        .host_str()
+        .ok_or("PROXY 拒绝: URL 缺少主机名")?;
+    if !proxy_host_allowed(host) {
+        return Err(format!("PROXY 拒绝: 主机 {host} 不在白名单（devops.aliyun.com / *.aliyuncs.com）"));
+    }
+    // 重定向目标也必须落在白名单内，最多 5 跳
+    let redirect = reqwest::redirect::Policy::custom(|attempt| {
+        match attempt.url().host_str().map(proxy_host_allowed) {
+            Some(true) if attempt.previous().len() < 5 => attempt.follow(),
+            _ => attempt.error("重定向目标不在白名单或次数超限"),
+        }
+    });
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .redirect(redirect)
+        .build()
+        .map_err(|e| format!("HTTP 客户端初始化失败: {e}"))?;
+    let resp = http
+        .get(parsed)
+        .header("x-yunxiao-token", &pat)
+        .send()
+        .await
+        .map_err(|e| format!("网络错误: {e}"))?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("PROXY {status}: 云效附件获取失败"));
+    }
+    let mime = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.split(';').next().unwrap_or("").trim().to_ascii_lowercase())
+        .unwrap_or_default();
+    if !mime.starts_with("image/") {
+        return Err(format!("PROXY 拒绝: 非图片响应（Content-Type: {mime}）"));
+    }
+    if let Some(len) = resp.content_length() {
+        if len as usize > PROXY_MAX_IMAGE_BYTES {
+            return Err(format!("PROXY 拒绝: 附件超过 5MB（{len} 字节）"));
+        }
+    }
+    let bytes = resp.bytes().await.map_err(|e| format!("网络错误: {e}"))?;
+    if bytes.len() > PROXY_MAX_IMAGE_BYTES {
+        return Err(format!("PROXY 拒绝: 附件超过 5MB（{} 字节）", bytes.len()));
+    }
+    Ok(format!("data:{mime};base64,{}", base64_encode(&bytes)))
+}
+
