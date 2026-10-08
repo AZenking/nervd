@@ -64,6 +64,10 @@ export async function updateWorkitemStatus(workitemId: string, statusIdentifier:
 export async function listWorkitemStatus(category: Category): Promise<WorkitemStatusOption[]> {
   return invoke('list_workitem_status', { category });
 }
+/** 附件图片代理：Rust 侧校验 host 白名单 / image/* / ≤5MB，成功返回 data: URL */
+export async function proxyWorkitemFile(url: string): Promise<string> {
+  return invoke('proxy_workitem_file', { url });
+}
 
 export async function listRepos(search?: string, page?: number): Promise<{ id: number; name: string; pathWithNamespace?: string; lastActivityAt?: string }[]> {
   return invoke('list_repos', { search, page });

@@ -49,6 +49,7 @@ pub fn run() {
             commands::list_workitem_comments,
             commands::list_workitem_status,
             commands::update_workitem_status,
+            commands::proxy_workitem_file,
             commands::list_repos,
             commands::list_branches,
             commands::create_branch,

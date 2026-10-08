@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as api from '../lib/api';
 import type { WorkitemStatusOption } from '../lib/api';
-import { richTextToPlain } from '../lib/richtext';
+import { extractRichImageUrls, imagePlaceholderLine, richTextToPlain } from '../lib/richtext';
 import { useApp } from '../store/app';
 import type { Category, WorkitemSummary } from '../types';
 import { Badge } from '@/components/ui/badge';
@@ -102,8 +102,8 @@ export function WorkitemDetail() {
 
       <Separator className="mx-auto max-w-3xl" />
 
-      <div className="mx-auto max-w-3xl px-8 py-6 text-sm leading-7 whitespace-pre-wrap break-words text-foreground/85">
-        {richTextToPlain(wi.description ?? wi.content) || '（无描述）'}
+      <div className="mx-auto max-w-3xl px-8 py-6 text-sm leading-7 text-foreground/85">
+        <RichDescription raw={wi.description ?? wi.content} />
       </div>
 
       <Separator className="mx-auto max-w-3xl" />
@@ -226,6 +226,72 @@ export function WorkitemDetail() {
       {settings?.allowWriteOps === false && (
         <div className="mx-auto max-w-3xl px-8 pb-6 text-xs text-muted-foreground">
           写操作未开启：设置 → 允许写操作
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 描述区：纯文本 + 附件图片内联直显（代理失败/未返回时保留 📎 占位行） */
+function RichDescription({ raw }: { raw: unknown }) {
+  const images = useMemo(() => extractRichImageUrls(raw), [raw]);
+  const [resolved, setResolved] = useState<Record<string, string>>({});
+
+  // 并发代理图片，不阻塞文本渲染；任一失败则该张退回 📎 占位
+  useEffect(() => {
+    let alive = true;
+    setResolved({});
+    if (!images.length) return;
+    void Promise.all(
+      images.map(async (img): Promise<[string, string] | null> => {
+        try {
+          const dataUrl = await api.proxyWorkitemFile(img.url);
+          return [img.url, dataUrl];
+        } catch {
+          return null; // 鉴权不可用/超限/非图片等：稳定降级占位
+        }
+      }),
+    ).then((results) => {
+      if (!alive) return;
+      const next: Record<string, string> = {};
+      for (const r of results) if (r) next[r[0]] = r[1];
+      setResolved(next);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [images]);
+
+  // 已成功内联的图片：从纯文本中移除对应 📎 占位行，避免重复
+  const resolvedPlaceholders = useMemo(
+    () => new Set(images.filter((img) => resolved[img.url]).map((img) => imagePlaceholderLine(img.name))),
+    [images, resolved],
+  );
+  const text = useMemo(() => {
+    const t = richTextToPlain(raw);
+    if (!resolvedPlaceholders.size) return t;
+    return t
+      .split('\n')
+      .filter((line) => !resolvedPlaceholders.has(line.trim()))
+      .join('\n');
+  }, [raw, resolvedPlaceholders]);
+
+  return (
+    <div>
+      <div className="whitespace-pre-wrap break-words">{text || '（无描述）'}</div>
+      {images.filter((img) => resolved[img.url]).length > 0 && (
+        <div className="mt-4 flex flex-col items-start gap-3">
+          {images
+            .filter((img) => resolved[img.url])
+            .map((img) => (
+              <img
+                key={img.url}
+                src={resolved[img.url]}
+                alt={img.name}
+                title={img.name}
+                className="h-auto max-h-64 w-auto max-w-full border border-border"
+              />
+            ))}
         </div>
       )}
     </div>
