@@ -1,0 +1,93 @@
+id: gap-closure-batch1
+goal: 关闭 nervd 工作台四项缺口——回写状态下拉化、完成通知可跳转云效/Jenkins、Flow 运行与工作项追溯挂钩、富文本附件图片直显；合并后 cargo check 与 pnpm build 零错误
+planningMode: execution
+maxReviewLoops: 3
+plan:
+  summary: 四任务两批执行：{状态下拉、通知跳转} 文件集不相交并行，随后串行{运行挂钩、附件图片代理}（后两者与前序共享 api.ts/WorkitemDetail.tsx）；每任务以编译/构建零错误 + 明确完成判据收口
+  rationale: 2026-10-08 缺口评审结论（顺序 10→3→8→1→5），#10 工作区提交已由主会话完成（5e4fc32），剩余四项经用户确认由 fleet 执行
+requirements:
+  - id: req-status-dropdown
+    text: 工作项详情「回写状态」从手输 statusIdentifier 改为工作流状态下拉（新命令 list_workitem_status，端点失败时降级回手输）
+  - id: req-notify-deeplink
+    text: 流水线完成/Jenkins 构建完成两类 toast 可点击打开对应网页（Flow 流水线页 / Jenkins job 页），opener 权限不足则补 capabilities
+  - id: req-run-link
+    text: 追溯结果 runs 不再恒空——按工作项关联分支匹配流水线运行；缺陷/任务视图新增「关联运行」段（原全量流水线列表保留）
+  - id: req-attachment-image
+    text: 云效富文本附件图片在详情页内联直显（Rust 带 PAT 代理 + host 白名单 + 大小上限；鉴权不可用时稳定降级为 📎 占位）
+constraints:
+  - kind: maxDurationMs
+    value: 1200000
+tasks:
+  - id: task-notify-link
+    agentRole: reason
+    goal: |
+      【通知跳转云效/Jenkins】只允许改动：src/App.tsx、src/components/ui/toast.tsx（如需）、src-tauri/capabilities/default.json（如需）。
+      现状：src/App.tsx 监听 pipeline-run-finished 与 jenkins-build-finished 事件弹 toast；@tauri-apps/plugin-opener 已装，capabilities 已含 opener:default。
+      要求：
+      1) 两类 toast 提供可点的「查看」入口（读 src/components/ui/toast.tsx 现有能力：有 action 槽位用之，没有则小幅扩展组件），点击经 plugin-opener 的 openUrl 打开：
+         - Flow 事件 → https://flow.aliyun.com/pipelines/{pipelineId}/current
+         - Jenkins 事件 → {baseUrl}/job/{jobFullName 中每个 '/' 替换为 '/job/'}（baseUrl 来自事件对应连接；App.tsx 可从 useApp settings.jenkinsConnections 按 connectionId 查）
+      2) 若 opener:default 不含 open-url 或被 scope 拒，在 capabilities/default.json permissions 增加 "opener:allow-open-url"（不设 URL scope 限制，或最小化为 https://flow.aliyun.com/* 与各 Jenkins baseUrl——若 baseUrl 动态则选不设 scope 并注释原因）。
+      3) 禁止 git commit / stash / reset，改动留工作区（fleet 自动暂存合并）。
+      验证：pnpm exec tsc --noEmit 与 pnpm exec vite build 零错误。
+      完成判据（审阅按此核对，勿额外加码）：两类事件 toast 均含可点击入口且 URL 拼接正确；未越界改文件；tsc 与 vite build 退出码 0。
+  - id: task-status-dropdown
+    agentRole: reason
+    goal: |
+      【回写状态下拉】只允许改动：src-tauri/src/commands/workitems.rs、src-tauri/src/lib.rs、src/lib/api.ts、src/components/WorkitemDetail.tsx。
+      现状：WorkitemDetail.tsx 的 StatusForm 手输 statusIdentifier；Rust update_workitem_status 已有（PUT /oapi/v1/projex/organizations/{org}/workitems/{id}，body {"status": id}）。docs/yunxiao-api.md 的 ListWorkItemWorkFlowStatus 定义了旧 ROA 端点 GET /organization/{orgId}/workitems/workflow/listWorkflowStatus（query: spaceType=Project、spaceIdentifier、workitemCategoryIdentifier=Req|Bug|Task）。本仓 API 已切换 openapi-rdc /oapi/v1 PAT 面（见 commands/workitems.rs 同文件命令风格）。
+      要求：
+      1) commands/workitems.rs 新增 #[tauri::command] list_workitem_status(category: String)：spaceIdentifier 取设置 defaultSpaceIdentifier；先试 oapi/v1 形态 /oapi/v1/projex/organizations/{org}/workitems/workflow/listWorkflowStatus，404/失败再退旧 ROA 形态 /organization/{org}/workitems/workflow/listWorkflowStatus；响应防御式解包（参考 common.rs 的 as_array/nested_s/s），映射为 [{identifier, name, stageName}]（identifier 取 identifier|id|statusIdentifier 任一非空字段）；两形态均失败返回 Err("UNSUPPORTED: 工作流状态接口不可用")。
+      2) lib.rs generate_handler 注册 list_workitem_status。
+      3) src/lib/api.ts 增加 listWorkitemStatus(category)，返回类型在 api.ts 模块内定义（禁止修改 src/types.ts，参考同文件 WorkitemRow 模式）。
+      4) WorkitemDetail.tsx 的 StatusForm 改为 Select 下拉：按当前工作项 category 拉状态列表（新增 category prop，由调用处从当前选中项取），选中后仍经现有 WriteOpButton「回写状态」触发，allowWriteOps 门控不变；命令失败时 toast 提示并降级回手输 Input（保留现有输入路径）。
+      5) 禁止 git commit / stash / reset。
+      验证：src-tauri 下 cargo check 零错误；pnpm exec tsc --noEmit 与 pnpm exec vite build 零错误。
+      完成判据（勿额外加码）：命令已注册且含两形态回退与防御式映射；api.ts 有包装且未动 types.ts；StatusForm 默认下拉、失败降级手输；三个验证命令退出码 0。
+  - id: task-run-link
+    agentRole: reason
+    dependsOn: [task-status-dropdown]
+    goal: |
+      【Flow 运行与工作项挂钩】只允许改动：src-tauri/src/commands/pipelines.rs、src/lib/api.ts、src/store/workitem-trace.ts、src/components/TracePane.tsx。
+      现状：workitem-trace.ts 的返回 runs 恒为 []；TracePane.tsx 缺陷/任务分支（category !== 'Req'）的「流水线」区显示组织级全量 pipelines；commands/pipelines.rs 的 list_pipeline_runs 仅映射 pipelineRunId/status/startTime/endTime/executorAccountId/triggerMode，丢弃分支信息。settings.repoCiBindings（types.ts 已有）可按仓库找到绑定的 flow 流水线。
+      要求：
+      1) pipelines.rs 的 list_pipeline_runs 增补分支映射：从运行原始对象防御式收集分支名数组 branches（候选字段 branchModeBranchs / runningBranchs（对象时取 value/branch）/ branches / sources[*].branch 或同义字段），输出 "branches": Vec<String>。
+      2) src/lib/api.ts：PipelineRunSummary 的扩展类型（含 branches?: string[]、pipelineName?: string）在 api.ts 模块内定义（禁止修改 src/types.ts）。
+      3) workitem-trace.ts：填充 runs——候选流水线 = repoCiBindings 中 provider=flow 且绑定仓库 ∈ 本次追溯仓库集合的流水线；对每条候选拉最近 20 条运行（api.listPipelineRuns(pipelineId, 20)），运行 branches 与该工作项已匹配分支名集合有交集者计入结果（带 pipelineId/pipelineName/branches）；若某运行 branches 为空数组且其流水线绑定当前仓库，则用 api.getPipelineRun 兜底取详情再匹配（每流水线最多兜底 5 条）。整段失败静默（catch 后 runs=[]），不阻塞追溯主链路。
+      4) TracePane.tsx 缺陷/任务视图：在「追溯链路」段之后新增「关联运行」段展示 trace.runs（运行状态用 StatusDot，行内展示流水线名/运行号/分支/时间），原「流水线」全量列表区保留不动。
+      5) 禁止 git commit / stash / reset。
+      验证：cargo check（src-tauri）、pnpm exec tsc --noEmit、pnpm exec vite build 全部零错误。
+      完成判据（勿额外加码）：Rust 映射含 branches；前端出现分支交集匹配逻辑与 getPipelineRun 兜底；TracePane 出现「关联运行」段；未越界改文件；三个验证命令退出码 0。
+  - id: task-attachment-image
+    agentRole: reason
+    dependsOn: [task-run-link]
+    goal: |
+      【富文本附件图片直显】只允许改动：src-tauri/src/commands/workitems.rs、src-tauri/src/lib.rs、src/lib/api.ts、src/lib/richtext.ts、src/components/WorkitemDetail.tsx。
+      现状：src/lib/richtext.ts 已把云效 {htmlValue, jsonMLValue} 描述解析为纯文本，img 节点输出「📎 name（需在云效查看）」占位；附件 URL 形如 https://devops.aliyun.com/projex/api/workitem/file/url?fileIdentifier=...，需云效登录态；YunxiaoClient 携带 PAT（openapi-rdc 面，见 yunxiao.rs）。
+      要求：
+      1) commands/workitems.rs 新增 #[tauri::command] proxy_workitem_file(url: String)：
+         - SSRF 防护：仅允许 host 为 devops.aliyun.com 或 *.aliyuncs.com（含子域），其余一律 Err 拒绝；
+         - 用 YunxiaoClient 同一鉴权方式 GET 该 URL；响应 Content-Type 为 image/* 且字节数 ≤ 5MB 时返回 data:<mime>;base64,<payload>；超限、非图片或 HTTP 失败返回 Err（信息含状态码）；
+         - 若云效对该域名不接受 PAT 鉴权（401/403），返回 Err 即可——不得为绕过鉴权引入任何不安全做法；
+      2) lib.rs 注册 proxy_workitem_file。
+      3) api.ts 增加 proxyWorkitemFile(url)。richtext.ts 新增导出 extractRichImageUrls(raw): {name: string; url: string}[]（复用现有 jsonML/html 遍历，img 节点取 name 与 src）。
+      4) WorkitemDetail.tsx 描述区升级：结构不变（纯文本 + 图片），对 extractRichImageUrls 的结果并发调 proxyWorkitemFile，成功者以 <img src={dataUrl}> 内联渲染（max-h-64、直角边框 border-border、贴主题），失败或未返回者保留现有 📎 占位行；加载不阻塞文本渲染。
+      5) 禁止修改 src/types.ts；禁止 git commit / stash / reset。
+      验证：cargo check（src-tauri）、pnpm exec tsc --noEmit、pnpm exec vite build 全部零错误。
+      完成判据（勿额外加码）：命令含 host 白名单、5MB 上限、image/* 校验且已注册；详情页图片内联渲染、失败稳定降级占位；未越界改文件；三个验证命令退出码 0。
+acceptance:
+  - given: 主仓干净、四个任务合并完成
+    when: 在仓库根执行 cargo check（src-tauri）与 pnpm build
+    then: 全部退出码 0
+  - given: 打开一个工作项详情
+    when: 切到「回写状态」tab
+    then: 默认为状态下拉（接口可用时），接口失败时降级手输并有 toast 提示
+  - given: 收到流水线完成或 Jenkins 构建完成通知
+    when: 点击 toast 的查看入口
+    then: 打开对应云效 Flow 流水线页或 Jenkins job 页
+  - given: 选中一个 Bug/Task 工作项且其分支有匹配运行
+    when: 查看追溯栏
+    then: 出现「关联运行」段且仅含与该工作项分支相关的运行
+  - given: 打开带截图的需求详情（PAT 对附件域名有效时）
+    when: 描述渲染完成
+    then: 截图内联显示；鉴权无效时显示 📎 占位且无报错弹窗
