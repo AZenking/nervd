@@ -1,7 +1,11 @@
 id: gap-closure-batch1
 goal: 关闭 nervd 工作台四项缺口——回写状态下拉化、完成通知可跳转云效/Jenkins、Flow 运行与工作项追溯挂钩、富文本附件图片直显；合并后 cargo check 与 pnpm build 零错误
 planningMode: execution
-maxReviewLoops: 3
+maxReviewLoops: 0
+validation:
+  commands:
+    typecheck: pnpm exec tsc --noEmit
+    tests: 'sh -c "cargo check --manifest-path src-tauri/Cargo.toml && pnpm exec vite build"'
 plan:
   summary: 四任务两批执行：{状态下拉、通知跳转} 文件集不相交并行，随后串行{运行挂钩、附件图片代理}（后两者与前序共享 api.ts/WorkitemDetail.tsx）；每任务以编译/构建零错误 + 明确完成判据收口
   rationale: 2026-10-08 缺口评审结论（顺序 10→3→8→1→5），#10 工作区提交已由主会话完成（5e4fc32），剩余四项经用户确认由 fleet 执行
