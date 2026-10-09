@@ -105,9 +105,33 @@ pub async fn list_workitem_comments(state: State<'_, AppState>, workitem_id: Str
     .await
 }
 
+/// 在响应任意层级寻找首个「元素为含非空 subject 的工作项」的数组。
+/// 云效各接口的包装层级不定（result:[…] / result.relationList:[…] / relationList.relationList:[…]…），
+/// 以内容特征定位，避免逐个猜测包装结构。
+fn find_workitem_array(v: &Value, depth: usize) -> Option<Vec<Value>> {
+    if depth > 6 {
+        return None;
+    }
+    if let Value::Array(a) = v {
+        let looks_right = a
+            .iter()
+            .any(|x| x.get("subject").and_then(|s| s.as_str()).is_some_and(|s| !s.is_empty()));
+        if looks_right {
+            return Some(a.clone());
+        }
+    }
+    if let Value::Object(m) = v {
+        for child in m.values() {
+            if let Some(found) = find_workitem_array(child, depth + 1) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
 /// GET getRelations?relationType=SUB（docs/yunxiao-api.md GetWorkitemRelations，ROA 2021-06-25 形态）
 /// 返回工作项的子工作项（SUB 关系）；identifier 在 ROA 族下即工作项 UUID，可直接用于打开详情。
-/// 响应形如 {"result":{"relationList":[…]}}（CLI 元数据 backendName 映射），防御式解包。
 #[tauri::command]
 pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: String) -> Result<Value, String> {
     let c = client_of(&state)?;
@@ -118,12 +142,7 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
             &[("relationType", "SUB".to_string())],
         )
         .await?;
-    let raw = resp
-        .pointer("/result/relationList")
-        .or_else(|| resp.get("relationList"))
-        .and_then(|x| x.as_array())
-        .cloned()
-        .unwrap_or_default();
+    let raw = find_workitem_array(&resp, 0).unwrap_or_default();
     let items: Vec<Value> = raw
         .iter()
         .map(|w| {
@@ -137,7 +156,17 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
             })
         })
         .collect();
-    Ok(json!({ "items": items }))
+    // 空结果时带回原始响应片段，便于在前端诊断包装形态差异
+    let raw_sample = if items.is_empty() {
+        serde_json::to_string(&resp)
+            .unwrap_or_default()
+            .chars()
+            .take(400)
+            .collect::<String>()
+    } else {
+        String::new()
+    };
+    Ok(json!({ "items": items, "rawSample": raw_sample }))
 }
 
 /// GET listWorkflowStatus（docs/yunxiao-api.md ListWorkItemWorkFlowStatus；spaceIdentifier 取设置 defaultSpaceIdentifier）

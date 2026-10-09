@@ -38,6 +38,8 @@ interface AppStore {
   detail: Record<string, unknown> | null;
   comments: unknown[];
   children: WorkitemChild[];
+  childrenError: string | null;
+  childrenDebug: string | null;
   loadingDetail: boolean;
 
   trace: TraceResult | null;
@@ -94,6 +96,8 @@ export const useApp = create<AppStore>((set, get) => ({
   detail: null,
   comments: [],
   children: [],
+  childrenError: null,
+  childrenDebug: null,
   loadingDetail: false,
 
   trace: null,
@@ -144,6 +148,8 @@ export const useApp = create<AppStore>((set, get) => ({
       detail: null,
       comments: [],
       children: [],
+      childrenError: null,
+      childrenDebug: null,
       loadingDetail: false,
       trace: null,
       traceLoading: false,
@@ -213,20 +219,31 @@ export const useApp = create<AppStore>((set, get) => ({
       detail: null,
       comments: [],
       children: [],
+      childrenError: null,
+      childrenDebug: null,
       trace: null,
       traceLoading: false,
       loadingDetail: true,
     });
     try {
-      const [detail, commentsRaw, children] = await Promise.all([
+      const [detail, commentsRaw, childrenRes] = await Promise.all([
         api.getWorkitem(id),
         api.listWorkitemComments(id).catch(() => ({})),
-        api.listWorkitemChildren(id).catch(() => []),
+        api.listWorkitemChildren(id).then(
+          (r) => ({ items: r.items, error: null as string | null, debug: r.rawSample ?? null }),
+          (e: unknown) => ({ items: [] as api.WorkitemChild[], error: String(e), debug: null as string | null }),
+        ),
       ]);
       if (!isCurrent()) return;
 
       const comments = arr(commentsRaw);
-      set({ detail, comments, children });
+      set({
+        detail,
+        comments,
+        children: childrenRes.items,
+        childrenError: childrenRes.error,
+        childrenDebug: childrenRes.debug,
+      });
     } catch (e) {
       if (isCurrent()) get().setToast({ text: `详情加载失败：${String(e)}`, kind: 'fail' });
     } finally {
@@ -435,6 +452,8 @@ export const useApp = create<AppStore>((set, get) => ({
             detail: null,
             comments: [],
             children: [],
+            childrenError: null,
+            childrenDebug: null,
           loadingDetail: false,
           pipelines: [],
           runsByPipeline: {},

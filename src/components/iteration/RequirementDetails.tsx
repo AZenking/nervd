@@ -293,7 +293,7 @@ function StatusForm({ workitemId, category }: { workitemId: string; category?: C
 }
 
 /** 子工作项卡片：真实数据（getRelations relationType=SUB），点击子项直接打开其详情 */
-function SubtaskCard({ subtasks, onSelect }: { subtasks: WorkitemChild[]; onSelect: (workitemId: string) => void }) {
+function SubtaskCard({ subtasks, error, debug, onSelect }: { subtasks: WorkitemChild[]; error?: string | null; debug?: string | null; onSelect: (workitemId: string) => void }) {
   const labelOf = (category?: string): string | null => {
     const key = (category ?? '').trim();
     return key in CATEGORY_LABELS ? CATEGORY_LABELS[key as Category] : key || null;
@@ -330,9 +330,19 @@ function SubtaskCard({ subtasks, onSelect }: { subtasks: WorkitemChild[]; onSele
             </button>
           );
         })}
-        {!subtasks.length && (
+        {!subtasks.length && !error && (
           <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-muted-foreground">
             暂无子工作项
+          </div>
+        )}
+        {!subtasks.length && debug && (
+          <p className="max-h-20 overflow-y-auto break-all rounded bg-muted/50 px-3 py-2 font-mono text-[10px] leading-4 text-muted-foreground" title="接口原始返回（诊断用）">
+            接口返回：{debug}
+          </p>
+        )}
+        {!subtasks.length && error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-xs text-destructive">
+            子任务加载失败：{error}
           </div>
         )}
         <p className="text-xs text-muted-foreground">新增子工作项请在云效网页端操作（端内创建接口暂未接入）。</p>
@@ -401,7 +411,7 @@ function LinkedRepoRow({ repo }: { repo: RepoSummary }) {
 /** 需求/工作项详情（nervd-new-ui 基准布局 + 真实数据/操作） */
 export function RequirementDetails() {
   const {
-    selectedId, detail, comments, children, loadingDetail, items, settings, repositories,
+    selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
     saveWorkitemRepos, setToast, select,
   } = useApp();
   const cur = items.find((i) => i.workitemId === selectedId);
@@ -491,7 +501,12 @@ export function RequirementDetails() {
 
       {isRequirement && (
         <div className="grid items-start gap-5 xl:grid-cols-2">
-          <SubtaskCard subtasks={children} onSelect={(workitemId) => void select(workitemId)} />
+          <SubtaskCard
+            subtasks={children}
+            error={childrenError}
+            debug={childrenDebug}
+            onSelect={(workitemId) => void select(workitemId)}
+          />
           <Card className="overflow-hidden border-border/70 shadow-sm">
             <CardHeader className="border-b bg-muted/30">
               <div className="flex items-center justify-between gap-3">

@@ -82,11 +82,14 @@ export async function listWorkitemComments(): Promise<Record<string, unknown>> {
   return [{ author: { name: '周荻' }, createdAt: '2026-10-08 10:22', content: '追溯面板的 CI 状态建议加环境维度。' }] as unknown as Record<string, unknown>;
 }
 export async function listWorkitemChildren(workitemId: string) {
-  if (workitemId === 'wi-2048') return [
-    { identifier: 'wi-2049', subject: '完成追溯面板 UI 联调', category: 'Task', gmtModified: '2026-10-08 12:40' },
-    { identifier: 'wi-2050', subject: '追溯规则正则回归测试', category: 'Task', gmtModified: '2026-10-07 17:05' },
-  ];
-  return [];
+  if (workitemId === 'wi-2048') return {
+    items: [
+      { identifier: 'wi-2049', subject: '完成追溯面板 UI 联调', category: 'Task', gmtModified: '2026-10-08 12:40' },
+      { identifier: 'wi-2050', subject: '追溯规则正则回归测试', category: 'Task', gmtModified: '2026-10-07 17:05' },
+    ],
+    rawSample: '',
+  };
+  return { items: [], rawSample: '' };
 }
 export async function updateWorkitemStatus(): Promise<unknown> { return null; }
 export async function listWorkitemStatus(): Promise<WorkitemStatusOption[]> {

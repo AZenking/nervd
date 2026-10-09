@@ -67,10 +67,21 @@ export interface WorkitemChild {
   gmtModified?: string;
 }
 
-export async function listWorkitemChildren(workitemId: string): Promise<WorkitemChild[]> {
-  const resp = await invoke('list_workitem_children', { workitemId });
-  const raw = (resp as { items?: unknown })?.items;
-  return Array.isArray(raw) ? (raw as WorkitemChild[]) : [];
+export interface WorkitemChildrenResult {
+  items: WorkitemChild[];
+  /** 空结果时后端带回的原始响应片段（诊断包装形态用） */
+  rawSample?: string;
+}
+
+export async function listWorkitemChildren(workitemId: string): Promise<WorkitemChildrenResult> {
+  const resp = await invoke('list_workitem_children', { workitemId }) as {
+    items?: unknown;
+    rawSample?: unknown;
+  };
+  return {
+    items: Array.isArray(resp?.items) ? (resp.items as WorkitemChild[]) : [],
+    rawSample: typeof resp?.rawSample === 'string' && resp.rawSample ? resp.rawSample : undefined,
+  };
 }
 export async function updateWorkitemStatus(workitemId: string, statusIdentifier: string): Promise<unknown> {
   return invoke('update_workitem_status', { workitemId, statusIdentifier });
