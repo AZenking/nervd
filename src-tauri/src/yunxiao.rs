@@ -39,6 +39,10 @@ impl YunxiaoClient {
             .query(&query.to_vec())
             .header("Accept", "application/json")
             .header("x-yunxiao-token", &self.pat);
+        if base == ROA_BASE {
+            // ROA 网关强制要求 Date 头（缺失报 MissingDate 400）
+            rb = rb.header("Date", http_date_now());
+        }
         if let Some(b) = body {
             rb = rb.json(&b);
         }
@@ -74,8 +78,11 @@ impl YunxiaoClient {
     }
 
     /// ROA 2021-06-25 族 GET（devops.{region}.aliyuncs.com）
+    /// PAT 鉴权走 accessToken 查询参数（该族不识别 x-yunxiao-token 头）
     pub async fn get_roa(&self, path: &str, query: &[(&str, String)]) -> Result<Value, String> {
-        self.req(ROA_BASE, Method::GET, path, query, None).await
+        let mut q: Vec<(&str, String)> = query.to_vec();
+        q.push(("accessToken", self.pat.clone()));
+        self.req(ROA_BASE, Method::GET, path, &q, None).await
     }
 
     pub async fn post(&self, path: &str, query: &[(&str, String)], body: Value) -> Result<Value, String> {
@@ -95,4 +102,65 @@ pub fn truncate(s: &str, n: usize) -> String {
     let mut out: String = s.chars().take(n).collect();
     out.push('…');
     out
+}
+
+/// 当前时间的 IMF-fixdate（RFC 7231），ROA 网关 Date 头要求。
+/// 无 chrono 依赖，手写民用历换算（1970-01-01 = 星期四）。
+fn http_date_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    http_date_at(secs)
+}
+
+fn http_date_at(secs: i64) -> String {
+    let days = secs.div_euclid(86400);
+    let rem = secs.rem_euclid(86400);
+    let (y, mo, d) = civil_from_days(days);
+    const WD: [&str; 7] = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
+    const MON: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    format!(
+        "{}, {:02} {} {} {:02}:{:02}:{:02} GMT",
+        WD[days.rem_euclid(7) as usize],
+        d,
+        MON[(mo - 1) as usize],
+        y,
+        rem / 3600,
+        (rem % 3600) / 60,
+        rem % 60
+    )
+}
+
+/// 天数 → (年, 月, 日)，民用历（同 commands/workitems.rs 的实现）
+fn civil_from_days(z: i64) -> (i64, i64, i64) {
+    let z = z + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    (if m <= 2 { y + 1 } else { y }, m, d)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_date_formats_imf_fixdate() {
+        // Unix 纪元：1970-01-01 周四
+        assert_eq!(http_date_at(0), "Thu, 01 Jan 1970 00:00:00 GMT");
+        // 2026-10-09 03:00:00 UTC = 1791514800（周五）
+        assert_eq!(http_date_at(1_791_514_800), "Fri, 09 Oct 2026 03:00:00 GMT");
+        // 月末/年初边界：2025-12-31 23:59:59 UTC = 1767225599（周三）
+        assert_eq!(http_date_at(1_767_225_599), "Wed, 31 Dec 2025 23:59:59 GMT");
+        // 闰日：2024-02-29 12:00:00 UTC = 1709208000（周四）
+        assert_eq!(http_date_at(1_709_208_000), "Thu, 29 Feb 2024 12:00:00 GMT");
+    }
 }
