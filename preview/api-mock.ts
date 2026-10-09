@@ -86,6 +86,7 @@ export async function listWorkitemChildren(workitemId: string) {
     items: [
       { workitemId: 'wi-2049', identifier: 'BENZ-6214', subject: '完成追溯面板 UI 联调', category: 'Task', status: '处理中', assignedTo: '杨阳', gmtModified: '2026-10-08 12:40' },
       { workitemId: 'wi-2050', identifier: 'BENZ-6220', subject: '追溯规则正则回归测试', category: 'Task', status: '已完成', assignedTo: '杨阳', gmtModified: '2026-10-07 17:05' },
+      { workitemId: 'wi-2055', identifier: 'BENZ-6216', subject: '追溯面板 CI 状态在弱网下显示为空', category: 'Bug', status: '待处理', assignedTo: '周荻', gmtModified: '2026-10-08 18:22' },
     ],
     rawSample: '',
   };

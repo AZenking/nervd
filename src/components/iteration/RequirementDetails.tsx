@@ -292,8 +292,17 @@ function StatusForm({ workitemId, category }: { workitemId: string; category?: C
   );
 }
 
-/** 子工作项卡片：真实数据（getRelations relationType=SUB），点击子项直接打开其详情 */
-function SubtaskCard({ subtasks, error, debug, onSelect }: { subtasks: WorkitemChild[]; error?: string | null; debug?: string | null; onSelect: (workitemId: string) => void }) {
+/** 子工作项/缺陷卡片：真实数据（search 行级 parentId 过滤），点击子项直接打开其详情 */
+function ChildrenCard({
+  title, description, items, error, debug, onSelect,
+}: {
+  title: string;
+  description: string;
+  items: WorkitemChild[];
+  error?: string | null;
+  debug?: string | null;
+  onSelect: (workitemId: string) => void;
+}) {
   const labelOf = (category?: string): string | null => {
     const key = (category ?? '').trim();
     return key in CATEGORY_LABELS ? CATEGORY_LABELS[key as Category] : key || null;
@@ -303,14 +312,14 @@ function SubtaskCard({ subtasks, error, debug, onSelect }: { subtasks: WorkitemC
       <CardHeader className="border-b bg-muted/30">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <CardTitle>子任务</CardTitle>
-            <CardDescription className="mt-1">来自云效的子工作项（SUB 关联），点击可打开详情</CardDescription>
+            <CardTitle>{title}</CardTitle>
+            <CardDescription className="mt-1">{description}</CardDescription>
           </div>
-          <Badge variant="outline">{subtasks.length} 项</Badge>
+          <Badge variant="outline">{items.length} 项</Badge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-2 pt-5">
-        {subtasks.map((task) => {
+        {items.map((task) => {
           const label = labelOf(task.category);
           return (
             <button
@@ -339,22 +348,22 @@ function SubtaskCard({ subtasks, error, debug, onSelect }: { subtasks: WorkitemC
             </button>
           );
         })}
-        {!subtasks.length && !error && (
+        {!items.length && !error && (
           <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-muted-foreground">
-            暂无子工作项
+            暂无{title}
           </div>
         )}
-        {!subtasks.length && debug && (
+        {!items.length && debug && (
           <p className="max-h-20 overflow-y-auto break-all rounded bg-muted/50 px-3 py-2 font-mono text-[10px] leading-4 text-muted-foreground" title="接口原始返回（诊断用）">
             接口返回：{debug}
           </p>
         )}
-        {!subtasks.length && error && (
+        {!items.length && error && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-xs text-destructive">
-            子任务加载失败：{error}
+            {title}加载失败：{error}
           </div>
         )}
-        <p className="text-xs text-muted-foreground">新增子工作项请在云效网页端操作（端内创建接口暂未接入）。</p>
+        <p className="text-xs text-muted-foreground">新增请在云效网页端操作（端内创建接口暂未接入）。</p>
       </CardContent>
     </Card>
   );
@@ -508,32 +517,30 @@ export function RequirementDetails() {
         </CardContent>
       </Card>
 
-      {isRequirement && (
-        <div className="grid items-start gap-5 xl:grid-cols-2">
-          <SubtaskCard
-            subtasks={children}
-            error={childrenError}
-            debug={childrenDebug}
-            onSelect={(workitemId) => void select(workitemId)}
-          />
-          <Card className="overflow-hidden border-border/70 shadow-sm">
-            <CardHeader className="border-b bg-muted/30">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <CardTitle>缺陷</CardTitle>
-                  <CardDescription className="mt-1">演示占位 · 关联缺陷需切换到「缺陷」类别查看</CardDescription>
-                </div>
-                <Badge variant="outline">0 个</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-5">
-              <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-muted-foreground">
-                暂无关联缺陷数据（待云效关联关系 API 接入）
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {isRequirement && (() => {
+        const subtasks = children.filter((c) => c.category !== 'Bug');
+        const defects = children.filter((c) => c.category === 'Bug');
+        return (
+          <div className="grid items-start gap-5 xl:grid-cols-2">
+            <ChildrenCard
+              title="子任务"
+              description="挂载在该需求下的子工作项，点击可打开详情"
+              items={subtasks}
+              error={childrenError}
+              debug={childrenDebug}
+              onSelect={(workitemId) => void select(workitemId)}
+            />
+            <ChildrenCard
+              title="缺陷"
+              description="挂载在该需求下的缺陷，点击可打开详情"
+              items={defects}
+              error={childrenError}
+              debug={childrenDebug}
+              onSelect={(workitemId) => void select(workitemId)}
+            />
+          </div>
+        );
+      })()}
 
       <Card className="overflow-hidden border-border/70 shadow-sm">
         <CardHeader className="border-b bg-muted/30">
