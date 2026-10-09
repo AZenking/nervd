@@ -59,11 +59,14 @@ export async function listWorkitemComments(workitemId: string): Promise<Record<s
   return invoke('list_workitem_comments', { workitemId });
 }
 
-/** 子工作项（getRelations relationType=SUB 的防御式映射产物） */
+/** 子工作项（workitems:search 行级 parentId 过滤的映射产物） */
 export interface WorkitemChild {
+  workitemId: string;
   identifier: string;
   subject: string;
   category?: string;
+  status?: string;
+  assignedTo?: string;
   gmtModified?: string;
 }
 

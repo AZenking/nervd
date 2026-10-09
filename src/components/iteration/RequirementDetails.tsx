@@ -314,10 +314,10 @@ function SubtaskCard({ subtasks, error, debug, onSelect }: { subtasks: WorkitemC
           const label = labelOf(task.category);
           return (
             <button
-              key={task.identifier}
+              key={task.workitemId}
               type="button"
               className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-              onClick={() => onSelect(task.identifier)}
+              onClick={() => onSelect(task.workitemId)}
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -326,7 +326,15 @@ function SubtaskCard({ subtasks, error, debug, onSelect }: { subtasks: WorkitemC
                 </div>
                 <p className="mt-1 font-mono text-xs text-muted-foreground">{task.identifier}</p>
               </div>
-              <span className="shrink-0 text-xs text-muted-foreground">{task.gmtModified || ''}</span>
+              <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                {task.status && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <StatusDot status={task.status} />
+                    {task.status}
+                  </span>
+                )}
+                {task.gmtModified && <span>{task.gmtModified}</span>}
+              </div>
             </button>
           );
         })}

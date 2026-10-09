@@ -105,73 +105,59 @@ pub async fn list_workitem_comments(state: State<'_, AppState>, workitem_id: Str
     .await
 }
 
-/// 在响应任意层级寻找首个「元素为含非空 subject 的工作项」的数组。
-/// 云效各接口的包装层级不定（result:[…] / result.relationList:[…] / relationList.relationList:[…]…），
-/// 以内容特征定位，避免逐个猜测包装结构。
-fn find_workitem_array(v: &Value, depth: usize) -> Option<Vec<Value>> {
-    if depth > 6 {
-        return None;
-    }
-    if let Value::Array(a) = v {
-        let looks_right = a
-            .iter()
-            .any(|x| x.get("subject").and_then(|s| s.as_str()).is_some_and(|s| !s.is_empty()));
-        if looks_right {
-            return Some(a.clone());
-        }
-    }
-    if let Value::Object(m) = v {
-        for child in m.values() {
-            if let Some(found) = find_workitem_array(child, depth + 1) {
-                return Some(found);
-            }
-        }
-    }
-    None
-}
-
-/// GET getRelations?relationType=SUB（docs/yunxiao-api.md GetWorkitemRelations，ROA 2021-06-25 形态）
-/// 返回工作项的子工作项（SUB 关系）；identifier 在 ROA 族下即工作项 UUID，可直接用于打开详情。
+/// 子工作项查询：POST workitems:search × 三类别（Req/Task/Bug），行级 parentId 过滤。
+/// 实测结论（2026-10）：PAT 可用面只有 oapi/v1 族——getRelations 的 ROA 路径在
+/// openapi-rdc 上 302 到文档页、在 devops.{region} 主机上要求 AK 签名（PAT 不可用）；
+/// 而搜索行自带 parentId/idPath/serialNumber/status，字段比关系接口更全。
+/// 覆盖面：每类别取最近 100 条（按 gmtModified 倒序），子项通常在此范围内。
 #[tauri::command]
 pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: String) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let path = format!("/organization/{org}/workitems/{workitem_id}/getRelations");
-    let query = [("relationType", "SUB".to_string())];
-    // ROA 族原生端点为 devops.cn-hangzhou.aliyuncs.com；openapi-rdc 上该路径会返回非 JSON 网关体，
-    // 仅作回退（保持对历史行为兼容）
-    let resp = match c.get_roa(&path, &query).await {
-        Ok(v) => v,
-        Err(roa_err) => match c.get(&path, &query).await {
-            Ok(v) => v,
-            Err(_) => return Err(roa_err),
-        },
+    let space = {
+        let st = state.settings.lock().unwrap();
+        st.default_space_identifier.trim().to_string()
     };
-    let raw = find_workitem_array(&resp, 0).unwrap_or_default();
-    let items: Vec<Value> = raw
-        .iter()
-        .map(|w| {
-            let gmt = i64_of(w, "gmtModified")
-                .or_else(|| s(w, "gmtModified").trim().parse::<i64>().ok());
-            json!({
-                "identifier": s(w, "identifier"),
+    if space.is_empty() {
+        return Err("NOT_CONFIGURED: 请先在设置中选择默认项目空间".into());
+    }
+
+    let mut children: Vec<Value> = Vec::new();
+    for category in ["Req", "Task", "Bug"] {
+        let body = json!({
+            "category": category,
+            "spaceId": space,
+            "spaceType": "Project",
+            "orderBy": "gmtModified",
+            "sort": "desc",
+            "page": 1,
+            "perPage": 100,
+        });
+        let resp = c
+            .post(
+                &format!("/oapi/v1/projex/organizations/{org}/workitems:search"),
+                &[],
+                body,
+            )
+            .await
+            .unwrap_or(Value::Null);
+        let rows = as_array(&resp);
+        for w in &rows {
+            if s(w, "parentId") != workitem_id {
+                continue;
+            }
+            children.push(json!({
+                "workitemId": s(w, "id"),
+                "identifier": s(w, "serialNumber"),
                 "subject": s(w, "subject"),
-                "category": s(w, "categoryIdentifier"),
-                "gmtModified": gmt.map(chrono_ms_to_local).unwrap_or_default(),
-            })
-        })
-        .collect();
-    // 空结果时带回原始响应片段，便于在前端诊断包装形态差异
-    let raw_sample = if items.is_empty() {
-        serde_json::to_string(&resp)
-            .unwrap_or_default()
-            .chars()
-            .take(400)
-            .collect::<String>()
-    } else {
-        String::new()
-    };
-    Ok(json!({ "items": items, "rawSample": raw_sample }))
+                "category": s(w, "categoryId"),
+                "status": nested_s(w, "status", "name"),
+                "assignedTo": nested_s(w, "assignedTo", "name"),
+                "gmtModified": i64_of(w, "gmtModified").map(chrono_ms_to_local).unwrap_or_default(),
+            }));
+        }
+    }
+    Ok(json!({ "items": children }))
 }
 
 /// GET listWorkflowStatus（docs/yunxiao-api.md ListWorkItemWorkFlowStatus；spaceIdentifier 取设置 defaultSpaceIdentifier）
