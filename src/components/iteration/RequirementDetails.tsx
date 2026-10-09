@@ -327,6 +327,7 @@ function SubtaskCard({ subtasks, error, debug, onSelect }: { subtasks: WorkitemC
                 <p className="mt-1 font-mono text-xs text-muted-foreground">{task.identifier}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                {task.assignedTo && <span title="处理人">{task.assignedTo}</span>}
                 {task.status && (
                   <span className="inline-flex items-center gap-1.5">
                     <StatusDot status={task.status} />
