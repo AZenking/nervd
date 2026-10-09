@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
 export function LogViewer() {
-  const { logView, closeLogs } = useApp();
+  const { logView, closeLogs, refreshRepoCiLogs } = useApp();
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,6 +24,15 @@ export function LogViewer() {
       });
     }
   }, [logView?.text]);
+
+  useEffect(() => {
+    if (!logView?.repoId || !logView.runId || !logView.hasMore || logView.loading) return;
+    const timer = window.setTimeout(
+      () => void refreshRepoCiLogs(),
+      logView.error ? 3000 : 1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [logView?.repoId, logView?.runId, logView?.nextOffset, logView?.hasMore, logView?.loading, logView?.error, refreshRepoCiLogs]);
 
   return (
     <Dialog open={!!logView} onOpenChange={(open) => { if (!open) closeLogs(); }}>
@@ -44,8 +53,29 @@ export function LogViewer() {
           </div>
         </ScrollArea>
         <Separator />
-        <div className="flex justify-end px-5 py-3">
-          <Button variant="outline" size="sm" onClick={closeLogs}>关闭</Button>
+        <div className="flex items-center justify-between gap-3 px-5 py-3">
+          <span className="min-w-0 text-xs text-muted-foreground">
+            {logView?.error
+              ? `日志读取失败，将自动重试：${logView.error}`
+              : logView?.repoId && logView.hasMore
+                ? '正在自动跟随 Jenkins 实时日志'
+                : logView?.repoId
+                  ? '构建已结束，日志已更新至最新'
+                  : ''}
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            {logView?.repoId && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={logView.loading}
+                onClick={() => void refreshRepoCiLogs()}
+              >
+                {logView.loading ? '刷新中…' : '刷新日志'}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={closeLogs}>关闭</Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

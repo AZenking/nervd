@@ -261,23 +261,17 @@ export function OverviewView() {
             <div className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-md border border-border bg-background p-4">
               <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">最近更新</div>
               {recentItems.map((it) => (
-                <div
+                <Button
                   key={it.workitemId || it.identifier}
-                  role="button"
-                  tabIndex={0}
-                  className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs transition-colors hover:bg-accent"
+                  type="button"
+                  variant="ghost"
+                  className="h-auto w-full justify-start gap-2 rounded px-2 py-1.5 text-xs font-normal"
                   onClick={() => openInWorkbench(it.workitemId)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      openInWorkbench(it.workitemId);
-                    }
-                  }}
                 >
                   <span className="shrink-0 font-mono text-muted-foreground">{it.identifier}</span>
                   <span className="min-w-0 flex-1 truncate text-foreground">{it.subject}</span>
                   <span className="shrink-0 text-muted-foreground">{it.updatedAt?.slice(0, 10) ?? ''}</span>
-                </div>
+                </Button>
               ))}
               {!recentItems.length && <div className="py-4 text-center text-xs text-muted-foreground">暂无工作项</div>}
             </div>

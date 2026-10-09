@@ -29,21 +29,15 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SearchableSelect } from './searchable-select';
 
 const SECTIONS = [
   { value: 'connection', label: '云效连接', icon: CloudIcon },
-  { value: 'trace', label: '追溯与仓库', icon: GitBranchIcon },
+  { value: 'trace', label: '追溯与云效仓库', icon: GitBranchIcon },
   { value: 'ci', label: 'CI 集成', icon: WorkflowIcon },
   { value: 'security', label: '安全', icon: ShieldIcon },
 ] as const;
@@ -58,6 +52,8 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
     watchedRepos: [],
     allowWriteOps: false,
     workitemRepos: {},
+    branchRuleTemplates: [],
+    workitemRepoBranchTemplates: {},
     jenkinsConnections: [],
     repoCiBindings: {},
   });
@@ -309,24 +305,16 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
                   <Field>
                     <FieldLabel htmlFor="space">默认项目空间</FieldLabel>
                     <div className="flex gap-2">
-                      <Select
-                        items={projectItems}
-                        value={form.defaultSpaceIdentifier}
+                      <SearchableSelect
+                        id="space"
+                        className="min-w-0 flex-1 font-mono"
+                        value={form.defaultSpaceIdentifier || null}
                         onValueChange={(v) => setForm({ ...form, defaultSpaceIdentifier: v ?? '' })}
-                      >
-                        <SelectTrigger id="space" className="min-w-0 flex-1 font-mono">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent alignItemWithTrigger={false}>
-                          <SelectGroup>
-                            {projectItems.map((it) => (
-                              <SelectItem key={it.value ?? '__placeholder__'} value={it.value}>
-                                {it.label}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
+                        items={projectItems.map((it) => ({
+                          label: it.label,
+                          value: it.value,
+                        }))}
+                      />
                       <Button
                         variant="outline"
                         size="icon"
@@ -347,9 +335,9 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
           <TabsContent value="trace">
             <Card>
               <CardHeader>
-                <CardTitle>追溯与仓库</CardTitle>
+                <CardTitle>追溯与云效仓库</CardTitle>
                 <CardDescription>
-                  分支 / commit / MR 标题匹配工作项的规则，以及需求未单独配置关联时参与扫描的默认仓库。
+                  仓库从云效组织获取。这里选择需求未单独关联云效仓库时参与扫描的默认仓库。
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -366,20 +354,20 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
                   </Field>
 
                   <Field>
-                    <FieldLabel>默认仓库{repos.length ? `（${repos.length} 个）` : ''}</FieldLabel>
+                    <FieldLabel>默认云效仓库{repos.length ? `（${repos.length} 个）` : ''}</FieldLabel>
                     <ScrollArea className="h-45 rounded-md border border-border bg-background">
                       <div className="flex flex-col gap-1 p-1.5">
                         {repos.map((r) => (
-                          <label
+                          <Label
                             key={r.id}
-                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-muted"
+                            className="cursor-pointer rounded-md px-2 py-1.5 font-normal text-foreground hover:bg-muted"
                           >
                             <Checkbox
                               checked={form.watchedRepos.includes(r.id)}
                               onCheckedChange={() => toggleRepo(r.id)}
                             />
                             <span className="font-mono text-[11px]">{r.pathWithNamespace || r.name}</span>
-                          </label>
+                          </Label>
                         ))}
                         {!repos.length && (
                           <div className="p-2 text-sm text-muted-foreground">
@@ -459,51 +447,60 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
                         <div key={repo.id} className="flex flex-col gap-2 rounded-md border border-border bg-background p-3">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
-                            <select
-                              aria-label={`${label} CI 提供方`}
-                              className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+                            <SearchableSelect
+                              className="text-xs"
+                              ariaLabel={`${label} CI 提供方`}
                               value={binding?.provider ?? 'none'}
-                              onChange={(e) => {
-                                if (e.target.value === 'none') setRepoBinding(repo.id, null);
-                                else if (e.target.value === 'flow') {
+                              onValueChange={(v) => {
+                                if (!v || v === 'none') setRepoBinding(repo.id, null);
+                                else if (v === 'flow') {
                                   const pipeline = pipelines[0];
                                   setRepoBinding(repo.id, { provider: 'flow', pipelineId: pipeline?.pipelineId ?? 0, pipelineName: pipeline?.pipelineName ?? '' });
                                 } else {
                                   setRepoBinding(repo.id, { provider: 'jenkins', connectionId: form.jenkinsConnections[0]?.id ?? '', jobFullName: '' });
                                 }
                               }}
-                            >
-                              <option value="none">未绑定</option>
-                              <option value="flow">云效 Flow</option>
-                              <option value="jenkins">Jenkins</option>
-                            </select>
+                              items={[
+                                { label: '未绑定', value: 'none' },
+                                { label: '云效 Flow', value: 'flow' },
+                                { label: 'Jenkins', value: 'jenkins' },
+                              ]}
+                            />
                           </div>
                           {binding?.provider === 'flow' && (
-                            <select
-                              aria-label={`${label} 云效流水线`}
-                              className="h-8 rounded-md border border-border bg-background px-2 text-xs"
-                              value={binding.pipelineId ? String(binding.pipelineId) : ''}
-                              onChange={(e) => {
-                                const pipeline = pipelines.find((item) => String(item.pipelineId) === e.target.value);
+                            <SearchableSelect
+                              className="text-xs"
+                              ariaLabel={`${label} 云效流水线`}
+                              value={binding.pipelineId ? String(binding.pipelineId) : '__unset'}
+                              onValueChange={(v) => {
+                                const pipeline = pipelines.find((item) => String(item.pipelineId) === v);
                                 setRepoBinding(repo.id, { provider: 'flow', pipelineId: pipeline?.pipelineId ?? 0, pipelineName: pipeline?.pipelineName ?? '' });
                               }}
-                            >
-                              <option value="">选择云效流水线</option>
-                              {pipelines.map((pipeline) => <option key={pipeline.pipelineId} value={String(pipeline.pipelineId)}>{pipeline.pipelineName}</option>)}
-                            </select>
+                              items={[
+                                { label: '选择云效流水线', value: '__unset' },
+                                ...pipelines.map((pipeline) => ({
+                                  label: pipeline.pipelineName,
+                                  value: String(pipeline.pipelineId),
+                                })),
+                              ]}
+                            />
                           )}
                           {binding?.provider === 'jenkins' && (
                             <>
                               <div className="grid gap-2 md:grid-cols-[minmax(10rem,0.7fr)_minmax(12rem,1fr)]">
-                                <select
-                                  aria-label={`${label} Jenkins 实例`}
-                                  className="h-8 rounded-md border border-border bg-background px-2 text-xs"
-                                  value={binding.connectionId}
-                                  onChange={(e) => setRepoBinding(repo.id, { ...binding, connectionId: e.target.value })}
-                                >
-                                  <option value="">选择 Jenkins 实例</option>
-                                  {form.jenkinsConnections.map((connection) => <option key={connection.id} value={connection.id}>{connection.name || connection.baseUrl || connection.id}</option>)}
-                                </select>
+                                <SearchableSelect
+                                  className="text-xs"
+                                  ariaLabel={`${label} Jenkins 实例`}
+                                  value={binding.connectionId || '__unset'}
+                                  onValueChange={(v) => setRepoBinding(repo.id, { ...binding, connectionId: v && v !== '__unset' ? v : '' })}
+                                  items={[
+                                    { label: '选择 Jenkins 实例', value: '__unset' },
+                                    ...form.jenkinsConnections.map((connection) => ({
+                                      label: connection.name || connection.baseUrl || connection.id,
+                                      value: connection.id,
+                                    })),
+                                  ]}
+                                />
                                 <Input aria-label={`${label} Jenkins Job 全路径`} value={binding.jobFullName} placeholder="folder/job-name" onChange={(e) => setRepoBinding(repo.id, { ...binding, jobFullName: e.target.value })} />
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
@@ -537,7 +534,7 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
                   />
                   <div className="flex flex-col gap-1">
                     <FieldLabel htmlFor="allow-write-ops">允许写操作</FieldLabel>
-                    <FieldDescription>建分支 / MR / 合并 / 触发流水线 / 回写状态 —— 需写权限令牌</FieldDescription>
+                    <FieldDescription>建分支 / MR / 合并 / 触发流水线 —— 需写权限令牌</FieldDescription>
                   </div>
                 </Field>
               </CardContent>

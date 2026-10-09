@@ -1,54 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  GitBranchIcon,
-  ChevronRightIcon,
   RefreshCwIcon,
   DatabaseIcon,
-  WorkflowIcon,
+  LoaderCircleIcon,
+  XIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
-import { useUi } from '@/store/ui';
-import { PLACEHOLDER_ITERATIONS } from '@/store/ui';
+import {
+  useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters,
+} from '@/store/ui';
 import { CATEGORY_LABELS, type Category, type RepoSummary } from '@/types';
+import { SearchableSelect } from '../searchable-select';
 import { StatusDot } from '../StatusDot';
-
-/** 迭代分支来源关系（占位：后端暂无迭代 API） */
-const PLACEHOLDER_BRANCH_RELATIONS = [
-  { source: 'main', target: 'iteration/Benz-20261016', label: '创建迭代分支' },
-  { source: 'dev', target: 'feature/REQ-2048-trace', label: '创建开发分支' },
-];
-
-function BranchNode({ label, branch }: { label: string; branch: string }) {
-  return (
-    <div className="min-w-0 rounded-lg border bg-muted/30 p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="mt-2 flex items-center gap-2">
-        <GitBranchIcon className="size-4 shrink-0" />
-        <code className="truncate text-xs font-medium">{branch}</code>
-      </div>
-    </div>
-  );
-}
-
-function BranchArrow({ label }: { label: string }) {
-  return (
-    <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground md:flex-col">
-      <span className="whitespace-nowrap">{label}</span>
-      <ChevronRightIcon className="size-4" />
-    </div>
-  );
-}
+import { IterationBranches } from './IterationBranches';
+import { RepositoryCiDetails } from './RepositoryCiDetails';
 
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
@@ -59,183 +32,150 @@ function InfoItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** 仓库行：CI 状态真实（repoCiByRepo），分支差异为占位 */
+/** 仓库行：CI 状态真实（repoCiByRepo），基准分支关系在上方按迭代配置 */
 function RepositoryRow({ repo }: { repo: RepoSummary }) {
   const { repoCiByRepo, settings } = useApp();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const entry = repoCiByRepo[repo.id];
   const snapshot = entry?.snapshot;
   const binding = settings?.repoCiBindings?.[String(repo.id)];
-  const providerLabel = binding?.provider === 'jenkins' ? 'Jenkins' : binding?.provider === 'flow' ? '云效 Flow' : '未绑定';
-  const status = snapshot?.status ?? (entry?.loading ? '加载中' : '—');
+  const jenkinsBinding = binding?.provider === 'jenkins' ? binding : undefined;
+  const isJenkins = Boolean(jenkinsBinding);
+  const providerLabel = isJenkins ? 'Jenkins' : 'Jenkins 未配置';
+  const status = isJenkins ? snapshot?.status ?? (entry?.loading ? '加载中' : entry?.error ? '查询失败' : '—') : '未配置 Jenkins';
 
   return (
-    <TableRow>
-      <TableCell className="font-medium">
-        <div className="flex flex-col">
-          <span>{repo.pathWithNamespace || repo.name}</span>
-          <span className="text-xs text-muted-foreground">#{repo.id} · {providerLabel}</span>
-        </div>
-      </TableCell>
-      <TableCell><code className="text-xs text-muted-foreground">—</code></TableCell>
-      <TableCell>
-        <span className="inline-flex items-center gap-1.5 text-sm">
-          <StatusDot status={status} />
-          {status}
-        </span>
-      </TableCell>
-      <TableCell><Badge variant="outline">—</Badge></TableCell>
-      <TableCell><Badge variant="outline">—</Badge></TableCell>
-      <TableCell className="text-right">
-        <RepositoryDrawer repo={repo} />
-      </TableCell>
-    </TableRow>
+    <>
+      <TableRow>
+        <TableCell className="font-medium">
+          <div className="flex flex-col">
+            <span>{repo.pathWithNamespace || repo.name}</span>
+            <span className="text-xs text-muted-foreground">#{repo.id} · {providerLabel}</span>
+          </div>
+        </TableCell>
+        <TableCell><code className="text-xs text-muted-foreground">—</code></TableCell>
+        <TableCell>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto px-1.5 py-1 font-normal"
+            title={entry?.error ?? '点击查看 CI Job、构建分支和环境详情'}
+            onClick={() => setDetailsOpen(true)}
+          >
+            <span className="inline-flex items-center gap-1.5 text-sm">
+              <StatusDot status={status} />
+              {status}
+            </span>
+          </Button>
+        </TableCell>
+        <TableCell><Badge variant="outline">—</Badge></TableCell>
+        <TableCell><Badge variant="outline">—</Badge></TableCell>
+        <TableCell className="text-right">
+          <Button variant="outline" size="sm" onClick={() => setDetailsOpen(true)}>CI 详情</Button>
+        </TableCell>
+      </TableRow>
+      <RepositoryCiDetails repo={repo} open={detailsOpen} onOpenChange={setDetailsOpen} />
+    </>
   );
 }
 
-/** 仓库详情抽屉：构建触发 / 运行记录 / 日志均为真实 IPC */
-function RepositoryDrawer({ repo }: { repo: RepoSummary }) {
-  const { repoCiByRepo, loadRepoCi, openRepoCiLogs, setToast } = useApp();
-  const entry = repoCiByRepo[repo.id];
-  const snapshot = entry?.snapshot;
-  const [triggering, setTriggering] = useState(false);
-
-  const trigger = () => {
-    setTriggering(true);
-    api.triggerRepoCi(repo.id)
-      .then(() => setToast({ text: `已触发 ${repo.name} 构建`, kind: 'ok' }))
-      .catch((e) => setToast({ text: `触发失败：${String(e)}`, kind: 'fail' }))
-      .finally(() => {
-        setTriggering(false);
-        void loadRepoCi(repo.id);
-      });
-  };
-
-  return (
-    <Drawer swipeDirection="right">
-      <DrawerTrigger render={<Button variant="outline" size="sm" />}>详情与构建</DrawerTrigger>
-      <DrawerContent className="[--drawer-content-width:min(48rem,100vw)]">
-        <DrawerHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <DrawerTitle>{repo.pathWithNamespace || repo.name}</DrawerTitle>
-              <DrawerDescription>仓库 #{repo.id} · CI 运行记录与构建操作</DrawerDescription>
-            </div>
-            <Badge variant={snapshot?.status === 'SUCCESS' ? 'secondary' : snapshot?.status === 'FAIL' ? 'destructive' : 'outline'}>
-              {snapshot?.status ?? '未知'}
-            </Badge>
-          </div>
-        </DrawerHeader>
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="flex flex-col gap-5 p-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>构建操作</CardTitle>
-                <CardDescription>
-                  触发仓库绑定的 CI（云效 Flow / Jenkins）；环境与 Job 在「环境与策略」中配置
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <Button size="sm" disabled={triggering} onClick={trigger}>
-                    <WorkflowIcon className="size-4" />
-                    {triggering ? '触发中…' : '触发构建'}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => void loadRepoCi(repo.id)}>
-                    <RefreshCwIcon className="size-4" />
-                    刷新状态
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">构建参数（环境 / 分支）随仓库 CI 绑定下发，暂不支持逐次覆盖。</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>最近运行</CardTitle>
-                <CardDescription>最近 5 次 CI 运行，点击查看日志</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>运行</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>耗时</TableHead>
-                      <TableHead className="text-right">日志</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(snapshot?.runs ?? []).map((run) => (
-                      <TableRow key={run.runId}>
-                        <TableCell className="font-mono text-xs">#{run.runId}</TableCell>
-                        <TableCell>
-                          <span className="inline-flex items-center gap-1.5">
-                            <StatusDot status={run.status} />
-                            {run.status}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {run.durationMs != null ? `${Math.round(run.durationMs / 1000)}s` : '—'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => void openRepoCiLogs(repo.id, run.runId, `${repo.name} · #${run.runId}`)}
-                          >
-                            查看
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {!snapshot?.runs.length && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="py-6 text-center text-xs text-muted-foreground">
-                          {entry?.loading ? '加载运行记录…' : '暂无运行记录（或未绑定 CI）'}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-        </ScrollArea>
-      </DrawerContent>
-    </Drawer>
-  );
-}
-
-/** 迭代视图（nervd-new-ui 基准）：迭代信息 + 分支关系（占位）+ 仓库（真实）+ 需求列表（真实） */
+/** 迭代视图（nervd-new-ui 基准）：迭代信息（真实 sprints）+ 分支关系 + 仓库 + 需求列表（真实，按迭代过滤，滚动加载） */
 export function IterationView() {
-  const { iterationKey, openRequirement } = useUi();
-  const { items, repositories, category, setCategory, loadingList, loadList, nextToken, select, loadRepoCi } = useApp();
+  const { iterationKey, setIteration, openRequirement, filters, clearFilters } = useUi();
+  const {
+    items, repositories, category, setCategory, loadingList, loadList, nextToken, select, loadRepoCi,
+    iterations: realIterations, loadingIterations, loadIterations,
+  } = useApp();
   const [kw, setKw] = useState('');
 
-  // 进入迭代视图时拉齐仓库 CI 快照（真实 IPC）
+  // 首次进入立即查询；页面可见时每 15 秒刷新，切回窗口时立即刷新。
   useEffect(() => {
-    void Promise.all(repositories.map((repo) => loadRepoCi(repo.id)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repositories]);
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      const state = useApp.getState();
+      for (const repo of repositories) {
+        if (state.settings?.repoCiBindings?.[String(repo.id)]?.provider === 'jenkins'
+          && !state.repoCiByRepo[repo.id]?.loading) void loadRepoCi(repo.id);
+      }
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 15_000);
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [repositories, loadRepoCi]);
 
-  const iteration = PLACEHOLDER_ITERATIONS.find((it) => it.name === iterationKey) ?? PLACEHOLDER_ITERATIONS[0];
-  const filtered = items.filter((it) => {
+  const iterations = iterationsOrFallback(realIterations);
+  const iteration = iterations.find((it) => it.name === iterationKey) ?? iterations[0];
+  const usingFallback = !realIterations.length;
+  const activeFilterCount = filters.assignees.length + filters.related.length + filters.statuses.length;
+
+  // 列表按当前迭代收窄（真实迭代命中时），再套用侧栏筛选与关键字
+  const scoped = useMemo(
+    () => scopedItems(items, iterationKey, realIterations),
+    [items, iterationKey, realIterations],
+  );
+  const filtered = useMemo(() => {
     const k = kw.trim().toLowerCase();
-    if (!k) return true;
-    return it.subject.toLowerCase().includes(k) || it.identifier.toLowerCase().includes(k);
-  });
+    return applyWorkitemFilters(scoped, filters).filter((it) => {
+      if (!k) return true;
+      return it.subject.toLowerCase().includes(k) || it.identifier.toLowerCase().includes(k);
+    });
+  }, [scoped, filters, kw]);
+
+  // 滚动加载哨兵：进入视口（提前 240px）自动拉取下一页；加载完成即重挂观察器，列表仍短则继续拉取
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !nextToken || loadingList) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadList(true);
+      },
+      { rootMargin: '240px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [nextToken, loadingList, loadList, items.length]);
 
   return (
     <div className="flex flex-col gap-5">
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardDescription>当前迭代（占位数据 · 后端暂未接入云效迭代 API）</CardDescription>
-              <CardTitle className="mt-1">{iteration.name}</CardTitle>
+            <div className="min-w-0">
+              <CardDescription>
+                {usingFallback
+                  ? `当前迭代（占位数据 · 迭代接口不可用${loadingIterations ? '，获取中…' : ''}）`
+                  : '当前迭代 · 云效项目迭代'}
+              </CardDescription>
+              <CardTitle className="mt-1 flex flex-wrap items-center gap-2">
+                {iteration.name}
+                <Badge variant="secondary">{iteration.state || '未知状态'}</Badge>
+              </CardTitle>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{iteration.state}</Badge>
-              <Button variant="outline" size="sm" onClick={() => void loadList(false)}>
+            <div className="flex flex-wrap items-center gap-2">
+              <SearchableSelect
+                className="w-56 text-xs"
+                ariaLabel="切换迭代"
+                value={iteration.name}
+                onValueChange={(v) => { if (v) setIteration(v); }}
+                items={iterations.map((it) => ({
+                  label: `${it.name} · ${it.state}`,
+                  value: it.name,
+                }))}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void loadList(false);
+                  void loadIterations();
+                }}
+              >
                 <RefreshCwIcon className="size-4" />
                 刷新
               </Button>
@@ -243,38 +183,28 @@ export function IterationView() {
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">{iteration.title}</p>
+          {iteration.title && <p className="text-sm text-muted-foreground">{iteration.title}</p>}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <InfoItem label="工作项（当前类别）" value={String(items.length)} />
+            <InfoItem
+              label="工作项（当前类别）"
+              value={usingFallback ? String(scoped.length) : `${scoped.length} / 已加载 ${items.length}`}
+            />
             <InfoItem label="关联仓库" value={`${repositories.length} 个`} />
-            <InfoItem label="迭代分支" value="—" />
-            <InfoItem label="默认开发分支" value="dev" />
+            <InfoItem
+              label="迭代周期"
+              value={iteration.startDate && iteration.endDate ? `${iteration.startDate} ~ ${iteration.endDate}` : '—'}
+            />
+            <InfoItem label="基准分支规则" value="按需求所选模板生成" />
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>分支来源关系</CardTitle>
-          <CardDescription>一个迭代可包含多组来源关系，每组都明确标注源分支和目标分支（演示占位）</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 lg:grid-cols-2">
-            {PLACEHOLDER_BRANCH_RELATIONS.map((relation) => (
-              <div key={`${relation.source}-${relation.target}`} className="grid items-center gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_auto_1fr]">
-                <BranchNode label="源分支" branch={relation.source} />
-                <BranchArrow label={relation.label} />
-                <BranchNode label="目标分支" branch={relation.target} />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <IterationBranches />
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><DatabaseIcon className="size-4" />涉及仓库</CardTitle>
-          <CardDescription>点击仓库查看 CI 运行记录、日志与构建操作；分支差异待迭代 API 接入后提供</CardDescription>
+          <CardDescription>点击仓库查看 CI 运行记录、日志与构建操作；需求详情中为各关联仓库选择分支模板</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -307,14 +237,27 @@ export function IterationView() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle>迭代工作项</CardTitle>
-              <CardDescription>{CATEGORY_LABELS[category]} · {filtered.length} 项{loadingList ? ' · 加载中…' : ''}</CardDescription>
+              <CardDescription>
+                {CATEGORY_LABELS[category]}
+                {!usingFallback && ` · 迭代内 ${scoped.length} 项`}
+                {` · 筛选后 ${filtered.length} 项（已加载 ${items.length}）`}
+                {loadingList ? ' · 加载中…' : ''}
+              </CardDescription>
             </div>
-            <Input
-              value={kw}
-              onChange={(e) => setKw(e.target.value)}
-              placeholder="搜索编号 / 标题"
-              className="w-56"
-            />
+            <div className="flex items-center gap-2">
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  <XIcon className="size-4" />
+                  清除筛选（{activeFilterCount}）
+                </Button>
+              )}
+              <Input
+                value={kw}
+                onChange={(e) => setKw(e.target.value)}
+                placeholder="搜索编号 / 标题"
+                className="w-56"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -327,34 +270,55 @@ export function IterationView() {
           </Tabs>
           <div className="grid gap-3 md:grid-cols-2">
             {filtered.map((item) => (
-              <button
+              <Button
                 key={item.workitemId || item.identifier}
                 type="button"
-                className="flex items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
+                variant="outline"
+                className="flex h-auto w-full items-start justify-between gap-3 rounded-lg p-3 text-left font-normal hover:bg-accent"
                 onClick={() => {
                   void select(item.workitemId);
                   openRequirement();
                 }}
               >
                 <div className="min-w-0">
-                  <p className="font-mono text-xs text-muted-foreground">{item.identifier}</p>
+                  <p className="font-mono text-xs font-normal text-muted-foreground">{item.identifier}</p>
                   <p className="mt-1 text-sm font-medium">{item.subject}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.status} · {item.assignedTo}</p>
+                  <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
+                    {item.status} · {item.assignedTo}
+                    {item.relatedTo?.length ? ` · 关联 ${item.relatedTo.join('、')}` : ''}
+                  </p>
                 </div>
                 <StatusDot status={item.status} />
-              </button>
+              </Button>
             ))}
             {!filtered.length && !loadingList && (
               <div className="col-span-full rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
-                无匹配工作项{nextToken ? '（可点击下方加载更多）' : ''}
+                {items.length
+                  ? usingFallback
+                    ? '无匹配工作项'
+                    : activeFilterCount
+                      ? '当前迭代无匹配工作项（可清除侧栏筛选或滚动加载更多）'
+                      : nextToken
+                        ? '当前迭代暂无已加载的工作项（向下滚动继续拉取）'
+                        : '当前迭代在全部工作项中均无匹配'
+                  : '无匹配工作项'}
+              </div>
+            )}
+            {/* 滚动加载哨兵：进入视口即自动拉取下一页 */}
+            <div ref={sentinelRef} className="col-span-full h-px" aria-hidden />
+            {nextToken && (
+              <div className="col-span-full flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+                {loadingList
+                  ? (<><LoaderCircleIcon className="size-3.5 animate-spin" />加载中…</>)
+                  : '向下滚动加载更多'}
+              </div>
+            )}
+            {!nextToken && items.length > 0 && !loadingList && (
+              <div className="col-span-full py-2 text-center text-xs text-muted-foreground">
+                已加载全部 · 共 {items.length} 项
               </div>
             )}
           </div>
-          {nextToken && (
-            <Button variant="outline" size="sm" className="self-start" onClick={() => void loadList(true)}>
-              加载更多
-            </Button>
-          )}
         </CardContent>
       </Card>
     </div>

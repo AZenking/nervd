@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { useApp } from '../store/app';
 import {
   AlertDialog,
@@ -19,16 +19,26 @@ export function WriteOpButton({
   label,
   onAction,
   title,
+  disabled = false,
+  disabledReason,
+  variant = 'default',
 }: {
   label: string;
   onAction: () => Promise<void>;
   title?: string;
+  disabled?: boolean;
+  disabledReason?: string;
+  variant?: ComponentProps<typeof Button>['variant'];
 }) {
   const allow = useApp((s) => s.settings?.allowWriteOps ?? false);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
 
-  const tip = !allow ? '需在设置中开启写操作（写权限令牌）' : (title ?? label);
+  const tip = !allow
+    ? '需在设置中开启写操作（写权限令牌）'
+    : disabled
+      ? disabledReason ?? title ?? label
+      : title ?? label;
 
   const run = async () => {
     setBusy(true);
@@ -46,7 +56,7 @@ export function WriteOpButton({
         <TooltipTrigger
           render={
             <AlertDialogTrigger
-              render={<Button size="sm" disabled={!allow || busy} />}
+              render={<Button size="sm" variant={variant} disabled={!allow || busy || disabled} />}
             />
           }
         >

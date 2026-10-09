@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '../searchable-select';
 
 /**
  * 环境与策略（nervd-new-ui 基准布局）：
@@ -22,6 +23,8 @@ export function EnvironmentPolicySettings() {
     watchedRepos: [],
     allowWriteOps: false,
     workitemRepos: {},
+    branchRuleTemplates: [],
+    workitemRepoBranchTemplates: {},
     jenkinsConnections: [],
     repoCiBindings: {},
   });
@@ -227,51 +230,60 @@ export function EnvironmentPolicySettings() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
                     <Badge variant={binding ? 'secondary' : 'outline'}>{binding ? '已绑定' : '未绑定'}</Badge>
-                    <select
-                      aria-label={`${label} CI 提供方`}
-                      className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+                    <SearchableSelect
+                      className="text-xs"
+                      ariaLabel={`${label} CI 提供方`}
                       value={binding?.provider ?? 'none'}
-                      onChange={(e) => {
-                        if (e.target.value === 'none') setRepoBinding(repo.id, null);
-                        else if (e.target.value === 'flow') {
+                      onValueChange={(v) => {
+                        if (!v || v === 'none') setRepoBinding(repo.id, null);
+                        else if (v === 'flow') {
                           const pipeline = pipelines[0];
                           setRepoBinding(repo.id, { provider: 'flow', pipelineId: pipeline?.pipelineId ?? 0, pipelineName: pipeline?.pipelineName ?? '' });
                         } else {
                           setRepoBinding(repo.id, { provider: 'jenkins', connectionId: form.jenkinsConnections[0]?.id ?? '', jobFullName: '' });
                         }
                       }}
-                    >
-                      <option value="none">未绑定</option>
-                      <option value="flow">云效 Flow</option>
-                      <option value="jenkins">Jenkins</option>
-                    </select>
+                      items={[
+                        { label: '未绑定', value: 'none' },
+                        { label: '云效 Flow', value: 'flow' },
+                        { label: 'Jenkins', value: 'jenkins' },
+                      ]}
+                    />
                   </div>
                   {binding?.provider === 'flow' && (
-                    <select
-                      aria-label={`${label} 云效流水线`}
-                      className="h-8 rounded-md border border-border bg-background px-2 text-xs"
-                      value={binding.pipelineId ? String(binding.pipelineId) : ''}
-                      onChange={(e) => {
-                        const pipeline = pipelines.find((item) => String(item.pipelineId) === e.target.value);
+                    <SearchableSelect
+                      className="text-xs"
+                      ariaLabel={`${label} 云效流水线`}
+                      value={binding.pipelineId ? String(binding.pipelineId) : '__unset'}
+                      onValueChange={(v) => {
+                        const pipeline = pipelines.find((item) => String(item.pipelineId) === v);
                         setRepoBinding(repo.id, { provider: 'flow', pipelineId: pipeline?.pipelineId ?? 0, pipelineName: pipeline?.pipelineName ?? '' });
                       }}
-                    >
-                      <option value="">选择云效流水线</option>
-                      {pipelines.map((pipeline) => <option key={pipeline.pipelineId} value={String(pipeline.pipelineId)}>{pipeline.pipelineName}</option>)}
-                    </select>
+                      items={[
+                        { label: '选择云效流水线', value: '__unset' },
+                        ...pipelines.map((pipeline) => ({
+                          label: pipeline.pipelineName,
+                          value: String(pipeline.pipelineId),
+                        })),
+                      ]}
+                    />
                   )}
                   {binding?.provider === 'jenkins' && (
                     <>
                       <div className="grid gap-2 md:grid-cols-[minmax(10rem,0.7fr)_minmax(12rem,1fr)]">
-                        <select
-                          aria-label={`${label} Jenkins 实例`}
-                          className="h-8 rounded-md border border-border bg-background px-2 text-xs"
-                          value={binding.connectionId}
-                          onChange={(e) => setRepoBinding(repo.id, { ...binding, connectionId: e.target.value })}
-                        >
-                          <option value="">选择 Jenkins 实例</option>
-                          {form.jenkinsConnections.map((c) => <option key={c.id} value={c.id}>{c.name || c.baseUrl || c.id}</option>)}
-                        </select>
+                        <SearchableSelect
+                          className="text-xs"
+                          ariaLabel={`${label} Jenkins 实例`}
+                          value={binding.connectionId || '__unset'}
+                          onValueChange={(v) => setRepoBinding(repo.id, { ...binding, connectionId: v && v !== '__unset' ? v : '' })}
+                          items={[
+                            { label: '选择 Jenkins 实例', value: '__unset' },
+                            ...form.jenkinsConnections.map((c) => ({
+                              label: c.name || c.baseUrl || c.id,
+                              value: c.id,
+                            })),
+                          ]}
+                        />
                         <Input aria-label={`${label} Jenkins Job 全路径`} value={binding.jobFullName} placeholder="folder/job-name" onChange={(e) => setRepoBinding(repo.id, { ...binding, jobFullName: e.target.value })} />
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
