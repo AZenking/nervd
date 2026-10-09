@@ -58,6 +58,20 @@ export async function getWorkitem(workitemId: string): Promise<Record<string, un
 export async function listWorkitemComments(workitemId: string): Promise<Record<string, unknown>> {
   return invoke('list_workitem_comments', { workitemId });
 }
+
+/** 子工作项（getRelations relationType=SUB 的防御式映射产物） */
+export interface WorkitemChild {
+  identifier: string;
+  subject: string;
+  category?: string;
+  gmtModified?: string;
+}
+
+export async function listWorkitemChildren(workitemId: string): Promise<WorkitemChild[]> {
+  const resp = await invoke('list_workitem_children', { workitemId });
+  const raw = (resp as { items?: unknown })?.items;
+  return Array.isArray(raw) ? (raw as WorkitemChild[]) : [];
+}
 export async function updateWorkitemStatus(workitemId: string, statusIdentifier: string): Promise<unknown> {
   return invoke('update_workitem_status', { workitemId, statusIdentifier });
 }

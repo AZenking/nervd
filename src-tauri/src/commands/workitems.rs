@@ -105,6 +105,41 @@ pub async fn list_workitem_comments(state: State<'_, AppState>, workitem_id: Str
     .await
 }
 
+/// GET getRelations?relationType=SUB（docs/yunxiao-api.md GetWorkitemRelations，ROA 2021-06-25 形态）
+/// 返回工作项的子工作项（SUB 关系）；identifier 在 ROA 族下即工作项 UUID，可直接用于打开详情。
+/// 响应形如 {"result":{"relationList":[…]}}（CLI 元数据 backendName 映射），防御式解包。
+#[tauri::command]
+pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: String) -> Result<Value, String> {
+    let c = client_of(&state)?;
+    let org = org_of(&state)?;
+    let resp = c
+        .get(
+            &format!("/organization/{org}/workitems/{workitem_id}/getRelations"),
+            &[("relationType", "SUB".to_string())],
+        )
+        .await?;
+    let raw = resp
+        .pointer("/result/relationList")
+        .or_else(|| resp.get("relationList"))
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let items: Vec<Value> = raw
+        .iter()
+        .map(|w| {
+            let gmt = i64_of(w, "gmtModified")
+                .or_else(|| s(w, "gmtModified").trim().parse::<i64>().ok());
+            json!({
+                "identifier": s(w, "identifier"),
+                "subject": s(w, "subject"),
+                "category": s(w, "categoryIdentifier"),
+                "gmtModified": gmt.map(chrono_ms_to_local).unwrap_or_default(),
+            })
+        })
+        .collect();
+    Ok(json!({ "items": items }))
+}
+
 /// GET listWorkflowStatus（docs/yunxiao-api.md ListWorkItemWorkFlowStatus；spaceIdentifier 取设置 defaultSpaceIdentifier）
 /// 先试 oapi/v1 形态，404/失败再退旧 ROA 形态；两形态均失败返回 UNSUPPORTED
 #[tauri::command]

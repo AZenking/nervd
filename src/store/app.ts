@@ -1,7 +1,7 @@
 // zustand 全局状态（契约 §5）
 import { create } from 'zustand';
 import * as api from '../lib/api';
-import type { WorkitemRow } from '../lib/api';
+import type { WorkitemRow, WorkitemChild } from '../lib/api';
 import { workitemRepoIds } from '../lib/workitem-repos';
 import type {
   Category, ConnectionState, PipelineRunSummary, RepoCiSnapshot, RepoSummary,
@@ -37,6 +37,7 @@ interface AppStore {
   selectedId: string | null;
   detail: Record<string, unknown> | null;
   comments: unknown[];
+  children: WorkitemChild[];
   loadingDetail: boolean;
 
   trace: TraceResult | null;
@@ -92,6 +93,7 @@ export const useApp = create<AppStore>((set, get) => ({
   selectedId: null,
   detail: null,
   comments: [],
+  children: [],
   loadingDetail: false,
 
   trace: null,
@@ -141,6 +143,7 @@ export const useApp = create<AppStore>((set, get) => ({
       selectedId: null,
       detail: null,
       comments: [],
+      children: [],
       loadingDetail: false,
       trace: null,
       traceLoading: false,
@@ -209,19 +212,21 @@ export const useApp = create<AppStore>((set, get) => ({
       selectedId: id,
       detail: null,
       comments: [],
+      children: [],
       trace: null,
       traceLoading: false,
       loadingDetail: true,
     });
     try {
-      const [detail, commentsRaw] = await Promise.all([
+      const [detail, commentsRaw, children] = await Promise.all([
         api.getWorkitem(id),
         api.listWorkitemComments(id).catch(() => ({})),
+        api.listWorkitemChildren(id).catch(() => []),
       ]);
       if (!isCurrent()) return;
 
       const comments = arr(commentsRaw);
-      set({ detail, comments });
+      set({ detail, comments, children });
     } catch (e) {
       if (isCurrent()) get().setToast({ text: `详情加载失败：${String(e)}`, kind: 'fail' });
     } finally {
@@ -429,6 +434,7 @@ export const useApp = create<AppStore>((set, get) => ({
             selectedId: null,
             detail: null,
             comments: [],
+            children: [],
           loadingDetail: false,
           pipelines: [],
           runsByPipeline: {},

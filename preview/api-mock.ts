@@ -74,11 +74,19 @@ export async function listProjects(): Promise<{ id: string; name: string }[]> {
 }
 export async function listWorkitems(): Promise<WorkitemPage> { return { items, nextToken: null }; }
 export async function getWorkitem(workitemId: string): Promise<Record<string, unknown>> {
-  const cur = items.find((i) => i.workitemId === workitemId);
+  const cur = items.find((i) => i.workitemId === workitemId)
+    ?? items.map((i) => ({ ...i, subject: '（mock 子工作项）完善交付链路' })).find((i) => i.workitemId === workitemId);
   return { workitem: { subject: cur?.subject, status: cur?.status, description: { raw_text: '让“需求 → 分支 → 提交 → MR → 流水线”在一个工作面内可解释、可操作。当前需求正在整理追溯链路展示。' } } };
 }
 export async function listWorkitemComments(): Promise<Record<string, unknown>> {
   return [{ author: { name: '周荻' }, createdAt: '2026-10-08 10:22', content: '追溯面板的 CI 状态建议加环境维度。' }] as unknown as Record<string, unknown>;
+}
+export async function listWorkitemChildren(workitemId: string) {
+  if (workitemId === 'wi-2048') return [
+    { identifier: 'wi-2049', subject: '完成追溯面板 UI 联调', category: 'Task', gmtModified: '2026-10-08 12:40' },
+    { identifier: 'wi-2050', subject: '追溯规则正则回归测试', category: 'Task', gmtModified: '2026-10-07 17:05' },
+  ];
+  return [];
 }
 export async function updateWorkitemStatus(): Promise<unknown> { return null; }
 export async function listWorkitemStatus(): Promise<WorkitemStatusOption[]> {

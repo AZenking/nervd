@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  CheckIcon, ChevronDownIcon, GitBranchIcon, PlusIcon, SearchIcon, WorkflowIcon, XIcon,
+  CheckIcon, ChevronDownIcon, GitBranchIcon, SearchIcon, WorkflowIcon, XIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
+import type { WorkitemChild, WorkitemStatusOption } from '@/lib/api';
 import { extractRichImageUrls, imagePlaceholderLine, richTextToPlain } from '@/lib/richtext';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
-import type { Category, RepoSummary } from '@/types';
+import { CATEGORY_LABELS, type Category, type RepoSummary } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +21,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { WorkitemStatusOption } from '@/lib/api';
 import { StatusDot } from '../StatusDot';
 import { WriteOpButton } from '../WriteOpButton';
 
@@ -292,18 +292,11 @@ function StatusForm({ workitemId, category }: { workitemId: string; category?: C
   );
 }
 
-/** 占位子任务（本地状态，待工作项父子关系 API 接入后替换） */
-function SubtaskCard() {
-  const [tasks, setTasks] = useState([
-    { id: 1, title: '完成技术方案评审', done: true },
-    { id: 2, title: '完成开发与联调', done: false },
-  ]);
-  const [newTask, setNewTask] = useState('');
-  const addTask = () => {
-    const title = newTask.trim();
-    if (!title) return;
-    setTasks((current) => [...current, { id: Date.now(), title, done: false }]);
-    setNewTask('');
+/** 子工作项卡片：真实数据（getRelations relationType=SUB），点击子项直接打开其详情 */
+function SubtaskCard({ subtasks, onSelect }: { subtasks: WorkitemChild[]; onSelect: (workitemId: string) => void }) {
+  const labelOf = (category?: string): string | null => {
+    const key = (category ?? '').trim();
+    return key in CATEGORY_LABELS ? CATEGORY_LABELS[key as Category] : key || null;
   };
   return (
     <Card className="overflow-hidden border-border/70 shadow-sm">
@@ -311,24 +304,38 @@ function SubtaskCard() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <CardTitle>子任务</CardTitle>
-            <CardDescription className="mt-1">演示占位 · 暂未接入云效父子工作项</CardDescription>
+            <CardDescription className="mt-1">来自云效的子工作项（SUB 关联），点击可打开详情</CardDescription>
           </div>
-          <Badge variant="outline">{tasks.filter((t) => t.done).length}/{tasks.length} 已完成</Badge>
+          <Badge variant="outline">{subtasks.length} 项</Badge>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3 pt-5">
-        <div className="flex gap-2">
-          <Input value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="输入子任务名称"
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) addTask(); }} />
-          <Button onClick={addTask} disabled={!newTask.trim()}><PlusIcon className="size-4" />创建</Button>
-        </div>
-        {tasks.map((task) => (
-          <div key={task.id} className="flex items-center gap-2 rounded-lg border p-3">
-            <input type="checkbox" checked={task.done} onChange={(e) => setTasks((cur) => cur.map((t) => t.id === task.id ? { ...t, done: e.target.checked } : t))} aria-label={`标记 ${task.title}`} />
-            <Input value={task.title} onChange={(e) => setTasks((cur) => cur.map((t) => t.id === task.id ? { ...t, title: e.target.value } : t))} />
-            <Button variant="ghost" size="sm" onClick={() => setTasks((cur) => cur.filter((t) => t.id !== task.id))}>删除</Button>
+      <CardContent className="flex flex-col gap-2 pt-5">
+        {subtasks.map((task) => {
+          const label = labelOf(task.category);
+          return (
+            <button
+              key={task.identifier}
+              type="button"
+              className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
+              onClick={() => onSelect(task.identifier)}
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-medium">{task.subject || task.identifier}</span>
+                  {label && <Badge variant="outline">{label}</Badge>}
+                </div>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">{task.identifier}</p>
+              </div>
+              <span className="shrink-0 text-xs text-muted-foreground">{task.gmtModified || ''}</span>
+            </button>
+          );
+        })}
+        {!subtasks.length && (
+          <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-muted-foreground">
+            暂无子工作项
           </div>
-        ))}
+        )}
+        <p className="text-xs text-muted-foreground">新增子工作项请在云效网页端操作（端内创建接口暂未接入）。</p>
       </CardContent>
     </Card>
   );
@@ -394,8 +401,8 @@ function LinkedRepoRow({ repo }: { repo: RepoSummary }) {
 /** 需求/工作项详情（nervd-new-ui 基准布局 + 真实数据/操作） */
 export function RequirementDetails() {
   const {
-    selectedId, detail, comments, loadingDetail, items, settings, repositories,
-    saveWorkitemRepos, setToast,
+    selectedId, detail, comments, children, loadingDetail, items, settings, repositories,
+    saveWorkitemRepos, setToast, select,
   } = useApp();
   const cur = items.find((i) => i.workitemId === selectedId);
   const isRequirement = cur?.category === 'Req';
@@ -484,7 +491,7 @@ export function RequirementDetails() {
 
       {isRequirement && (
         <div className="grid items-start gap-5 xl:grid-cols-2">
-          <SubtaskCard />
+          <SubtaskCard subtasks={children} onSelect={(workitemId) => void select(workitemId)} />
           <Card className="overflow-hidden border-border/70 shadow-sm">
             <CardHeader className="border-b bg-muted/30">
               <div className="flex items-center justify-between gap-3">
