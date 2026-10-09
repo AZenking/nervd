@@ -1,0 +1,5 @@
+/* 预览专用入口：vite root 在 preview/，Tailwind 自动探测扫不到 src/，
+   显式声明扫描范围；其余主题内容全部复用 src/styles/theme.css */
+@import "../src/styles/theme.css";
+@source "../src/**/*.{ts,tsx}";
+@source "../*.tsx";

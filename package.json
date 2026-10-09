@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "dev:app": "tauri dev",
     "sample:dev": "vite --config 设计图sample/vite.config.mjs",
     "sample:build": "tsc -p 设计图sample/tsconfig.json --noEmit && vite --config 设计图sample/vite.config.mjs build",
     "preview:dev": "vite --config preview/vite.config.mts"

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   SidebarGroup,
   SidebarGroupAction,
@@ -10,10 +10,40 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CalendarDaysIcon, ChevronRightIcon, PlusIcon } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { PLACEHOLDER_ITERATIONS } from '@/store/ui';
+
+/** 需求标题：truncate + 仅在溢出时显示 Tooltip */
+function RequirementTitle({ title }: { title: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [overflowed, setOverflowed] = useState(false);
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            ref={ref}
+            className="truncate"
+            onMouseEnter={() => {
+              const el = ref.current;
+              if (el) setOverflowed(el.scrollWidth > el.clientWidth);
+            }}
+          />
+        }
+      >
+        {title}
+      </TooltipTrigger>
+      {overflowed && (
+        <TooltipContent side="right" className="max-w-72 break-words">
+          {title}
+        </TooltipContent>
+      )}
+    </Tooltip>
+  );
+}
 
 /**
  * 迭代分组：后端暂无云效迭代 API，迭代壳为占位数据；
@@ -68,10 +98,7 @@ export function NavProjects() {
                           openRequirement();
                         }}
                       >
-                        <span className="truncate">
-                          <span className="font-mono text-[10px] text-muted-foreground">{requirement.id}</span>{' '}
-                          {requirement.title}
-                        </span>
+                        <RequirementTitle title={requirement.title} />
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))}

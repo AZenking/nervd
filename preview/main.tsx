@@ -1,7 +1,7 @@
 /// <reference types="../src/vite-env.d.ts" />
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import '../src/styles/theme.css';
+import './theme.css';
 import { useApp } from '../src/store/app';
 import { Shell } from '../src/components/Shell';
 import { Toaster } from '../src/components/ui/toast';
