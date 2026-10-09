@@ -1,5 +1,5 @@
 /* ============================================================
-   nervd · Calm workspace theme
+   nervd · Delivery control theme（以 nervd-new-ui v0 基准合并）
    Tailwind CSS v4 (CSS-first) + shadcn/ui (Base UI)
    ============================================================ */
 @import "tailwindcss";
@@ -11,17 +11,18 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* ---------- Workspace palette ---------- */
+  color-scheme: light;
+
+  /* ---------- Workspace palette（保留给存量组件） ---------- */
   --bg-0: #ffffff;
   --bg-1: #ffffff;
   --bg-2: #f7f6f3;
   --bg-3: #efefec;
   --line: #e9e9e7;
   --line-strong: #dedddb;
-  --ink-0: #37352f;
+  --ink-0: #1c1c1a;
   --ink-1: #5f5e5a;
   --ink-2: #9b9a97;
-  --accent: #efefec;
   --accent-dim: rgba(35, 131, 226, 0.12);
 
   /* ---------- Status colors ---------- */
@@ -35,34 +36,42 @@
   --trace-w: 320px;
 
   /* ---------- Typography ---------- */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* ---------- shadcn semantic tokens ---------- */
-  --background: #ffffff;
-  --foreground: #37352f;
-  --card: #ffffff;
-  --card-foreground: #37352f;
-  --popover: #ffffff;
-  --popover-foreground: #37352f;
-  --primary: #37352f;
-  --primary-foreground: #ffffff;
-  --secondary: #f7f6f3;
-  --secondary-foreground: #37352f;
-  --muted: #f7f6f3;
-  --muted-foreground: #787774;
-  --accent: #efefec;
-  --accent-foreground: #37352f;
-  --destructive: #d44c47;
-  --border: #e9e9e7;
-  --input: #e9e9e7;
-  --ring: #2383e2;
-  --chart-1: #2383e2;
-  --chart-2: #b7791f;
-  --chart-3: #448361;
-  --chart-4: #787774;
-  --chart-5: #9b9a97;
-  --radius: 0.5rem;
+  /* ---------- shadcn semantic tokens（nervd-new-ui 基准） ---------- */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 /* ---------- 工具类映射（Tailwind v4 CSS-first） ---------- */
@@ -94,6 +103,15 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 
   /* Status colors → text-sig-run / bg-sig-ok utilities */
   --color-sig-run: var(--sig-run);
@@ -152,7 +170,8 @@
     -webkit-font-smoothing: antialiased;
   }
   ::selection {
-    background: var(--accent-dim);
+    background: #d5eadf;
+    color: #173d32;
   }
 }
 
@@ -164,6 +183,14 @@
 
 .workspace-grid[data-trace-open="false"] {
   grid-template-columns: var(--rail-w) minmax(420px, 1fr);
+}
+
+.workspace-grid[data-sidebar-open="false"] {
+  grid-template-columns: minmax(420px, 1fr) var(--trace-w);
+}
+
+.workspace-grid[data-sidebar-open="false"][data-trace-open="false"] {
+  grid-template-columns: minmax(420px, 1fr);
 }
 
 /* ---------- Light, quiet scrollbars ---------- */

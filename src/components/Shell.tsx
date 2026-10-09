@@ -1,91 +1,100 @@
 import { useState } from 'react';
-import { cn } from '@/lib/utils';
+import { ChevronRight } from 'lucide-react';
 import { useApp } from '../store/app';
-import { Button } from '@/components/ui/button';
+import { useUi } from '../store/ui';
+import { AppSidebar } from './nav/app-sidebar';
+import { EnvironmentPolicySettings } from './iteration/EnvironmentPolicySettings';
+import { IterationView } from './iteration/IterationView';
+import { RequirementDetails } from './iteration/RequirementDetails';
 import { LogViewer } from './LogViewer';
+import { OverviewView } from './OverviewView';
 import { SettingsView } from './SettingsView';
-import { Sidebar } from './Sidebar';
 import { TracePane } from './TracePane';
-import { WorkitemDetail } from './WorkitemDetail';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+
+/** 追溯链路（真实数据）以 v0 基准的浮层形式打开 */
+function TraceDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] w-[min(560px,92vw)] max-w-none overflow-hidden p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>追溯链路</DialogTitle>
+          <DialogDescription>工作项到仓库 / CI 的实时追溯</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[85vh] overflow-y-auto bg-sidebar">
+          <TracePane />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function Shell() {
-  const { settings, connection } = useApp();
-  const [showSettings, setShowSettings] = useState(false);
-  const [showTrace, setShowTrace] = useState(true);
+  const { view, iterationKey } = useUi();
+  const { items, selectedId } = useApp();
+  const [traceOpen, setTraceOpen] = useState(false);
+  const selectedItem = items.find((i) => i.workitemId === selectedId);
+
+  const crumbRoot = view === 'settings' || view === 'full-settings' ? '工作区' : '迭代';
+  const crumbLeaf = view === 'settings'
+    ? '环境与策略'
+    : view === 'full-settings'
+      ? '工作区设置'
+      : view === 'requirement'
+        ? selectedItem?.identifier ?? '详情'
+        : view === 'overview'
+          ? '总览'
+          : iterationKey;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
-      <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border bg-background px-4 select-none">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="size-2 rounded-sm bg-primary" />
-          <span className="text-sm font-semibold tracking-tight text-foreground">nervd</span>
-          <span className="text-border">/</span>
-          <span className="truncate text-sm text-muted-foreground">
-            {showSettings ? '设置' : '工作区'}
-          </span>
-        </div>
-        <div className="ml-auto flex shrink-0 items-center gap-3">
-          {settings?.organizationId && (
-            <span className="hidden text-xs text-muted-foreground sm:inline">
-              {settings.organizationId.slice(0, 10)}…
-            </span>
-          )}
-          <span
-            className={cn(
-              'text-xs',
-              connection === 'ok'
-                ? 'text-sig-ok'
-                : connection === 'fail'
-                  ? 'text-sig-fail'
-                  : 'text-muted-foreground',
-            )}
-          >
-            {connection === 'ok' ? '● 已连接' : connection === 'fail' ? '● 连接失败' : '● 连接中'}
-          </span>
-          <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-            {settings?.allowWriteOps ? '可写' : '只读'}
-          </span>
-          {!showSettings && (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-expanded={showTrace}
-              aria-controls="trace-pane"
-              onClick={() => setShowTrace((value) => !value)}
-            >
-              {showTrace ? '隐藏追溯' : '显示追溯'}
-            </Button>
-          )}
-          <Button
-            variant={showSettings ? 'outline' : 'ghost'}
-            size="sm"
-            onClick={() => setShowSettings((value) => !value)}
-          >
-            {showSettings ? '返回工作台' : '设置'}
-          </Button>
-        </div>
-      </header>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset className="h-svh overflow-hidden">
+        <div className="flex h-full min-h-0">
+          <section className="flex min-w-0 flex-1 flex-col">
+            <div className="px-5 pt-4 sm:px-8">
+              <div className="flex h-11 w-full items-center gap-3 px-1">
+                <SidebarTrigger className="-ml-1" aria-label="展开导航" />
+                <Separator orientation="vertical" className="data-vertical:h-4 data-vertical:self-auto" />
+                <div className="flex min-w-0 items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">{crumbRoot}</span>
+                  <ChevronRight size={14} className="shrink-0 text-muted-foreground/60" />
+                  <span className="truncate font-medium text-foreground">{crumbLeaf}</span>
+                </div>
+                {(view === 'requirement') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto"
+                    onClick={() => setTraceOpen(true)}
+                  >
+                    打开追溯链路
+                  </Button>
+                )}
+              </div>
+            </div>
 
-      {showSettings ? (
-        <main className="flex min-h-0 flex-1 justify-center overflow-y-auto bg-muted/20 px-6 py-8">
-          <SettingsView embedded />
-        </main>
-      ) : (
-        <main className="workspace-grid min-h-0 flex-1" data-trace-open={showTrace}>
-          <Sidebar />
-          <WorkitemDetail />
-          <aside
-            id="trace-pane"
-            className={cn(
-              'min-h-0 overflow-hidden border-l border-border bg-muted/30',
-              !showTrace && 'hidden',
-            )}
-          >
-            <TracePane />
-          </aside>
-        </main>
-      )}
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-10 pt-4 sm:px-8">
+              {view === 'iteration' && <IterationView />}
+              {view === 'requirement' && <RequirementDetails />}
+              {view === 'settings' && <EnvironmentPolicySettings />}
+              {view === 'overview' && <OverviewView />}
+              {view === 'full-settings' && (
+                <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 py-2">
+                  <SettingsView embedded />
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      </SidebarInset>
+      <TraceDialog open={traceOpen} onOpenChange={setTraceOpen} />
       <LogViewer />
-    </div>
+    </SidebarProvider>
   );
 }

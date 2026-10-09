@@ -11,7 +11,7 @@
 ## 技术栈
 
 - **Tauri 2**（Rust 后端）+ **React 19 + TypeScript** + zustand
-- UI：**shadcn/ui（Base UI 底层）+ Tailwind CSS v4**，Hangar Control 工业暗色主题（IBM Plex / 13px 密排 / 直角）
+- UI：**shadcn/ui（Base UI 底层）+ Tailwind CSS v4**，v0 基准中性主题 + inset 侧栏信息架构
 - 云效 OpenAPI（ROA REST，`devops.cn-hangzhou.aliyuncs.com`）直连，个人访问令牌（PAT）鉴权
 - 凭证存 macOS Keychain；写操作按 `allowWriteOps` 门控（只读令牌可安全使用）
 
@@ -34,8 +34,10 @@ pnpm tauri build    # 产出 .app / .dmg
 ```
 src/types.ts          冻结共享类型（IPC 契约的 TS 侧）
 src/lib/              invoke 包装 + 需求↔代码 关联匹配
-src/store/            zustand 全局状态
-src/components/       三栏工作台 UI
+src/store/            zustand 全局状态（app 业务 / layout 布局 / ui 视图）
+src/components/       新 UI（nervd-new-ui v0 基准）：
+  nav/                inset 侧栏（主导航 / 迭代分组 / 用户区）
+  iteration/          迭代视图 / 工作项详情 / 环境与策略
 src-tauri/src/
   yunxiao.rs          云效 ROA REST 客户端（PAT 鉴权）
   commands.rs         22 个 Tauri 命令（写操作门控）
@@ -43,6 +45,19 @@ src-tauri/src/
   poller.rs           流水线轮询 → 事件 + 系统通知
 docs/yunxiao-api.md   云效 API 离线参考（提取自 aliyun CLI 元数据）
 docs/ipc-contract.md  IPC 契约（并发构建的分区依据）
+```
+
+## UI 基准与占位说明
+
+主界面按 `nervd-new-ui.zip`（v0 生成）重构：inset 侧栏 + 迭代视图 + 需求详情 +
+环境与策略。其中 **迭代壳、分支来源关系、子任务/缺陷编辑为占位**
+（云效暂无对应 IPC），其余（工作项、追溯、CI 状态、Jenkins 实例与绑定、
+建分支/MR/回写状态、日志）均为真实功能。
+
+浏览器内免 Tauri 预览（静态 mock 数据）：
+
+```bash
+pnpm preview:dev      # http://localhost:1423
 ```
 
 ## 关联规则

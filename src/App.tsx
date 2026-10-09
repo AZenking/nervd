@@ -83,36 +83,23 @@ export default function App() {
   if (booting) {
     return (
       <TooltipProvider>
-        <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
-          <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4">
-            <span className="size-2 rounded-sm bg-primary" />
-            <span className="text-sm font-semibold tracking-tight">nervd</span>
-            <span className="text-border">/</span>
-            <span className="text-sm text-muted-foreground">工作区</span>
-          </header>
-          <div className="workspace-grid min-h-0 flex-1">
-          <div className="flex min-h-0 flex-col gap-3 border-r border-border bg-muted/40 p-4">
-            <Skeleton className="h-7 w-full" />
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full rounded-md" />
+        <div className="flex h-full min-h-0 bg-background text-foreground">
+          <div className="flex w-64 shrink-0 flex-col gap-3 border-r border-border bg-muted/30 p-4">
+            <Skeleton className="h-10 w-full rounded-lg" />
+            {Array.from({ length: 7 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full rounded-md" />
             ))}
           </div>
-          <div className="min-h-0 overflow-hidden p-8">
-            <div className="mx-auto flex max-w-3xl flex-col gap-4">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-10 w-2/3" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="mt-4 h-12 w-full rounded-md" />
-              <Skeleton className="h-12 w-full rounded-md" />
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="px-8 pt-6">
+              <Skeleton className="h-8 w-64" />
+            </div>
+            <div className="mx-auto flex max-w-4xl flex-col gap-4 px-8 pt-8">
+              <Skeleton className="h-24 w-full rounded-xl" />
+              <Skeleton className="h-40 w-full rounded-xl" />
+              <Skeleton className="h-56 w-full rounded-xl" />
             </div>
           </div>
-          <div className="flex min-h-0 flex-col gap-3 border-l border-border bg-muted/30 p-4">
-            <Skeleton className="h-6 w-2/3" />
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-9 w-full rounded-md" />
-            ))}
-          </div>
-        </div>
         </div>
       </TooltipProvider>
     );

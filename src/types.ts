@@ -1,6 +1,7 @@
 // nervd 共享 IPC 类型 —— 由主会话与 docs/ipc-contract.md 同步维护。
 
 export type Category = 'Req' | 'Bug' | 'Task';
+export const CATEGORY_LABELS: Record<Category, string> = { Req: '需求', Bug: '缺陷', Task: '任务' };
 export type ConnectionState = 'unknown' | 'ok' | 'fail';
 export type RunStatus = 'RUNNING' | 'SUCCESS' | 'FAIL' | 'CANCELED' | 'WAITING' | 'OTHER';
 

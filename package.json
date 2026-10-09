@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "sample:dev": "vite --config 设计图sample/vite.config.mjs",
+    "sample:build": "tsc -p 设计图sample/tsconfig.json --noEmit && vite --config 设计图sample/vite.config.mjs build",
+    "preview:dev": "vite --config preview/vite.config.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
