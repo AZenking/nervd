@@ -24,6 +24,24 @@ pub struct JenkinsJobInfo {
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct JenkinsJobSummary {
+    pub name: String,
+    pub full_name: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct JenkinsJobParameter {
+    pub name: String,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub parameter_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+    pub choices: Vec<String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct CiRunSummary {
     pub run_id: String,
     pub status: String,
@@ -33,6 +51,16 @@ pub struct CiRunSummary {
     pub duration_ms: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger: Option<String>,
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub parameters: std::collections::HashMap<String, String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct JenkinsLogChunk {
+    pub text: String,
+    pub next_offset: u64,
+    pub has_more: bool,
 }
 
 impl JenkinsClient {
@@ -177,6 +205,116 @@ impl JenkinsClient {
         })
     }
 
+    pub async fn list_jobs(&self) -> Result<Vec<JenkinsJobSummary>, String> {
+        let mut pending = vec![(None::<String>, 0usize)];
+        let mut visited = std::collections::HashSet::new();
+        let mut jobs = Vec::new();
+
+        while let Some((parent, depth)) = pending.pop() {
+            if depth > 8 || jobs.len() >= 2000 {
+                continue;
+            }
+            let mut segments = match parent.as_deref() {
+                Some(full_name) => Self::job_segments(full_name)?,
+                None => Vec::new(),
+            };
+            segments.extend(["api".into(), "json".into()]);
+            let mut url = self.append_segments(&segments)?;
+            url.query_pairs_mut().append_pair("tree", "jobs[name,fullName,_class]");
+            let value = self.get_json(url).await?;
+            let entries = value.get("jobs").and_then(Value::as_array);
+            for entry in entries.into_iter().flatten() {
+                let name = entry.get("name").and_then(Value::as_str).unwrap_or_default().trim();
+                if name.is_empty() {
+                    continue;
+                }
+                let full_name = entry
+                    .get("fullName")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .or_else(|| parent.as_ref().map(|prefix| format!("{prefix}/{name}")))
+                    .unwrap_or_else(|| name.to_string());
+                if !visited.insert(full_name.clone()) {
+                    continue;
+                }
+                let class_name = entry
+                    .get("_class")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
+                let is_container = class_name.contains("folder")
+                    || class_name.contains("multibranchproject")
+                    || class_name.contains("organizationfolder");
+                if is_container {
+                    pending.push((Some(full_name), depth + 1));
+                } else {
+                    jobs.push(JenkinsJobSummary {
+                        name: name.to_string(),
+                        full_name,
+                    });
+                }
+                if jobs.len() >= 2000 {
+                    break;
+                }
+            }
+        }
+
+        jobs.sort_by(|left, right| left.full_name.to_lowercase().cmp(&right.full_name.to_lowercase()));
+        Ok(jobs)
+    }
+
+    pub async fn get_job_parameters(&self, full_name: &str) -> Result<Vec<JenkinsJobParameter>, String> {
+        let mut segments = Self::job_segments(full_name)?;
+        segments.extend(["api".into(), "json".into()]);
+        let mut url = self.append_segments(&segments)?;
+        url.query_pairs_mut().append_pair(
+            "tree",
+            "property[parameterDefinitions[name,type,defaultParameterValue[value],choices]],actions[parameterDefinitions[name,type,defaultParameterValue[value],choices]]",
+        );
+        let value = self.get_json(url).await?;
+        let mut definitions = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for key in ["property", "actions"] {
+            for container in value.get(key).and_then(Value::as_array).into_iter().flatten() {
+                for definition in container
+                    .get("parameterDefinitions")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    let name = definition.get("name").and_then(Value::as_str).unwrap_or_default().trim();
+                    if name.is_empty() || !seen.insert(name.to_string()) {
+                        continue;
+                    }
+                    let default_value = definition
+                        .get("defaultParameterValue")
+                        .and_then(|value| value.get("value"))
+                        .or_else(|| definition.get("defaultValue"))
+                        .and_then(json_value_text);
+                    let choices = definition
+                        .get("choices")
+                        .map(|choices| {
+                            choices
+                                .as_array()
+                                .map(|values| values.iter().filter_map(json_value_text).collect())
+                                .or_else(|| choices.as_str().map(|text| {
+                                    text.lines().map(str::trim).filter(|line| !line.is_empty()).map(str::to_string).collect()
+                                }))
+                                .unwrap_or_default()
+                        })
+                        .unwrap_or_default();
+                    definitions.push(JenkinsJobParameter {
+                        name: name.to_string(),
+                        parameter_type: definition.get("type").and_then(Value::as_str).map(str::to_string),
+                        default_value,
+                        choices,
+                    });
+                }
+            }
+        }
+        Ok(definitions)
+    }
+
     pub async fn list_runs(
         &self,
         full_name: &str,
@@ -188,7 +326,7 @@ impl JenkinsClient {
         url.query_pairs_mut().append_pair(
             "tree",
             &format!(
-                "builds[number,displayName,result,timestamp,duration,building]{{0,{}}}",
+                "builds[number,displayName,result,timestamp,duration,building,actions[parameters[name,value]]]{{0,{}}}",
                 limit.saturating_sub(1)
             ),
         );
@@ -236,6 +374,57 @@ impl JenkinsClient {
         Err(format!("Jenkins 构建触发失败 HTTP {status}: {body}"))
     }
 
+    pub async fn trigger_build_with_parameters(
+        &self,
+        full_name: &str,
+        parameters: &std::collections::HashMap<String, String>,
+    ) -> Result<Option<String>, String> {
+        if parameters.is_empty() {
+            return self.trigger_build(full_name).await;
+        }
+        if parameters.iter().any(|(name, value)| {
+            name.trim().is_empty()
+                || name.len() > 255
+                || value.len() > 8192
+                || name.chars().any(char::is_control)
+                || value.chars().any(char::is_control)
+        }) {
+            return Err("Jenkins 构建参数无效".into());
+        }
+        let mut segments = Self::job_segments(full_name)?;
+        segments.push("buildWithParameters".into());
+        let url = self.append_segments(&segments)?;
+        let response = self
+            .http
+            .post(url)
+            .basic_auth(&self.username, Some(&self.token))
+            .query(parameters)
+            .send()
+            .await
+            .map_err(|e| format!("触发 Jenkins 构建失败: {e}"))?;
+        if response.status().is_success() {
+            return Ok(response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_string));
+        }
+        if response.status().is_redirection() {
+            let location = response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default();
+            if location.contains("/queue/item/") {
+                return Ok(Some(location.to_string()));
+            }
+        }
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        let body: String = body.chars().take(300).collect();
+        Err(format!("Jenkins 构建触发失败 HTTP {status}: {body}"))
+    }
+
     pub async fn console_text(
         &self,
         full_name: &str,
@@ -249,6 +438,63 @@ impl JenkinsClient {
         segments.push("consoleText".into());
         self.get_text(self.append_segments(&segments)?).await
     }
+
+    pub async fn progressive_console_chunk(
+        &self,
+        full_name: &str,
+        build_number: &str,
+        start_offset: u64,
+    ) -> Result<JenkinsLogChunk, String> {
+        if build_number.is_empty() || !build_number.bytes().all(|b| b.is_ascii_digit()) {
+            return Err("Jenkins 构建编号无效".into());
+        }
+        let mut segments = Self::job_segments(full_name)?;
+        segments.extend([
+            build_number.to_string(),
+            "logText".into(),
+            "progressiveText".into(),
+        ]);
+        let mut url = self.append_segments(&segments)?;
+        url.query_pairs_mut()
+            .append_pair("start", &start_offset.to_string());
+        let response = self
+            .http
+            .get(url)
+            .basic_auth(&self.username, Some(&self.token))
+            .send()
+            .await
+            .map_err(|e| format!("读取 Jenkins 增量日志失败: {e}"))?;
+        let response = self.finish(response).await?;
+        let reported_offset = response
+            .headers()
+            .get("X-Text-Size")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok());
+        let has_more = response
+            .headers()
+            .get("X-More-Data")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.eq_ignore_ascii_case("true"));
+        let text = response
+            .text()
+            .await
+            .map_err(|e| format!("读取 Jenkins 日志内容失败: {e}"))?;
+        let next_offset = reported_offset.unwrap_or_else(|| {
+            start_offset.saturating_add(u64::try_from(text.len()).unwrap_or(u64::MAX))
+        });
+        Ok(JenkinsLogChunk {
+            text,
+            next_offset,
+            has_more,
+        })
+    }
+}
+
+fn json_value_text(value: &Value) -> Option<String> {
+    value
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| (!value.is_null()).then(|| value.to_string()))
 }
 
 fn map_run(value: &Value) -> Option<CiRunSummary> {
@@ -272,6 +518,27 @@ fn map_run(value: &Value) -> Option<CiRunSummary> {
             _ => "OTHER",
         }
     };
+    let parameters = value
+        .get("actions")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .flat_map(|action| {
+            action
+                .get("parameters")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+        })
+        .filter_map(|parameter| {
+            let name = parameter.get("name").and_then(Value::as_str)?.trim();
+            if name.is_empty() {
+                return None;
+            }
+            let value = parameter.get("value").and_then(json_value_text)?;
+            Some((name.to_string(), value))
+        })
+        .collect();
     Some(CiRunSummary {
         run_id,
         status: status.to_string(),
@@ -281,6 +548,7 @@ fn map_run(value: &Value) -> Option<CiRunSummary> {
             .get("displayName")
             .and_then(Value::as_str)
             .map(str::to_string),
+        parameters,
     })
 }
 
@@ -384,7 +652,7 @@ mod tests {
             ),
             MockResponse::json(
                 200,
-                r##"{"builds":[{"number":19,"displayName":"#19","result":null,"timestamp":2000,"duration":0,"building":true},{"number":18,"displayName":"#18","result":"SUCCESS","timestamp":1000,"duration":500,"building":false}]}"##,
+                r##"{"builds":[{"number":19,"displayName":"#19","result":null,"timestamp":2000,"duration":0,"building":true,"actions":[{"parameters":[{"name":"BRANCH","value":"feature/REQ-2048"},{"name":"ENVIRONMENT","value":"test"}]}]},{"number":18,"displayName":"#18","result":"SUCCESS","timestamp":1000,"duration":500,"building":false}]}"##,
             ),
             MockResponse {
                 status: 302,
@@ -411,6 +679,8 @@ mod tests {
             assert_eq!(runs.len(), 2);
             assert_eq!(runs[0].run_id, "19");
             assert_eq!(runs[0].status, "RUNNING");
+            assert_eq!(runs[0].parameters.get("BRANCH").unwrap(), "feature/REQ-2048");
+            assert_eq!(runs[0].parameters.get("ENVIRONMENT").unwrap(), "test");
 
             let queue = client.trigger_build("team/mobile/compile").await.unwrap();
             assert!(queue.unwrap().contains("/queue/item/42/"));
@@ -429,12 +699,42 @@ mod tests {
             .to_ascii_lowercase()
             .contains("authorization: basic ")));
         assert!(requests[1].contains("/jenkins/job/team/job/mobile/job/compile/api/json?"));
-        assert!(requests[2].contains("builds%5Bnumber%2CdisplayName%2Cresult%2Ctimestamp%2Cduration%2Cbuilding%5D%7B0%2C1%7D"));
+        assert!(requests[2].contains("builds%5Bnumber%2CdisplayName%2Cresult%2Ctimestamp%2Cduration%2Cbuilding%2Cactions%5Bparameters%5Bname%2Cvalue%5D%5D%5D%7B0%2C1%7D"));
         assert!(requests[3].starts_with("POST /jenkins/job/team/job/mobile/job/compile/build "));
         assert!(!requests[3].to_ascii_lowercase().contains("crumb"));
         assert!(
             requests[4].starts_with("GET /jenkins/job/team/job/mobile/job/compile/19/consoleText ")
         );
+    }
+
+    #[test]
+    fn progressive_console_reads_only_new_text_and_returns_jenkins_offsets() {
+        let (base_url, server) = mock_server(vec![MockResponse {
+            status: 200,
+            headers: vec![
+                ("Content-Type", "text/plain; charset=utf-8".into()),
+                ("X-Text-Size", "11".into()),
+                ("X-More-Data", "true".into()),
+            ],
+            body: " tail".into(),
+        }]);
+
+        tauri::async_runtime::block_on(async {
+            let client = JenkinsClient::new(&base_url, "user", "token").unwrap();
+            let chunk = client
+                .progressive_console_chunk("team/mobile/compile", "19", 6)
+                .await
+                .unwrap();
+            assert_eq!(chunk.text, " tail");
+            assert_eq!(chunk.next_offset, 11);
+            assert!(chunk.has_more);
+        });
+
+        let requests = server.join().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with(
+            "GET /jenkins/job/team/job/mobile/job/compile/19/logText/progressiveText?start=6 "
+        ));
     }
 
     #[test]

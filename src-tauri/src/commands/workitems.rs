@@ -6,6 +6,8 @@ use tauri::State;
 // ---------- 工作项 ----------
 
 /// POST workitems:search（body: category/spaceId/spaceType/page/perPage）
+/// 实测（2026-10）：body 不接受 sprintId（传了也被忽略）；行内自带 sprint:{id,name}，
+/// 由前端按当前迭代做客户端过滤，因此这里只透出 sprintId/sprintName 两个扁平字段。
 #[tauri::command]
 pub async fn list_workitems(
     state: State<'_, AppState>,
@@ -49,6 +51,8 @@ pub async fn list_workitems(
                 "statusStageName": nested_s(w, "status", "stageName"),
                 "assignedTo": nested_s(w, "assignedTo", "name"),
                 "relatedTo": names_of(w, &["participant", "participants", "relatedUsers"]),
+                "sprintId": nested_s(w, "sprint", "id"),
+                "sprintName": nested_s(w, "sprint", "name"),
                 "spaceName": nested_s(w, "space", "name"),
                 "updatedAt": i64_of(w, "gmtModified").map(chrono_ms_to_local).unwrap_or_default(),
                 "category": category,
@@ -63,7 +67,7 @@ pub async fn list_workitems(
     Ok(json!({ "items": items, "nextToken": next }))
 }
 
-fn chrono_ms_to_local(ms: i64) -> String {
+pub(super) fn chrono_ms_to_local(ms: i64) -> String {
     // 无 chrono：用系统 date 不可取（无 shell）；手写 ms→UTC 粗转换仅用于展示
     let secs = ms / 1000;
     let days = secs / 86400;
@@ -151,6 +155,7 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
                 "identifier": s(w, "serialNumber"),
                 "subject": s(w, "subject"),
                 "category": s(w, "categoryId"),
+                "statusId": nested_s(w, "status", "id"),
                 "status": nested_s(w, "status", "name"),
                 "assignedTo": nested_s(w, "assignedTo", "name"),
                 "gmtModified": i64_of(w, "gmtModified").map(chrono_ms_to_local).unwrap_or_default(),
@@ -160,114 +165,109 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
     Ok(json!({ "items": children }))
 }
 
-/// GET listWorkflowStatus（docs/yunxiao-api.md ListWorkItemWorkFlowStatus；spaceIdentifier 取设置 defaultSpaceIdentifier）
-/// 先试 oapi/v1 形态，404/失败再退旧 ROA 形态；两形态均失败返回 UNSUPPORTED
 #[tauri::command]
-pub async fn list_workitem_status(
-    state: State<'_, AppState>,
-    category: String,
-) -> Result<Value, String> {
-    let c = client_of(&state)?;
-    let org = org_of(&state)?;
-    let space = {
-        let st = state.settings.lock().unwrap();
-        if st.default_space_identifier.trim().is_empty() {
-            return Err("NOT_CONFIGURED: 请先在设置中选择默认项目空间".into());
-        }
-        st.default_space_identifier.clone()
-    };
-    let query = [
-        ("spaceType", "Project".to_string()),
-        ("spaceIdentifier", space),
-        ("workitemCategoryIdentifier", category),
-    ];
-    let oapi_form =
-        format!("/oapi/v1/projex/organizations/{org}/workitems/workflow/listWorkflowStatus");
-    let roa_form = format!("/organization/{org}/workitems/workflow/listWorkflowStatus");
-    for (path, use_roa) in [(&oapi_form, false), (&roa_form, true)] {
-        let attempted = if use_roa { c.get_roa(path, &query).await } else { c.get(path, &query).await };
-        if let Ok(v) = attempted {
-            let items: Vec<Value> = status_array_of(&v)
-                .iter()
-                .filter_map(|e| {
-                    status_id_of(e).map(|identifier| json!({
-                        "identifier": identifier,
-                        "name": s(e, "name"),
-                        "stageName": s2(e, "stageName", "workflowStageName"),
-                    }))
-                })
-                .collect();
-            if !items.is_empty() {
-                return Ok(json!(items));
-            }
-        }
-    }
-    Err("UNSUPPORTED: 工作流状态接口不可用".into())
-}
-
-/// 状态条目标识：identifier|id|statusIdentifier 任一非空字段（字符串或数字）
-fn status_id_of(e: &Value) -> Option<String> {
-    for k in ["identifier", "id", "statusIdentifier"] {
-        if let Some(x) = e.get(k) {
-            if let Some(s) = x.as_str() {
-                if !s.is_empty() {
-                    return Some(s.to_string());
-                }
-            }
-            if let Some(n) = x.as_i64() {
-                return Some(n.to_string());
-            }
-        }
-    }
-    None
-}
-
-/// 防御式解包状态数组：裸数组 / {result:[…]} / {statuses:{status:[…]}} 等包装形态下，
-/// 递归取首个「元素含状态字段」的数组
-fn status_array_of(v: &Value) -> Vec<Value> {
-    let is_entry = |e: &Value| status_id_of(e).is_some() || !s(e, "name").is_empty();
-    match v {
-        Value::Array(a) => {
-            if a.iter().any(is_entry) {
-                return a.clone();
-            }
-            for e in a {
-                let found = status_array_of(e);
-                if !found.is_empty() {
-                    return found;
-                }
-            }
-            vec![]
-        }
-        Value::Object(o) => {
-            for e in o.values() {
-                let found = status_array_of(e);
-                if !found.is_empty() {
-                    return found;
-                }
-            }
-            vec![]
-        }
-        _ => vec![],
-    }
-}
-
-/// PUT workitems/{id} body {status}
-#[tauri::command]
-pub async fn update_workitem_status(
+pub async fn get_workitem_workflow_statuses(
     state: State<'_, AppState>,
     workitem_id: String,
-    status_identifier: String,
+) -> Result<Value, String> {
+    if workitem_id.trim().is_empty() {
+        return Err("工作项 ID 不能为空".into());
+    }
+    let client = client_of(&state)?;
+    let org = org_of(&state)?;
+    let detail_response = client
+        .get(&format!("/oapi/v1/projex/organizations/{org}/workitems/{workitem_id}"), &[])
+        .await?;
+    let detail = detail_response
+        .get("workitem")
+        .or_else(|| detail_response.get("data"))
+        .unwrap_or(&detail_response);
+    let project_id = detail
+        .get("space")
+        .and_then(|space| space.get("id"))
+        .and_then(Value::as_str)
+        .or_else(|| detail.get("projectId").and_then(Value::as_str))
+        .unwrap_or_default()
+        .trim();
+    let workitem_type_id = detail
+        .get("workitemType")
+        .and_then(|workitem_type| workitem_type.get("id"))
+        .and_then(Value::as_str)
+        .or_else(|| detail.get("workitemTypeId").and_then(Value::as_str))
+        .unwrap_or_default()
+        .trim();
+    if project_id.is_empty() || workitem_type_id.is_empty() {
+        return Err("无法从工作项详情读取项目或工作项类型".into());
+    }
+    let response = client
+        .get(
+            &format!("/oapi/v1/projex/organizations/{org}/projects/{project_id}/workitemTypes/{workitem_type_id}/workflows"),
+            &[],
+        )
+        .await?;
+    let workflows: Vec<&Value> = if let Some(items) = response.as_array() {
+        items.iter().collect()
+    } else if let Some(items) = response.get("workflows").and_then(Value::as_array) {
+        items.iter().collect()
+    } else {
+        vec![&response]
+    };
+    let mut statuses = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for workflow in workflows {
+        for status in workflow.get("statuses").and_then(Value::as_array).into_iter().flatten() {
+            let id = s2(status, "id", "identifier");
+            let name = s2(status, "displayName", "name");
+            if !id.is_empty() && !name.is_empty() && seen.insert(id.clone()) {
+                statuses.push(json!({ "id": id, "name": name }));
+            }
+        }
+    }
+    if statuses.is_empty() {
+        return Err("云效未返回可用的工作项状态".into());
+    }
+    Ok(Value::Array(statuses))
+}
+
+#[tauri::command]
+pub async fn update_workitem(
+    state: State<'_, AppState>,
+    workitem_id: String,
+    subject: Option<String>,
+    status_id: Option<String>,
 ) -> Result<Value, String> {
     ensure_write(&state)?;
-    let c = client_of(&state)?;
+    let workitem_id = workitem_id.trim();
+    if workitem_id.is_empty() {
+        return Err("工作项 ID 不能为空".into());
+    }
+    let mut body = serde_json::Map::new();
+    if let Some(subject) = subject {
+        let subject = subject.trim();
+        if subject.is_empty() || subject.len() > 500 || subject.chars().any(char::is_control) {
+            return Err("子任务名称不能为空，且不能超过 500 个字符".into());
+        }
+        body.insert("subject".into(), json!(subject));
+    }
+    if let Some(status_id) = status_id {
+        let status_id = status_id.trim();
+        if status_id.is_empty() || status_id.len() > 255 || status_id.chars().any(char::is_control) {
+            return Err("工作项状态无效".into());
+        }
+        body.insert("status".into(), json!(status_id));
+    }
+    if body.is_empty() {
+        return Err("没有需要保存的子任务修改".into());
+    }
+    let client = client_of(&state)?;
     let org = org_of(&state)?;
-    c.put(
-        &format!("/oapi/v1/projex/organizations/{org}/workitems/{workitem_id}"),
-        &[],
-        json!({ "status": status_identifier }),
-    )
-    .await
+    client
+        .put(
+            &format!("/oapi/v1/projex/organizations/{org}/workitems/{workitem_id}"),
+            &[],
+            Value::Object(body),
+        )
+        .await
 }
 
 // ---------- 附件图片代理（富文本描述内联直显） ----------
@@ -361,4 +361,3 @@ pub async fn proxy_workitem_file(state: State<'_, AppState>, url: String) -> Res
     }
     Ok(format!("data:{mime};base64,{}", base64_encode(&bytes)))
 }
-

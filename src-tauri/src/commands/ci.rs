@@ -1,6 +1,6 @@
 use super::common::{as_array, client_of, ensure_write, i64_of, org_of, s};
 use crate::credentials::{self, JenkinsConnection, RepoCiBinding, Settings};
-use crate::jenkins::JenkinsClient;
+use crate::jenkins::{JenkinsClient, JenkinsLogChunk};
 use crate::AppState;
 use serde_json::{json, Value};
 use tauri::State;
@@ -122,6 +122,29 @@ pub async fn get_jenkins_job(
 }
 
 #[tauri::command]
+pub async fn list_jenkins_jobs(
+    state: State<'_, AppState>,
+    connection_id: String,
+) -> Result<Value, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let client = jenkins_client(&settings, &connection_id)?;
+    let jobs = client.list_jobs().await?;
+    serde_json::to_value(jobs).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_jenkins_job_parameters(
+    state: State<'_, AppState>,
+    connection_id: String,
+    job_full_name: String,
+) -> Result<Value, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let client = jenkins_client(&settings, &connection_id)?;
+    let parameters = client.get_job_parameters(&job_full_name).await?;
+    serde_json::to_value(parameters).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_repo_ci_snapshot(
     state: State<'_, AppState>,
     repo_id: i64,
@@ -147,6 +170,7 @@ pub async fn get_repo_ci_snapshot(
         RepoCiBinding::Jenkins {
             connection_id,
             job_full_name,
+            ..
         } => {
             let client = jenkins_client(&settings, &connection_id)?;
             let runs = client.list_runs(&job_full_name, limit as usize).await?;
@@ -180,6 +204,8 @@ pub async fn trigger_repo_ci(state: State<'_, AppState>, repo_id: i64) -> Result
         RepoCiBinding::Jenkins {
             connection_id,
             job_full_name,
+            parameters,
+            ..
         } => {
             let client = jenkins_client(&settings, &connection_id)?;
             let baseline = client
@@ -188,7 +214,9 @@ pub async fn trigger_repo_ci(state: State<'_, AppState>, repo_id: i64) -> Result
                 .ok()
                 .and_then(|runs| runs.first().and_then(|run| run.run_id.parse::<i64>().ok()))
                 .unwrap_or(0);
-            let queue_url = client.trigger_build(&job_full_name).await?;
+            let queue_url = client
+                .trigger_build_with_parameters(&job_full_name, &parameters)
+                .await?;
             state
                 .jenkins_trigger_baselines
                 .lock()
@@ -202,6 +230,39 @@ pub async fn trigger_repo_ci(state: State<'_, AppState>, repo_id: i64) -> Result
 }
 
 #[tauri::command]
+pub async fn trigger_jenkins_job(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    connection_id: String,
+    job_full_name: String,
+    parameters: std::collections::HashMap<String, String>,
+) -> Result<Value, String> {
+    ensure_write(&state)?;
+    if repo_id <= 0 || job_full_name.trim().is_empty() {
+        return Err("仓库或 Jenkins Job 无效".into());
+    }
+    let settings = state.settings.lock().unwrap().clone();
+    let client = jenkins_client(&settings, &connection_id)?;
+    let baseline = client
+        .list_runs(&job_full_name, 1)
+        .await
+        .ok()
+        .and_then(|runs| runs.first().and_then(|run| run.run_id.parse::<i64>().ok()))
+        .unwrap_or(0);
+    let queue_url = client
+        .trigger_build_with_parameters(&job_full_name, &parameters)
+        .await?;
+    state
+        .jenkins_trigger_baselines
+        .lock()
+        .unwrap()
+        .entry(jenkins_job_key(&connection_id, &job_full_name))
+        .or_default()
+        .push(baseline);
+    Ok(json!({ "queueUrl": queue_url, "repoId": repo_id, "jobFullName": job_full_name }))
+}
+
+#[tauri::command]
 pub async fn get_repo_ci_logs(
     state: State<'_, AppState>,
     repo_id: i64,
@@ -212,6 +273,7 @@ pub async fn get_repo_ci_logs(
         RepoCiBinding::Jenkins {
             connection_id,
             job_full_name,
+            ..
         } => {
             let client = jenkins_client(&settings, &connection_id)?;
             client.console_text(&job_full_name, &run_id).await
@@ -265,6 +327,28 @@ pub async fn get_repo_ci_logs(
     }
 }
 
+#[tauri::command]
+pub async fn get_repo_ci_log_chunk(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    run_id: String,
+    start_offset: u64,
+) -> Result<JenkinsLogChunk, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let RepoCiBinding::Jenkins {
+        connection_id,
+        job_full_name,
+        ..
+    } = repo_binding(&settings, repo_id)?
+    else {
+        return Err("增量日志当前仅支持 Jenkins".into());
+    };
+    let client = jenkins_client(&settings, &connection_id)?;
+    client
+        .progressive_console_chunk(&job_full_name, &run_id, start_offset)
+        .await
+}
+
 pub fn jenkins_terminal(status: &str) -> bool {
     matches!(status, "SUCCESS" | "FAIL" | "CANCELED" | "OTHER")
 }
@@ -289,6 +373,7 @@ pub fn repo_jenkins_jobs(settings: &Settings) -> Vec<(i64, JenkinsConnection, St
             RepoCiBinding::Jenkins {
                 connection_id,
                 job_full_name,
+                ..
             } => settings
                 .jenkins_connections
                 .iter()

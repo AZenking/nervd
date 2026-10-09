@@ -4,10 +4,11 @@ import * as api from '../lib/api';
 import type { WorkitemRow, WorkitemChild } from '../lib/api';
 import { workitemRepoIds } from '../lib/workitem-repos';
 import type {
-  Category, ConnectionState, PipelineRunSummary, RepoCiSnapshot, RepoSummary,
-  Settings, SettingsView, TraceResult,
+  BranchRuleTemplate, Category, ConnectionState, IterationSummary, PipelineRunSummary,
+  RepoCiBinding, RepoCiSnapshot, RepoSummary, Settings, SettingsView, TraceResult,
 } from '../types';
 import { loadWorkitemTrace } from './workitem-trace';
+import { useUi, visibleIterations } from './ui';
 
 // ---- 原始响应的宽松解析（云效字段大小写/嵌套不定，统一走防御式取值） ----
 /** 根数组或 result/data 包装统一解包 */
@@ -24,6 +25,17 @@ const arr = (v: unknown): unknown[] => {
 
 export interface Toast { text: string; kind: 'info' | 'ok' | 'fail' }
 
+interface LogViewState {
+  title: string;
+  text: string;
+  repoId?: number;
+  runId?: string;
+  nextOffset?: number;
+  hasMore?: boolean;
+  loading?: boolean;
+  error?: string;
+}
+
 interface AppStore {
   settings: SettingsView | null;
   connection: ConnectionState;
@@ -33,6 +45,10 @@ interface AppStore {
   items: WorkitemRow[];
   nextToken: string | null;
   loadingList: boolean;
+
+  /** 云效迭代列表（sprints OpenAPI）；空 = 不可用，UI 回退 PLACEHOLDER_ITERATIONS */
+  iterations: IterationSummary[];
+  loadingIterations: boolean;
 
   selectedId: string | null;
   detail: Record<string, unknown> | null;
@@ -51,19 +67,25 @@ interface AppStore {
   pipelines: { pipelineId: number; pipelineName: string; status?: string }[];
   runsByPipeline: Record<number, PipelineRunSummary[]>;
 
-  logView: { title: string; text: string } | null;
+  logView: LogViewState | null;
   toast: Toast | null;
 
   init(): Promise<void>;
   refreshConnection(): Promise<void>;
   setCategory(c: Category): Promise<void>;
   loadList(next?: boolean): Promise<void>;
+  loadIterations(): Promise<void>;
   select(id: string): Promise<void>;
   loadTrace(): Promise<void>;
   loadRepos(): Promise<void>;
+  saveBranchRuleTemplates(templates: BranchRuleTemplate[]): Promise<void>;
+  saveWorkitemRepoBranchTemplate(workitemId: string, repoId: number, templateId: string | null): Promise<void>;
+  saveRepoCiBinding(repoId: number, binding: RepoCiBinding | null): Promise<void>;
+  loadChildren(workitemId: string): Promise<void>;
   loadRepoCi(repoId: number): Promise<void>;
   saveWorkitemRepos(workitemId: string, repoIds: number[] | null): Promise<void>;
   openRepoCiLogs(repoId: number, runId: string, title: string): Promise<void>;
+  refreshRepoCiLogs(): Promise<void>;
   loadPipelines(): Promise<void>;
   loadRuns(pipelineId: number): Promise<void>;
   openLogs(pipelineId: number, runId: number, jobId: number, title: string): Promise<void>;
@@ -75,6 +97,7 @@ interface AppStore {
 const requests = { connection: 0, list: 0, detail: 0, trace: 0, pipelines: 0, logs: 0 };
 const pipelineRunRequests = new Map<number, number>();
 const repoCiRequests = new Map<number, number>();
+const childrenRequests = new Map<string, number>();
 let pipelineRunRequestSequence = 0;
 const nextPipelineRunRequest = (pipelineId: number) => {
   const requestId = ++pipelineRunRequestSequence;
@@ -91,6 +114,9 @@ export const useApp = create<AppStore>((set, get) => ({
   items: [],
   nextToken: null,
   loadingList: false,
+
+  iterations: [],
+  loadingIterations: false,
 
   selectedId: null,
   detail: null,
@@ -118,7 +144,7 @@ export const useApp = create<AppStore>((set, get) => ({
       set({ settings, booting: false });
       if (settings.hasPat && settings.organizationId) {
         await get().refreshConnection();
-        await Promise.all([get().loadList(), get().loadRepos()]);
+        await Promise.all([get().loadList(), get().loadRepos(), get().loadIterations()]);
         void get().loadPipelines();
       }
     } catch (e) {
@@ -199,12 +225,60 @@ export const useApp = create<AppStore>((set, get) => ({
     }
   },
 
+  async loadIterations() {
+    set({ loadingIterations: true });
+    try {
+      const iterations = await api.listIterations();
+      set({ iterations, loadingIterations: false });
+      // 真实列表到达后校正选中迭代：占位默认值或已失效的 key 回落到「进行中」迭代
+      // （只在展示中的迭代里选：归档等不可见迭代不作为回落目标；直接改 key，不切视图——避免把停留在设置页的用户拽回迭代页）
+      const key = useUi.getState().iterationKey;
+      if (iterations.length && !iterations.some((it) => it.name === key)) {
+        const visible = visibleIterations(iterations);
+        const preferred =
+          visible.find((it) => it.state === '进行中') ?? visible[0] ?? iterations[0];
+        useUi.setState({ iterationKey: preferred.name });
+      }
+    } catch {
+      // 静默：迭代壳回退占位数据（iterationsOrFallback），不阻塞工作项主流程
+      set({ iterations: [], loadingIterations: false });
+    }
+  },
+
   async loadRepos() {
     try {
       const repositories = await api.listRepos();
       set({ repositories });
     } catch {
       /* 仓库名称缺失不阻塞工作项列表 */
+    }
+  },
+
+  async saveBranchRuleTemplates(templates) {
+    const settings = await api.saveBranchRuleTemplates(templates);
+    set({ settings });
+  },
+
+  async saveWorkitemRepoBranchTemplate(workitemId, repoId, templateId) {
+    const settings = await api.saveWorkitemRepoBranchTemplate(workitemId, repoId, templateId);
+    set({ settings });
+  },
+
+  async saveRepoCiBinding(repoId, binding) {
+    const settings = await api.saveRepoCiBinding(repoId, binding);
+    set({ settings });
+  },
+
+  async loadChildren(workitemId) {
+    const requestId = (childrenRequests.get(workitemId) ?? 0) + 1;
+    childrenRequests.set(workitemId, requestId);
+    try {
+      const result = await api.listWorkitemChildren(workitemId);
+      if (childrenRequests.get(workitemId) !== requestId || get().selectedId !== workitemId) return;
+      set({ children: result.items, childrenError: null, childrenDebug: result.rawSample ?? null });
+    } catch (error) {
+      if (childrenRequests.get(workitemId) !== requestId || get().selectedId !== workitemId) return;
+      set({ children: [], childrenError: String(error), childrenDebug: null });
     }
   },
 
@@ -333,12 +407,49 @@ export const useApp = create<AppStore>((set, get) => ({
   },
 
   async openRepoCiLogs(repoId, runId, title) {
-    set({ logView: { title, text: '加载中…' } });
+    const requestId = ++requests.logs;
+    const binding = get().settings?.repoCiBindings?.[String(repoId)];
+    if (binding?.provider === 'jenkins') {
+      set({ logView: { title, text: '', repoId, runId, nextOffset: 0, hasMore: true } });
+      await get().refreshRepoCiLogs();
+      return;
+    }
+    set({ logView: { title, text: '', loading: true } });
     try {
       const text = await api.getRepoCiLogs(repoId, runId);
-      set({ logView: { title, text } });
+      if (requestId === requests.logs) set({ logView: { title, text, loading: false } });
     } catch (e) {
-      set({ logView: { title, text: `日志加载失败：${String(e)}` } });
+      if (requestId === requests.logs) {
+        set({ logView: { title, text: `日志加载失败：${String(e)}`, error: String(e), loading: false } });
+      }
+    }
+  },
+
+  async refreshRepoCiLogs() {
+    const current = get().logView;
+    if (!current?.repoId || !current.runId || !current.hasMore || current.loading) return;
+    const requestId = requests.logs;
+    set({ logView: { ...current, loading: true, error: undefined } });
+    try {
+      const chunk = await api.getRepoCiLogChunk(current.repoId, current.runId, current.nextOffset ?? 0);
+      if (requestId !== requests.logs) return;
+      const latest = get().logView;
+      if (!latest || latest.repoId !== current.repoId || latest.runId !== current.runId) return;
+      const truncated = chunk.nextOffset < (latest.nextOffset ?? 0);
+      set({
+        logView: {
+          ...latest,
+          text: truncated ? chunk.text : latest.text + chunk.text,
+          nextOffset: chunk.nextOffset,
+          hasMore: chunk.hasMore,
+          loading: false,
+        },
+      });
+    } catch (e) {
+      if (requestId !== requests.logs) return;
+      const latest = get().logView;
+      if (!latest || latest.repoId !== current.repoId || latest.runId !== current.runId) return;
+      set({ logView: { ...latest, loading: false, error: String(e) } });
     }
   },
 
@@ -387,13 +498,13 @@ export const useApp = create<AppStore>((set, get) => ({
 
   async openLogs(pipelineId, runId, jobId, title) {
     const requestId = ++requests.logs;
-    set({ logView: { title, text: '加载中…' } });
+    set({ logView: { title, text: '加载中…', loading: true } });
     try {
       const text = await api.getJobLogs(pipelineId, runId, jobId);
-      if (requestId === requests.logs) set({ logView: { title, text } });
+      if (requestId === requests.logs) set({ logView: { title, text, loading: false } });
     } catch (e) {
       if (requestId === requests.logs) {
-        set({ logView: { title, text: `日志加载失败：${String(e)}` } });
+        set({ logView: { title, text: `日志加载失败：${String(e)}`, error: String(e), loading: false } });
       }
     }
   },
@@ -448,6 +559,7 @@ export const useApp = create<AppStore>((set, get) => ({
             items: [],
             nextToken: null,
             loadingList: false,
+            iterations: [],
             selectedId: null,
             detail: null,
             comments: [],
@@ -469,6 +581,7 @@ export const useApp = create<AppStore>((set, get) => ({
       await get().loadList();
       await get().loadRepos();
       void get().loadPipelines();
+      void get().loadIterations();
       if (traceContextChanged && !dataContextChanged && get().selectedId) {
         void get().loadTrace();
       } else if (repoCiChanged && get().trace) {

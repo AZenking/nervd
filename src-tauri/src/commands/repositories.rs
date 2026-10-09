@@ -35,12 +35,23 @@ pub async fn list_repos(state: State<'_, AppState>, search: Option<String>, page
 }
 
 #[tauri::command]
-pub async fn list_branches(state: State<'_, AppState>, repo_id: i64, search: Option<String>) -> Result<Value, String> {
+pub async fn list_branches(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    search: Option<String>,
+    page: Option<i64>,
+    per_page: Option<i64>,
+) -> Result<Value, String> {
+    if repo_id <= 0 {
+        return Err("仓库 ID 无效".into());
+    }
+    let page = page.unwrap_or(1).max(1);
+    let per_page = per_page.unwrap_or(100).clamp(1, 100);
     let c = client_of(&state)?;
     let org = org_of(&state)?;
     let mut q = vec![
-        ("page", "1".to_string()),
-        ("perPage", "100".to_string()),
+        ("page", page.to_string()),
+        ("perPage", per_page.to_string()),
     ];
     if let Some(kw) = search {
         if !kw.trim().is_empty() {
@@ -48,6 +59,40 @@ pub async fn list_branches(state: State<'_, AppState>, repo_id: i64, search: Opt
         }
     }
     c.get(&format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/branches"), &q).await
+}
+
+#[tauri::command]
+pub async fn compare_branches(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    from_branch: String,
+    to_branch: String,
+) -> Result<Value, String> {
+    if repo_id <= 0 {
+        return Err("仓库 ID 无效".into());
+    }
+    let from_branch = from_branch.trim();
+    let to_branch = to_branch.trim();
+    if from_branch.is_empty() || to_branch.is_empty() {
+        return Err("比较分支不能为空".into());
+    }
+    if from_branch == to_branch {
+        return Err("比较分支不能相同".into());
+    }
+    let c = client_of(&state)?;
+    let org = org_of(&state)?;
+    let q = vec![
+        ("from", from_branch.to_string()),
+        ("to", to_branch.to_string()),
+        ("sourceType", "branch".to_string()),
+        ("targetType", "branch".to_string()),
+        ("straight", "false".to_string()),
+    ];
+    c.get(
+        &format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/compares"),
+        &q,
+    )
+    .await
 }
 
 /// POST branches?branch=&ref=（参数在 query）
@@ -137,4 +182,3 @@ pub async fn merge_merge_request(state: State<'_, AppState>, repo_id: i64, local
     )
     .await
 }
-

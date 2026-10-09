@@ -1,20 +1,16 @@
 // Tauri 命令的 invoke 包装（契约 §4）
 import { invoke } from '@tauri-apps/api/core';
 import type {
-  Category, JenkinsConnection, OrgSummary, PipelineRunSummary, RepoCiSnapshot, Settings, SettingsView,
-  WorkitemPage, WorkitemSummary,
+  Category, IterationSummary, JenkinsConnection, OrgSummary, PipelineRunSummary, RepoCiSnapshot,
+  JenkinsJobParameter, JenkinsJobSummary, JenkinsLogChunk, RepoCiBinding, Settings, SettingsView, WorkitemPage,
+  WorkitemStatusOption, WorkitemSummary, BranchRuleTemplate,
 } from '../types';
 
 /** 列表行 = WorkitemSummary + 后端增补字段 */
 export interface WorkitemRow extends WorkitemSummary {
   relatedTo?: string[]; // 关联人姓名（commands.rs names_of 防御式提取）
-}
-
-/** 工作流状态选项（list_workitem_status 防御式映射产物） */
-export interface WorkitemStatusOption {
-  identifier: string;
-  name: string;
-  stageName: string;
+  sprintId?: string; // 所属迭代（search 行 sprint.id，空串=未分配迭代）
+  sprintName?: string;
 }
 
 /** PipelineRunSummary 扩展行（types.ts 不可改，扩展字段在 api.ts 内定义）：
@@ -34,6 +30,19 @@ export async function saveSettings(settings: Settings): Promise<SettingsView> {
 export async function saveWorkitemRepos(workitemId: string, repoIds: number[] | null): Promise<SettingsView> {
   return invoke('save_workitem_repos', { workitemId, repoIds });
 }
+export async function saveBranchRuleTemplates(templates: BranchRuleTemplate[]): Promise<SettingsView> {
+  return invoke('save_branch_rule_templates', { templates });
+}
+export async function saveWorkitemRepoBranchTemplate(
+  workitemId: string,
+  repoId: number,
+  templateId: string | null,
+): Promise<SettingsView> {
+  return invoke('save_workitem_repo_branch_template', { workitemId, repoId, templateId });
+}
+export async function saveRepoCiBinding(repoId: number, binding: RepoCiBinding | null): Promise<SettingsView> {
+  return invoke('save_repo_ci_binding', { repoId, binding });
+}
 export async function savePat(pat: string): Promise<boolean> {
   return invoke('save_pat', { pat });
 }
@@ -45,6 +54,11 @@ export async function checkConnection(): Promise<OrgSummary[]> {
 }
 export async function listProjects(search?: string): Promise<{ id: string; name: string }[]> {
   return invoke('list_projects', { search });
+}
+
+/** 迭代列表（后端 sprints OpenAPI 防御式封装；不可用时抛 UNSUPPORTED，由 UI 回退占位数据） */
+export async function listIterations(): Promise<IterationSummary[]> {
+  return invoke('list_iterations');
 }
 
 export async function listWorkitems(p: {
@@ -65,6 +79,7 @@ export interface WorkitemChild {
   identifier: string;
   subject: string;
   category?: string;
+  statusId?: string;
   status?: string;
   assignedTo?: string;
   gmtModified?: string;
@@ -86,11 +101,11 @@ export async function listWorkitemChildren(workitemId: string): Promise<Workitem
     rawSample: typeof resp?.rawSample === 'string' && resp.rawSample ? resp.rawSample : undefined,
   };
 }
-export async function updateWorkitemStatus(workitemId: string, statusIdentifier: string): Promise<unknown> {
-  return invoke('update_workitem_status', { workitemId, statusIdentifier });
+export async function getWorkitemWorkflowStatuses(workitemId: string): Promise<WorkitemStatusOption[]> {
+  return invoke('get_workitem_workflow_statuses', { workitemId });
 }
-export async function listWorkitemStatus(category: Category): Promise<WorkitemStatusOption[]> {
-  return invoke('list_workitem_status', { category });
+export async function updateWorkitem(workitemId: string, update: { subject?: string; statusId?: string }): Promise<unknown> {
+  return invoke('update_workitem', { workitemId, ...update });
 }
 /** 附件图片代理：Rust 侧校验 host 白名单 / image/* / ≤5MB，成功返回 data: URL */
 export async function proxyWorkitemFile(url: string): Promise<string> {
@@ -115,6 +130,23 @@ export async function getJenkinsJob(connectionId: string, jobFullName: string): 
 }> {
   return invoke('get_jenkins_job', { connectionId, jobFullName });
 }
+export async function listJenkinsJobs(connectionId: string): Promise<JenkinsJobSummary[]> {
+  return invoke('list_jenkins_jobs', { connectionId });
+}
+export async function getJenkinsJobParameters(
+  connectionId: string,
+  jobFullName: string,
+): Promise<JenkinsJobParameter[]> {
+  return invoke('get_jenkins_job_parameters', { connectionId, jobFullName });
+}
+export async function triggerJenkinsJob(
+  repoId: number,
+  connectionId: string,
+  jobFullName: string,
+  parameters: Record<string, string>,
+): Promise<unknown> {
+  return invoke('trigger_jenkins_job', { repoId, connectionId, jobFullName, parameters });
+}
 export async function getRepoCiSnapshot(repoId: number, maxResults = 5): Promise<RepoCiSnapshot> {
   return invoke('get_repo_ci_snapshot', { repoId, maxResults });
 }
@@ -124,13 +156,29 @@ export async function triggerRepoCi(repoId: number): Promise<unknown> {
 export async function getRepoCiLogs(repoId: number, runId: string): Promise<string> {
   return invoke('get_repo_ci_logs', { repoId, runId });
 }
+export async function getRepoCiLogChunk(
+  repoId: number,
+  runId: string,
+  startOffset: number,
+): Promise<JenkinsLogChunk> {
+  return invoke('get_repo_ci_log_chunk', { repoId, runId, startOffset });
+}
 
-export async function listBranches(repoId: number, search?: string): Promise<Record<string, unknown>> {
-  return invoke('list_branches', { repoId, search });
+export async function listBranches(
+  repoId: number,
+  search?: string,
+  page?: number,
+  perPage?: number,
+): Promise<unknown> {
+  return invoke('list_branches', { repoId, search, page, perPage });
+}
+export async function compareBranches(repoId: number, fromBranch: string, toBranch: string): Promise<unknown> {
+  return invoke('compare_branches', { repoId, fromBranch, toBranch });
 }
 export async function createBranch(repoId: number, branchName: string, refName: string): Promise<unknown> {
   return invoke('create_branch', { repoId, branchName, refName });
 }
+
 export async function listRepositoryCommits(repoId: number, page?: number): Promise<Record<string, unknown>> {
   return invoke('list_repository_commits', { repoId, page });
 }

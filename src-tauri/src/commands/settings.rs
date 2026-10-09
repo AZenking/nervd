@@ -1,5 +1,5 @@
 use super::common::{as_array, client_of, org_of, rebuild, s};
-use crate::credentials::{self, Settings};
+use crate::credentials::{self, RepoCiBinding, Settings};
 use crate::AppState;
 use serde_json::{json, Value};
 use tauri::State;
@@ -66,6 +66,7 @@ fn validate_settings(settings: &Settings) -> Result<(), String> {
             credentials::RepoCiBinding::Jenkins {
                 connection_id,
                 job_full_name,
+                ..
             } => {
                 if !connection_ids.contains(connection_id.as_str())
                     || job_full_name.trim().is_empty()
@@ -78,6 +79,52 @@ fn validate_settings(settings: &Settings) -> Result<(), String> {
     for (workitem_id, repos) in &settings.workitem_repos {
         if workitem_id.trim().is_empty() || repos.iter().any(|repo_id| *repo_id <= 0) {
             return Err("需求仓库关联数据无效".into());
+        }
+    }
+    validate_branch_rule_templates(&settings.branch_rule_templates)?;
+    let template_ids: std::collections::HashSet<&str> = settings
+        .branch_rule_templates
+        .iter()
+        .map(|template| template.id.as_str())
+        .collect();
+    for (workitem_id, repos) in &settings.workitem_repo_branch_templates {
+        if workitem_id.trim().is_empty()
+            || repos.iter().any(|(repo_id, template_id)| {
+                *repo_id <= 0 || !template_ids.contains(template_id.as_str())
+            })
+        {
+            return Err("需求仓库的分支模板关联无效".into());
+        }
+    }
+    Ok(())
+}
+
+fn validate_branch_rule_templates(templates: &[credentials::BranchRuleTemplate]) -> Result<(), String> {
+    let mut ids = std::collections::HashSet::new();
+    let mut names = std::collections::HashSet::new();
+    for template in templates {
+        let id = template.id.trim();
+        let name = template.name.trim();
+        if id.is_empty() || id.len() > 100 || name.is_empty() || name.len() > 100 {
+            return Err("分支模板需要有效的 ID 和名称".into());
+        }
+        if !ids.insert(id) || !names.insert(name.to_lowercase()) {
+            return Err("分支模板 ID 和名称不能重复".into());
+        }
+        for (label, value) in [
+            ("来源分支", template.source_branch.as_str()),
+            ("迭代基准分支模板", template.baseline_branch_pattern.as_str()),
+            ("需求分支模板", template.workitem_branch_pattern.as_str()),
+        ] {
+            let value = value.trim();
+            if value.is_empty()
+                || value.len() > 255
+                || value.chars().any(|character| {
+                    character.is_control() || character.is_whitespace() || "~^:?*[\\".contains(character)
+                })
+            {
+                return Err(format!("分支模板的{label}无效"));
+            }
         }
     }
     Ok(())
@@ -112,9 +159,139 @@ pub async fn save_workitem_repos(
         }
         ids.sort_unstable();
         ids.dedup();
+        if let Some(templates) = settings.workitem_repo_branch_templates.get_mut(&workitem_id) {
+            templates.retain(|repo_id, _| ids.contains(repo_id));
+            if templates.is_empty() {
+                settings.workitem_repo_branch_templates.remove(&workitem_id);
+            }
+        }
         settings.workitem_repos.insert(workitem_id, ids);
     } else {
         settings.workitem_repos.remove(&workitem_id);
+        settings.workitem_repo_branch_templates.remove(&workitem_id);
+    }
+    credentials::save_settings(&app, &settings)?;
+    *state.settings.lock().unwrap() = settings;
+    get_settings(state).await
+}
+
+#[tauri::command]
+pub async fn save_branch_rule_templates(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    mut templates: Vec<credentials::BranchRuleTemplate>,
+) -> Result<Value, String> {
+    for template in &mut templates {
+        template.id = template.id.trim().to_string();
+        template.name = template.name.trim().to_string();
+        template.source_branch = template.source_branch.trim().to_string();
+        template.baseline_branch_pattern = template.baseline_branch_pattern.trim().to_string();
+        template.workitem_branch_pattern = template.workitem_branch_pattern.trim().to_string();
+    }
+    validate_branch_rule_templates(&templates)?;
+    let template_ids: std::collections::HashSet<String> = templates
+        .iter()
+        .map(|template| template.id.clone())
+        .collect();
+    let mut settings = state.settings.lock().unwrap().clone();
+    settings.branch_rule_templates = templates;
+    settings.workitem_repo_branch_templates.retain(|_, repos| {
+        repos.retain(|_, template_id| template_ids.contains(template_id));
+        !repos.is_empty()
+    });
+    credentials::save_settings(&app, &settings)?;
+    *state.settings.lock().unwrap() = settings;
+    get_settings(state).await
+}
+
+#[tauri::command]
+pub async fn save_workitem_repo_branch_template(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    workitem_id: String,
+    repo_id: i64,
+    template_id: Option<String>,
+) -> Result<Value, String> {
+    let workitem_id = workitem_id.trim().to_string();
+    if workitem_id.is_empty() || repo_id <= 0 {
+        return Err("需求 ID 或仓库 ID 无效".into());
+    }
+    let mut settings = state.settings.lock().unwrap().clone();
+    if let Some(template_id) = template_id.map(|value| value.trim().to_string()) {
+        if !settings
+            .branch_rule_templates
+            .iter()
+            .any(|template| template.id == template_id)
+        {
+            return Err("所选分支模板不存在，请刷新后重试".into());
+        }
+        settings
+            .workitem_repo_branch_templates
+            .entry(workitem_id)
+            .or_default()
+            .insert(repo_id, template_id);
+    } else if let Some(repos) = settings.workitem_repo_branch_templates.get_mut(&workitem_id) {
+        repos.remove(&repo_id);
+        if repos.is_empty() {
+            settings.workitem_repo_branch_templates.remove(&workitem_id);
+        }
+    }
+    credentials::save_settings(&app, &settings)?;
+    *state.settings.lock().unwrap() = settings;
+    get_settings(state).await
+}
+
+#[tauri::command]
+pub async fn save_repo_ci_binding(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    repo_id: i64,
+    binding: Option<RepoCiBinding>,
+) -> Result<Value, String> {
+    if repo_id <= 0 {
+        return Err("仓库 ID 无效".into());
+    }
+    let mut settings = state.settings.lock().unwrap().clone();
+    if let Some(binding) = binding {
+        let binding = match binding {
+            RepoCiBinding::Jenkins {
+                connection_id,
+                job_full_name,
+                mut parameters,
+                environment_parameter,
+                branch_parameter,
+            } => {
+                if !settings.jenkins_connections.iter().any(|item| item.id == connection_id)
+                    || job_full_name.trim().is_empty()
+                    || job_full_name.len() > 255
+                    || parameters.len() > 100
+                    || parameters.iter().any(|(name, value)| {
+                        name.trim().is_empty()
+                            || name.len() > 255
+                            || value.len() > 8192
+                            || name.chars().any(char::is_control)
+                            || value.chars().any(char::is_control)
+                    })
+                {
+                    return Err("Jenkins Job 绑定或构建参数无效".into());
+                }
+                parameters.retain(|name, _| !name.trim().is_empty());
+                RepoCiBinding::Jenkins {
+                    connection_id,
+                    job_full_name: job_full_name.trim().to_string(),
+                    parameters,
+                    environment_parameter: environment_parameter
+                        .filter(|name| !name.trim().is_empty()),
+                    branch_parameter: branch_parameter.filter(|name| !name.trim().is_empty()),
+                }
+            }
+            RepoCiBinding::Flow { .. } => {
+                return Err("此操作只保存 Jenkins Job 关联".into());
+            }
+        };
+        settings.repo_ci_bindings.insert(repo_id, binding);
+    } else {
+        settings.repo_ci_bindings.remove(&repo_id);
     }
     credentials::save_settings(&app, &settings)?;
     *state.settings.lock().unwrap() = settings;

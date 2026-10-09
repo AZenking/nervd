@@ -32,7 +32,23 @@ pub enum RepoCiBinding {
     Jenkins {
         connection_id: String,
         job_full_name: String,
+        #[serde(default)]
+        parameters: HashMap<String, String>,
+        #[serde(default)]
+        environment_parameter: Option<String>,
+        #[serde(default)]
+        branch_parameter: Option<String>,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchRuleTemplate {
+    pub id: String,
+    pub name: String,
+    pub source_branch: String,
+    pub baseline_branch_pattern: String,
+    pub workitem_branch_pattern: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -44,6 +60,8 @@ pub struct Settings {
     pub watched_repos: Vec<i64>,
     pub allow_write_ops: bool,
     pub workitem_repos: HashMap<String, Vec<i64>>,
+    pub branch_rule_templates: Vec<BranchRuleTemplate>,
+    pub workitem_repo_branch_templates: HashMap<String, HashMap<i64, String>>,
     pub jenkins_connections: Vec<JenkinsConnection>,
     pub repo_ci_bindings: HashMap<i64, RepoCiBinding>,
 }
@@ -60,6 +78,8 @@ impl Default for Settings {
             watched_repos: vec![],
             allow_write_ops: false,
             workitem_repos: HashMap::new(),
+            branch_rule_templates: vec![],
+            workitem_repo_branch_templates: HashMap::new(),
             jenkins_connections: vec![],
             repo_ci_bindings: HashMap::new(),
         }
@@ -186,8 +206,73 @@ mod tests {
 
         assert_eq!(settings.watched_repos, [12, 13]);
         assert!(settings.workitem_repos.is_empty());
+        assert!(settings.branch_rule_templates.is_empty());
+        assert!(settings.workitem_repo_branch_templates.is_empty());
         assert!(settings.jenkins_connections.is_empty());
         assert!(settings.repo_ci_bindings.is_empty());
+    }
+
+    #[test]
+    fn branch_templates_and_requirement_repo_selection_use_camel_case_settings_contract() {
+        let settings: Settings = serde_json::from_str(
+            r##"{
+                "branchRuleTemplates": [{
+                    "id": "site-b",
+                    "name": "B 局点",
+                    "sourceBranch": "test",
+                    "baselineBranchPattern": "iteration/{iteration}/site-b",
+                    "workitemBranchPattern": "feature/{identifier}"
+                }],
+                "workitemRepoBranchTemplates": {
+                    "workitem-1": { "12": "site-b" }
+                }
+            }"##,
+        )
+        .unwrap();
+
+        assert_eq!(settings.branch_rule_templates[0].source_branch, "test");
+        assert_eq!(
+            settings.workitem_repo_branch_templates["workitem-1"][&12],
+            "site-b",
+        );
+
+        let encoded = serde_json::to_value(settings).unwrap();
+        assert_eq!(
+            encoded["branchRuleTemplates"][0]["baselineBranchPattern"],
+            "iteration/{iteration}/site-b",
+        );
+        assert_eq!(
+            encoded["workitemRepoBranchTemplates"]["workitem-1"]["12"],
+            "site-b",
+        );
+    }
+
+    #[test]
+    fn removed_iteration_branch_configs_are_ignored_and_not_written_back() {
+        let settings: Settings = serde_json::from_str(
+            r#"{
+                "iterationBranchConfigs": {
+                    "sprint-1": {
+                        "additionalRepoIds": [12],
+                        "relations": {
+                            "13": { "sourceBranch": "develop", "targetBranch": "iteration/sprint-1" }
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let encoded = serde_json::to_value(settings).unwrap();
+        assert!(encoded.get("iterationBranchConfigs").is_none());
+        assert!(encoded["branchRuleTemplates"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert!(encoded["workitemRepoBranchTemplates"]
+            .as_object()
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

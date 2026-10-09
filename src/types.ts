@@ -13,8 +13,22 @@ export interface Settings {
   allowWriteOps: boolean;
   /** Explicit per-requirement repository overrides; presence with [] means no repos. */
   workitemRepos: Record<string, number[]>;
+  /** Reusable local branch templates; requirements select one per linked repository. */
+  branchRuleTemplates: BranchRuleTemplate[];
+  /** Local template selection keyed by work item ID, then repository ID. */
+  workitemRepoBranchTemplates: Record<string, Record<string, string>>;
   jenkinsConnections: JenkinsConnection[];
   repoCiBindings: Record<string, RepoCiBinding>;
+}
+
+export interface BranchRuleTemplate {
+  id: string;
+  name: string;
+  sourceBranch: string;
+  /** Supports {iteration} and {template}; default: iteration/{iteration}/{template}. */
+  baselineBranchPattern: string;
+  /** Supports {identifier}; default: feature/{identifier}. */
+  workitemBranchPattern: string;
 }
 
 export interface SettingsView extends Settings {
@@ -35,7 +49,33 @@ export interface JenkinsConnectionView extends JenkinsConnection {
 
 export type RepoCiBinding =
   | { provider: 'flow'; pipelineId: number; pipelineName: string }
-  | { provider: 'jenkins'; connectionId: string; jobFullName: string };
+  | {
+      provider: 'jenkins';
+      connectionId: string;
+      jobFullName: string;
+      /** Locally remembered Jenkins job parameter values (for example environment and branch). */
+      parameters?: Record<string, string>;
+      /** Parameter names selected as the build environment and branch. */
+      environmentParameter?: string;
+      branchParameter?: string;
+    };
+
+export interface JenkinsJobSummary {
+  name: string;
+  fullName: string;
+}
+
+export interface JenkinsJobParameter {
+  name: string;
+  type?: string;
+  defaultValue?: string;
+  choices: string[];
+}
+
+export interface WorkitemStatusOption {
+  id: string;
+  name: string;
+}
 
 export interface OrgSummary {
   organizationId: string;
@@ -65,6 +105,16 @@ export interface RepoSummary {
   name: string;
   pathWithNamespace?: string;
   lastActivityAt?: string;
+}
+
+/** 迭代摘要（list_iterations 映射产物；startDate/endDate 为 YYYY-MM-DD，缺失为空串） */
+export interface IterationSummary {
+  id: string;
+  name: string;
+  title: string;
+  state: string;
+  startDate: string;
+  endDate: string;
 }
 
 export interface PipelineSummary {
@@ -129,6 +179,8 @@ export interface CiRunSummary {
   startTime?: number;
   durationMs?: number;
   trigger?: string;
+  /** Actual parameter values captured from this Jenkins build. */
+  parameters?: Record<string, string>;
 }
 
 export interface RepoCiSnapshot {
@@ -136,6 +188,12 @@ export interface RepoCiSnapshot {
   name: string;
   status?: string;
   runs: CiRunSummary[];
+}
+
+export interface JenkinsLogChunk {
+  text: string;
+  nextOffset: number;
+  hasMore: boolean;
 }
 
 export interface PipelineRunEvent {

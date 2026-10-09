@@ -31,17 +31,27 @@
   "workitemRepos": {                      // 需求覆盖；键为稳定 workitemId，[] 表示显式不关联仓库
     "workitem-uuid": [2709413, 2709414]
   },
+  "branchRuleTemplates": [{               // 本机可复用分支规则模板
+    "id": "site-b", "name": "B 局点", "sourceBranch": "test",
+    "baselineBranchPattern": "iteration/{iteration}/site-b",
+    "workitemBranchPattern": "feature/{identifier}"
+  }],
+  "workitemRepoBranchTemplates": {         // 需求 → 仓库 → 分支模板，需求创建分支时逐仓库套用
+    "workitem-uuid": { "2709413": "site-b" }
+  },
   "jenkinsConnections": [{                // 仅保存非敏感连接资料
     "id": "jenkins-prod", "name": "生产 Jenkins",
     "baseUrl": "https://jenkins.example.com", "username": "ci-user"
   }],
   "repoCiBindings": {                      // 每个仓库一个当前 CI 绑定
-    "2709413": { "provider": "jenkins", "connectionId": "jenkins-prod", "jobFullName": "team/build" },
+    "2709413": { "provider": "jenkins", "connectionId": "jenkins-prod", "jobFullName": "team/build", "parameters": { "ENVIRONMENT": "test", "BRANCH": "feature/REQ-123" }, "environmentParameter": "ENVIRONMENT", "branchParameter": "BRANCH" },
     "2709414": { "provider": "flow", "pipelineId": 12345, "pipelineName": "release" }
   }
 }
 ```
 - `workitemRepos` 只用于 `Req`；Bug/Task 继续扫描 `watchedRepos`。没有该需求的键时回退到 `watchedRepos`，空数组覆盖默认值。
+- `branchRuleTemplates` 在迭代页维护并保存在本机；模板含源分支、迭代基准分支命名模板和需求开发分支命名模板。基准分支名支持 `{iteration}`、`{template}`，需求分支名支持 `{identifier}`。
+- `workitemRepoBranchTemplates` 在需求页逐个仓库选择模板，键为稳定 `workitemId`，内层键为仓库 ID，值为模板 ID。创建真实迭代需求分支时，先检查模板基准；缺失时从模板源分支创建迭代基准，再从迭代基准创建需求分支。MR 默认以需求分支为源、迭代基准为目标。此配置保存在本机。
 - 每个 Jenkins API Token 存在 macOS Keychain：service=`dev.nervd.app`，account=`jenkins:<connectionId>`；Token 不写入 `settings.json`。Jenkins 通过用户名与 API Token 做 HTTP Basic 认证。
 - 未配置 PAT 或 organizationId 时，UI 显示**引导页**（SettingsView）。
 
@@ -96,14 +106,22 @@ src-tauri/src/
 | `get_settings` | — | `Settings`（PAT 永不返回，只返回 `hasPat: bool`） | |
 | `save_settings` | `settings: Settings` | `Settings` | 重建 client |
 | `save_workitem_repos` | `workitemId: String, repoIds: Option<Vec<i64>>` | `Settings` | 需求仓库覆盖；空数组为显式空列表，`null` 删除覆盖并回退默认 |
+| `save_branch_rule_templates` | `templates: Vec<BranchRuleTemplate>` | `Settings` | 保存本机可复用分支模板；移除模板时清理需求仓库上的关联 |
+| `save_workitem_repo_branch_template` | `workitemId: String, repoId: i64, templateId: Option<String>` | `Settings` | 为需求的一个仓库选择或清除分支模板 |
+| `save_repo_ci_binding` | `repoId: i64, binding: Option<RepoCiBinding>` | `Settings` | 本机保存/清除仓库的 Jenkins Job 与构建参数 |
 | `save_pat` | `pat: String` | `bool` | 写 keyring，重建 client |
 | `delete_pat` | — | `bool` | |
 | `check_connection` | — | `Vec<OrgSummary>` | 调 ListOrganizations 验证 PAT+orgId |
-| `list_workitems` | `category: String, spaceIdentifier: String, nextToken: Option<String>` | `WorkitemPage`（items 增补 `relatedTo: string[]` 关联人姓名，防御式提取 `participant/participants/relatedUsers`，供列表按处理人/关联人过滤） | |
+| `list_iterations` | — | `Vec<IterationSummary>`（`{id,name,title,state,startDate,endDate}`，state 为 TODO/DOING/ARCHIVED 映射后的中文） | 云效项目迭代列表：`GET /oapi/v1/projex/organizations/{org}/projects/{spaceIdentifier}/sprints?page=1&perPage=100`（实测 2026-10：不带 `/projects/{space}` 的 sprints 路径 404；响应为裸数组，57 个迭代实测可取全）。不可用返回错误，前端回退占位迭代 |
+| `list_workitems` | `category: String, spaceIdentifier: String, nextToken: Option<String>` | `WorkitemPage`（items 增补 `relatedTo: string[]` 关联人姓名、`sprintId/sprintName` 所属迭代（search 行 `sprint:{id,name}` 扁平化），供前端按当前迭代与处理人/关联人/状态过滤） | 实测：body 不接受 `sprintId`（传了被忽略），迭代过滤由前端按行内 sprint 字段完成 |
 | `get_workitem` | `workitemId: String` | `Value` | 详情 |
+| `get_workitem_workflow_statuses` | `workitemId: String` | `Vec<WorkitemStatusOption>` | 读取该工作项类型在线的状态选项 |
+| `update_workitem` | `workitemId: String, subject?: String, statusId?: String` | `Value` | **写操作**；更新子工作项名称和/或状态 |
+| `list_workitem_children` | `workitemId: String` | `{items: WorkitemChild[]}` | 查找子工作项；行内含 `statusId` 供状态编辑 |
 | `list_workitem_comments` | `workitemId: String` | `Vec<Value>` | |
 | `list_repos` | `search: Option<String>, page: Option<i64>` | `Vec<RepoSummary>` | |
-| `list_branches` | `repoId: i64, search: Option<String>` | `Vec<Value>` | |
+| `list_branches` | `repoId: i64, search: Option<String>, page?: i64, perPage?: i64` | `Vec<Value>` | 云效分支列表支持搜索和分页（每页最多 100） |
+| `compare_branches` | `repoId: i64, fromBranch: String, toBranch: String` | `Value` | 只读比较云效两个分支的提交差异 |
 | `create_branch` | `repoId: i64, branchName: String, refName: String` | `Value` | **写操作** |
 | `list_repository_commits` | `repoId: i64, page: Option<i64>` | `Vec<Value>` | |
 | `list_merge_requests` | `repoId: i64, state: Option<String>` | `Vec<Value>` | |
@@ -119,10 +137,13 @@ src-tauri/src/
 | `delete_jenkins_token` | `connectionId: String` | `bool` | 仅在 Jenkins 实例已从设置移除后删除 Token |
 | `test_jenkins_connection` | `connection: JenkinsConnection, token?: String` | `String` | 验证 Jenkins 连通及认证；可用未保存的 Token 测试 |
 | `get_jenkins_job` | `connectionId: String, jobFullName: String` | `JenkinsJobInfo` | 查询 Job；支持 `folder/subfolder/job` |
+| `list_jenkins_jobs` | `connectionId: String` | `Vec<JenkinsJobSummary>` | 列出该实例下可触发的 Jenkins Job，展开文件夹 |
+| `get_jenkins_job_parameters` | `connectionId: String, jobFullName: String` | `Vec<JenkinsJobParameter>` | 读取 Job 参数定义、默认值和可选值 |
 | `get_repo_ci_snapshot` | `repoId: i64, maxResults?: i64` | `RepoCiSnapshot` | 查询仓库当前绑定的 Flow/Jenkins Job 状态和近期构建 |
-| `trigger_repo_ci` | `repoId: i64` | `Value` | **写操作**；按仓库当前绑定触发，使用 Job 默认参数 |
+| `trigger_jenkins_job` | `repoId: i64, connectionId: String, jobFullName: String, parameters: Record<String, String>` | `Value` | **写操作**；按选择的环境、分支和其他 Job 参数触发 Jenkins 构建 |
+| `trigger_repo_ci` | `repoId: i64` | `Value` | **写操作**；按仓库当前 CI 绑定触发；Jenkins 使用本机记住的参数 |
 | `get_repo_ci_logs` | `repoId: i64, runId: String` | `String` | 读取当前绑定 Job 的指定构建日志 |
-| `update_workitem_status` | `workitemId: String, statusIdentifier: String` | `Value` | **写操作**（POST workitems/update） |
+| `get_repo_ci_log_chunk` | `repoId: i64, runId: String, startOffset: u64` | `{text, nextOffset, hasMore}` | 增量读取 Jenkins 构建日志；依据 progressiveText 的偏移与是否仍有新内容持续追读 |
 
 **写操作门控**：`settings.allowWriteOps == false` 时，写操作命令直接返回
 `Err("WRITE_DISABLED: 请在设置中开启写操作（需要写权限的个人令牌）")`。前端依此
@@ -133,10 +154,12 @@ src-tauri/src/
 ### 本机配置与追溯/CI 类型
 
 - `Settings.workitemRepos: Record<workitemId, repoId[]>`：仅 Req 覆盖默认仓库；属性存在且为空数组时表示显式不关联仓库。缺键回退 `watchedRepos`。
+- `Settings.branchRuleTemplates: BranchRuleTemplate[]`：本机可复用分支模板，每项为 `{id, name, sourceBranch, baselineBranchPattern, workitemBranchPattern}`；旧设置缺少该字段时按空数组读取。
+- `Settings.workitemRepoBranchTemplates: Record<workitemId, Record<repoId, templateId>>`：需求关联仓库的模板选择；按仓库分别套用。删除需求仓库关联或模板时同步清理对应选择。旧设置缺少该字段时按空对象读取。
 - `Settings.jenkinsConnections: JenkinsConnection[]`：`{id, name, baseUrl, username}`；`SettingsView` 增补 `hasToken`，该字段由 Keychain 状态派生，不写入 JSON。
-- `Settings.repoCiBindings: Record<repoId, RepoCiBinding>`：每个仓库一个绑定，Flow 为 `{provider:'flow', pipelineId, pipelineName}`，Jenkins 为 `{provider:'jenkins', connectionId, jobFullName}`。
+- `Settings.repoCiBindings: Record<repoId, RepoCiBinding>`：每个仓库一个绑定，Flow 为 `{provider:'flow', pipelineId, pipelineName}`，Jenkins 为 `{provider:'jenkins', connectionId, jobFullName, parameters?, environmentParameter?, branchParameter?}`。需求详情的构建选择只接入 Jenkins；勾选“记住本次选择”后，Job、环境/分支参数名和值保存在本机，后续打开预填。
 - `TraceResult.repositories: RepositoryTraceResult[]`：每项含 `repoId`、命中的 `branches`、`commits` 和 `mergeRequests`，需求详情按仓库分别展示。
-- `RepoCiSnapshot`：`{provider, name, status?, runs: CiRunSummary[]}`；近期构建属于当前仓库 Job，不表示由某个需求触发。
+- `RepoCiSnapshot`：`{provider, name, status?, runs: CiRunSummary[]}`；Jenkins `CiRunSummary.parameters` 来自该次构建在 Jenkins 上报的实际参数，用于显示构建分支和环境；近期构建属于当前仓库 Job，不表示由某个需求触发。
 - Jenkins 轮询事件 `JenkinsBuildEvent`：`{connectionId, jobFullName, runId, status, repoIds}`。
 
 ```
