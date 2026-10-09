@@ -6,6 +6,8 @@ use reqwest::{Client, Method};
 use serde_json::Value;
 
 pub const BASE: &str = "https://openapi-rdc.aliyuncs.com";
+/// ROA 2021-06-25 族端点（getRelations / listWorkflowStatus 等旧形态接口）
+pub const ROA_BASE: &str = "https://devops.cn-hangzhou.aliyuncs.com";
 
 #[derive(Clone)]
 pub struct YunxiaoClient {
@@ -24,12 +26,13 @@ impl YunxiaoClient {
 
     async fn req(
         &self,
+        base: &str,
         method: Method,
         path: &str,
         query: &[(&str, String)],
         body: Option<Value>,
     ) -> Result<Value, String> {
-        let url = format!("{BASE}{path}");
+        let url = format!("{base}{path}");
         let mut rb = self
             .http
             .request(method, &url)
@@ -61,20 +64,26 @@ impl YunxiaoClient {
         if text.trim().is_empty() {
             return Ok(Value::Null);
         }
-        // 运行触发等接口返回裸数字
-        serde_json::from_str(&text).map_err(|e| format!("响应解析失败: {e}"))
+        // 运行触发等接口返回裸数字；非 JSON 成功体（如打错端点返回网关页）带回片段便于定位
+        serde_json::from_str(&text)
+            .map_err(|e| format!("响应解析失败: {e}；返回片段: {}", truncate(text.trim(), 160)))
     }
 
     pub async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value, String> {
-        self.req(Method::GET, path, query, None).await
+        self.req(BASE, Method::GET, path, query, None).await
+    }
+
+    /// ROA 2021-06-25 族 GET（devops.{region}.aliyuncs.com）
+    pub async fn get_roa(&self, path: &str, query: &[(&str, String)]) -> Result<Value, String> {
+        self.req(ROA_BASE, Method::GET, path, query, None).await
     }
 
     pub async fn post(&self, path: &str, query: &[(&str, String)], body: Value) -> Result<Value, String> {
-        self.req(Method::POST, path, query, Some(body)).await
+        self.req(BASE, Method::POST, path, query, Some(body)).await
     }
 
     pub async fn put(&self, path: &str, query: &[(&str, String)], body: Value) -> Result<Value, String> {
-        self.req(Method::PUT, path, query, Some(body)).await
+        self.req(BASE, Method::PUT, path, query, Some(body)).await
     }
 }
 

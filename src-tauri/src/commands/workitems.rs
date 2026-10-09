@@ -136,12 +136,17 @@ fn find_workitem_array(v: &Value, depth: usize) -> Option<Vec<Value>> {
 pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: String) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let resp = c
-        .get(
-            &format!("/organization/{org}/workitems/{workitem_id}/getRelations"),
-            &[("relationType", "SUB".to_string())],
-        )
-        .await?;
+    let path = format!("/organization/{org}/workitems/{workitem_id}/getRelations");
+    let query = [("relationType", "SUB".to_string())];
+    // ROA 族原生端点为 devops.cn-hangzhou.aliyuncs.com；openapi-rdc 上该路径会返回非 JSON 网关体，
+    // 仅作回退（保持对历史行为兼容）
+    let resp = match c.get_roa(&path, &query).await {
+        Ok(v) => v,
+        Err(roa_err) => match c.get(&path, &query).await {
+            Ok(v) => v,
+            Err(_) => return Err(roa_err),
+        },
+    };
     let raw = find_workitem_array(&resp, 0).unwrap_or_default();
     let items: Vec<Value> = raw
         .iter()
@@ -193,8 +198,9 @@ pub async fn list_workitem_status(
     let oapi_form =
         format!("/oapi/v1/projex/organizations/{org}/workitems/workflow/listWorkflowStatus");
     let roa_form = format!("/organization/{org}/workitems/workflow/listWorkflowStatus");
-    for path in [&oapi_form, &roa_form] {
-        if let Ok(v) = c.get(path, &query).await {
+    for (path, use_roa) in [(&oapi_form, false), (&roa_form, true)] {
+        let attempted = if use_roa { c.get_roa(path, &query).await } else { c.get(path, &query).await };
+        if let Ok(v) = attempted {
             let items: Vec<Value> = status_array_of(&v)
                 .iter()
                 .filter_map(|e| {
