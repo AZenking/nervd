@@ -97,7 +97,8 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
     connection: (
       <Card>
         <CardHeader>
-          <CardTitle>云效连接</CardTitle>
+          {/* D5：分区名已由页头给出，卡片标题只说明本卡内容，避免与页头重复 */}
+          <CardTitle>令牌与组织</CardTitle>
           <CardDescription>令牌与组织信息，用于访问云效 DevOps API。</CardDescription>
         </CardHeader>
         <CardContent>

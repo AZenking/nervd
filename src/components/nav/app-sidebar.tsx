@@ -43,7 +43,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold tracking-tight">nervd</span>
-                  <span className="truncate text-xs font-medium tracking-[0.14em] text-sidebar-foreground/50">DELIVERY CONTROL</span>
+                  <span className="truncate text-xs font-medium tracking-[0.14em] text-muted-foreground">Delivery Control</span>
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -98,10 +98,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <button
               type="button"
               onClick={() => useUi.getState().focusGlobalSearch()}
-              className="flex h-7 w-full items-center gap-2 rounded-md bg-sidebar-accent/50 px-2 text-xs text-sidebar-foreground/55 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              className="flex h-7 w-full items-center gap-2 rounded-md bg-sidebar-accent/50 px-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
             >
               <SearchIcon className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-left">搜索或提问</span>
+              <span className="min-w-0 flex-1 truncate text-left">搜索工作项</span>
               <kbd className="shrink-0 rounded border border-border bg-background px-1 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
             </button>
           </div>
@@ -113,7 +113,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <DatabaseIcon className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/50">工作区</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">工作区</span>
                   <span className="truncate font-medium">
                     {settings?.organizationId ? `平台工程 / ${settings.organizationId.slice(0, 6)}…` : '未配置'}
                   </span>

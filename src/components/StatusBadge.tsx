@@ -99,7 +99,11 @@ export function StatusBadge({
       title={status && status.trim() !== text ? status.trim() : undefined}
       className={cn(size === 'sm' && 'h-5 gap-1 px-1.5 text-[11px]', 'max-w-full', className)}
     >
-      <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', TONE_DOT[meta.tone])} />
+      {/* D3：状态点靠描边取得边缘（绿点白底 2.94:1），不换色、不加新色值 */}
+      <span
+        aria-hidden
+        className={cn('size-1.5 shrink-0 rounded-full ring-1 ring-black/10', TONE_DOT[meta.tone])}
+      />
       <span className="truncate">{text}</span>
     </Badge>
   );

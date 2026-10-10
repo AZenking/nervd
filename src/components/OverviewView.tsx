@@ -3,7 +3,7 @@ import { useApp } from '../store/app';
 import { useUi } from '../store/ui';
 import type { RunStatus } from '../types';
 import { CATEGORY_LABELS } from '../types';
-import { DatabaseIcon, WorkflowIcon } from 'lucide-react';
+import { DatabaseIcon, Link2Icon, WorkflowIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from './page-header';
 import { EmptyHint } from './empty-hint';
@@ -69,6 +69,7 @@ export function OverviewView() {
     repositories, repoCiByRepo, loadList, loadPipelines, loadRepoCi,
   } = useApp();
   const openWorkitem = useUi((s) => s.openWorkitem);
+  const openSettings = useUi((s) => s.openSettings);
   const watched = settings?.watchedRepos ?? [];
 
   // 进入总览时刷新：工作项列表（当前类别）+ 流水线运行 + 默认云效仓库 CI
@@ -144,7 +145,8 @@ export function OverviewView() {
       <PageHeader
         eyebrow="Delivery overview"
         title="总览"
-        description={`${CATEGORY_LABELS[category]} · ${settings?.defaultSpaceIdentifier ?? '未配置项目空间'}`}
+        // D5：副标题不再直出项目空间原始哈希，只保留类别名
+        description={CATEGORY_LABELS[category]}
         actions={<Button variant="ghost" size="sm" onClick={refresh}>刷新</Button>}
         className="border-b border-border pb-4"
       />
@@ -154,7 +156,7 @@ export function OverviewView() {
         <section className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
           <StatCell
             label="连接"
-            value={connection === 'ok' ? '正常' : connection === 'fail' ? '失败' : '…'}
+            value={connection === 'ok' ? '正常' : connection === 'fail' ? '失败' : '获取中'}
             sub={settings?.allowWriteOps ? '可写' : '只读'}
             dot={
               <>
@@ -219,7 +221,18 @@ export function OverviewView() {
               />
             ))}
             {!pipelines.length && (
-              <EmptyHint icon={WorkflowIcon} title="无流水线" className="md:col-span-2" />
+              <EmptyHint
+                icon={WorkflowIcon}
+                title="无流水线"
+                description="绑定云效 Flow 流水线或 Jenkins Job 后，构建状态会汇入这里"
+                action={
+                  <Button variant="outline" size="sm" onClick={() => openSettings('ci')}>
+                    <Link2Icon data-icon="inline-start" />
+                    去绑定 CI
+                  </Button>
+                }
+                className="md:col-span-2"
+              />
             )}
           </div>
         </section>
