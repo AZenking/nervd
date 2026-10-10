@@ -1,9 +1,10 @@
 import { useApp } from '../store/app';
 import type { PipelineRunSummary } from '../types';
 import { Button } from '@/components/ui/button';
-import { StatusDot } from './StatusDot';
+import { StatusBadge } from './StatusBadge';
 import { WriteOpButton } from './WriteOpButton';
 import * as api from '../lib/api';
+import { formatDateTime } from '../lib/format';
 
 const TRIGGER: Record<number, string> = { 1: '手动', 2: '定时', 3: '代码', 5: '流水线', 6: 'WEBHOOK' };
 
@@ -31,10 +32,10 @@ export function PipelineCard({
   };
 
   return (
-    <div className="rounded-md border border-border bg-background px-3 py-3">
+    <div className="rounded-lg border border-border bg-card px-6 py-5 transition-colors hover:border-primary/35">
       <div className="flex items-center gap-2">
-        <StatusDot status={latest?.status} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{pipelineName}</span>
+        <StatusBadge status={latest?.status} />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-foreground">{pipelineName}</span>
         <WriteOpButton
           label="运行"
           title={`触发 ${pipelineName}`}
@@ -51,12 +52,12 @@ export function PipelineCard({
         </Button>
       </div>
       {latest && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5 text-xs text-muted-foreground">
           <span>#{latest.pipelineRunId}</span>
-          <span>· {latest.status}</span>
+          <StatusBadge status={latest.status} size="sm" />
           <span>· {TRIGGER[latest.triggerMode ?? 0] ?? '—'}</span>
           {latest.endTime && (
-            <span>· {new Date(latest.endTime).toLocaleString('zh-CN', { hour12: false })}</span>
+            <span>· {formatDateTime(latest.endTime)}</span>
           )}
         </div>
       )}

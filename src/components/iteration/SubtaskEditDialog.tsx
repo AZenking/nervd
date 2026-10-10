@@ -49,7 +49,7 @@ export function SubtaskEditDialog({
   if (subject.trim() !== child.subject.trim()) updates.subject = subject.trim();
   if (statusId && statusId !== child.statusId) updates.statusId = statusId;
   const disabledReason = !settings?.allowWriteOps
-    ? '请先在设置中开启写操作'
+    ? '请先在「设置 → 安全」中开启写操作'
     : !updates.subject && !updates.statusId
       ? '没有需要保存的修改'
       : undefined;
@@ -98,9 +98,12 @@ export function SubtaskEditDialog({
         </FieldGroup>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          {/* UX A5：向导内用两段式确认，不再弹窗套弹窗 */}
           <WriteOpButton
             label={saving ? '保存中…' : '保存修改'}
             title={`修改子任务 ${child.identifier}`}
+            confirm="inline"
+            confirmLabel="确认保存"
             disabled={Boolean(disabledReason) || saving}
             disabledReason={disabledReason}
             onAction={save}

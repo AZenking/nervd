@@ -1,0 +1,32 @@
+id: runtime-smoke-glm53
+goal: 冒烟验证 fleet.yaml 新 runtime 配置——echo/zai/agy 三条通道、五角色 spec 端到端可用
+planningMode: execution
+plan:
+  summary: 五角色各执行一个零文件改动的最小确认任务，按角色命中 runtime.roles 新配置
+  rationale: 用户要求测试 .fleet/fleet.yaml 新 runtime 配置（2026-10-10 会话确认）
+requirements:
+  - id: r1
+    text: 每个角色任务正常结束并输出一行含角色名的确认文本
+constraints:
+  - kind: maxDurationMs
+    value: 600000
+tasks:
+  - id: reflex-echo-smoke
+    goal: 只输出一行“reflex ok”，不创建/修改/删除任何文件
+    agentRole: reflex
+  - id: focus-echo-smoke
+    goal: 只输出一行“focus ok”，不创建/修改/删除任何文件
+    agentRole: focus
+  - id: reason-zai-smoke
+    goal: 只输出一行“reason ok”，不创建/修改/删除任何文件
+    agentRole: reason
+  - id: insight-zai-smoke
+    goal: 只输出一行“insight ok”，不创建/修改/删除任何文件
+    agentRole: insight
+  - id: wisdom-agy-smoke
+    goal: 只输出一行“wisdom ok”，不创建/修改/删除任何文件
+    agentRole: wisdom
+acceptance:
+  - given: fleet run 执行完毕
+    when: 五个任务全部终态 completed
+    then: RunReport success 且各角色实际 runtime 与 fleet.yaml roles 一致

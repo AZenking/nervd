@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { RefreshCwIcon, WorkflowIcon } from 'lucide-react';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
+import { isBranchParameterName, isEnvironmentParameterName } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,16 +39,6 @@ function branchNames(value: unknown): string[] {
   return [...new Set(collect(value).map((name) => name.trim()).filter(Boolean))].sort();
 }
 
-function isEnvironmentParameter(name: string): boolean {
-  return /(^|[_-])(env|environment|deployenv|targetenv)([_-]|$)/i.test(name)
-    || /environment/i.test(name);
-}
-
-function isBranchParameter(name: string): boolean {
-  return /(^|[_-])(git)?branch([_-]|$)/i.test(name)
-    || /branchname|gitref|scmref/i.test(name);
-}
-
 function ParameterInput({
   parameter,
   value,
@@ -62,23 +53,18 @@ function ParameterInput({
   allowCustomValue?: boolean;
 }) {
   const choices = [...new Set([...options, ...(value ? [value] : [])])];
+  // UX：自由值输入用 Combobox 自定义值候选替代原生 datalist（去除原生弹层）
   if (allowCustomValue) {
-    const listId = `jenkins-parameter-${parameter.name.replace(/[^a-zA-Z0-9_-]/g, '-')}-options`;
     return (
-      <>
-        <Input
-          aria-label={parameter.name}
-          list={choices.length ? listId : undefined}
-          value={value}
-          placeholder="输入或选择分支"
-          onChange={(event) => onChange(event.target.value)}
-        />
-        {choices.length > 0 && (
-          <datalist id={listId}>
-            {choices.map((choice) => <option key={choice} value={choice} />)}
-          </datalist>
-        )}
-      </>
+      <SearchableSelect
+        ariaLabel={parameter.name}
+        value={value || null}
+        onValueChange={(v) => onChange(v ?? '')}
+        allowCustomValue
+        placeholder="输入或选择分支"
+        searchPlaceholder="输入或搜索分支…"
+        items={choices.map((choice): { label: string; value: string } => ({ label: choice, value: choice }))}
+      />
     );
   }
   if (choices.length) {
@@ -109,11 +95,13 @@ export function JenkinsBuildDialog({
   repoName,
   defaultBranch,
   buttonLabel = '触发 CI',
+  buttonVariant = 'default',
 }: {
   repoId: number;
   repoName: string;
   defaultBranch?: string;
   buttonLabel?: string;
+  buttonVariant?: ComponentProps<typeof Button>['variant'];
 }) {
   const { settings, setToast, loadRepoCi, saveRepoCiBinding } = useApp();
   const connections = (settings?.jenkinsConnections ?? []).filter((connection) => connection.hasToken);
@@ -199,12 +187,12 @@ export function JenkinsBuildDialog({
         const environmentName = (savedBinding?.connectionId === connectionId && savedBinding.jobFullName === jobFullName
           ? definitions.find((parameter) => parameter.name === savedBinding.environmentParameter)?.name
           : undefined)
-          ?? definitions.find((parameter) => isEnvironmentParameter(parameter.name))?.name
+          ?? definitions.find((parameter) => isEnvironmentParameterName(parameter.name))?.name
           ?? definitions[0]?.name ?? '';
         const branchName = (savedBinding?.connectionId === connectionId && savedBinding.jobFullName === jobFullName
           ? definitions.find((parameter) => parameter.name === savedBinding.branchParameter)?.name
           : undefined)
-          ?? definitions.find((parameter) => isBranchParameter(parameter.name)
+          ?? definitions.find((parameter) => isBranchParameterName(parameter.name)
           && parameter.name !== environmentName)?.name
           ?? definitions.find((parameter) => parameter.name !== environmentName)?.name ?? '';
         const values: Record<string, string> = {};
@@ -259,34 +247,38 @@ export function JenkinsBuildDialog({
     }
   };
 
+  // UX A11：有参数时至少映射一个（环境或分支）即可触发；无参数 Job 按默认配置直接触发
   const buildDisabledReason = !connectionId
     ? '请选择已保存 Token 的 Jenkins 实例'
     : !jobFullName
       ? '请选择 Jenkins Job'
       : jobsLoading || parametersLoading
         ? '正在读取 Job 参数'
-        : !environment || !branch
-          ? 'Job 至少需要两个参数，分别映射环境和分支'
-          : environmentParameter === branchParameter
-            ? '环境参数与分支参数不能相同'
-            : !environmentValue.trim() || !branchValue.trim()
-              ? '请填写环境和分支值'
-              : undefined;
+        : environmentParameter && environmentParameter === branchParameter
+          ? '环境参数与分支参数不能相同'
+          : parameters.length && !environment && !branch
+            ? '请至少映射一个参数（环境或分支）'
+            : environment && !environmentValue.trim()
+              ? '请填写环境值'
+              : branch && !branchValue.trim()
+                ? '请填写分支值'
+                : undefined;
 
   const trigger = async () => {
-    if (!connectionId || !jobFullName || !environment || !branch || buildDisabledReason) return;
+    if (!connectionId || !jobFullName || buildDisabledReason) return;
+    if (parameters.length && !environment && !branch) return;
     const values = {
       ...parameterValues,
-      [environment.name]: environmentValue.trim(),
-      [branch.name]: branchValue.trim(),
+      ...(environment ? { [environment.name]: environmentValue.trim() } : {}),
+      ...(branch ? { [branch.name]: branchValue.trim() } : {}),
     };
     setTriggering(true);
     try {
       if (remember) {
         const binding: RepoCiBinding = {
           provider: 'jenkins', connectionId, jobFullName, parameters: values,
-          environmentParameter: environment.name,
-          branchParameter: branch.name,
+          environmentParameter: environment?.name ?? '',
+          branchParameter: branch?.name ?? '',
         };
         await saveRepoCiBinding(repoId, binding);
       }
@@ -303,8 +295,8 @@ export function JenkinsBuildDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button size="sm" variant="outline" onClick={openDialog}>
-        <WorkflowIcon className="size-4" />
+      <Button size="sm" variant={buttonVariant} onClick={openDialog}>
+        <WorkflowIcon data-icon="inline-start" />
         {buttonLabel}
       </Button>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
@@ -314,7 +306,7 @@ export function JenkinsBuildDialog({
         </DialogHeader>
         {!connections.length ? (
           <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            请先在「环境与策略」中配置 Jenkins 实例并保存 API Token。
+            请先在「设置 → CI 集成」中配置 Jenkins 实例并保存 API Token。
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -345,7 +337,7 @@ export function JenkinsBuildDialog({
                     setJobsRefresh((current) => current + 1);
                   }}
                 >
-                  <RefreshCwIcon className="size-3.5" />刷新
+                  <RefreshCwIcon data-icon="inline-start" />刷新
                 </Button>
               </div>
               <SearchableSelect
@@ -366,6 +358,9 @@ export function JenkinsBuildDialog({
             </Field>
             {jobFullName && !parametersLoading && parameters.length > 0 && (
               <>
+                <p className="text-xs text-muted-foreground">
+                  将 Job 参数映射为「环境 / 分支」，用于在构建记录中标注本次构建；Job 无对应参数时可留空不映射，至少映射一个即可触发。
+                </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="jenkins-env-param">环境参数</FieldLabel>
@@ -374,7 +369,7 @@ export function JenkinsBuildDialog({
                       value={environmentParameter || '__none'}
                       onValueChange={(v) => updateEnvironmentParameter(v && v !== '__none' ? v : '')}
                       items={[
-                        { label: '选择参数', value: '__none' },
+                        { label: '不映射', value: '__none' },
                         ...parameters.map((parameter) => ({
                           label: parameter.name,
                           value: parameter.name,
@@ -398,7 +393,7 @@ export function JenkinsBuildDialog({
                       value={branchParameter || '__none'}
                       onValueChange={(v) => updateBranchParameter(v && v !== '__none' ? v : '')}
                       items={[
-                        { label: '选择参数', value: '__none' },
+                        { label: '不映射', value: '__none' },
                         ...parameters.map((parameter) => ({
                           label: parameter.name,
                           value: parameter.name,
@@ -427,7 +422,7 @@ export function JenkinsBuildDialog({
                       <Field key={parameter.name}>
                         <FieldLabel>
                           {parameter.name}
-                          <Badge variant="outline" className="text-[10px]">{parameter.type || '参数'}</Badge>
+                          <Badge variant="outline" className="text-xs">{parameter.type || '参数'}</Badge>
                         </FieldLabel>
                         <ParameterInput
                           parameter={parameter}
@@ -446,7 +441,7 @@ export function JenkinsBuildDialog({
             )}
             {jobFullName && !parametersLoading && !parameters.length && !error && (
               <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                此 Job 没有可读取的 Jenkins 参数，无法在此选择环境和分支。请先在 Jenkins Job 中定义环境与分支参数。
+                此 Job 没有可读取的 Jenkins 参数，将按 Job 默认配置直接触发构建。
               </p>
             )}
             {parametersLoading && <p className="text-xs text-muted-foreground">正在读取 Job 参数…</p>}
@@ -462,9 +457,12 @@ export function JenkinsBuildDialog({
         )}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>取消</Button>
+          {/* UX A5：向导内两段式确认，不再弹窗套弹窗 */}
           <WriteOpButton
             label={triggering ? '构建中…' : '构建'}
             title={jobFullName ? `触发 Jenkins Job ${jobFullName}` : '触发 Jenkins 构建'}
+            confirm="inline"
+            confirmLabel="确认触发"
             disabled={Boolean(buildDisabledReason) || !connections.length || triggering}
             disabledReason={buildDisabledReason}
             onAction={trigger}

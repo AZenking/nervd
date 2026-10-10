@@ -63,6 +63,8 @@ interface AppStore {
 
   repositories: RepoSummary[];
   repoCiByRepo: Record<number, { loading: boolean; snapshot: RepoCiSnapshot | null; error?: string }>;
+  /** 最近一次 CI 快照成功刷新时间（失败不更新，避免错误信心） */
+  ciRefreshedAt: number | null;
 
   pipelines: { pipelineId: number; pipelineName: string; status?: string }[];
   runsByPipeline: Record<number, PipelineRunSummary[]>;
@@ -131,6 +133,7 @@ export const useApp = create<AppStore>((set, get) => ({
 
   repositories: [],
   repoCiByRepo: {},
+  ciRefreshedAt: null,
 
   pipelines: [],
   runsByPipeline: {},
@@ -388,6 +391,7 @@ export const useApp = create<AppStore>((set, get) => ({
       if (repoCiRequests.get(repoId) !== requestId) return;
       set((state) => ({
         repoCiByRepo: { ...state.repoCiByRepo, [repoId]: { loading: false, snapshot } },
+        ciRefreshedAt: Date.now(),
       }));
     } catch (e) {
       if (repoCiRequests.get(repoId) !== requestId) return;

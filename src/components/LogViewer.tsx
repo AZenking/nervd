@@ -36,7 +36,7 @@ export function LogViewer() {
 
   return (
     <Dialog open={!!logView} onOpenChange={(open) => { if (!open) closeLogs(); }}>
-      <DialogContent showCloseButton={false} className="flex h-[min(600px,80vh)] w-[min(880px,90vw)] max-w-none flex-col gap-0 border border-border bg-popover p-0 shadow-xl">
+          <DialogContent showCloseButton={false} className="flex h-[min(600px,80vh)] w-[min(880px,90vw)] max-w-none flex-col gap-0 rounded-xl border border-border bg-popover p-0 shadow-[0_1px_2px_rgba(0,0,0,0.01),0_4px_18px_rgba(0,0,0,0.04),0_16px_40px_rgba(0,0,0,0.05)]">
         <DialogHeader className="px-5 py-4">
           <DialogTitle className="text-left text-sm font-medium text-foreground">
             {logView?.title ?? '日志'}

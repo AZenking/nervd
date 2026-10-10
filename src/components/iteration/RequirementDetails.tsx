@@ -1,38 +1,38 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  GitBranchIcon, PencilIcon, XIcon,
+  InboxIcon, MessageSquareIcon, MoreHorizontalIcon, MousePointerClickIcon, XIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import type { WorkitemChild } from '@/lib/api';
-import { extractRichImageUrls, imagePlaceholderLine, richTextToPlain } from '@/lib/richtext';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
-import { CATEGORY_LABELS, type BranchRuleTemplate, type Category, type MrSummary, type RepoSummary } from '@/types';
-import { Badge } from '@/components/ui/badge';
+import { useUi } from '@/store/ui';
+import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SearchableSelect, type SearchableSelectOption } from '../searchable-select';
+import { PageHeader } from '../page-header';
+import { AppBreadcrumb } from '../nav/app-breadcrumb';
+import { EmptyHint } from '../empty-hint';
 import { BranchDivergenceCheck } from './BranchDivergenceCheck';
 import { JenkinsBuildDialog } from './JenkinsBuildDialog';
 import { RepositoryCiDetails } from './RepositoryCiDetails';
+import { RelatedCommitsCard } from './RelatedCommitsCard';
+import { ChildDetailDrawer } from './child-detail-drawer';
+import { RichDescription } from './rich-description';
 import { SubtaskEditDialog } from './SubtaskEditDialog';
-import { StatusDot } from '../StatusDot';
+import { StatusBadge } from '../StatusBadge';
 import { WriteOpButton } from '../WriteOpButton';
-
-function InfoItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-lg border bg-muted/20 px-4 py-3 transition-colors hover:bg-muted/40">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1.5 truncate text-sm font-semibold" title={value}>{value}</p>
-    </div>
-  );
-}
+import { CiSummaryButton } from '../ci-summary-button';
+import { TableEmptyRow } from '../table-empty-row';
+import { SectionHeader, PropertyRow } from '../section-header';
+import { ciStatusText, triggerRepoCiWithFeedback } from '@/lib/ci';
 
 interface ResolvedRepoBranchRule {
   sourceBranch: string;
@@ -80,57 +80,6 @@ function resolveRepoBranchRule(
   return undefined;
 }
 
-/** 描述区：纯文本 + 附件图片内联直显（代理失败/未返回时保留 📎 占位行） */
-function RichDescription({ raw }: { raw: unknown }) {
-  const images = useMemo(() => extractRichImageUrls(raw), [raw]);
-  const [resolved, setResolved] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    let alive = true;
-    setResolved({});
-    if (!images.length) return;
-    void Promise.all(
-      images.map(async (img): Promise<[string, string] | null> => {
-        try {
-          const dataUrl = await api.proxyWorkitemFile(img.url);
-          return [img.url, dataUrl];
-        } catch {
-          return null;
-        }
-      }),
-    ).then((results) => {
-      if (!alive) return;
-      const next: Record<string, string> = {};
-      for (const r of results) if (r) next[r[0]] = r[1];
-      setResolved(next);
-    });
-    return () => { alive = false; };
-  }, [images]);
-
-  const resolvedPlaceholders = useMemo(
-    () => new Set(images.filter((img) => resolved[img.url]).map((img) => imagePlaceholderLine(img.name))),
-    [images, resolved],
-  );
-  const text = useMemo(() => {
-    const t = richTextToPlain(raw);
-    if (!resolvedPlaceholders.size) return t;
-    return t.split('\n').filter((line) => !resolvedPlaceholders.has(line.trim())).join('\n');
-  }, [raw, resolvedPlaceholders]);
-
-  return (
-    <div>
-      <div className="whitespace-pre-wrap break-words text-sm leading-7 text-foreground/85">{text || '（无描述）'}</div>
-      {images.filter((img) => resolved[img.url]).length > 0 && (
-        <div className="mt-4 flex flex-col items-start gap-3">
-          {images.filter((img) => resolved[img.url]).map((img) => (
-            <img key={img.url} src={resolved[img.url]} alt={img.name} title={img.name} className="h-auto max-h-64 w-auto max-w-full border border-border" />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface IterationBaselineCheck {
   branch: string;
   state: 'loading' | 'exists' | 'missing' | 'error';
@@ -154,93 +103,56 @@ function mergeRequestBranch(request: Record<string, unknown>, camel: string, sna
   return typeof value === 'string' ? value : '';
 }
 
-/** 子工作项/缺陷卡片：真实数据（search 行级 parentId 过滤），点击子项直接打开其详情 */
+/** 子工作项/缺陷区块（Notion 数据库行形态）：行内极简展示，点击开详情抽屉 */
 function ChildrenCard({
-  title, description, items, error, debug, onSelect, onEdit,
+  title, description, items, error, debug, onSelect,
 }: {
   title: string;
   description: string;
   items: WorkitemChild[];
   error?: string | null;
   debug?: string | null;
-  onSelect: (workitemId: string) => void;
-  onEdit?: (child: WorkitemChild) => void;
+  onSelect: (child: WorkitemChild) => void;
 }) {
-  const labelOf = (category?: string): string | null => {
-    const key = (category ?? '').trim();
-    return key in CATEGORY_LABELS ? CATEGORY_LABELS[key as Category] : key || null;
-  };
   return (
-    <Card className="overflow-hidden border-border/70 shadow-sm">
-      <CardHeader className="border-b bg-muted/30">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription className="mt-1">{description}</CardDescription>
-          </div>
-          <Badge variant="outline">{items.length} 项</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2 pt-5">
-        {items.map((task) => {
-          const label = labelOf(task.category);
-          return (
-            <div key={task.workitemId} className="flex items-center gap-2 rounded-lg border p-2 transition-colors hover:bg-accent">
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-auto min-w-0 flex-1 justify-between gap-3 p-1 text-left font-normal hover:bg-transparent"
-                onClick={() => onSelect(task.workitemId)}
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">{task.subject || task.identifier}</span>
-                    {label && <Badge variant="outline">{label}</Badge>}
-                  </div>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">{task.identifier}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                  {task.assignedTo && <span title="处理人">{task.assignedTo}</span>}
-                  {task.status && (
-                    <span className="inline-flex items-center gap-1.5">
-                      <StatusDot status={task.status} />
-                      {task.status}
-                    </span>
-                  )}
-                  {task.gmtModified && <span>{task.gmtModified}</span>}
-                </div>
-              </Button>
-              {onEdit && (
-                <Button
-                  type="button" variant="ghost" size="icon-sm"
-                  aria-label={`编辑子任务 ${task.identifier}`}
-                  title="编辑名称和状态"
-                  onClick={() => onEdit(task)}
-                >
-                  <PencilIcon className="size-4" />
-                </Button>
-              )}
-            </div>
-          );
-        })}
+    <section className="flex flex-col gap-2.5 border-b border-border/70 pb-6">
+      <SectionHeader title={title} count={items.length} hint={description} />
+      {items.map((task) => (
+        <button
+          key={task.workitemId}
+          type="button"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
+          onClick={() => onSelect(task)}
+        >
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">{task.identifier}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-foreground">{task.subject || task.identifier}</span>
+          <StatusBadge status={task.status} size="sm" />
+        </button>
+      ))}
         {!items.length && !error && (
-          <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-muted-foreground">
-            暂无{title}
-          </div>
+          <EmptyHint compact icon={InboxIcon} title={`暂无${title}`} className="min-h-0" />
         )}
         {!items.length && debug && (
-          <p className="max-h-20 overflow-y-auto break-all rounded bg-muted/50 px-3 py-2 font-mono text-[10px] leading-4 text-muted-foreground" title="接口原始返回（诊断用）">
-            接口返回：{debug}
-          </p>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <p className="max-h-20 overflow-y-auto break-all rounded bg-muted/50 px-3 py-2 font-mono text-xs leading-4 text-muted-foreground" />
+              }
+            >
+              接口返回：{debug}
+            </TooltipTrigger>
+            <TooltipContent className="max-w-96">接口原始返回（诊断用）</TooltipContent>
+          </Tooltip>
         )}
         {!items.length && error && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-xs text-destructive">
             {title}加载失败：{error}
           </div>
         )}
-        <p className="text-xs text-muted-foreground">新增请在云效网页端操作（端内创建接口暂未接入）。</p>
-      </CardContent>
-    </Card>
+        {items.length > 0 && (
+          <p className="text-xs text-muted-foreground">新增请在云效网页端操作（端内创建接口暂未接入）。</p>
+        )}
+    </section>
   );
 }
 
@@ -282,10 +194,12 @@ function LinkedRepoRow({
   onRetryBaseline: () => void;
   onTemplateChange: (templateId: string | null) => void;
 }) {
-  const { repoCiByRepo, loadTrace, setToast } = useApp();
+  const { repoCiByRepo, settings, loadTrace, setToast } = useApp();
   const [ciDetailsOpen, setCiDetailsOpen] = useState(false);
   const entry = repoCiByRepo[repo.id];
   const snapshot = entry?.snapshot;
+  const ciBinding = settings?.repoCiBindings?.[String(repo.id)];
+  const isFlowBound = ciBinding?.provider === 'flow';
   const developerBranch = branchRule?.workitemBranch.trim() || (identifier ? `feature/${identifier}` : '');
   const operationBaseBranch = iterationId ? baselineBranch?.trim() ?? '' : 'master';
   const templateSourceBranch = branchRule?.sourceBranch.trim() ?? '';
@@ -496,9 +410,12 @@ function LinkedRepoRow({
           <div className="flex min-w-40 flex-col items-start gap-1">
             {matchedBranches.map((branch) => (
               <div key={`${branch}:${baselineBranch ?? ''}`} className="flex flex-col items-start gap-1">
-                <code title={branch} className="block max-w-56 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground">
-                  {branch}
-                </code>
+                <Tooltip>
+                  <TooltipTrigger render={<code className="block max-w-56 truncate rounded bg-muted px-1.5 py-0.5 text-xs text-foreground" />}>
+                    {branch}
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-96 break-all">{branch}</TooltipContent>
+                </Tooltip>
                 {templateEnabled && (
                   <BranchDivergenceCheck
                     repoId={repo.id}
@@ -518,56 +435,57 @@ function LinkedRepoRow({
         )}
       </TableCell>
       <TableCell>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-auto px-1.5 py-1 font-normal"
-          title={entry?.error ?? '点击查看 CI Job、构建分支和环境详情'}
-          onClick={() => setCiDetailsOpen(true)}
-        >
-          <span className="inline-flex items-center gap-1.5 text-sm">
-            <StatusDot status={snapshot?.status} />
-            {snapshot?.status ?? (entry?.loading ? '加载中' : '—')}
-          </span>
-        </Button>
+        <CiSummaryButton
+          status={ciStatusText(snapshot?.status, entry)}
+          runCount={snapshot?.runs.length ?? 0}
+          error={entry?.error}
+          tooltip="点击查看 CI Job、构建分支和环境详情"
+          onOpen={() => setCiDetailsOpen(true)}
+        />
       </TableCell>
-      <TableCell>
-        <Badge variant="outline">
-          {(snapshot?.runs ?? []).length ? `最近 ${snapshot!.runs.length} 次` : '—'}
-        </Badge>
-      </TableCell>
-      <TableCell className="text-right">
-        <div className="flex min-w-max flex-wrap items-center justify-end gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCiDetailsOpen(true)}
-          >
-            CI 详情
-          </Button>
-          <WriteOpButton
-            label="创建分支"
-            title={developerBranch ? `创建需求分支 ${developerBranch}` : '创建需求分支'}
-            variant="outline"
-            disabled={Boolean(branchDisabledReason)}
-            disabledReason={branchDisabledReason}
-            onAction={createDeveloperBranch}
-          />
-          <WriteOpButton
-            label="创建 MR"
-            title={developerBranch && operationBaseBranch
-              ? `创建 MR：${developerBranch} → ${operationBaseBranch}`
-              : '创建 MR'}
-            variant="outline"
-            disabled={Boolean(mergeRequestDisabledReason)}
-            disabledReason={mergeRequestDisabledReason}
-            onAction={createMergeRequest}
-          />
-          <JenkinsBuildDialog
-            repoId={repo.id}
-            repoName={repo.name}
-            defaultBranch={matchedBranches[0] || developerBranch}
-          />
+      <TableCell className="min-w-40 text-right align-top">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {/* 按提供方分流：Flow 绑定 → 触发流水线；Jenkins / 未绑定 → Jenkins 构建向导 */}
+          {isFlowBound ? (
+            <WriteOpButton
+              label="触发流水线"
+              title={`触发流水线 ${ciBinding.pipelineName}`}
+              variant="default"
+              onAction={() => triggerRepoCiWithFeedback(repo.id, repo.name)}
+            />
+          ) : (
+            <JenkinsBuildDialog
+              repoId={repo.id}
+              repoName={repo.name}
+              defaultBranch={matchedBranches[0] || developerBranch}
+            />
+          )}
+          <Collapsible render={<div className="contents" />}>
+            <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
+              <MoreHorizontalIcon data-icon="inline-start" />
+              更多操作
+            </CollapsibleTrigger>
+            <CollapsibleContent className="basis-full flex flex-wrap items-center justify-end gap-1.5 pt-1">
+              <WriteOpButton
+                label="创建分支"
+                title={developerBranch ? `创建需求分支 ${developerBranch}` : '创建需求分支'}
+                variant="outline"
+                disabled={Boolean(branchDisabledReason)}
+                disabledReason={branchDisabledReason}
+                onAction={createDeveloperBranch}
+              />
+              <WriteOpButton
+                label="创建 MR"
+                title={developerBranch && operationBaseBranch
+                  ? `创建 MR：${developerBranch} → ${operationBaseBranch}`
+                  : '创建 MR'}
+                variant="outline"
+                disabled={Boolean(mergeRequestDisabledReason)}
+                disabledReason={mergeRequestDisabledReason}
+                onAction={createMergeRequest}
+              />
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       </TableCell>
     </TableRow>
@@ -576,13 +494,14 @@ function LinkedRepoRow({
   );
 }
 
-/** 需求/工作项详情（nervd-new-ui 基准布局 + 真实数据/操作） */
+/** 需求/工作项详情（UX A10：仓库与 CI 状态前置；基本信息压缩为元信息行） */
 export function RequirementDetails() {
   const {
     selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
     iterations, trace, traceLoading,
-    saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast, select,
+    saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast,
   } = useApp();
+  const { openWorkitem } = useUi();
   const cur = items.find((i) => i.workitemId === selectedId);
   const isRequirement = cur?.category === 'Req';
   const hasRepoOverride = selectedId != null && Object.prototype.hasOwnProperty.call(settings?.workitemRepos ?? {}, selectedId);
@@ -593,6 +512,8 @@ export function RequirementDetails() {
   const [linkDraftTemplateId, setLinkDraftTemplateId] = useState('');
   const [savingRepos, setSavingRepos] = useState(false);
   const [editingChild, setEditingChild] = useState<WorkitemChild | null>(null);
+  /** 行点击的详情抽屉（不再直接跳转工作台） */
+  const [detailChild, setDetailChild] = useState<WorkitemChild | null>(null);
 
   const wi = (detail?.workitem ?? detail ?? {}) as Record<string, unknown>;
   const sprint = wi.sprint && typeof wi.sprint === 'object'
@@ -674,9 +595,12 @@ export function RequirementDetails() {
 
   if (!selectedId) {
     return (
-      <div className="mt-16 rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground">
-        在侧栏「迭代」分组或迭代页工作项卡片中选择一项以查看详情
-      </div>
+      <EmptyHint
+        icon={MousePointerClickIcon}
+        title="未选择工作项"
+        description="在侧栏「迭代」分组或迭代页工作项卡片中选择一项以查看详情"
+        className="mt-16"
+      />
     );
   }
   if (loadingDetail) {
@@ -734,109 +658,51 @@ export function RequirementDetails() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="relative overflow-hidden rounded-xl border bg-card px-6 py-5 shadow-sm before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-primary">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="font-mono text-xs font-medium text-primary">{cur?.identifier ?? '工作项'} · 详情</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">{s('subject') || cur?.subject}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">集中管理工作项上下文、交付任务与仓库构建状态</p>
-          </div>
-          <Badge variant="secondary">{cur?.status || s('status') || '—'}</Badge>
-        </div>
+    <div className="flex flex-col gap-5">
+      {/* 统一 PageHeader：eyebrow=编号；高频的仓库/CI 状态紧随其后的属性区 */}
+      <PageHeader
+        breadcrumb={<AppBreadcrumb />}
+        title={s('subject') || cur?.subject}
+        titleBadge={<StatusBadge status={cur?.status || s('status') || undefined} />}
+        description="集中管理工作项上下文、交付任务与仓库构建状态"
+        className="sticky top-0 z-10 border-b border-border bg-background pb-4"
+      />
+
+      {/* Notion 式：页头贴左全宽，正文（属性区 + 区块）居中限宽 */}
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-2">
+      {/* Notion 式属性区（properties）：字段名左列，值右列，行 hover 高亮 */}
+      <div className="flex flex-col">
+        <PropertyRow label="处理人">{cur?.assignedTo || s('assignedTo') || '—'}</PropertyRow>
+        <PropertyRow label="项目">{cur?.spaceName || s('spaceName') || '—'}</PropertyRow>
+        <PropertyRow label="更新">{cur?.updatedAt || s('updatedAt') || '—'}</PropertyRow>
+        <PropertyRow label="云效仓库">{effectiveRepoIds.length} 个</PropertyRow>
+        <PropertyRow label="迭代分支">{iterationBranchValue}</PropertyRow>
       </div>
 
-      <Card className="overflow-hidden border-border/70 shadow-sm">
-        <CardHeader className="border-b bg-muted/30">
-          <CardTitle>基本信息</CardTitle>
-          <CardDescription>负责人、协作关系与代码分支概览</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 pt-5 sm:grid-cols-2 lg:grid-cols-4">
-          <InfoItem label="编号" value={cur?.identifier ?? '—'} />
-          <InfoItem label="状态" value={cur?.status || s('status') || '—'} />
-          <InfoItem label="处理人" value={cur?.assignedTo || s('assignedTo') || '—'} />
-          <InfoItem label="项目" value={cur?.spaceName || s('spaceName') || '—'} />
-          <InfoItem label="更新" value={cur?.updatedAt || s('updatedAt') || '—'} />
-          <InfoItem label="云效仓库" value={`${effectiveRepoIds.length} 个`} />
-          <InfoItem label="迭代分支" value={iterationBranchValue} />
-          <InfoItem label="开发分支约定" value={cur?.identifier ? `feature/${cur.identifier}` : 'feature/<编号>'} />
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border-border/70 shadow-sm">
-        <CardHeader className="border-b bg-muted/30">
-          <CardTitle>描述</CardTitle>
-          <CardDescription>来自云效的富文本描述与内联附件</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-5">
-          <RichDescription raw={wi.description ?? wi.content} />
-        </CardContent>
-      </Card>
-
-      {isRequirement && (() => {
-        const subtasks = children.filter((c) => c.category !== 'Bug');
-        const defects = children.filter((c) => c.category === 'Bug');
-        return (
-          <div className="grid items-start gap-5 xl:grid-cols-2">
-            <ChildrenCard
-              title="子任务"
-              description="挂载在该需求下的子工作项，点击可打开详情"
-              items={subtasks}
-              error={childrenError}
-              debug={childrenDebug}
-              onSelect={(workitemId) => void select(workitemId)}
-              onEdit={setEditingChild}
-            />
-            <ChildrenCard
-              title="缺陷"
-              description="挂载在该需求下的缺陷，点击可打开详情"
-              items={defects}
-              error={childrenError}
-              debug={childrenDebug}
-              onSelect={(workitemId) => void select(workitemId)}
-            />
-          </div>
-        );
-      })()}
-      {editingChild && selectedId && (
-        <SubtaskEditDialog
-          child={editingChild}
-          parentWorkitemId={selectedId}
-          onClose={() => setEditingChild(null)}
+      <section className="flex flex-col gap-3 border-b border-border/70 pb-6">
+        <SectionHeader
+          title="关联的云效仓库与代码操作"
+          count={`${effectiveRepoIds.length} 个仓库`}
+          hint={hasRepoOverride
+            ? '此需求使用单独配置的云效仓库；可在列表中配置模板并创建开发分支或 MR'
+            : '当前使用设置中的默认云效仓库；保存选择后将覆盖默认值'}
+          action={hasRepoOverride && (
+            <Button
+              variant="outline" size="sm" disabled={savingRepos}
+              onClick={() => {
+                if (!selectedId) return;
+                setSavingRepos(true);
+                void saveWorkitemRepos(selectedId, null)
+                  .then(() => setToast({ text: '已恢复默认云效仓库', kind: 'ok' }))
+                  .catch((e) => setToast({ text: `云效仓库关联保存失败：${String(e)}`, kind: 'fail' }))
+                  .finally(() => setSavingRepos(false));
+              }}
+            >
+              恢复默认
+            </Button>
+          )}
         />
-      )}
-
-      <Card className="overflow-hidden border-border/70 shadow-sm">
-        <CardHeader className="border-b bg-muted/30">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2"><GitBranchIcon className="size-4" />关联的云效仓库与代码操作</CardTitle>
-              <CardDescription className="mt-1">
-                {hasRepoOverride ? '此需求使用单独配置的云效仓库' : '当前使用设置中的默认云效仓库；保存选择后将覆盖默认值'}；可在列表中配置模板并创建开发分支或 MR。
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{effectiveRepoIds.length} 个仓库</Badge>
-              {hasRepoOverride && (
-                <Button
-                  variant="outline" size="sm" disabled={savingRepos}
-                  onClick={() => {
-                    if (!selectedId) return;
-                    setSavingRepos(true);
-                    void saveWorkitemRepos(selectedId, null)
-                      .then(() => setToast({ text: '已恢复默认云效仓库', kind: 'ok' }))
-                      .catch((e) => setToast({ text: `云效仓库关联保存失败：${String(e)}`, kind: 'fail' }))
-                      .finally(() => setSavingRepos(false));
-                  }}
-                >
-                  恢复默认
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 pt-5">
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
             <Field>
               <FieldLabel>添加云效仓库</FieldLabel>
               <SearchableSelect
@@ -877,8 +743,7 @@ export function RequirementDetails() {
                 <TableHead>云效仓库</TableHead>
                 <TableHead>分支模板</TableHead>
                 <TableHead>{isRequirement ? '需求关联分支' : '工作项关联分支'}</TableHead>
-                <TableHead>CI 状态</TableHead>
-                <TableHead>运行记录</TableHead>
+                <TableHead>CI</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -912,49 +777,100 @@ export function RequirementDetails() {
                 );
               })}
               {!linkedRepos.length && (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
-                    未关联云效仓库；可在上方选择后关联，或在设置中选择默认云效仓库
-                  </TableCell>
-                </TableRow>
+                <TableEmptyRow
+                  colSpan={5}
+                  title="未关联云效仓库"
+                  description="可在上方选择后关联，或在设置中选择默认云效仓库"
+                />
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </section>
 
-      <Card className="overflow-hidden border-border/70 shadow-sm">
-        <CardHeader className="border-b bg-muted/30">
-          <CardTitle>评论</CardTitle>
-          <CardDescription>来自云效的工作项评论</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 pt-5">
-          {comments.length ? (
-            <div className="divide-y divide-border">
-              {(comments as Record<string, unknown>[]).map((c, i) => (
-                <article key={i} className="py-4 first:pt-0 last:pb-0">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <span className="text-sm font-medium text-foreground">
-                      {String((c.author as Record<string, unknown>)?.name ?? c.creator ?? '—')}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{String(c.createdAt ?? c.gmtCreate ?? '')}</span>
-                  </div>
-                  <div className="mt-2 text-sm leading-6 whitespace-pre-wrap text-foreground/85">{String(c.content ?? '')}</div>
-                </article>
-              ))}
+      <RelatedCommitsCard repoTraces={trace?.repositories ?? []} repositories={repositories} />
+
+      <section className="flex flex-col gap-3 border-b border-border/70 pb-6">
+        <SectionHeader title="描述" hint="来自云效的富文本描述与内联附件" />
+        <RichDescription raw={wi.description ?? wi.content} />
+      </section>
+
+      {isRequirement && (() => {
+        const subtasks = children.filter((c) => c.category !== 'Bug');
+        const defects = children.filter((c) => c.category === 'Bug');
+        // UX A2：行点击 = 详情抽屉；「在工作台打开」保留原跳转（父 › 子 面包屑链）
+        const openChild = (child: WorkitemChild) => {
+          if (!selectedId || !cur) return;
+          openWorkitem(
+            child.workitemId,
+            { workitemId: child.workitemId, identifier: child.identifier, subject: child.subject },
+            { workitemId: selectedId, identifier: cur.identifier, subject: cur.subject },
+          );
+        };
+        return (
+          <>
+            <div className="grid items-start gap-5 xl:grid-cols-2">
+              <ChildrenCard
+                title="子任务"
+                description="挂载在该需求下的子工作项，点击打开详情抽屉"
+                items={subtasks}
+                error={childrenError}
+                debug={childrenDebug}
+                onSelect={setDetailChild}
+              />
+              <ChildrenCard
+                title="缺陷"
+                description="挂载在该需求下的缺陷，点击打开详情抽屉"
+                items={defects}
+                error={childrenError}
+                debug={childrenDebug}
+                onSelect={setDetailChild}
+              />
             </div>
-          ) : (
-            <div className="rounded-lg bg-muted/60 px-4 py-6 text-center text-sm text-muted-foreground">暂无评论</div>
-          )}
-        </CardContent>
-      </Card>
+            <ChildDetailDrawer
+              child={detailChild}
+              onClose={() => setDetailChild(null)}
+              onEdit={setEditingChild}
+              onOpenInWorkbench={(child) => { openChild(child); setDetailChild(null); }}
+            />
+          </>
+        );
+      })()}
+      {editingChild && selectedId && (
+        <SubtaskEditDialog
+          child={editingChild}
+          parentWorkitemId={selectedId}
+          onClose={() => setEditingChild(null)}
+        />
+      )}
+
+      <section className="flex flex-col gap-3 border-b border-border/70 pb-6">
+        <SectionHeader title="评论" count={comments.length || undefined} hint="来自云效的工作项评论" />
+        {comments.length ? (
+          <div className="divide-y divide-border">
+            {(comments as Record<string, unknown>[]).map((c, i) => (
+              <article key={i} className="py-4 first:pt-0 last:pb-0">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="text-sm font-medium text-foreground">
+                    {String((c.author as Record<string, unknown>)?.name ?? c.creator ?? '—')}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{String(c.createdAt ?? c.gmtCreate ?? '')}</span>
+                </div>
+                <div className="mt-2 text-sm leading-6 whitespace-pre-wrap text-foreground/85">{String(c.content ?? '')}</div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyHint icon={MessageSquareIcon} title="暂无评论" className="py-6" />
+        )}
+      </section>
 
       {settings?.allowWriteOps === false && (
         <p className={cn('flex items-center gap-1.5 text-xs text-muted-foreground')}>
-          <XIcon className="size-3.5" />
-          写操作未开启：设置 → 允许写操作
+          <XIcon data-icon="inline-start" />
+          写操作未开启：设置 → 安全 → 允许写操作
         </p>
       )}
+      </div>
     </div>
   );
 }

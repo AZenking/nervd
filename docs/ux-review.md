@@ -107,72 +107,91 @@
 ## 6. 改造清单（带验收标准，按优先级）
 
 > 每项给出改造方向 + 可勾选的验收标准。A 系列对应上述问题编号。
+>
+> **实施状态（2026-10-09 第二轮）**：A1–A12 已实现（个别标注偏差），`tsc` 与 `vite build` 通过。
+> 实现说明与已知限制见文末「附录：实施记录」。
 
-### A1（P0-1）设置编辑单会话
+### A1（P0-1）设置编辑单会话 ✅
 **方向**：一个设置模型 + 一个共享 draft store + dirty 守卫；「环境与策略」成为「工作区设置」的快捷分区而非独立副本。
-- [ ] 全应用只存在一份可编辑 settings 草稿；两入口读写同一草稿
-- [ ] 任一入口有未保存修改时，切走再切回，修改保留
-- [ ] dirty 时切换视图出现"保存 / 放弃"确认
-- [ ] 两处 Jenkins 实例 + 仓库 CI 绑定 UI 收敛为同一组件（消除复制粘贴双实现）
-- [ ] 场景回归：A 页改 Token 不保存 → B 页保存其他项 → A 页刷新后 Token 修改仍在（或被明确确认丢弃）
+- [x] 全应用只存在一份可编辑 settings 草稿（`store/settings-draft.ts`）；两入口读写同一草稿
+- [x] 任一入口有未保存修改时，切走再切回，修改保留（`beginEdit` 保留 dirty 草稿）
+- [x] dirty 时切换视图出现"保存 / 放弃 / 继续编辑"确认（ui store 拦截 + Shell `DirtyGuardDialog`）
+- [x] 两处 Jenkins 实例 + 仓库 CI 绑定 UI 收敛为同一组件（`settings/CiIntegrationCards.tsx`）
+- [x] 场景回归：A 页改 Token 不保存 → B 页保存其他项 → A 页刷新后 Token 修改仍在（或被明确确认丢弃）
 
-### A2（P0-2）导航栈与面包屑
+### A2（P0-2）导航栈与面包屑 ✅
 **方向**：selection history + 可点面包屑 + 父子层级链。
-- [ ] 面包屑可点击：根节点回到对应视图
-- [ ] 需求详情面包屑显示层级链：`迭代 › 父工作项 › 当前子项`
-- [ ] 子任务详情一步回到父需求（面包屑或"返回父需求"）
-- [ ] ⌘← / Ctrl+← 后退，至少覆盖视图切换与工作项选择两类历史
-- [ ] 后退后滚动位置不重置（列表场景）
+- [x] 面包屑可点击：根节点回到对应视图（shadcn `Breadcrumb`）
+- [x] 需求详情面包屑显示层级链：`迭代 › 父工作项 › 当前子项`
+- [x] 子任务详情一步回到父需求（面包屑父级可点）
+- [x] ⌘← / Ctrl+← 后退（输入框内保留光标语义；顶部后退按钮同步）
+- [x] 后退后滚动位置不重置（列表场景）——视图共用同一滚动容器，切换天然保留；未做路由级深度恢复（偏差，见附录）
 
-### A3（P1-3）主导航修正
-- [ ] 「工作区」点击即切 iteration 视图
-- [ ] iteration / requirement 视图时「工作区」高亮
-- [ ] 无点击无响应的导航项（grep 复查）
+### A3（P1-3）主导航修正 ✅
+- [x] 「工作区」点击即切 iteration 视图（补 `view: 'iteration'`）
+- [x] iteration / requirement 视图时「工作区」高亮（显式 `isActive` 优先于 view 匹配）
+- [x] 无点击无响应的导航项（grep 复查）
 
-### A4（P1-4）反馈渠道归一
-- [ ] 全应用 `window.confirm` 出现为零（grep 验证）
-- [ ] 确认类 → AlertDialog；校验错误 → 字段内联；操作结果 → toast，三类不混用
-- [ ] 文案口吻统一（无 `✗` 等符号、非命令式）
+### A4（P1-4）反馈渠道归一 ✅
+- [x] 全应用 `window.confirm` 出现为零（grep 验证；删除模板统一 `ConfirmButton` = AlertDialog）
+- [x] 确认类 → AlertDialog；校验错误 → 字段内联（`Field data-invalid` + `FieldError`）；操作结果 → toast
+- [x] 文案口吻统一（移除 `✗` 与命令式表述）
 
-### A5（P1-5）向导内写操作确认改两段式
-- [ ] SubtaskEditDialog / JenkinsBuildDialog 内不再出现第二层模态
-- [ ] 触发按钮一次点击进入"确认触发"态（3–5s 超时回退），二次点击执行
-- [ ] Esc / 取消路径可用；busy 态可见
+### A5（P1-5）向导内写操作确认改两段式 ✅
+- [x] SubtaskEditDialog / JenkinsBuildDialog 内不再出现第二层模态（`WriteOpButton confirm="inline"`）
+- [x] 触发按钮一次点击进入"确认触发"态（4s 超时回退 + destructive 变体），二次点击执行
+- [x] Esc / 取消路径可用；busy 态可见
 
-### A6（P1-6）迭代分组展开模型
-- [ ] 每个迭代独立展开状态（Map 而非单布尔）
-- [ ] chevron 在所有迭代行渲染；点 chevron 仅展开/收起，不切视图
-- [ ] 点行主体才切换迭代
+### A6（P1-6）迭代分组展开模型 ✅
+- [x] 每个迭代独立展开状态（`expandedIds` Set）
+- [x] chevron 在所有迭代行渲染；点 chevron 仅展开/收起，不切视图
+- [x] 点行主体切换迭代（已在迭代视图时点击当前行 = 收起/展开，属附加行为）
 
-### A7（P1-7）侧栏列表截断提示
-- [ ] 超过 12 条时显示"还有 N 条"，点击跳迭代视图完整列表
+### A7（P1-7）侧栏列表截断提示 ✅
+- [x] 超过 12 条时显示"还有 N 条 · 在迭代视图查看全部"，点击跳迭代视图
 
-### A8（P1-8）保存入口
-- [ ] 「环境与策略」保存按钮 sticky（或页首+页尾双入口）
-- [ ] dirty 时保存按钮有明显视觉提示（与 A1 联动）
+### A8（P1-8）保存入口 ✅
+- [x] 「环境与策略」保存入口 = 页首 hero + sticky 底栏双入口（共享 `SettingsSaveBar`）
+- [x] dirty 时显示「有未保存修改」徽章
 
-### A9（P1-9）占位元素统一策略
-- [ ] 所有占位入口 disabled + tooltip"暂未接入，去云效网页端"
-- [ ] 无"可点击但零反馈"元素（走查复查）
+### A9（P1-9）占位元素统一策略 ✅（含一处偏差）
+- [x] `+ 新增迭代`：disabled + Tooltip"端内新增迭代暂未接入，请在云效网页端操作"
+- [x] 无"可点击但零反馈"元素（走查复查）
+- [x] 偏差：「支持与反馈」位于 DropdownMenu 内，禁用菜单项无法附着可达 Tooltip，采用 disabled + "（暂未接入）"后缀文案（见附录）
 
-### A10（P1-10）详情页信息优先级
-- [ ] 首屏可见各仓库 CI / MR 状态摘要（仓库表上移或加状态摘要条）
-- [ ] 基本信息 8 格压缩为一行元信息或可折叠
-- [ ] 常用操作（打开追溯、触发 CI）在首屏可达
+### A10（P1-10）详情页信息优先级 ✅
+- [x] 仓库与 CI 状态卡上移至 hero 之后（首屏可达"打开追溯链路 / CI 详情 / 触发构建"）
+- [x] 基本信息 8 格压缩为 hero 内一行元信息
+- [x] 描述 / 子任务 / 评论依次后置
 
-### A11（P1-11）Jenkins 向导放宽约束
-- [ ] 单参数 Job 可触发（仅映射分支或环境其一即可）
-- [ ] "环境/分支参数映射"首用时有一句解释或示例
-- [ ] 无法映射时给出可行动的报错（而非笼统"至少需要两个参数"）
+### A11（P1-11）Jenkins 向导放宽约束 ✅
+- [x] 有参数时仅映射环境或分支其一即可触发；无参数 Job 按默认配置直接触发
+- [x] 参数映射区新增一句解释（用途 + 可不映射 + 至少一个）
+- [x] 无法映射时给出可行动的禁用原因（按钮 Tooltip）
 
-### A12（P2 打包）
-- [ ] 占位列 `—` 附原因说明或收敛空列
-- [ ] `title` 全部替换为 Tooltip 组件
-- [ ] 偏差徽章色接入 `--sig-*` token
-- [ ] 建立术语表并全量统一（仓库指称、设置入口名称、写操作开关路径）
-- [ ] 迭代页与详情页加"上次刷新 hh:mm:ss"
-- [ ] `InfoItem` 移除 hover 或赋予点击行为
-- [ ] 删除 `store/layout.ts` 死代码（若按第 7 节复活分栏则改造后再删）
+### A12（P2 打包）✅
+- [x] 迭代页仓库表移除 3 个硬编码 `—` 占位列，补「运行记录」列
+- [x] 原生 `title` 提示全部替换为 Tooltip 组件（StatusDot / InfoItem / CiInfoItem / 连接状态点 / 分支与参数 chip / TracePane 行）
+- [x] 偏差徽章色接入 `--sig-ok / --sig-run` token（不再硬编码 emerald/amber）
+- [x] 术语统一为「默认云效仓库」「工作区设置 → 安全」等；「环境与策略」页内自我标签由"工作区设置"改"工作区"
+- [x] 迭代页新增「CI 上次刷新」时间格（轮询与手动刷新均更新）
+- [x] `InfoItem` 移除 hover 可点暗示
+- [x] 删除 `store/layout.ts` 死代码（分栏复活时按新架构重建）
+
+---
+
+## 附录：实施记录（2026-10-09）
+
+**新增**：`store/settings-draft.ts`（设置草稿单会话）、`components/settings/CiIntegrationCards.tsx`（Jenkins 实例 / 仓库绑定 / 保存栏三个共享件）、`components/ConfirmButton.tsx`（AlertDialog 确认按钮）。
+**重写/修改**：`Shell`（面包屑 + 后退 + dirty 守卫）、`store/ui`（导航历史 + 层级链 + 守卫拦截）、`nav-*` 四件、`SettingsView`、`EnvironmentPolicySettings`、`WriteOpButton`（inline 两段式）、`SubtaskEditDialog`、`JenkinsBuildDialog`、`RequirementDetails`（信息优先级 + 父子链）、`IterationView`、`IterationBranches`、`OverviewView`、`RepositoryCiDetails`、`TracePane`、`StatusDot`、`BranchDivergenceCheck`、`RepoCiCard`；删除 `store/layout.ts`。
+
+**偏差与已知限制**：
+1. **A2 滚动位置**：视图共用 Shell 的滚动容器，切换视图位置天然保留；未实现路由级（深度链接式）恢复。
+2. **A9 菜单内占位**：禁用菜单项不能附着可达 Tooltip，用显式"（暂未接入）"文案替代。
+3. **A1 跨功能保存语义**：设置草稿与详情页"关联仓库 / 分支模板"等就地保存仍各自全量写 settings；用户长时间挂起未保存草稿期间在详情页做的修改可能被草稿保存覆盖。缓解：进入设置页时非 dirty 草稿总是以最新已保存值重建。彻底方案需后端按字段分片保存（超出本轮）。
+4. **并行工作合并**：本轮与另一会话的 SearchableSelect / Combobox 换装并行推进，已互相保留；`scripts/verify.sh` 冻结文件检查（`src/types.ts` / `docs/ipc-contract.md` / `pnpm-lock.yaml` 相对基线 `1ec588b`）由该并行功能（分支模板 / Jenkins 绑定契约扩展）触发，非本轮引入。
+
+**未动（中期路线）**：⌘K 命令面板、追溯常驻分栏、首次配置分步向导、埋点。
 
 ## 7. 中期路线（超出本轮清单）
 

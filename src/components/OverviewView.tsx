@@ -3,12 +3,15 @@ import { useApp } from '../store/app';
 import { useUi } from '../store/ui';
 import type { RunStatus } from '../types';
 import { CATEGORY_LABELS } from '../types';
+import { DatabaseIcon, WorkflowIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from './page-header';
+import { EmptyHint } from './empty-hint';
 import { PipelineCard } from './PipelineCard';
 import { RepoCiCard } from './RepoCiCard';
-import { StatusDot } from './StatusDot';
+import { StatusBadge, connectionStatus } from './StatusBadge';
 
-/** 运行状态归一：与 StatusDot 同一套语义分组 */
+/** 运行状态归一：与 StatusBadge 同一套语义分组 */
 const runGroup = (status?: string): RunStatus => {
   const s = (status ?? '').toUpperCase();
   if (s === 'RUNNING' || s === 'WAITING') return 'RUNNING';
@@ -32,8 +35,8 @@ function StatCell({
   dot?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1.5 bg-background px-4 py-3.5">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+    <div className="flex min-h-24 flex-col gap-1.5 bg-card px-4 py-3.5">
+      <div className="eyebrow">{label}</div>
       <div className="flex min-w-0 items-baseline gap-2">
         <span className="font-mono text-xl font-medium text-foreground">{value}</span>
         {sub && <span className="min-w-0 truncate text-xs text-muted-foreground">{sub}</span>}
@@ -45,8 +48,8 @@ function StatCell({
 
 function SectionHead({ title, count, hint }: { title: string; count?: number; hint?: string }) {
   return (
-    <div className="mb-3 flex items-baseline gap-2">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+    <div className="mb-3 flex items-baseline gap-2 border-b border-border pb-2">
+      <h2 className="text-sm font-semibold tracking-tight text-foreground">{title}</h2>
       {count !== undefined && (
         <span className="font-mono text-xs text-muted-foreground">{count}</span>
       )}
@@ -63,12 +66,12 @@ function SectionHead({ title, count, hint }: { title: string; count?: number; hi
 export function OverviewView() {
   const {
     settings, connection, category, items, pipelines, runsByPipeline,
-    repositories, repoCiByRepo, loadList, loadPipelines, loadRepoCi, select,
+    repositories, repoCiByRepo, loadList, loadPipelines, loadRepoCi,
   } = useApp();
-  const openRequirement = useUi((s) => s.openRequirement);
+  const openWorkitem = useUi((s) => s.openWorkitem);
   const watched = settings?.watchedRepos ?? [];
 
-  // 进入总览时刷新：工作项列表（当前类别）+ 流水线运行 + 监控仓库 CI
+  // 进入总览时刷新：工作项列表（当前类别）+ 流水线运行 + 默认云效仓库 CI
   useEffect(() => {
     void loadList();
     void loadPipelines();
@@ -126,9 +129,8 @@ export function OverviewView() {
     void Promise.all(watched.map((repoId) => loadRepoCi(repoId)));
   };
 
-  const openInWorkbench = (id: string) => {
-    void select(id);
-    openRequirement();
+  const openInWorkbench = (id: string, identifier: string, subject: string) => {
+    openWorkitem(id, { workitemId: id, identifier, subject });
   };
 
   const repoName = (repoId: number) =>
@@ -138,27 +140,25 @@ export function OverviewView() {
 
   return (
     <div className="flex flex-col">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 py-2">
-        {/* 页头 */}
-        <div className="flex items-center gap-3">
-          <h1 className="text-base font-semibold tracking-tight text-foreground">总览</h1>
-          <span className="text-xs text-muted-foreground">
-            {CATEGORY_LABELS[category]} · {settings?.defaultSpaceIdentifier ?? ''}
-          </span>
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={refresh}>
-            刷新
-          </Button>
-        </div>
+      {/* 页头（统一 PageHeader 形态）：贴左全宽，正文居中限宽 */}
+      <PageHeader
+        eyebrow="Delivery overview"
+        title="总览"
+        description={`${CATEGORY_LABELS[category]} · ${settings?.defaultSpaceIdentifier ?? '未配置项目空间'}`}
+        actions={<Button variant="ghost" size="sm" onClick={refresh}>刷新</Button>}
+        className="border-b border-border pb-4"
+      />
 
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-7 py-1">
         {/* 统计带：hairline 分隔的 4 格 */}
-        <section className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border lg:grid-cols-4">
+        <section className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
           <StatCell
             label="连接"
             value={connection === 'ok' ? '正常' : connection === 'fail' ? '失败' : '…'}
             sub={settings?.allowWriteOps ? '可写' : '只读'}
             dot={
               <>
-                <StatusDot status={connection === 'ok' ? 'SUCCESS' : connection === 'fail' ? 'FAIL' : 'OTHER'} />
+                <StatusBadge status={connectionStatus(connection)} />
                 <span className="truncate">{settings?.organizationId || '未配置组织'}</span>
               </>
             }
@@ -178,10 +178,10 @@ export function OverviewView() {
             }
             dot={
               <>
-                {pipelineStats.run > 0 && <><StatusDot status="RUNNING" /> {pipelineStats.run} 运行中</>}
-                {pipelineStats.fail > 0 && <><StatusDot status="FAIL" /> {pipelineStats.fail} 失败</>}
+                {pipelineStats.run > 0 && <><StatusBadge status="RUNNING" size="sm" /> {pipelineStats.run}</>}
+                {pipelineStats.fail > 0 && <><StatusBadge status="FAIL" size="sm" /> {pipelineStats.fail}</>}
                 {pipelineStats.run === 0 && pipelineStats.fail === 0 && pipelineStats.ok > 0 && (
-                  <><StatusDot status="SUCCESS" /> 全部通过</>
+                  <StatusBadge status="SUCCESS" label="全部通过" size="sm" />
                 )}
                 {pipelineStats.ok + pipelineStats.fail + pipelineStats.run === 0 && <span>—</span>}
               </>
@@ -190,12 +190,12 @@ export function OverviewView() {
           <StatCell
             label="仓库 CI"
             value={`${ciStats.ok + ciStats.fail + ciStats.run}/${watched.length}`}
-            sub="监控仓库有状态"
+            sub="默认云效仓库有状态"
             dot={
               <>
-                {ciStats.run > 0 && <><StatusDot status="RUNNING" /> {ciStats.run}</>}
-                {ciStats.fail > 0 && <><StatusDot status="FAIL" /> {ciStats.fail}</>}
-                {!watched.length && <span>设置中未配置监控仓库</span>}
+                {ciStats.run > 0 && <><StatusBadge status="RUNNING" size="sm" /> {ciStats.run}</>}
+                {ciStats.fail > 0 && <><StatusBadge status="FAIL" size="sm" /> {ciStats.fail}</>}
+                {!watched.length && <span>未配置默认云效仓库</span>}
                 {watched.length > 0 && ciStats.ok + ciStats.fail + ciStats.run === 0 && <span>暂无状态</span>}
               </>
             }
@@ -219,24 +219,25 @@ export function OverviewView() {
               />
             ))}
             {!pipelines.length && (
-              <div className="rounded-md border border-border bg-background px-4 py-8 text-center text-sm text-muted-foreground">
-                无流水线
-              </div>
+              <EmptyHint icon={WorkflowIcon} title="无流水线" className="md:col-span-2" />
             )}
           </div>
         </section>
 
-        {/* 监控仓库 CI */}
+        {/* 默认云效仓库 CI */}
         <section>
-          <SectionHead title="仓库 CI" count={watched.length} hint="设置中的监控仓库" />
+          <SectionHead title="仓库 CI" count={watched.length} hint="设置中的默认云效仓库" />
           <div className="grid gap-3 md:grid-cols-2">
             {watched.map((repoId) => (
               <RepoCiCard key={repoId} repoId={repoId} repoName={repoName(repoId)} />
             ))}
             {!watched.length && (
-              <div className="rounded-md border border-border bg-background px-4 py-8 text-center text-sm text-muted-foreground">
-                尚未配置监控仓库，可在设置中选择
-              </div>
+              <EmptyHint
+                icon={DatabaseIcon}
+                title="未配置默认云效仓库"
+                description="可在「设置 → 追溯与云效仓库」中选择"
+                className="md:col-span-2"
+              />
             )}
           </div>
         </section>
@@ -245,8 +246,8 @@ export function OverviewView() {
         <section>
           <SectionHead title={`工作项速览 · ${CATEGORY_LABELS[category]}`} count={workitemStats.total} hint="点击进入工作台" />
           <div className="flex flex-col gap-3 lg:flex-row">
-            <div className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-md border border-border bg-background p-4">
-              <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">状态分布</div>
+            <div className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-lg border border-border bg-card p-6">
+              <div className="eyebrow">状态分布</div>
               {statusRows.map(([status, count]) => (
                 <div key={status} className="flex items-center gap-3 text-xs">
                   <span className="w-24 shrink-0 truncate text-foreground">{status}</span>
@@ -258,15 +259,15 @@ export function OverviewView() {
               ))}
               {!statusRows.length && <div className="py-4 text-center text-xs text-muted-foreground">暂无工作项</div>}
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-md border border-border bg-background p-4">
-              <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">最近更新</div>
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border border-border bg-card p-6">
+              <div className="eyebrow">最近更新</div>
               {recentItems.map((it) => (
                 <Button
                   key={it.workitemId || it.identifier}
                   type="button"
                   variant="ghost"
                   className="h-auto w-full justify-start gap-2 rounded px-2 py-1.5 text-xs font-normal"
-                  onClick={() => openInWorkbench(it.workitemId)}
+                  onClick={() => openInWorkbench(it.workitemId, it.identifier, it.subject)}
                 >
                   <span className="shrink-0 font-mono text-muted-foreground">{it.identifier}</span>
                   <span className="min-w-0 flex-1 truncate text-foreground">{it.subject}</span>

@@ -1,7 +1,6 @@
+import { useState } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
-  SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
@@ -10,6 +9,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
+import { NavCollapsibleGroup } from './nav-group';
 import { ChevronRightIcon } from 'lucide-react';
 import { useUi } from '@/store/ui';
 import type { WorkspaceView } from '@/store/ui';
@@ -25,15 +25,25 @@ export interface NavMainItem {
 /** 主导航：视图切换通过 useUi 直接驱动，无需事件总线 */
 export function NavMain({ items }: { items: NavMainItem[] }) {
   const { setView, view } = useUi();
+  const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>当前工作</SidebarGroupLabel>
+    <NavCollapsibleGroup
+      label="当前工作"
+      labelClassName="px-2"
+      className="px-0"
+    >
       <SidebarMenu>
         {items.map((item) => (
-          <Collapsible key={item.title} defaultOpen={item.isActive} render={<SidebarMenuItem />}>
+          <Collapsible
+            key={item.title}
+            open={openItems[item.title] ?? item.isActive ?? false}
+            onOpenChange={(open) => setOpenItems((current) => ({ ...current, [item.title]: open }))}
+            render={<SidebarMenuItem />}
+          >
             <SidebarMenuButton
               tooltip={item.title}
-              isActive={item.view != null && item.view === view}
+              // UX A3：显式 isActive 优先（如「工作区」覆盖 iteration+requirement），否则按 view 匹配
+              isActive={item.isActive ?? (item.view != null && item.view === view)}
               onClick={() => {
                 if (item.view) setView(item.view);
               }}
@@ -68,6 +78,6 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
           </Collapsible>
         ))}
       </SidebarMenu>
-    </SidebarGroup>
+    </NavCollapsibleGroup>
   );
 }

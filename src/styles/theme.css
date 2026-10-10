@@ -1,35 +1,59 @@
 /* ============================================================
-   nervd · Delivery control theme（以 nervd-new-ui v0 基准合并）
+   nervd · Notion Analysis theme
+   Source of truth: design.md
    Tailwind CSS v4 (CSS-first) + shadcn/ui (Base UI)
    ============================================================ */
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
   color-scheme: light;
 
-  /* ---------- Workspace palette（保留给存量组件） ---------- */
+  /* ---------- Notion Analysis palette ---------- */
   --bg-0: #ffffff;
-  --bg-1: #ffffff;
-  --bg-2: #f7f6f3;
-  --bg-3: #efefec;
-  --line: #e9e9e7;
-  --line-strong: #dedddb;
-  --ink-0: #1c1c1a;
-  --ink-1: #5f5e5a;
-  --ink-2: #9b9a97;
-  --accent-dim: rgba(35, 131, 226, 0.12);
+  --bg-1: #f6f5f4;
+  --bg-2: #f6f5f4;
+  --bg-3: #e6e6e6;
+  --canvas: #ffffff;
+  --canvas-soft: #f6f5f4;
+  --surface: #ffffff;
+  --hairline: #e6e6e6;
+  --ink: #000000;
+  --ink-secondary: #31302e;
+  --ink-muted: #615d59;
+  --ink-faint: #a39e98;
+  --primary-active: #005bab;
+  --brand-indigo: #213183;
+  --sticker-sky: #62aef0;
+  --sticker-purple: #d6b6f6;
+  --sticker-purple-deep: #391c57;
+  --sticker-pink: #ff64c8;
+  --sticker-orange: #dd5b00;
+  --sticker-orange-deep: #793400;
+  --sticker-teal: #2a9d99;
+  --sticker-green: #1aae39;
+  --sticker-brown: #523410;
+  --line: #e6e6e6;
+  --line-strong: #d6d2ce;
+  --ink-0: #000000;
+  --ink-1: #31302e;
+  --ink-2: #a39e98;
+  --accent-dim: rgba(0, 117, 222, 0.1);
 
-  /* ---------- Status colors ---------- */
-  --sig-run: #b7791f;
-  --sig-ok: #448361;
-  --sig-fail: #d44c47;
-  --sig-idle: #9b9a97;
+  /* ---------- Sticker palette used only for status and decoration ----------
+     规范：贴纸色只做装饰/状态点；状态文字用 ink（对比度）。
+     sig-idle 采用规范内 ink-muted（#a39e98 圆点对比度 2.66:1 不达非文本 3:1）。 */
+  --sig-run: #dd5b00;
+  --sig-ok: #1aae39;
+  --sig-fail: #793400;
+  --sig-idle: #615d59;
 
   /* ---------- Workspace layout ---------- */
   --rail-w: 260px;
@@ -37,41 +61,43 @@
 
   /* ---------- Typography ---------- */
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* The source spec uses one family throughout, including data labels. */
+  --font-mono: var(--font-sans);
 
-  /* ---------- shadcn semantic tokens（nervd-new-ui 基准） ---------- */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* ---------- shadcn semantic tokens mapped to design.md ---------- */
+  /* Notion 式分层：侧栏灰底（--sidebar）、主区白底（--background / SidebarInset） */
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #0075de;
+  --primary-foreground: #ffffff;
+  --secondary: #f6f5f4;
+  --secondary-foreground: #000000;
+  --muted: #f6f5f4;
+  --muted-foreground: #615d59;
+  --accent: #f6f5f4;
+  --accent-foreground: #000000;
+  --destructive: #793400;
+  --border: #e6e6e6;
+  --input: #dddddd;
+  --ring: #0075de;
+  --chart-1: #0075de;
+  --chart-2: #62aef0;
+  --chart-3: #d6b6f6;
+  --chart-4: #2a9d99;
+  --chart-5: #1aae39;
+  --radius: 0.75rem;
+  --sidebar: #f6f5f4;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #0075de;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f6f5f4;
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #e6e6e6;
+  --sidebar-ring: #0075de;
 }
 
 /* ---------- 工具类映射（Tailwind v4 CSS-first） ---------- */
@@ -134,19 +160,20 @@
   --spacing-rail: var(--rail-w);
   --spacing-trace: var(--trace-w);
 
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.3125rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1rem;
+  --radius-4xl: 1rem;
 
   /* 状态点脉冲（RUNNING 呼吸灯） */
   --animate-sig-pulse: sig-pulse 1.6s ease-in-out infinite;
   @keyframes sig-pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 180, 84, 0.5); }
-    50% { opacity: 0.55; box-shadow: 0 0 0 5px rgba(255, 180, 84, 0); }
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(221, 91, 0, 0.24); }
+    50% { opacity: 0.55; box-shadow: 0 0 0 5px rgba(221, 91, 0, 0); }
   }
 }
 
@@ -164,14 +191,36 @@
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-size: 14px;
-    line-height: 1.55;
+    font-size: 15px;
+    line-height: 1.5;
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
   }
   ::selection {
-    background: #d5eadf;
-    color: #173d32;
+    background: #dceeff;
+    color: #000000;
+  }
+
+  h1, h2, h3 {
+    font-weight: 700;
+    color: var(--foreground);
+  }
+
+  h1 {
+    /* DESIGN.md heading-2：26px / 700 / -0.625px / 1.23 —— 页面标题统一规格 */
+    font-size: 1.625rem;
+    letter-spacing: -0.039rem;
+    line-height: 1.23;
+  }
+
+  h2 {
+    letter-spacing: -0.039rem;
+    line-height: 1.23;
+  }
+
+  h3 {
+    letter-spacing: -0.016rem;
+    line-height: 1.27;
   }
 }
 
@@ -193,8 +242,50 @@
   grid-template-columns: minmax(420px, 1fr);
 }
 
+/* ---------- Workspace surfaces ---------- */
+[data-slot="sidebar-inset"] {
+  background: var(--background);
+}
+
+.workspace-topbar {
+  background: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--line);
+}
+
+.workspace-scroll {
+  scrollbar-gutter: stable;
+  background: var(--background);
+}
+
+.eyebrow {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.empty-state {
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  border-radius: var(--radius-lg);
+}
+
 /* ---------- Light, quiet scrollbars ---------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-2); }
+
+/* ---------- Reduced motion（规范：尊重系统减弱动态偏好） ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

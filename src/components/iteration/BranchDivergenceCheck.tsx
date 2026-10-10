@@ -72,23 +72,23 @@ export function BranchDivergenceCheck({
   }, [repoId, developmentBranch, baseline, baselineState, refreshKey]);
 
   if (!baseline) {
-    return <span className="text-[11px] text-muted-foreground">先选择分支模板</span>;
+    return <span className="text-xs text-muted-foreground">先选择分支模板</span>;
   }
   if (baselineState === 'missing') {
-    return <span className="text-[11px] text-muted-foreground">迭代分支尚未创建</span>;
+    return <span className="text-xs text-muted-foreground">迭代分支尚未创建</span>;
   }
   if (baselineState === 'error') {
     return (
-      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
         基准查询失败
-        <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-[11px]" onClick={onRetryBaseline}>
+        <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={onRetryBaseline}>
           重试
         </Button>
       </span>
     );
   }
   if (baselineState !== 'exists') {
-    return <span className="text-[11px] text-muted-foreground">正在核实迭代分支…</span>;
+    return <span className="text-xs text-muted-foreground">正在核实迭代分支…</span>;
   }
 
   const ready = check.status === 'ready';
@@ -107,7 +107,7 @@ export function BranchDivergenceCheck({
         type="button"
         variant="outline"
         size="sm"
-        className="h-6 px-2 text-[11px]"
+        className="h-6 px-2 text-xs"
         disabled={check.status === 'loading' || check.status === 'idle'}
         onClick={() => setRefreshKey((value) => value + 1)}
         title={`比较 ${developmentBranch} 与 ${baseline}`}
@@ -117,12 +117,12 @@ export function BranchDivergenceCheck({
       {ready && (
         <Badge
           variant="outline"
-          className={aligned ? 'border-emerald-500/40 text-emerald-700' : 'border-amber-500/50 text-amber-700'}
+          className={aligned ? 'border-sig-ok/40 text-foreground' : 'border-sig-run/50 text-foreground'}
         >
           {aligned ? '一致' : '有偏差'}
         </Badge>
       )}
-      {summary && <span className="text-[11px] text-muted-foreground">{summary}</span>}
+      {summary && <span className="text-xs text-muted-foreground">{summary}</span>}
     </div>
   );
 }

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   RefreshCwIcon,
-  DatabaseIcon,
   LoaderCircleIcon,
   XIcon,
+  ChevronRightIcon,
+  SearchXIcon,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -18,31 +18,32 @@ import {
   useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters,
 } from '@/store/ui';
 import { CATEGORY_LABELS, type Category, type RepoSummary } from '@/types';
+import { ciProviderLabel, ciStatusText } from '@/lib/ci';
+import { formatTime } from '@/lib/format';
 import { SearchableSelect } from '../searchable-select';
-import { StatusDot } from '../StatusDot';
+import { PageHeader } from '../page-header';
+import { AppBreadcrumb } from '../nav/app-breadcrumb';
+import { EmptyHint } from '../empty-hint';
+import { StatusBadge } from '../StatusBadge';
+import { InfoItem } from '../info-item';
+import { CiSummaryButton } from '../ci-summary-button';
+import { TableEmptyRow } from '../table-empty-row';
+import { SectionHeader } from '../section-header';
 import { IterationBranches } from './IterationBranches';
 import { RepositoryCiDetails } from './RepositoryCiDetails';
 
-function InfoItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-lg border bg-muted/20 px-4 py-3 transition-colors hover:bg-muted/40">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1.5 truncate text-sm font-semibold" title={value}>{value}</p>
-    </div>
-  );
-}
-
-/** 仓库行：CI 状态真实（repoCiByRepo），基准分支关系在上方按迭代配置 */
+/** 仓库行：按仓库实际绑定的 CI 提供方（Flow / Jenkins）展示状态与运行数，各入口口径一致 */
 function RepositoryRow({ repo }: { repo: RepoSummary }) {
   const { repoCiByRepo, settings } = useApp();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const entry = repoCiByRepo[repo.id];
   const snapshot = entry?.snapshot;
   const binding = settings?.repoCiBindings?.[String(repo.id)];
-  const jenkinsBinding = binding?.provider === 'jenkins' ? binding : undefined;
-  const isJenkins = Boolean(jenkinsBinding);
-  const providerLabel = isJenkins ? 'Jenkins' : 'Jenkins 未配置';
-  const status = isJenkins ? snapshot?.status ?? (entry?.loading ? '加载中' : entry?.error ? '查询失败' : '—') : '未配置 Jenkins';
+  const providerLabel = ciProviderLabel(binding);
+  const status = binding
+    ? ciStatusText(snapshot?.status, entry)
+    : '未配置 CI';
+  const runCount = (snapshot?.runs ?? []).length;
 
   return (
     <>
@@ -53,25 +54,14 @@ function RepositoryRow({ repo }: { repo: RepoSummary }) {
             <span className="text-xs text-muted-foreground">#{repo.id} · {providerLabel}</span>
           </div>
         </TableCell>
-        <TableCell><code className="text-xs text-muted-foreground">—</code></TableCell>
         <TableCell>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-auto px-1.5 py-1 font-normal"
-            title={entry?.error ?? '点击查看 CI Job、构建分支和环境详情'}
-            onClick={() => setDetailsOpen(true)}
-          >
-            <span className="inline-flex items-center gap-1.5 text-sm">
-              <StatusDot status={status} />
-              {status}
-            </span>
-          </Button>
-        </TableCell>
-        <TableCell><Badge variant="outline">—</Badge></TableCell>
-        <TableCell><Badge variant="outline">—</Badge></TableCell>
-        <TableCell className="text-right">
-          <Button variant="outline" size="sm" onClick={() => setDetailsOpen(true)}>CI 详情</Button>
+          <CiSummaryButton
+            status={status}
+            runCount={binding && runCount ? runCount : 0}
+            error={entry?.error}
+            tooltip="点击查看 CI 运行记录、日志与构建操作"
+            onOpen={() => setDetailsOpen(true)}
+          />
         </TableCell>
       </TableRow>
       <RepositoryCiDetails repo={repo} open={detailsOpen} onOpenChange={setDetailsOpen} />
@@ -79,33 +69,50 @@ function RepositoryRow({ repo }: { repo: RepoSummary }) {
   );
 }
 
-/** 迭代视图（nervd-new-ui 基准）：迭代信息（真实 sprints）+ 分支关系 + 仓库 + 需求列表（真实，按迭代过滤，滚动加载） */
+/**
+ * 迭代视图（高频优先）：迭代摘要 → 迭代工作项（搜索/筛选前置）→ 涉及仓库 → 分支规则模板（低频配置，默认折叠）。
+ * CI 时间戳只在快照成功刷新时更新（app.ciRefreshedAt），避免"发起请求即更新"的错误信心。
+ */
 export function IterationView() {
-  const { iterationKey, setIteration, openRequirement, filters, clearFilters } = useUi();
+  const { iterationKey, setIteration, openWorkitem, filters, clearFilters, listSearch, setListSearch, searchFocusAt } = useUi();
   const {
-    items, repositories, category, setCategory, loadingList, loadList, nextToken, select, loadRepoCi,
+    items, repositories, category, setCategory, loadingList, loadList, nextToken, loadRepoCi,
     iterations: realIterations, loadingIterations, loadIterations,
+    ciRefreshedAt, repoCiByRepo, settings,
   } = useApp();
-  const [kw, setKw] = useState('');
+
+  const ciHasError = Object.values(repoCiByRepo).some((entry) => Boolean(entry.error));
+  const templateCount = settings?.branchRuleTemplates?.length ?? 0;
+
+  // 侧栏搜索框 / ⌘K：聚焦主区搜索框（视图切换在 focusGlobalSearch 内完成）
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (searchFocusAt) searchInputRef.current?.focus();
+  }, [searchFocusAt]);
+
+  // CI 轮询：覆盖所有已绑定仓库（Flow + Jenkins），与仓库表/CI 详情同一数据源
+  const refreshCi = () => {
+    if (document.visibilityState !== 'visible') return;
+    const state = useApp.getState();
+    for (const repo of repositories) {
+      if (state.settings?.repoCiBindings?.[String(repo.id)]
+        && !state.repoCiByRepo[repo.id]?.loading) {
+        void loadRepoCi(repo.id);
+      }
+    }
+  };
 
   // 首次进入立即查询；页面可见时每 15 秒刷新，切回窗口时立即刷新。
   useEffect(() => {
-    const refresh = () => {
-      if (document.visibilityState !== 'visible') return;
-      const state = useApp.getState();
-      for (const repo of repositories) {
-        if (state.settings?.repoCiBindings?.[String(repo.id)]?.provider === 'jenkins'
-          && !state.repoCiByRepo[repo.id]?.loading) void loadRepoCi(repo.id);
-      }
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 15_000);
-    const onVisibilityChange = () => { if (document.visibilityState === 'visible') refresh(); };
+    refreshCi();
+    const timer = window.setInterval(refreshCi, 15_000);
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') refreshCi(); };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repositories, loadRepoCi]);
 
   const iterations = iterationsOrFallback(realIterations);
@@ -119,12 +126,12 @@ export function IterationView() {
     [items, iterationKey, realIterations],
   );
   const filtered = useMemo(() => {
-    const k = kw.trim().toLowerCase();
+    const k = listSearch.trim().toLowerCase();
     return applyWorkitemFilters(scoped, filters).filter((it) => {
       if (!k) return true;
       return it.subject.toLowerCase().includes(k) || it.identifier.toLowerCase().includes(k);
     });
-  }, [scoped, filters, kw]);
+  }, [scoped, filters, listSearch]);
 
   // 滚动加载哨兵：进入视口（提前 240px）自动拉取下一页；加载完成即重挂观察器，列表仍短则继续拉取
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -143,125 +150,82 @@ export function IterationView() {
 
   return (
     <div className="flex flex-col gap-5">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <CardDescription>
-                {usingFallback
-                  ? `当前迭代（占位数据 · 迭代接口不可用${loadingIterations ? '，获取中…' : ''}）`
-                  : '当前迭代 · 云效项目迭代'}
-              </CardDescription>
-              <CardTitle className="mt-1 flex flex-wrap items-center gap-2">
-                {iteration.name}
-                <Badge variant="secondary">{iteration.state || '未知状态'}</Badge>
-              </CardTitle>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <SearchableSelect
-                className="w-56 text-xs"
-                ariaLabel="切换迭代"
-                value={iteration.name}
-                onValueChange={(v) => { if (v) setIteration(v); }}
-                items={iterations.map((it) => ({
-                  label: `${it.name} · ${it.state}`,
-                  value: it.name,
-                }))}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  void loadList(false);
-                  void loadIterations();
-                }}
-              >
-                <RefreshCwIcon className="size-4" />
-                刷新
+      <PageHeader
+        breadcrumb={<AppBreadcrumb />}
+        title={iteration.name}
+        titleBadge={<StatusBadge status={iteration.state || undefined} />}
+        description={usingFallback
+          ? `占位数据 · 迭代接口不可用${loadingIterations ? '，获取中…' : ''}`
+          : `${iteration.title || '云效项目迭代'}${iteration.startDate && iteration.endDate ? ` · ${iteration.startDate} ~ ${iteration.endDate}` : ''}`}
+        actions={
+          <>
+            <SearchableSelect
+              className="w-56 text-xs"
+              ariaLabel="切换迭代"
+              value={iteration.name}
+              onValueChange={(v) => { if (v) setIteration(v); }}
+              items={iterations.map((it) => ({
+                label: `${it.name} · ${it.state}`,
+                value: it.name,
+              }))}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // 手动刷新覆盖本页全部数据源：工作项 + 迭代 + 各仓库 CI
+                void loadList(false);
+                void loadIterations();
+                refreshCi();
+              }}
+            >
+              <RefreshCwIcon data-icon="inline-start" />
+              刷新
+            </Button>
+          </>
+        }
+        className="sticky top-0 z-10 border-b border-border bg-background pb-4"
+      />
+
+      {/* Notion 式：页头贴左全宽，正文居中限宽 */}
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
+      {/* 迭代属性行（Notion properties 形态，无卡片壳） */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <InfoItem
+          label="工作项（当前类别）"
+          value={usingFallback ? String(scoped.length) : `${scoped.length} / 已加载 ${items.length}`}
+        />
+        <InfoItem label="关联仓库" value={`${repositories.length} 个`} />
+        <InfoItem
+          label="CI 上次成功刷新"
+          value={ciRefreshedAt
+            ? formatTime(ciRefreshedAt) + (ciHasError ? '（有失败）' : '')
+            : ciHasError ? '刷新失败' : '尚未刷新'}
+        />
+      </div>
+
+      {/* 高频区前置：每天找需求从这里开始（搜索词入导航快照，后退可恢复） */}
+      <section className="flex flex-col gap-3 border-b border-border/70 pb-6">
+        <SectionHeader
+          title="迭代工作项"
+          hint={`${CATEGORY_LABELS[category]} · 迭代内 ${scoped.length} 项 · 筛选后 ${filtered.length} 项（已加载 ${items.length}）${loadingList ? ' · 加载中…' : ''}`}
+          action={<>
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <XIcon data-icon="inline-start" />
+                清除筛选（{activeFilterCount}）
               </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {iteration.title && <p className="text-sm text-muted-foreground">{iteration.title}</p>}
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <InfoItem
-              label="工作项（当前类别）"
-              value={usingFallback ? String(scoped.length) : `${scoped.length} / 已加载 ${items.length}`}
+            )}
+            <Input
+              ref={searchInputRef}
+              value={listSearch}
+              onChange={(e) => setListSearch(e.target.value)}
+              placeholder="搜索编号 / 标题"
+              className="h-8 w-56"
             />
-            <InfoItem label="关联仓库" value={`${repositories.length} 个`} />
-            <InfoItem
-              label="迭代周期"
-              value={iteration.startDate && iteration.endDate ? `${iteration.startDate} ~ ${iteration.endDate}` : '—'}
-            />
-            <InfoItem label="基准分支规则" value="按需求所选模板生成" />
-          </div>
-        </CardContent>
-      </Card>
-
-      <IterationBranches />
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><DatabaseIcon className="size-4" />涉及仓库</CardTitle>
-          <CardDescription>点击仓库查看 CI 运行记录、日志与构建操作；需求详情中为各关联仓库选择分支模板</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>仓库</TableHead>
-                <TableHead>当前分支</TableHead>
-                <TableHead>CI 状态</TableHead>
-                <TableHead>相对迭代分支</TableHead>
-                <TableHead>相对 dev</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {repositories.map((repo) => <RepositoryRow key={repo.id} repo={repo} />)}
-              {!repositories.length && (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
-                    仓库列表为空，请先在设置中配置云效连接并选择关注仓库
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>迭代工作项</CardTitle>
-              <CardDescription>
-                {CATEGORY_LABELS[category]}
-                {!usingFallback && ` · 迭代内 ${scoped.length} 项`}
-                {` · 筛选后 ${filtered.length} 项（已加载 ${items.length}）`}
-                {loadingList ? ' · 加载中…' : ''}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              {activeFilterCount > 0 && (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  <XIcon className="size-4" />
-                  清除筛选（{activeFilterCount}）
-                </Button>
-              )}
-              <Input
-                value={kw}
-                onChange={(e) => setKw(e.target.value)}
-                placeholder="搜索编号 / 标题"
-                className="w-56"
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
+          </>}
+        />
+        <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
             <TabsList>
               {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
                 <TabsTrigger key={c} value={c}>{CATEGORY_LABELS[c]}</TabsTrigger>
@@ -274,35 +238,37 @@ export function IterationView() {
                 key={item.workitemId || item.identifier}
                 type="button"
                 variant="outline"
-                className="flex h-auto w-full items-start justify-between gap-3 rounded-lg p-3 text-left font-normal hover:bg-accent"
+                className="flex h-auto w-full items-start justify-between gap-3 rounded-lg border-border bg-card p-4 text-left font-normal hover:bg-accent"
                 onClick={() => {
-                  void select(item.workitemId);
-                  openRequirement();
+                  openWorkitem(item.workitemId, {
+                    workitemId: item.workitemId,
+                    identifier: item.identifier,
+                    subject: item.subject,
+                  });
                 }}
               >
                 <div className="min-w-0">
                   <p className="font-mono text-xs font-normal text-muted-foreground">{item.identifier}</p>
                   <p className="mt-1 text-sm font-medium">{item.subject}</p>
                   <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
-                    {item.status} · {item.assignedTo}
+                    {item.assignedTo}
                     {item.relatedTo?.length ? ` · 关联 ${item.relatedTo.join('、')}` : ''}
                   </p>
                 </div>
-                <StatusDot status={item.status} />
+                <StatusBadge status={item.status} />
               </Button>
             ))}
             {!filtered.length && !loadingList && (
-              <div className="col-span-full rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
-                {items.length
-                  ? usingFallback
-                    ? '无匹配工作项'
-                    : activeFilterCount
-                      ? '当前迭代无匹配工作项（可清除侧栏筛选或滚动加载更多）'
-                      : nextToken
-                        ? '当前迭代暂无已加载的工作项（向下滚动继续拉取）'
-                        : '当前迭代在全部工作项中均无匹配'
-                  : '无匹配工作项'}
-              </div>
+              <EmptyHint
+                icon={SearchXIcon}
+                className="col-span-full"
+                title="无匹配工作项"
+                description={items.length && !usingFallback && activeFilterCount
+                  ? '当前迭代无匹配工作项（可清除侧栏筛选或滚动加载更多）'
+                  : nextToken
+                    ? '当前迭代暂无已加载的工作项（向下滚动继续拉取）'
+                    : undefined}
+              />
             )}
             {/* 滚动加载哨兵：进入视口即自动拉取下一页 */}
             <div ref={sentinelRef} className="col-span-full h-px" aria-hidden />
@@ -319,8 +285,55 @@ export function IterationView() {
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </section>
+
+      <section className="flex flex-col gap-3 border-b border-border/70 pb-6">
+        <SectionHeader
+          title="涉及仓库"
+          count={repositories.length}
+          hint="点击 CI 概要查看运行记录、日志与构建操作；需求详情中为各关联仓库选择分支模板"
+        />
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>仓库</TableHead>
+              <TableHead>CI</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {repositories.map((repo) => <RepositoryRow key={repo.id} repo={repo} />)}
+            {!repositories.length && (
+              <TableEmptyRow
+                colSpan={2}
+                title="仓库列表为空"
+                description="请先在「设置 → 追溯与云效仓库」配置云效连接并选择默认云效仓库"
+              />
+            )}
+          </TableBody>
+        </Table>
+      </section>
+
+      {/* 低频配置区：默认折叠，不占首屏（Notion toggle 块形态：轻容器 + 分割线） */}
+      <Collapsible defaultOpen={false} render={<div className="rounded-lg border border-border/70" />}>
+        <div className="flex items-start justify-between gap-3 p-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">分支规则模板{templateCount ? `（${templateCount}）` : ''}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              低频配置：模板保存在本机，需求仓库单独选用。基准模板支持 {'{iteration}'}、{'{template}'}，需求分支支持 {'{identifier}'}。
+            </p>
+          </div>
+          <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
+            <ChevronRightIcon className="transition-transform duration-200 group-data-panel-open/collapsible:rotate-90" />
+            展开 / 收起
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent>
+          <div className="border-t border-border/70 p-4">
+            <IterationBranches />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+      </div>
     </div>
   );
 }

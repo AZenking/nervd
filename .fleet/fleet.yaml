@@ -1,4 +1,4 @@
 version: 1
 runtime:
-  default: pi@zai-coding-cn/glm-5.2
-  roles: { reflex: pi@zai-coding-cn/glm-5.2, focus: pi@zai-coding-cn/glm-5.2, reason: pi@zai-coding-cn/glm-5.2, insight: pi@zai-coding-cn/glm-5.2, wisdom: pi@zai-coding-cn/glm-5.2 }
+  default: pi@zai-coding-cn/glm-5.3
+  roles: { reflex: pi@echo/glm-5.3-flash, focus: pi@echo/glm-5.3-flash, reason: pi@zai-coding-cn/glm-5.3, insight: pi@zai-coding-cn/glm-5.3, wisdom: pi@agy/gemini-3.8-flash-high }
