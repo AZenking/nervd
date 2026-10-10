@@ -52,7 +52,7 @@
      sig-idle 采用规范内 ink-muted（#a39e98 圆点对比度 2.66:1 不达非文本 3:1）。 */
   --sig-run: #dd5b00;
   --sig-ok: #1aae39;
-  --sig-fail: #793400;
+  --sig-fail: #d1340b;
   --sig-idle: #615d59;
 
   /* ---------- Workspace layout ---------- */
@@ -80,7 +80,7 @@
   --muted-foreground: #615d59;
   --accent: #f6f5f4;
   --accent-foreground: #000000;
-  --destructive: #793400;
+  --destructive: #d1340b;
   --border: #e6e6e6;
   --input: #dddddd;
   --ring: #0075de;
@@ -105,6 +105,8 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-heading: var(--font-sans);
+  /* 日志/终端等机器输出专用等宽族（font-log）；--font-mono 仍按规范跟随 sans */
+  --font-log: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -160,6 +162,9 @@
   --spacing-rail: var(--rail-w);
   --spacing-trace: var(--trace-w);
 
+  /* 浮层阴影档位（barely-there 三层近透明）→ shadow-level-2 */
+  --shadow-level-2: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
+
   --radius-xs: 0.25rem;
   --radius-sm: 0.3125rem;
   --radius-md: 0.5rem;
@@ -197,7 +202,7 @@
     -webkit-font-smoothing: antialiased;
   }
   ::selection {
-    background: #dceeff;
+    background: var(--accent-dim);
     color: #000000;
   }
 
@@ -259,10 +264,10 @@
 
 .eyebrow {
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  line-height: 1.2;
+  letter-spacing: 0.125px;
+  line-height: 1.33;
   text-transform: uppercase;
 }
 
