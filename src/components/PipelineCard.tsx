@@ -5,6 +5,7 @@ import { StatusBadge } from './StatusBadge';
 import { WriteOpButton } from './WriteOpButton';
 import * as api from '../lib/api';
 import { formatDateTime } from '../lib/format';
+import { errorLog, humanizeError } from '@/lib/error-format';
 
 const TRIGGER: Record<number, string> = { 1: '手动', 2: '定时', 3: '代码', 5: '流水线', 6: 'WEBHOOK' };
 
@@ -27,7 +28,8 @@ export function PipelineCard({
       if (!jobId) throw new Error('未在运行详情中找到 job，无法取日志');
       void openLogs(pipelineId, latest.pipelineRunId, jobId, `${pipelineName} #${latest.pipelineRunId}`);
     } catch (e) {
-      setToast({ text: String(e), kind: 'fail' });
+      errorLog('pipeline.openLogs', e);
+      setToast({ text: `日志查询失败：${humanizeError(e, '未能读取该运行的日志，请稍后重试')}`, kind: 'fail' });
     }
   };
 
@@ -44,7 +46,10 @@ export function PipelineCard({
               await api.startPipelineRun(pipelineId);
               setToast({ text: `${pipelineName} 已触发`, kind: 'ok' });
               setTimeout(() => void loadRuns(pipelineId), 2500);
-            } catch (e) { setToast({ text: String(e), kind: 'fail' }); }
+            } catch (e) {
+              errorLog('pipeline.trigger', e);
+              setToast({ text: `触发失败：${humanizeError(e, `${pipelineName} 触发失败，请稍后重试`)}`, kind: 'fail' });
+            }
           }}
         />
         <Button variant="ghost" size="sm" disabled={!latest} onClick={() => void openLatestLogs()}>

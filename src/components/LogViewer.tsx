@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { humanizeError } from '@/lib/error-format';
 
 export function LogViewer() {
   const { logView, closeLogs, refreshRepoCiLogs } = useApp();
@@ -36,8 +37,8 @@ export function LogViewer() {
 
   return (
     <Dialog open={!!logView} onOpenChange={(open) => { if (!open) closeLogs(); }}>
-          <DialogContent showCloseButton={false} className="flex h-[min(600px,80vh)] w-[min(880px,90vw)] max-w-none flex-col gap-0 rounded-xl border border-border bg-popover p-0 shadow-[0_1px_2px_rgba(0,0,0,0.01),0_4px_18px_rgba(0,0,0,0.04),0_16px_40px_rgba(0,0,0,0.05)]">
-        <DialogHeader className="px-5 py-4">
+          <DialogContent showCloseButton className="flex h-[min(600px,80vh)] w-[min(880px,90vw)] max-w-none flex-col gap-0 rounded-xl border border-border bg-popover p-0 shadow-[0_1px_2px_rgba(0,0,0,0.01),0_4px_18px_rgba(0,0,0,0.04),0_16px_40px_rgba(0,0,0,0.05)]">
+        <DialogHeader className="px-5 py-4 pr-12">
           <DialogTitle className="text-left text-sm font-medium text-foreground">
             {logView?.title ?? '日志'}
           </DialogTitle>
@@ -47,7 +48,7 @@ export function LogViewer() {
         <ScrollArea className="min-h-0 flex-1">
           <div
             ref={bodyRef}
-            className="bg-muted/20 px-5 py-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-foreground"
+            className="bg-muted/20 px-5 py-4 font-log text-xs leading-relaxed whitespace-pre-wrap break-words text-foreground"
           >
             {logView?.text}
           </div>
@@ -56,7 +57,7 @@ export function LogViewer() {
         <div className="flex items-center justify-between gap-3 px-5 py-3">
           <span className="min-w-0 text-xs text-muted-foreground">
             {logView?.error
-              ? `日志读取失败，将自动重试：${logView.error}`
+              ? `日志读取失败，将自动重试：${humanizeError(logView.error, '日志暂时不可读')}`
               : logView?.repoId && logView.hasMore
                 ? '正在自动跟随 Jenkins 实时日志'
                 : logView?.repoId
@@ -74,7 +75,6 @@ export function LogViewer() {
                 {logView.loading ? '刷新中…' : '刷新日志'}
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={closeLogs}>关闭</Button>
           </div>
         </div>
       </DialogContent>

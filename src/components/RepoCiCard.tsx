@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../store/app';
 import { triggerRepoCiWithFeedback } from '../lib/ci';
 import { formatDateTime, formatDuration } from '../lib/format';
+import { humanizeError } from '@/lib/error-format';
 import { Button } from '@/components/ui/button';
 import { RefreshCwIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -17,6 +18,9 @@ function duration(durationMs?: number): string {
   if (durationMs == null) return '耗时未知';
   return formatDuration(durationMs);
 }
+
+/** CI 提供方展示名（与设置/详情抽屉同口径，不再直出原始枚举） */
+const PROVIDER_LABELS: Record<string, string> = { JENKINS: 'Jenkins', FLOW: '云效 Flow' };
 
 export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: string }) {
   const { repoCiByRepo, loadRepoCi, openRepoCiLogs } = useApp();
@@ -47,12 +51,12 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
         <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-foreground">
           {snapshot?.name ?? 'CI 未配置'}
         </span>
-        {snapshot && <span className="text-xs uppercase text-muted-foreground">{snapshot.provider}</span>}
+        {snapshot && <span className="text-xs text-muted-foreground">{PROVIDER_LABELS[snapshot.provider.toUpperCase()] ?? snapshot.provider}</span>}
         <Tooltip>
           <TooltipTrigger
             render={
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon-sm"
                 aria-label="刷新 CI 状态"
                 disabled={refreshing || entry?.loading}
@@ -67,7 +71,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
       </div>
 
       {entry?.error ? (
-        <div className="mt-3 rounded-md border border-sig-fail/20 bg-sig-fail/8 px-3 py-2 text-xs text-sig-fail">CI 查询失败：{entry.error}</div>
+        <div className="mt-3 rounded-md border border-sig-fail/20 bg-sig-fail/8 px-3 py-2 text-xs text-sig-fail">CI 查询失败：{humanizeError(entry.error, '未能获取 CI 状态，请稍后重试')}</div>
       ) : !snapshot && entry?.loading ? (
         <p className="mt-2 text-xs text-muted-foreground">读取 Job 状态…</p>
       ) : !snapshot ? (
@@ -85,7 +89,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
             {snapshot.runs.map((run) => (
               <div key={run.runId} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border bg-muted/45 px-2.5 py-2 text-xs">
                 <StatusBadge status={run.status} size="sm" />
-                <span className="font-mono text-foreground">#{run.runId}</span>
+                <span className="font-log text-foreground">#{run.runId}</span>
                 <span className="ml-auto text-muted-foreground">{when(run.startTime)}</span>
                 <span className="text-muted-foreground">{duration(run.durationMs)}</span>
                 <Button variant="ghost" size="xs" onClick={() => void openRepoCiLogs(repoId, run.runId, `${repoName} · ${snapshot.name} #${run.runId}`)}>

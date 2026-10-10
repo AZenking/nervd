@@ -4,6 +4,7 @@ import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
 import { isBranchParameterName, isEnvironmentParameterName } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
+import { errorLog, humanizeError } from '@/lib/error-format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -163,7 +164,11 @@ export function JenkinsBuildDialog({
         }
         setJobs(next);
       })
-      .catch((cause: unknown) => { if (active) setError(`读取 Jenkins Job 失败：${String(cause)}`); })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        errorLog('jenkins.listJobs', cause);
+        setError(`读取 Jenkins Job 失败：${humanizeError(cause, '未能获取 Job 列表，请稍后重试')}`);
+      })
       .finally(() => { if (active) setJobsLoading(false); });
     setBranchesLoading(true);
     void api.listBranches(repoId, undefined, 1, 100)
@@ -217,8 +222,9 @@ export function JenkinsBuildDialog({
       })
       .catch((cause: unknown) => {
         if (active) {
+          errorLog('jenkins.parameters', cause);
           setParameters([]);
-          setError(`读取 Job 参数失败：${String(cause)}`);
+          setError(`读取 Job 参数失败：${humanizeError(cause, '未能获取 Job 参数，请稍后重试')}`);
         }
       })
       .finally(() => { if (active) setParametersLoading(false); });
@@ -287,7 +293,8 @@ export function JenkinsBuildDialog({
       setOpen(false);
       if (remember) void loadRepoCi(repoId);
     } catch (cause) {
-      setToast({ text: `Jenkins 构建触发失败：${String(cause)}`, kind: 'fail' });
+      errorLog('jenkins.trigger', cause);
+      setToast({ text: `触发失败：${humanizeError(cause, `${repoName} 的 Jenkins 构建触发失败，请稍后重试`)}`, kind: 'fail' });
     } finally {
       setTriggering(false);
     }
@@ -332,7 +339,7 @@ export function JenkinsBuildDialog({
               <div className="flex items-center justify-between gap-2">
                 <FieldLabel htmlFor="jenkins-job">Job</FieldLabel>
                 <Button
-                  type="button" variant="ghost" size="sm" disabled={jobsLoading}
+                  type="button" variant="outline" size="sm" disabled={jobsLoading}
                   onClick={() => {
                     setJobsRefresh((current) => current + 1);
                   }}
