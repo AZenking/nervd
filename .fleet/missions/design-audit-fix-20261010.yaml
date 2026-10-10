@@ -1,0 +1,118 @@
+id: design-audit-fix-20261010
+goal: 按 docs/design-audit-2026-10-10.md 第 0 章执行清单,完成全部 P1/P2/P3 修复(A1-A4/B1-B4/C1-C6/D1-D7/D9)
+planningMode: execution
+plan:
+  summary: 三路并行实现(令牌层 / 迭代与CI视图 / 壳层与共享件,文件所有权互斥)+ 一路只读验证(tsc);基础件 humanizeError 已在 main 提交 9a24048
+  rationale: 用户已确认「按照建议全部修复」;方案细节 = docs/design-audit-2026-10-10.md(本仓已提交)
+requirements:
+  - id: r1
+    text: 严格遵守 DESIGN.md 令牌体系;新增颜色只允许审计指定的失败红 #d1340b;不引入其他新色
+  - id: r2
+    text: TypeScript 严格模式必须可过 pnpm exec tsc --noEmit;遵循各文件现有代码风格与中文 UI 文案惯例
+  - id: r3
+    text: 只允许修改本任务所有权清单内的文件;清单外文件一律不改(其他并行任务在改它们)
+  - id: r4
+    text: 错误文案统一 import { humanizeError, errorLog } from '@/lib/error-format'(已存在),界面不再出现 String(e)/String(cause) 直出
+  - id: r5
+    text: 预览服务已运行在 1423 端口(HMR),不要启动任何新服务器;不要改 DESIGN.md 与 docs/
+constraints:
+  - kind: maxDurationMs
+    value: 2700000
+tasks:
+  - id: token-layer
+    goal: >
+      令牌与 UI 原件层修复。文件所有权(仅限):src/styles/theme.css、src/components/ui/button.tsx、
+      ui/tabs.tsx、ui/input.tsx、ui/dropdown-menu.tsx、ui/popover.tsx、ui/sheet.tsx、ui/drawer.tsx。
+      修复项:
+      (A1) theme.css 中 --sig-fail: #793400 改为 #d1340b;--destructive: #793400 改为 #d1340b(状态文字/圆点引用处自动生效,不改 StatusBadge)。
+      (B1) ui/button.tsx default 变体的 hover:bg-primary/90 改为 hover 与 active 都用 --primary-active(#005bab,已存在于 theme.css),Tailwind v4 写法如 hover:bg-(--primary-active) 或 hover:bg-[var(--primary-active)]。
+      (A4-样式) ui/button.tsx 的 disabled:opacity-50 替换为灰阶禁用:disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground disabled:border-border disabled:shadow-none(disabled:opacity 保持 1);各 variant 下禁用态统一呈灰。
+      (B4) theme.css 的 @theme inline 增 --shadow-level-2: 0 1px 2px rgba(0,0,0,0.01), 0 4px 18px rgba(0,0,0,0.04), 0 16px 40px rgba(0,0,0,0.05);把 ui/dropdown-menu.tsx(约:42,:136)、ui/popover.tsx(约:38)、ui/sheet.tsx(约:55)里的 shadow-md/shadow-lg 全部换成 shadow-level-2;ui/drawer.tsx 遮罩从当前值加深到 bg-black/40。
+      (B3) theme.css 的 .eyebrow(约:260-267)改为 font-size:0.75rem; letter-spacing:0.125px; line-height:1.33(保留 font-weight:600 与 uppercase)。
+      (D6-令牌) theme.css @theme 增 --font-log: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace(生成 font-log 工具类,供日志场景使用;不改 --font-mono)。
+      (D7) ui/input.tsx 有效圆角确保 4px(rounded-[4px])。
+      (D2) ui/tabs.tsx 激活态(约:62 data-active:text-primary)补 data-active:font-semibold。
+      (D9) theme.css ::selection 的字面色 #dceeff 改为 var(--accent-dim);ui/button.tsx destructive 变体 hover 的字面 #fff0e8 改为 destructive 的 alpha 用法(如 hover:bg-destructive/90,按现有变体结构适配,保持白字可读)。
+      完成后运行 pnpm exec tsc --noEmit 确认无类型错误。
+    agentRole: reflex
+    constraints:
+      - kind: maxDurationMs
+        value: 1500000
+  - id: iteration-ci-views
+    goal: >
+      迭代视图与 CI 相关视图修复。文件所有权(仅限):src/components/iteration/IterationView.tsx、
+      src/components/PipelineCard.tsx、src/components/RepoCiCard.tsx、src/components/LogViewer.tsx、
+      src/components/iteration/JenkinsBuildDialog.tsx、src/components/iteration/RepositoryCiDetails.tsx。
+      修复项:
+      (A2) IterationView.tsx(约:119)当前迭代回退逻辑 find(...) ?? iterations[0] 会在 key 无命中时静默显示第一个迭代,导致面包屑(store 的 iterationKey,见 nav/app-breadcrumb.tsx:34)与页面标题不一致;改为在该回退发生时用 useEffect 同步 setIteration(iterations[0].name),确保面包屑=页面标题=切换器三者恒等。
+      (A3) IterationView.tsx(约:137-149 IntersectionObserver 哨兵,:275-281 列表尾)在 nextToken 存在时渲染常驻可聚焦 Button「加载更多」(variant="outline" size="sm",onClick 触发同一加载函数);首屏与翻页的「加载中…」纯文字(约:211,:278)改为用 @/components/ui/skeleton 组 2 张骨架卡。
+      (C4) IterationView.tsx(约:196 摘要格,:211 列表头,:284 列表尾)计数口径统一为「当前类别 x 项 · 全部已加载 y 项」,三处一致、不再混用「迭代内/筛选后」多种说法。
+      (C1) PipelineCard.tsx(约:30,:47)、JenkinsBuildDialog.tsx(约:290)、RepositoryCiDetails.tsx(约:208)、RepoCiCard.tsx(约:70)所有 String(e)/String(cause)/entry.error 直出改为 humanizeError(err, 业务化fallback),前缀保留业务语境(如「触发失败:」「查询失败:」),原始 err 用 errorLog(scope, err) 进 console。
+      (C2) RepositoryCiDetails.tsx(约:57-65)抽屉头部加可见关闭按钮:优先用 ui/drawer 的 DrawerClose+X 图标;若无该导出则自绘 Button(variant="ghost" size="icon-sm",aria-label="关闭")调用 onOpenChange(false)。LogViewer.tsx(约:39)showCloseButton={false} 改为 true(先确认 ui/dialog 对该 prop 的支持方式,保持原有关闭按钮不重复)。
+      (D1) 上述 4 个文件里的「刷新/刷新状态」按钮统一为 variant="outline" size="sm" + RefreshCw 图标(lucide,本项目现有图标用法),RepoCiCard 的 icon-only 刷新保留 icon-only 但改 outline 样式与 aria-label="刷新 CI 状态"。
+      (D5) RepoCiCard.tsx(约:50)CI 提供方展示映射:JENKINS→Jenkins、FLOW→云效 Flow,并去掉 uppercase 类。
+      (D6) LogViewer.tsx(约:50)日志正文与构建编号应用 font-log 等宽工具类(令牌由并行任务添加,类名缺失不报错);break-all 改 break-words,标识符(REQ-xxxx、#1842)不折断。
+      (D4) IterationView 页面标题旁的迭代状态徽章若为彩色 tint 背景(实测 ≈#e89f6c),改为与表格徽章同语法:中性底(bg-canvas-soft 或白)+ 彩色圆点 + ink 文字;不改 StatusBadge.tsx(归其他任务)。
+      完成后运行 pnpm exec tsc --noEmit 确认无类型错误。
+    agentRole: reflex
+    constraints:
+      - kind: maxDurationMs
+        value: 1800000
+    dependsOn: []
+  - id: shell-shared
+    goal: >
+      壳层、导航与共享组件修复。文件所有权(仅限):src/components/Shell.tsx、
+      src/components/WriteOpButton.tsx、src/components/StatusBadge.tsx、src/components/empty-hint.tsx、
+      src/components/page-header.tsx、src/components/OverviewView.tsx、src/components/SettingsView.tsx、
+      src/components/nav/app-sidebar.tsx、src/components/searchable-select.tsx。
+      修复项:
+      (A4) WriteOpButton.tsx:!allow(只读门控)时不再向 Button 传 disabled(HTML disabled 会吞掉 hover/focus,Tooltip 永远不出现),改为:aria-disabled="true" + 灰阶样式类(bg-muted text-muted-foreground border-border shadow-none,与 ui/button.tsx 新禁用态视觉一致)+ 保留 Tooltip + onClick 打开 AlertDialog 说明「写操作已关闭:需在 设置 → 安全 中开启(需写权限令牌)」,弹窗内提供「前往设置」按钮(查看 store/useApp 或 ui store 是否有视图导航方法,如 setActiveView/settings 路由,有则直接跳设置页;没有则只做说明文案)。空草稿导致的 disabled(RequirementDetails 调用处)行为保持不变。
+      (A4) Shell.tsx:allowWriteOps=false 时在工作区内容顶部渲染只读横幅:bg-canvas-soft、border-b border-border、文字 text-muted-foreground 12px,Lucide Lock 图标 + 「只读模式:写操作已关闭」+「前往设置」入口(与上同一导航方法);不得破坏现有 workspace-grid 三栏布局(放在 grid 之上)。
+      (B2) page-header.tsx(约:38)移除 text-2xl font-bold tracking-tight 覆写,让 base h1(26px/700/−0.625px/1.23,theme.css:209)生效。
+      (C3) empty-hint.tsx 增加可选 action?: ReactNode prop,渲染在文案下方;OverviewView.tsx(约:222)「无流水线」空态接入「去绑定 CI」按钮(同一导航方法跳设置 CI 集成;参考 iteration/RepositoryCiDetails.tsx:111-124 的正例文案)。
+      (C5) app-sidebar.tsx:约46「DELIVERY CONTROL」、约116「工作区」的 /50 透明度黑、约101「搜索或提问」的 /55 → 全部改 text-muted-foreground。
+      (C6) app-sidebar.tsx(约:104)「搜索或提问」文案改「搜索工作项」,⌘K 徽标保留。
+      (D5) OverviewView.tsx(约:147)副标题去掉原始哈希「a1b2c3d4e5f60718」(保留「需求」或改「需求工作台」);OverviewView 页头 eyebrow「DELIVERY OVERVIEW」改「Delivery overview」;SettingsView 页头「SETTINGS」改「Settings」;SettingsView(约:240-241)页头与卡片标题重复「云效连接」→ 卡片标题改为「令牌与组织」或仅保留描述;app-sidebar 副标「DELIVERY CONTROL」改「Delivery Control」。
+      (D3) StatusBadge.tsx 状态圆点(绿 sig-ok 白底 2.94:1)加边缘定义:圆点外包 1px ring-black/10 或尺寸加大 1px,不换颜色、不加新色值。
+      (D7) searchable-select.tsx 触发按钮有效圆角核对为 4px(与 text-input 一致)。
+      (C1-N) OverviewView.tsx(约:157)连接格加载占位字面「…」改 Skeleton 或「获取中」;同文件错误提示若直出原始错误改 humanizeError(@/lib/error-format)。
+      完成后运行 pnpm exec tsc --noEmit 确认无类型错误。
+    agentRole: reflex
+    constraints:
+      - kind: maxDurationMs
+        value: 1500000
+    dependsOn: []
+  - id: verify-typecheck
+    goal: >
+      只读验证:在仓库根运行 pnpm exec tsc --noEmit,必须零错误;然后 git diff --stat 汇总三个实现任务的改动面,
+      逐项核对以下关键点并在报告中给出 通过/不通过 与证据(文件:行):
+      (1) theme.css 中 sig-fail 与 destructive 均为 #d1340b,全仓无残留 #793400 字面色;
+      (2) ui/button.tsx 无 disabled:opacity-50、hover/active 使用 --primary-active;
+      (3) dropdown-menu/popover/sheet 无 shadow-md/shadow-lg,均 shadow-level-2;
+      (4) IterationView 回退同步 setIteration、存在「加载更多」Button、骨架卡替换「加载中…」;
+      (5) WriteOpButton 只读路径无 disabled 属性传入、有 aria-disabled 与解释弹窗;
+      (6) Shell.tsx 存在只读横幅;
+      (7) 全仓 src/ 下无 String(e)/String(cause) 直出残留(允许 errorLog 处);
+      (8) LogViewer 使用 font-log。
+      任何不通过项:报告列出文件:行与原因,不得自行修改文件(你是只读角色)。
+    agentRole: focus
+    constraints:
+      - kind: maxDurationMs
+        value: 600000
+    dependsOn: [token-layer, iteration-ci-views, shell-shared]
+acceptance:
+  - given: 预览地址 http://localhost:1423 的总览页
+    when: 查看流水线列表
+    then: 「失败」胶囊呈红色系(#d1340b),与「运行中」橙色明显可区分
+  - given: 迭代视图处于回退显示状态
+    when: 对比面包屑、页面标题与切换器
+    then: 三者显示同一名迭代
+  - given: 只读模式(allowWriteOps=false)
+    when: 查看需求详情与工作台
+    then: 页顶有只读横幅;被门控按钮呈灰阶、可聚焦、点击出现带「前往设置」的解释弹窗
+  - given: 迭代工作项列表有多页数据
+    when: 使用键盘 Tab
+    then: 可聚焦「加载更多」按钮并触发加载
+  - given: 仓库根
+    when: 运行 pnpm exec tsc --noEmit
+    then: 零错误退出
