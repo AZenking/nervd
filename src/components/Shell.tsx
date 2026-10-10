@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import { LockIcon } from 'lucide-react';
 import { useSettingsDraft } from '../store/settings-draft';
+import { useApp } from '../store/app';
 import { useUi, type WorkspaceView } from '../store/ui';
 import { AppSidebar } from './nav/app-sidebar';
 import { AppBreadcrumb } from './nav/app-breadcrumb';
@@ -12,6 +14,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 
 /** 未保存设置草稿的导航守卫（UX A1）：保存并离开 / 放弃修改 / 继续编辑 */
@@ -72,6 +75,30 @@ function DirtyGuardDialog() {
   );
 }
 
+/** 只读模式横幅（设计审计 A4）：allowWriteOps=false 时常驻工作区内容顶部，引导去设置开启。
+ * 设置尚未加载（booting / settings 为空）时不渲染，避免可写用户每次启动都看到假告警再消失。 */
+function ReadonlyBanner() {
+  const booting = useApp((s) => s.booting);
+  const settings = useApp((s) => s.settings);
+  const openSettings = useUi((s) => s.openSettings);
+  if (booting || settings == null || settings.allowWriteOps) return null;
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-b border-border bg-[var(--canvas-soft)] px-5 py-1.5 text-xs text-muted-foreground sm:px-8 lg:px-10">
+      <LockIcon className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">只读模式：写操作已关闭</span>
+      <Button
+        type="button"
+        variant="link"
+        size="xs"
+        className="h-auto px-0"
+        onClick={() => openSettings('security')}
+      >
+        前往设置
+      </Button>
+    </div>
+  );
+}
+
 export function Shell() {
   const { view } = useUi();
   const restoreScroll = useUi((s) => s.restoreScroll);
@@ -118,6 +145,9 @@ export function Shell() {
                 </div>
               </div>
             )}
+
+            {/* 只读横幅：在内容网格之上，不挤占三栏布局 */}
+            <ReadonlyBanner />
 
             <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-14 pt-5 sm:px-8 lg:px-10">
               {view === 'iteration' && <IterationView />}

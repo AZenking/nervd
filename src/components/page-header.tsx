@@ -35,7 +35,8 @@ export function PageHeader({
           {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+          {/* B2：不再覆写字号，页面标题统一走 theme.css base h1（26px/700/−0.625px） */}
+          <h1>{title}</h1>
           {titleBadge}
           {description && (
             <span className="min-w-0 truncate text-xs text-muted-foreground">{description}</span>
