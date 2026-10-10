@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { findRemoteBranch } from '@/lib/iteration-branches';
+import { errorLog, humanizeError } from '@/lib/error-format';
 import type { WorkitemChild } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
@@ -323,7 +324,7 @@ function LinkedRepoRow({
       onRetryBaseline();
       void loadTrace();
     } catch (error) {
-      setToast({ text: String(error), kind: 'fail' });
+      errorLog('workitem-action', error); setToast({ text: humanizeError(error), kind: 'fail' });
     }
   };
 
@@ -365,7 +366,7 @@ function LinkedRepoRow({
       setToast({ text: `MR 已创建：${developerBranch} → ${operationBaseBranch}`, kind: 'ok' });
       void loadTrace();
     } catch (error) {
-      setToast({ text: String(error), kind: 'fail' });
+      errorLog('workitem-action', error); setToast({ text: humanizeError(error), kind: 'fail' });
     }
   };
 
@@ -563,7 +564,7 @@ export function RequirementDetails() {
           ? { branch, state: 'exists' as const }
           : { branch, state: 'missing' as const }] as const;
       } catch (error) {
-        return [repoId, { branch, state: 'error' as const, error: String(error) }] as const;
+        return [repoId, { branch, state: 'error' as const, error: humanizeError(error) }] as const;
       }
     })).then((results) => {
       if (active) setBaselineChecks(Object.fromEntries(results));
@@ -637,7 +638,7 @@ export function RequirementDetails() {
         setLinkDraftTemplateId('');
       } catch (error) {
         setToast({
-          text: (repoLinked ? '仓库已关联，但分支模板保存失败' : '云效仓库关联保存失败') + '：' + String(error),
+          text: (repoLinked ? '仓库已关联，但分支模板保存失败' : '云效仓库关联保存失败') + '：' + humanizeError(error),
           kind: 'fail',
         });
       } finally {
@@ -653,7 +654,8 @@ export function RequirementDetails() {
       setToast({ text: templateId ? '已为此需求仓库应用分支模板' : '已清除此需求仓库的分支模板', kind: 'ok' });
       setBaselineRetry((value) => value + 1);
     } catch (error) {
-      setToast({ text: `保存分支模板选择失败：${String(error)}`, kind: 'fail' });
+      errorLog('branch-template-save', error);
+      setToast({ text: `保存分支模板选择失败：${humanizeError(error)}`, kind: 'fail' });
     }
   };
 
@@ -694,7 +696,7 @@ export function RequirementDetails() {
                 setSavingRepos(true);
                 void saveWorkitemRepos(selectedId, null)
                   .then(() => setToast({ text: '已恢复默认云效仓库', kind: 'ok' }))
-                  .catch((e) => setToast({ text: `云效仓库关联保存失败：${String(e)}`, kind: 'fail' }))
+                  .catch((e) => { errorLog('repo-link-save', e); setToast({ text: `云效仓库关联保存失败：${humanizeError(e)}`, kind: 'fail' }); })
                   .finally(() => setSavingRepos(false));
               }}
             >

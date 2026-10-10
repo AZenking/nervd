@@ -5,6 +5,7 @@ import { Link2Icon, PlusIcon, RefreshCwIcon, Trash2Icon, WorkflowIcon } from 'lu
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
+import { errorLog, humanizeError } from '@/lib/error-format';
 import type { JenkinsConnection, RepoCiBinding } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,8 @@ export function JenkinsInstancesCard() {
       const message = await api.testJenkinsConnection(connection, jenkinsTokens[connection.id]);
       setCiResults((r) => ({ ...r, [connection.id]: message }));
     } catch (e) {
-      setCiResults((r) => ({ ...r, [connection.id]: `连接失败：${String(e)}` }));
+      errorLog('ci-connection-test', e);
+      setCiResults((r) => ({ ...r, [connection.id]: `连接失败：${humanizeError(e, '无法建立连接，请检查地址与凭证')}` }));
     }
   };
 
@@ -105,7 +107,8 @@ export function RepoCiBindingsCard() {
       const job = await api.getJenkinsJob(binding.connectionId, binding.jobFullName);
       setCiResults((r) => ({ ...r, [key]: `Job 有效：${job.fullName}${job.color ? ` · ${job.color}` : ''}` }));
     } catch (e) {
-      setCiResults((r) => ({ ...r, [key]: `Job 查询失败：${String(e)}` }));
+      errorLog('ci-job-query', e);
+      setCiResults((r) => ({ ...r, [key]: `Job 查询失败：${humanizeError(e)}` }));
     }
   };
 

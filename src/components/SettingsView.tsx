@@ -3,6 +3,7 @@ import * as api from '../lib/api';
 import { useApp } from '../store/app';
 import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type SettingsSection } from '../store/ui';
+import { errorLog, humanizeError } from '../lib/error-format';
 import { RefreshCwIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -57,7 +58,8 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
       if (!list.length) useSettingsDraft.getState().setFieldError('space', '未返回项目（检查令牌权限或组织 ID）');
       else useSettingsDraft.getState().setFieldError('space', null);
     } catch (e) {
-      useSettingsDraft.getState().setFieldError('space', `项目拉取失败：${String(e)}`);
+      errorLog('settings-fetch-projects', e);
+      useSettingsDraft.getState().setFieldError('space', `项目拉取失败：${humanizeError(e)}`);
     }
   };
 
@@ -79,7 +81,8 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
         ? `连接正常，可见组织：${orgs.map((o) => o.organizationName).slice(0, 3).join('、')}${orgs.length > 3 ? '…' : ''}`
         : '连接正常，但未返回组织（检查令牌权限）');
     } catch (e) {
-      setTestResult(`连接失败：${String(e)}`);
+      errorLog('settings-test-connection', e);
+      setTestResult(`连接失败：${humanizeError(e, '无法连接云效，请检查令牌与组织 ID')}`);
     }
   };
 

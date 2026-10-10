@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useApp } from '@/store/app';
+import { errorLog, humanizeError } from '@/lib/error-format';
 import { SearchableSelect } from '../searchable-select';
 import { WriteOpButton } from '@/components/WriteOpButton';
 
@@ -40,7 +41,7 @@ export function SubtaskEditDialog({
           if (current) setStatusId(current.id);
         }
       })
-      .catch((cause: unknown) => { if (active) setStatusError(String(cause)); })
+      .catch((cause: unknown) => { if (active) { errorLog('subtask-load', cause); setStatusError(humanizeError(cause, '子任务加载失败')); } })
       .finally(() => { if (active) setLoadingStatuses(false); });
     return () => { active = false; };
   }, [child.workitemId, child.status, child.statusId]);
@@ -63,7 +64,8 @@ export function SubtaskEditDialog({
       setToast({ text: `子任务 ${child.identifier} 已更新`, kind: 'ok' });
       onClose();
     } catch (cause) {
-      setToast({ text: `子任务更新失败：${String(cause)}`, kind: 'fail' });
+      errorLog('subtask-update', cause);
+      setToast({ text: `子任务更新失败：${humanizeError(cause)}`, kind: 'fail' });
     } finally {
       setSaving(false);
     }

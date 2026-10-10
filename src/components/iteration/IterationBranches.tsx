@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PlusIcon } from 'lucide-react';
 import { useApp } from '@/store/app';
+import { errorLog, humanizeError } from '@/lib/error-format';
 import type { BranchRuleTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -73,7 +74,7 @@ export function IterationBranches() {
       setToast({ text: editingId ? '分支模板已更新' : '分支模板已保存到本机', kind: 'ok' });
       closeDialog();
     } catch (error) {
-      setToast({ text: `保存分支模板失败：${String(error)}`, kind: 'fail' });
+      errorLog('branch-template-save', error); setToast({ text: `保存分支模板失败：${humanizeError(error)}`, kind: 'fail' });
     } finally {
       setSaving(false);
     }
@@ -85,7 +86,7 @@ export function IterationBranches() {
       await saveBranchRuleTemplates(templates.filter((item) => item.id !== template.id));
       setToast({ text: '分支模板已删除', kind: 'ok' });
     } catch (error) {
-      setToast({ text: `删除分支模板失败：${String(error)}`, kind: 'fail' });
+      errorLog('branch-template-delete', error); setToast({ text: `删除分支模板失败：${humanizeError(error)}`, kind: 'fail' });
     }
   };
 

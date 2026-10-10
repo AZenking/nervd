@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import * as api from '@/lib/api';
+import { errorLog, humanizeError } from '@/lib/error-format';
 
 type BaselineState = 'loading' | 'exists' | 'missing' | 'error' | undefined;
 type CheckState =
@@ -63,7 +64,8 @@ export function BranchDivergenceCheck({
         }
       } catch (error) {
         if (active) {
-          setCheck({ status: 'error', message: error instanceof Error ? error.message : String(error) });
+          errorLog('branch-divergence', error);
+          setCheck({ status: 'error', message: humanizeError(error, '分支差异检查失败') });
         }
       }
     })();
