@@ -1,8 +1,12 @@
 // 工作区视图状态（nervd-new-ui 基准的信息架构）：
-// iteration=迭代总览 / requirement=需求详情 / settings=环境与策略 / full-settings=完整设置
+// iteration=迭代总览 / requirement=需求详情 / full-settings=完整设置
 // 与 store/app.ts 的业务状态分离；不持久化——每次启动回到当前迭代。
+// 导航历史与层级链（UX 评审 A2）：面包屑可点、⌘← 后退、子任务可回父需求。
+// 设置页互切/离开时若设置草稿有未保存修改，则拦截为 pendingView 由 Shell 弹确认（UX A1）。
 import { create } from 'zustand';
 import type { IterationSummary } from '../types';
+import { useApp } from './app';
+import { useSettingsDraft } from './settings-draft';
 
 /** 演示迭代：sprints OpenAPI 不可用（未配置 / 接口失败）时的回退壳 */
 export const PLACEHOLDER_ITERATIONS: IterationSummary[] = [
@@ -88,33 +92,162 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
   });
 }
 
-export type WorkspaceView = 'iteration' | 'requirement' | 'overview' | 'settings' | 'full-settings';
+export type WorkspaceView = 'iteration' | 'requirement' | 'overview' | 'full-settings';
+export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security';
+
+/** 面包屑上的工作项（父 › 子层级链的节点） */
+export interface WorkitemCrumb {
+  workitemId: string;
+  identifier: string;
+  subject?: string;
+}
+
+/** 导航历史快照（后退恢复用）——含搜索词与滚动位置，完整还原工作现场 */
+interface NavSnapshot {
+  view: WorkspaceView;
+  settingsSection: SettingsSection;
+  iterationKey: string;
+  selectedId: string | null;
+  chain: WorkitemCrumb[];
+  listSearch: string;
+  scrollTop: number;
+}
+
+const HISTORY_LIMIT = 30;
+const isSettingsView = (v: WorkspaceView) => v === 'full-settings';
 
 interface UiStore {
   view: WorkspaceView;
+  settingsSection: SettingsSection;
   iterationKey: string;
   filters: WorkitemFilters;
+  /** 迭代页工作项搜索词（入导航快照，后退可恢复） */
+  listSearch: string;
+  setListSearch(value: string): void;
+  /** 导航历史（后退用） */
+  history: NavSnapshot[];
+  /** 待恢复的工作区滚动位置（Shell 应用后清空） */
+  restoreScroll: number | null;
+  /** 需求详情的层级链（末位 = 当前详情）；从子任务进入时为 [父, 子] */
+  chain: WorkitemCrumb[];
   setView(view: WorkspaceView): void;
+  setSettingsSection(section: SettingsSection): void;
+  openSettings(section?: SettingsSection): void;
   setIteration(key: string): void;
   toggleFilter(kind: keyof WorkitemFilters, value: string): void;
   clearFilters(): void;
-  openRequirement(): void;
+  /** 打开工作项详情：记录历史与层级链（parent 传入时形成 父 › 子 面包屑） */
+  openWorkitem(workitemId: string, crumb: WorkitemCrumb, parent?: WorkitemCrumb): void;
+  /** 后退一步（⌘←）；无历史时不动 */
+  back(): void;
+  /** 全局搜索信号（侧栏搜索框 / ⌘K）：切到迭代视图并让主区搜索框聚焦 */
+  searchFocusAt: number;
+  focusGlobalSearch(): void;
 }
 
-export const useUi = create<UiStore>((set) => ({
-  view: 'iteration',
-  iterationKey: PLACEHOLDER_ITERATIONS[0].name,
-  filters: { assignees: [], related: [], statuses: [] },
-  setView: (view) => set({ view }),
-  setIteration: (iterationKey) => set({ iterationKey, view: 'iteration' }),
-  toggleFilter: (kind, value) =>
-    set((st) => {
-      const values = st.filters[kind];
-      const next = values.includes(value)
-        ? values.filter((v) => v !== value)
-        : [...values, value];
-      return { filters: { ...st.filters, [kind]: next } };
-    }),
-  clearFilters: () => set({ filters: { assignees: [], related: [], statuses: [] } }),
-  openRequirement: () => set({ view: 'requirement' }),
-}));
+/** 离开设置视图且草稿有未保存修改 → 拦截，交给 Shell 的确认弹窗（UX A1） */
+function guardSettingsDraft(current: WorkspaceView, next: WorkspaceView | 'back'): boolean {
+  if (!isSettingsView(current)) return false;
+  const draft = useSettingsDraft.getState();
+  if (!draft.isDirty()) return false;
+  draft.setPendingView(next);
+  return true;
+}
+
+export const useUi = create<UiStore>((set, get) => {
+  /** 把"当前状态"压入历史（在状态变更前调用）；捕获搜索词与工作区滚动位置 */
+  const pushHistory = () => {
+    const st = get();
+    const snapshot: NavSnapshot = {
+      view: st.view,
+      settingsSection: st.settingsSection,
+      iterationKey: st.iterationKey,
+      selectedId: useApp.getState().selectedId,
+      chain: st.chain,
+      listSearch: st.listSearch,
+      scrollTop: document.querySelector<HTMLElement>('.workspace-scroll')?.scrollTop ?? 0,
+    };
+    set({ history: [...st.history.slice(-(HISTORY_LIMIT - 1)), snapshot] });
+  };
+
+  return {
+    view: 'iteration',
+    settingsSection: 'connection',
+    iterationKey: PLACEHOLDER_ITERATIONS[0].name,
+    filters: { assignees: [], related: [], statuses: [] },
+    listSearch: '',
+    setListSearch: (value) => set({ listSearch: value }),
+    history: [],
+    restoreScroll: null,
+    chain: [],
+    searchFocusAt: 0,
+    focusGlobalSearch: () => {
+      get().setView('iteration');
+      set({ searchFocusAt: Date.now() });
+    },
+    setView: (view) => {
+      const st = get();
+      if (view === st.view) return;
+      if (guardSettingsDraft(st.view, view)) return;
+      pushHistory();
+      set({ view });
+    },
+    setSettingsSection: (settingsSection) => set({ settingsSection }),
+    openSettings: (settingsSection = 'connection') => {
+      const st = get();
+      if (isSettingsView(st.view)) {
+        set({ settingsSection });
+        return;
+      }
+      pushHistory();
+      set({ view: 'full-settings', settingsSection });
+    },
+    setIteration: (iterationKey) => {
+      const st = get();
+      if (iterationKey === st.iterationKey && st.view === 'iteration') return;
+      if (guardSettingsDraft(st.view, 'iteration')) return;
+      pushHistory();
+      set({ iterationKey, view: 'iteration' });
+    },
+    toggleFilter: (kind, value) =>
+      set((st) => {
+        const values = st.filters[kind];
+        const next = values.includes(value)
+          ? values.filter((v) => v !== value)
+          : [...values, value];
+        return { filters: { ...st.filters, [kind]: next } };
+      }),
+    clearFilters: () => set({ filters: { assignees: [], related: [], statuses: [] } }),
+    openWorkitem: (workitemId, crumb, parent) => {
+      const st = get();
+      const blocked = guardSettingsDraft(st.view, 'requirement');
+      // 选择与层级链先落地（只读操作）；被拦截时确认后将 setView 到详情
+      if (!blocked) pushHistory();
+      set({ chain: parent ? [parent, crumb] : [crumb] });
+      void useApp.getState().select(workitemId);
+      if (!blocked) set({ view: 'requirement' });
+    },
+    back: () => {
+      const st = get();
+      if (guardSettingsDraft(st.view, 'back')) return;
+      const prev = st.history[st.history.length - 1];
+      if (!prev) return;
+      set({
+        history: st.history.slice(0, -1),
+        view: prev.view,
+        settingsSection: prev.settingsSection,
+        iterationKey: prev.iterationKey,
+        chain: prev.chain,
+        // 恢复搜索词与滚动位置（Shell 应用 restoreScroll 后清空）
+        listSearch: prev.listSearch,
+        restoreScroll: prev.scrollTop,
+      });
+      if (prev.view === 'requirement') {
+        const target = prev.chain[prev.chain.length - 1];
+        if (target && target.workitemId !== useApp.getState().selectedId) {
+          void useApp.getState().select(target.workitemId);
+        }
+      }
+    },
+  };
+});
