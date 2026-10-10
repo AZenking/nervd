@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useApp } from '@/store/app';
 import {
@@ -69,6 +70,28 @@ function RepositoryRow({ repo }: { repo: RepoSummary }) {
   );
 }
 
+/** 列表骨架卡：首屏与翻页加载态共用，尺寸对齐真实卡片，避免布局跳动 */
+function WorkitemSkeletonCards() {
+  return (
+    <>
+      {[0, 1].map((key) => (
+        <div
+          key={key}
+          aria-hidden
+          className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-4"
+        >
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+          <Skeleton className="h-6 w-16 rounded-full" />
+        </div>
+      ))}
+    </>
+  );
+}
+
 /**
  * 迭代视图（高频优先）：迭代摘要 → 迭代工作项（搜索/筛选前置）→ 涉及仓库 → 分支规则模板（低频配置，默认折叠）。
  * CI 时间戳只在快照成功刷新时更新（app.ciRefreshedAt），避免"发起请求即更新"的错误信心。
@@ -120,6 +143,11 @@ export function IterationView() {
   const usingFallback = !realIterations.length;
   const activeFilterCount = filters.assignees.length + filters.related.length + filters.statuses.length;
 
+  // 回退到首个迭代时同步 store：面包屑（iterationKey）= 页面标题 = 切换器
+  useEffect(() => {
+    if (iteration && iteration.name !== iterationKey) setIteration(iteration.name);
+  }, [iteration, iterationKey, setIteration]);
+
   // 列表按当前迭代收窄（真实迭代命中时），再套用侧栏筛选与关键字
   const scoped = useMemo(
     () => scopedItems(items, iterationKey, realIterations),
@@ -132,6 +160,9 @@ export function IterationView() {
       return it.subject.toLowerCase().includes(k) || it.identifier.toLowerCase().includes(k);
     });
   }, [scoped, filters, listSearch]);
+
+  // 计数口径（本页三处共用）：当前类别 x 项 · 全部已加载 y 项
+  const countSummary = `当前类别 ${scoped.length} 项 · 全部已加载 ${items.length} 项`;
 
   // 滚动加载哨兵：进入视口（提前 240px）自动拉取下一页；加载完成即重挂观察器，列表仍短则继续拉取
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -153,7 +184,12 @@ export function IterationView() {
       <PageHeader
         breadcrumb={<AppBreadcrumb />}
         title={iteration.name}
-        titleBadge={<StatusBadge status={iteration.state || undefined} />}
+        titleBadge={
+          <StatusBadge
+            status={iteration.state || undefined}
+            className="border-border bg-secondary text-secondary-foreground"
+          />
+        }
         description={usingFallback
           ? `占位数据 · 迭代接口不可用${loadingIterations ? '，获取中…' : ''}`
           : `${iteration.title || '云效项目迭代'}${iteration.startDate && iteration.endDate ? ` · ${iteration.startDate} ~ ${iteration.endDate}` : ''}`}
@@ -191,10 +227,7 @@ export function IterationView() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
       {/* 迭代属性行（Notion properties 形态，无卡片壳） */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <InfoItem
-          label="工作项（当前类别）"
-          value={usingFallback ? String(scoped.length) : `${scoped.length} / 已加载 ${items.length}`}
-        />
+        <InfoItem label="工作项" value={countSummary} />
         <InfoItem label="关联仓库" value={`${repositories.length} 个`} />
         <InfoItem
           label="CI 上次成功刷新"
@@ -208,7 +241,7 @@ export function IterationView() {
       <section className="flex flex-col gap-3 border-b border-border/70 pb-6">
         <SectionHeader
           title="迭代工作项"
-          hint={`${CATEGORY_LABELS[category]} · 迭代内 ${scoped.length} 项 · 筛选后 ${filtered.length} 项（已加载 ${items.length}）${loadingList ? ' · 加载中…' : ''}`}
+          hint={`${CATEGORY_LABELS[category]} · ${countSummary}`}
           action={<>
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -258,30 +291,36 @@ export function IterationView() {
                 <StatusBadge status={item.status} />
               </Button>
             ))}
+            {/* 首屏加载（尚无已加载数据）：以骨架卡代替纯文字 */}
+            {loadingList && !items.length && <WorkitemSkeletonCards />}
             {!filtered.length && !loadingList && (
               <EmptyHint
                 icon={SearchXIcon}
                 className="col-span-full"
                 title="无匹配工作项"
                 description={items.length && !usingFallback && activeFilterCount
-                  ? '当前迭代无匹配工作项（可清除侧栏筛选或滚动加载更多）'
+                  ? '当前迭代无匹配工作项（可清除侧栏筛选或点击「加载更多」）'
                   : nextToken
-                    ? '当前迭代暂无已加载的工作项（向下滚动继续拉取）'
+                    ? '当前迭代暂无已加载的工作项（向下滚动或点击「加载更多」继续拉取）'
                     : undefined}
               />
             )}
-            {/* 滚动加载哨兵：进入视口即自动拉取下一页 */}
+            {/* 滚动加载哨兵：进入视口即自动拉取下一页；常驻按钮保证键盘/触屏可达 */}
             <div ref={sentinelRef} className="col-span-full h-px" aria-hidden />
             {nextToken && (
-              <div className="col-span-full flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
-                {loadingList
-                  ? (<><LoaderCircleIcon className="size-3.5 animate-spin" />加载中…</>)
-                  : '向下滚动加载更多'}
-              </div>
+              <>
+                {loadingList && items.length > 0 && <WorkitemSkeletonCards />}
+                <div className="col-span-full flex items-center justify-center py-2">
+                  <Button variant="outline" size="sm" disabled={loadingList} onClick={() => void loadList(true)}>
+                    {loadingList && <LoaderCircleIcon data-icon="inline-start" className="animate-spin" />}
+                    加载更多
+                  </Button>
+                </div>
+              </>
             )}
             {!nextToken && items.length > 0 && !loadingList && (
               <div className="col-span-full py-2 text-center text-xs text-muted-foreground">
-                已加载全部 · 共 {items.length} 项
+                已加载全部 · {countSummary}
               </div>
             )}
           </div>

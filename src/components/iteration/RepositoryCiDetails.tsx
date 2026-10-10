@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { Link2Icon, RefreshCwIcon } from 'lucide-react';
+import { Link2Icon, RefreshCwIcon, XIcon } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import type { RepoSummary } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -17,6 +17,7 @@ import { JenkinsBuildDialog } from './JenkinsBuildDialog';
 import { InfoItem } from '../info-item';
 import { TableEmptyRow } from '../table-empty-row';
 import { buildRunParameter, ciProviderLabel, ciStatusText, triggerRepoCiWithFeedback } from '@/lib/ci';
+import { humanizeError } from '@/lib/error-format';
 import { formatDuration } from '@/lib/format';
 
 /**
@@ -60,7 +61,14 @@ export function RepositoryCiDetails({
               <DrawerTitle>{repo.name} · CI 详情</DrawerTitle>
               <DrawerDescription>仓库 #{repo.id} · {providerLabel}{isFlow && binding.pipelineName ? ` · ${binding.pipelineName}` : ''}</DrawerDescription>
             </div>
-            <StatusBadge status={isBound ? ciStatusText(snapshot?.status, entry) : '未绑定'} />
+            <div className="flex shrink-0 items-center gap-2">
+              <StatusBadge status={isBound ? ciStatusText(snapshot?.status, entry) : '未绑定'} />
+              <DrawerClose
+                render={<Button variant="ghost" size="icon-sm" aria-label="关闭" />}
+              >
+                <XIcon />
+              </DrawerClose>
+            </div>
           </div>
         </DrawerHeader>
         <ScrollArea className="min-h-0 flex-1">
@@ -151,7 +159,7 @@ export function RepositoryCiDetails({
                   <TableBody>
                     {runs.map((run) => (
                       <TableRow key={run.runId}>
-                        <TableCell className="font-mono text-xs">
+                        <TableCell className="font-log text-xs">
                           <div>#{run.runId}</div>
                           {run.trigger && (
                             <Tooltip>
@@ -205,7 +213,7 @@ export function RepositoryCiDetails({
                         title={entry?.loading
                           ? '加载运行记录…'
                           : entry?.error
-                            ? `查询失败：${entry.error}`
+                            ? `查询失败：${humanizeError(entry.error, '未能获取运行记录，请稍后重试')}`
                             : isBound ? '暂无运行记录，触发一次构建后展示' : '未绑定 CI，请先绑定流水线或 Jenkins Job'}
                       />
                     )}
