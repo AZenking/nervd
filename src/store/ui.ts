@@ -140,9 +140,14 @@ interface UiStore {
   openWorkitem(workitemId: string, crumb: WorkitemCrumb, parent?: WorkitemCrumb): void;
   /** 后退一步（⌘←）；无历史时不动 */
   back(): void;
-  /** 全局搜索信号（侧栏搜索框 / ⌘K）：切到迭代视图并让主区搜索框聚焦 */
-  searchFocusAt: number;
-  focusGlobalSearch(): void;
+  /** ⌘K 命令面板开关（Linear 式全局入口：导航 / 迭代 / 工作项 / 操作） */
+  commandOpen: boolean;
+  setCommandOpen(open: boolean): void;
+  toggleCommandMenu(): void;
+  /** ? 键盘快捷键面板开关（全局 `?` 触发；仅新增字段，向后兼容） */
+  shortcutsOpen: boolean;
+  /** 快捷键面板开合（Base UI Dialog 受控） */
+  setShortcutsOpen(open: boolean): void;
 }
 
 /** 离开设置视图且草稿有未保存修改 → 拦截，交给 Shell 的确认弹窗（UX A1） */
@@ -180,11 +185,11 @@ export const useUi = create<UiStore>((set, get) => {
     history: [],
     restoreScroll: null,
     chain: [],
-    searchFocusAt: 0,
-    focusGlobalSearch: () => {
-      get().setView('iteration');
-      set({ searchFocusAt: Date.now() });
-    },
+    commandOpen: false,
+    setCommandOpen: (commandOpen) => set({ commandOpen }),
+    toggleCommandMenu: () => set((st) => ({ commandOpen: !st.commandOpen })),
+    shortcutsOpen: false,
+    setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
     setView: (view) => {
       const st = get();
       if (view === st.view) return;

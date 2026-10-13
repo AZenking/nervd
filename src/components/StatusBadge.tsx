@@ -1,9 +1,10 @@
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { StatusIcon } from '@/components/status-icon';
 
 /**
- * 全工程统一状态徽章：shadcn Badge = 状态指示灯 + 中文名。
- * 连接 / 读写策略 / CI 运行 / 合并请求 / 迭代 / 工作项状态共用同一套语义分组与配色，
+ * 全工程统一状态徽章：Linear 式状态图形 + 裸文本（ghost 形态，无药丸底色）。
+ * 连接 / 读写策略 / CI 运行 / 合并请求 / 迭代 / 工作项状态共用同一套语义分组与图形，
  * 原始英文状态（SUCCESS/RUNNING/…）统一翻译，中文状态（进行中/未开始/…）原样透传。
  */
 export type StatusTone = 'ok' | 'run' | 'fail' | 'idle';
@@ -64,21 +65,7 @@ export function connectionStatus(connection?: string): string {
   return connection === 'ok' ? 'CONNECTED' : connection === 'fail' ? 'CONNECT_FAIL' : 'CONNECTING';
 }
 
-const TONE_DOT: Record<StatusTone, string> = {
-  ok: 'bg-sig-ok',
-  run: 'bg-sig-run animate-sig-pulse',
-  fail: 'bg-sig-fail',
-  idle: 'bg-sig-idle',
-};
-
-const TONE_VARIANT: Record<StatusTone, 'secondary' | 'destructive' | 'outline'> = {
-  ok: 'secondary',
-  run: 'secondary',
-  fail: 'destructive',
-  idle: 'outline',
-};
-
-/** 统一状态徽章：指示灯颜色随语义分组，RUNNING 带呼吸脉冲；label 可覆盖默认翻译 */
+/** 统一状态徽章：Linear 式状态图形 + 裸文本；RUNNING 的「进行中」语义由黄色半充圆承担；label 可覆盖默认翻译 */
 export function StatusBadge({
   status,
   label,
@@ -95,15 +82,16 @@ export function StatusBadge({
   const text = label ?? meta.label;
   return (
     <Badge
-      variant={TONE_VARIANT[meta.tone]}
+      variant="ghost"
       title={status && status.trim() !== text ? status.trim() : undefined}
-      className={cn(size === 'sm' && 'h-5 gap-1 px-1.5 text-[11px]', 'max-w-full', className)}
+      className={cn(
+        'border-transparent bg-transparent px-0 text-xs font-medium text-foreground',
+        size === 'sm' ? 'gap-1 text-[11px]' : 'gap-1.5',
+        'max-w-full',
+        className,
+      )}
     >
-      {/* D3：状态点靠描边取得边缘（绿点白底 2.94:1），不换色、不加新色值 */}
-      <span
-        aria-hidden
-        className={cn('size-1.5 shrink-0 rounded-full ring-1 ring-black/10', TONE_DOT[meta.tone])}
-      />
+      <StatusIcon status={status} className={size === 'sm' ? 'size-3' : 'size-3.5'} />
       <span className="truncate">{text}</span>
     </Badge>
   );

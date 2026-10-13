@@ -5,7 +5,7 @@ import { SidebarGroup, SidebarGroupLabel } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
 /**
- * Notion 式可折叠侧栏分组：
+ * 可折叠侧栏分组：
  * - 标题行 hover 出现小 chevron（展开态常驻指示方向），点击标题折叠/展开整组；
  * - action（如「＋」）仅在标题行 hover 时显示，点击不触发折叠；
  * - 折叠状态为会话内记忆（useState）。

@@ -14,41 +14,52 @@ import {
 import { NavCollapsibleGroup } from './nav-group';
 import {
   ArrowLeftIcon,
-  DatabaseIcon,
+  CalendarDaysIcon,
+  ChevronDownIcon,
   LayoutDashboardIcon,
   SearchIcon,
-  TerminalSquareIcon,
   TerminalIcon,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
-import { StatusBadge } from '../StatusBadge';
 import { SETTINGS_SECTIONS } from '../settings/sections';
 
-/** nervd 基准侧栏：品牌 + 工作区卡片 + 主导航 + 迭代分组 + 用户区；进入设置后整体切换为设置菜单 */
+/**
+ * nervd 侧栏（Linear 解剖）：工作区行 + 搜索行 + 主导航 + 迭代分组 + 用户区；
+ * 进入设置后整体切换为设置菜单。头部干净无分隔线，不使用卡片式盒子。
+ */
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { view, iterationKey, settingsSection, setSettingsSection, setView } = useUi();
+  const { view, settingsSection, setSettingsSection, setView } = useUi();
   const { settings } = useApp();
   const inSettings = view === 'full-settings';
 
   return (
     <Sidebar variant="inset" collapsible="icon" {...props}>
-      <SidebarHeader className="border-b border-sidebar-border/70 px-2.5 pb-2 pt-2">
+      {/* Linear 头部：无 border-b，保持干净 */}
+      <SidebarHeader className="px-2.5 pb-2 pt-2">
         <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-2">
           <SidebarMenu className="min-w-0 flex-1 group-data-[collapsible=icon]:flex-none">
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                  <TerminalIcon className="size-4" />
+              {/* 工作区切换行（Linear 单行形态）：方角头像 + 名称 + 读写状态点 + 下拉箭头 */}
+              <SidebarMenuButton size="lg" className="pointer-events-none">
+                <div className="flex aspect-square size-6 shrink-0 items-center justify-center rounded-[6px] bg-sidebar-primary text-sidebar-primary-foreground">
+                  <TerminalIcon className="size-3.5" />
                 </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold tracking-tight">nervd</span>
-                  <span className="truncate text-xs font-medium tracking-[0.14em] text-muted-foreground">Delivery Control</span>
-                </div>
+                <span className="truncate text-[13px] font-semibold">nervd</span>
+                {/* 读写策略小圆点：绿=可写，灰=只读 */}
+                <span
+                  title={settings?.allowWriteOps ? '可写' : '只读'}
+                  className={cn(
+                    'size-2 shrink-0 rounded-full',
+                    settings?.allowWriteOps ? 'bg-sig-ok' : 'bg-sig-idle',
+                  )}
+                />
+                <ChevronDownIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-          {/* Notion 式：折叠钮收在侧栏品牌行右侧，不再占用顶栏 */}
+          {/* 折叠钮收在侧栏品牌行右侧，不再占用顶栏 */}
           <SidebarTrigger aria-label="折叠/展开侧栏" className="shrink-0 opacity-60 transition-opacity hover:opacity-100" />
         </div>
       </SidebarHeader>
@@ -93,48 +104,27 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarContent>
       ) : (
         <SidebarContent className="gap-1 px-2.5 py-3">
-          {/* 全局搜索入口（⌘K）：切到迭代视图并聚焦主区搜索框 */}
+          {/* 搜索行（Linear 同款）：打开命令面板（⌘K） */}
           <div className="px-0.5 pb-1">
             <button
               type="button"
-              onClick={() => useUi.getState().focusGlobalSearch()}
-              className="flex h-7 w-full items-center gap-2 rounded-md bg-sidebar-accent/50 px-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              onClick={() => useUi.getState().setCommandOpen(true)}
+              className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
             >
               <SearchIcon className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-left">搜索工作项</span>
-              <kbd className="shrink-0 rounded border border-border bg-background px-1 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
+              <span className="min-w-0 flex-1 truncate text-left">搜索或跳转…</span>
+              <kbd className="shrink-0 rounded border border-border bg-background px-1 font-mono text-[11px] leading-4 text-muted-foreground">⌘K</kbd>
             </button>
           </div>
-          {/* 工作区卡片：真实组织与连接状态 */}
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" className="pointer-events-none border border-sidebar-border bg-sidebar">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-accent text-sidebar-primary">
-                  <DatabaseIcon className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">工作区</span>
-                  <span className="truncate font-medium">
-                    {settings?.organizationId ? `平台工程 / ${settings.organizationId.slice(0, 6)}…` : '未配置'}
-                  </span>
-                </div>
-                {/* 读写策略徽章（原底部状态行上移到此，UX 评审）；连接状态见设置页保存栏与总览 */}
-                <StatusBadge status={settings?.allowWriteOps ? 'WRITABLE' : 'READONLY'} />
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+          {/* 主导航：Linear 两段式（当前迭代 / 总览），无嵌套子项 */}
           <NavMain
             items={[
               {
-                title: '工作区',
-                icon: <TerminalSquareIcon />,
-                // UX A3：主按钮可点（回当前迭代），高亮覆盖 iteration + requirement
+                title: '当前迭代',
+                icon: <CalendarDaysIcon />,
+                // 迭代详情（requirement）沿用同一高亮
                 view: 'iteration',
                 isActive: view === 'iteration' || view === 'requirement',
-                items: [
-                  { title: `当前迭代 · ${iterationKey}`, view: 'iteration' },
-                  { title: '设置', view: 'full-settings' },
-                ],
               },
               {
                 title: '总览',
@@ -143,6 +133,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               },
             ]}
           />
+          {/* 迭代分组：真实迭代列表 + 需求子列表 */}
           <NavProjects />
         </SidebarContent>
       )}

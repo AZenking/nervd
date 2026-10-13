@@ -10,7 +10,8 @@ type CheckState =
   | { status: 'ready'; developmentOnly: number; baselineOnly: number }
   | { status: 'error'; message: string };
 
-function comparisonCommits(value: unknown): unknown[] {
+/** 解析云效 compare 返回（多层包裹防御）为提交列表；BranchStateDiagram 复用同一口径 */
+export function comparisonCommits(value: unknown): unknown[] {
   let current = value;
   for (let depth = 0; depth < 5; depth += 1) {
     if (!current || typeof current !== 'object' || Array.isArray(current)) break;

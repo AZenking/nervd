@@ -1,6 +1,7 @@
 import { useApp } from '../store/app';
 import type { PipelineRunSummary } from '../types';
 import { Button } from '@/components/ui/button';
+import { CopyButton } from '@/components/ui/copy-button';
 import { StatusBadge } from './StatusBadge';
 import { WriteOpButton } from './WriteOpButton';
 import * as api from '../lib/api';
@@ -58,7 +59,10 @@ export function PipelineCard({
       </div>
       {latest && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5 text-xs text-muted-foreground">
-          <span>#{latest.pipelineRunId}</span>
+          <span className="flex items-center gap-0.5">
+            #{latest.pipelineRunId}
+            <CopyButton text={String(latest.pipelineRunId)} label="复制运行号" />
+          </span>
           <StatusBadge status={latest.status} size="sm" />
           <span>· {TRIGGER[latest.triggerMode ?? 0] ?? '—'}</span>
           {latest.endTime && (

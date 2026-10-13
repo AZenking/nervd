@@ -1,5 +1,5 @@
 /* ============================================================
-   nervd · Notion Analysis theme
+   nervd · Linear (light) theme
    Source of truth: design.md
    Tailwind CSS v4 (CSS-first) + shadcn/ui (Base UI)
    ============================================================ */
@@ -16,44 +16,44 @@
 :root {
   color-scheme: light;
 
-  /* ---------- Notion Analysis palette ---------- */
+  /* ---------- Linear palette ---------- */
   --bg-0: #ffffff;
-  --bg-1: #f6f5f4;
-  --bg-2: #f6f5f4;
-  --bg-3: #e6e6e6;
+  --bg-1: #f7f8f8;
+  --bg-2: #f7f8f8;
+  --bg-3: #e8e9eb;
   --canvas: #ffffff;
-  --canvas-soft: #f6f5f4;
+  --canvas-soft: #f7f8f8;
   --surface: #ffffff;
-  --hairline: #e6e6e6;
-  --ink: #000000;
-  --ink-secondary: #31302e;
-  --ink-muted: #615d59;
-  --ink-faint: #a39e98;
-  --primary-active: #005bab;
-  --brand-indigo: #213183;
-  --sticker-sky: #62aef0;
-  --sticker-purple: #d6b6f6;
-  --sticker-purple-deep: #391c57;
-  --sticker-pink: #ff64c8;
-  --sticker-orange: #dd5b00;
-  --sticker-orange-deep: #793400;
-  --sticker-teal: #2a9d99;
-  --sticker-green: #1aae39;
-  --sticker-brown: #523410;
-  --line: #e6e6e6;
-  --line-strong: #d6d2ce;
-  --ink-0: #000000;
-  --ink-1: #31302e;
-  --ink-2: #a39e98;
-  --accent-dim: rgba(0, 117, 222, 0.1);
+  --hairline: #e8e9eb;
+  --ink: #26282d;
+  --ink-secondary: #6b7075;
+  --ink-muted: #8a8f98;
+  --ink-faint: #b7bcc2;
+  --primary-active: #4a56c0;
+  --brand-indigo: #2c3696;
+  --sticker-sky: #57a4f5;
+  --sticker-purple: #c0bcf7;
+  --sticker-purple-deep: #4f46b5;
+  --sticker-pink: #d6409f;
+  --sticker-orange: #d9730d;
+  --sticker-orange-deep: #8a4a10;
+  --sticker-teal: #12a594;
+  --sticker-green: #30a46c;
+  --sticker-brown: #6e5a4b;
+  --line: #e8e9eb;
+  --line-strong: #d5d7da;
+  --ink-0: #26282d;
+  --ink-1: #6b7075;
+  --ink-2: #b7bcc2;
+  --accent-dim: rgba(94, 106, 210, 0.1);
 
   /* ---------- Sticker palette used only for status and decoration ----------
      规范：贴纸色只做装饰/状态点；状态文字用 ink（对比度）。
-     sig-idle 采用规范内 ink-muted（#a39e98 圆点对比度 2.66:1 不达非文本 3:1）。 */
-  --sig-run: #dd5b00;
-  --sig-ok: #1aae39;
-  --sig-fail: #d1340b;
-  --sig-idle: #615d59;
+     sig-idle 采用规范内 ink-muted（#b7bcc2 圆点对比度 1.9:1 不达非文本 3:1）。 */
+  --sig-run: #d9730d;
+  --sig-ok: #30a46c;
+  --sig-fail: #e5484d;
+  --sig-idle: #8a8f98;
 
   /* ---------- Workspace layout ---------- */
   --rail-w: 260px;
@@ -65,39 +65,40 @@
   --font-mono: var(--font-sans);
 
   /* ---------- shadcn semantic tokens mapped to design.md ---------- */
-  /* Notion 式分层：侧栏灰底（--sidebar）、主区白底（--background / SidebarInset） */
+  /* Linear 式分层：侧栏灰底（--sidebar）、主区白底（--background / SidebarInset） */
   --background: #ffffff;
-  --foreground: #000000;
+  --foreground: #26282d;
   --card: #ffffff;
-  --card-foreground: #000000;
+  --card-foreground: #26282d;
   --popover: #ffffff;
-  --popover-foreground: #000000;
-  --primary: #0075de;
+  --popover-foreground: #26282d;
+  --primary: #5e6ad2;
   --primary-foreground: #ffffff;
-  --secondary: #f6f5f4;
-  --secondary-foreground: #000000;
-  --muted: #f6f5f4;
-  --muted-foreground: #615d59;
-  --accent: #f6f5f4;
-  --accent-foreground: #000000;
-  --destructive: #d1340b;
-  --border: #e6e6e6;
-  --input: #dddddd;
-  --ring: #0075de;
-  --chart-1: #0075de;
-  --chart-2: #62aef0;
-  --chart-3: #d6b6f6;
-  --chart-4: #2a9d99;
-  --chart-5: #1aae39;
-  --radius: 0.75rem;
-  --sidebar: #f6f5f4;
-  --sidebar-foreground: #000000;
-  --sidebar-primary: #0075de;
+  --secondary: #f7f8f8;
+  --secondary-foreground: #6b7075;
+  --muted: #f7f8f8;
+  --muted-foreground: #8a8f98;
+  --accent: #f2f3f5;
+  --accent-foreground: #26282d;
+  --destructive: #e5484d;
+  --border: #e8e9eb;
+  --input: #d5d7da;
+  --ring: #5e6ad2;
+  --chart-1: #5e6ad2;
+  --chart-2: #57a4f5;
+  --chart-3: #c0bcf7;
+  --chart-4: #12a594;
+  --chart-5: #30a46c;
+  /* Linear 控件基准 10px；rounded-md(6px)/rounded-xl(12px) 等由下方刻度细分 */
+  --radius: 0.625rem;
+  --sidebar: #f9f9f9;
+  --sidebar-foreground: #26282d;
+  --sidebar-primary: #5e6ad2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f6f5f4;
-  --sidebar-accent-foreground: #000000;
-  --sidebar-border: #e6e6e6;
-  --sidebar-ring: #0075de;
+  --sidebar-accent: #eef0f2;
+  --sidebar-accent-foreground: #26282d;
+  --sidebar-border: #e8e9eb;
+  --sidebar-ring: #5e6ad2;
 }
 
 /* ---------- 工具类映射（Tailwind v4 CSS-first） ---------- */
@@ -166,19 +167,19 @@
   --shadow-level-2: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
 
   --radius-xs: 0.25rem;
-  --radius-sm: 0.3125rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1rem;
-  --radius-3xl: 1rem;
-  --radius-4xl: 1rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 0.75rem;
+  --radius-4xl: 0.75rem;
 
   /* 状态点脉冲（RUNNING 呼吸灯） */
   --animate-sig-pulse: sig-pulse 1.6s ease-in-out infinite;
   @keyframes sig-pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(221, 91, 0, 0.24); }
-    50% { opacity: 0.55; box-shadow: 0 0 0 5px rgba(221, 91, 0, 0); }
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(217, 115, 13, 0.24); }
+    50% { opacity: 0.55; box-shadow: 0 0 0 5px rgba(217, 115, 13, 0); }
   }
 }
 
@@ -196,8 +197,9 @@
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-size: 15px;
-    line-height: 1.5;
+    /* Linear 正文密度：14px / 1.55 */
+    font-size: 14px;
+    line-height: 1.55;
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
   }

@@ -28,7 +28,7 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
   return (
     <NavCollapsibleGroup
-      label="当前工作"
+      label="工作"
       labelClassName="px-2"
       className="px-0"
     >

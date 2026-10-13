@@ -12,12 +12,13 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '../StatusBadge';
+import { StatusIcon } from '../status-icon';
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  CalendarDaysIcon, ChevronRightIcon, ListFilterIcon, PlusIcon, XIcon,
+  ChevronRightIcon, ListFilterIcon, PlusIcon, XIcon,
 } from 'lucide-react';
 import { useApp } from '@/store/app';
 import {
@@ -228,11 +229,12 @@ export function NavProjects() {
                   }
                 }}
               >
-                <CalendarDaysIcon />
+                {/* Linear 式状态图形：迭代状态（未开始/进行中/已完成）直接外化为图标 */}
+                <StatusIcon status={iteration.state} />
                 <IterationName name={iteration.name} />
                 {/* 迭代状态统一徽章（进行中 / 未开始） */}
                 <StatusBadge status={iteration.state} size="sm" className="ml-auto shrink-0" />
-                {/* UX A6：chevron 为装饰态（键盘经行按钮操作展开）；Notion 式 hover-reveal——展开态常驻指示方向 */}
+                {/* UX A6：chevron 为装饰态（键盘经行按钮操作展开）；hover-reveal——展开态常驻指示方向 */}
                 <ChevronRightIcon
                   aria-hidden="true"
                   className={cn(

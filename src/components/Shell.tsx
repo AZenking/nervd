@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LockIcon } from 'lucide-react';
 import { useSettingsDraft } from '../store/settings-draft';
 import { useApp } from '../store/app';
@@ -10,12 +10,26 @@ import { RequirementDetails } from './iteration/RequirementDetails';
 import { LogViewer } from './LogViewer';
 import { OverviewView } from './OverviewView';
 import { SettingsView } from './SettingsView';
+import { CommandMenu } from './command-menu';
+import { ShortcutsDialog } from './shortcuts-dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+
+/** g 前缀序列的等待窗口（Linear g+letter：g 后 1200ms 内的下一键才生效） */
+const G_SEQUENCE_TIMEOUT_MS = 1200;
+
+/** Base UI 弹层（AlertDialog.Popup 是 role="alertdialog"，Dialog.Popup 是 role="dialog"）都在 DOM 里即视为有浮层 */
+const OPEN_DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]';
+
+/** 焦点是否在文本可编辑控件内（输入框 / 文本域 / 可编辑区域） */
+function isEditableTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+}
 
 /** 未保存设置草稿的导航守卫（UX A1）：保存并离开 / 放弃修改 / 继续编辑 */
 function DirtyGuardDialog() {
@@ -90,7 +104,9 @@ function ReadonlyBanner() {
         type="button"
         variant="link"
         size="xs"
-        className="h-auto px-0"
+        /* 对比度：12px 小字链接在 canvas-soft 上用 primary-active（深一档紫罗兰，≥4.5:1），
+           默认 text-primary 偏浅，小字号下不达标 */
+        className="h-auto px-0 text-(--primary-active)"
         onClick={() => openSettings('security')}
       >
         前往设置
@@ -103,25 +119,90 @@ export function Shell() {
   const { view } = useUi();
   const restoreScroll = useUi((s) => s.restoreScroll);
 
-  // ⌘← / Ctrl+← 后退（输入框内保留光标移动语义）；⌘K / Ctrl+K 全局搜索
+  // ---- 全局快捷键层（Linear 操作逻辑，合并原有 ⌘K / ⌘←）----
+  // 处理顺序：① ⌘/Ctrl 组合键（不参与 g 序列）→ ② 浮层/输入焦点让路 → ③ g 前缀序列 → ④ ? 面板 → ⑤ Esc 后退。
+  // j/k/Enter 与 `/` 列表导航归 IterationView 自身监听，此处不重复绑定。
+  const gTimerRef = useRef<number | null>(null);
+
+  /** 结束 g 序列等待（清除超时计时器；幂等） */
+  const resetGSequence = useCallback(() => {
+    if (gTimerRef.current != null) {
+      window.clearTimeout(gTimerRef.current);
+      gTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        useUi.getState().focusGlobalSearch();
+      const ui = useUi.getState();
+      const el = e.target as HTMLElement | null;
+
+      // ① ⌘/Ctrl 组合键：保持原有行为（⌘K 面板 / ⌘← 后退）；任何组合键都不触发下方单键序列
+      if (e.metaKey || e.ctrlKey) {
+        resetGSequence();
+        if (e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          // 快捷键面板开着时先收起，避免两个浮层叠开
+          if (ui.shortcutsOpen) ui.setShortcutsOpen(false);
+          ui.toggleCommandMenu();
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          // 输入控件内保留光标移动语义
+          if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+          if (!ui.history.length) return;
+          e.preventDefault();
+          ui.back();
+        }
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowLeft') {
-        const el = e.target as HTMLElement | null;
-        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
-        if (!useUi.getState().history.length) return;
+      if (e.altKey) {
+        resetGSequence();
+        return;
+      }
+
+      // ② 浮层打开（命令面板 / 快捷键面板 / 任意 Base UI 弹层）或焦点在输入控件：
+      //    全局单键一律让路（Esc 由 Base UI 自行关闭浮层），并复位 g 序列
+      if (ui.commandOpen || ui.shortcutsOpen || document.querySelector(OPEN_DIALOG_SELECTOR)) {
+        resetGSequence();
+        return;
+      }
+      if (isEditableTarget(el) || el?.tagName === 'SELECT') {
+        resetGSequence();
+        return;
+      }
+
+      // ③ g 前缀序列跳转（g i 迭代 / g o 总览 / g s 设置）：第二键未命中也照常复位
+      const awaitingG = gTimerRef.current != null;
+      resetGSequence();
+      if (awaitingG) {
+        if (e.key === 'i') return void ui.setView('iteration');
+        if (e.key === 'o') return void ui.setView('overview');
+        if (e.key === 's') return void ui.openSettings('connection');
+        // 其他键：已复位，继续落入下方单键逻辑
+      } else if (e.key === 'g') {
+        gTimerRef.current = window.setTimeout(resetGSequence, G_SEQUENCE_TIMEOUT_MS);
+        return;
+      }
+
+      // ④ ? 打开键盘快捷键面板（Shift+/，焦点不在输入控件时）
+      if (e.key === '?') {
         e.preventDefault();
-        useUi.getState().back();
+        ui.setShortcutsOpen(true);
+        return;
+      }
+
+      // ⑤ Esc 后退：仅 requirement / full-settings 有层级可退（iteration/overview 即根视图）
+      if (e.key === 'Escape') {
+        if (ui.view === 'requirement' || ui.view === 'full-settings') ui.back();
       }
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      resetGSequence();
+    };
+  }, [resetGSequence]);
 
   // 后退恢复工作区滚动位置（应用一次后清空，避免前向导航被旧值干扰）
   useEffect(() => {
@@ -134,7 +215,8 @@ export function Shell() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="h-svh overflow-hidden">
+      {/* Linear 浮动主卡：inset 变体自带 m-2 圆角（ui/sidebar.tsx），这里只管裁切 */}
+      <SidebarInset className="overflow-hidden">
         <div className="flex h-full min-h-0">
           <section className="flex min-w-0 flex-1 flex-col">
             {/* 迭代/需求详情：面包屑已上移进页头（PageHeader breadcrumb 槽），顶栏不再重复 */}
@@ -149,7 +231,9 @@ export function Shell() {
             {/* 只读横幅：在内容网格之上，不挤占三栏布局 */}
             <ReadonlyBanner />
 
-            <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-14 pt-5 sm:px-8 lg:px-10">
+            {/* 顶部留白不放在滚动容器上（由各视图 / 吸顶页头自带 pt-5）：
+                吸顶 PageHeader 的 top-0 才能严格贴住可视顶部，否则吸顶后顶部会露出一条 padding 缝隙 */}
+            <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-14 sm:px-8 lg:px-10">
               {view === 'iteration' && <IterationView />}
               {view === 'requirement' && <RequirementDetails />}
               {view === 'overview' && <OverviewView />}
@@ -161,6 +245,8 @@ export function Shell() {
       </SidebarInset>
       <LogViewer />
       <DirtyGuardDialog />
+      <ShortcutsDialog />
+      <CommandMenu />
     </SidebarProvider>
   );
 }

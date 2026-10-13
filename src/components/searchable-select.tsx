@@ -102,7 +102,7 @@ export function SearchableSelect<V extends string | number | null>({
         aria-label={ariaLabel}
         disabled={disabled}
         className={cn(
-          'flex h-8 w-full min-w-0 items-center justify-between gap-1.5 rounded-[4px] border border-input bg-white py-1 pr-2 pl-2.5 text-left text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50',
+          'flex h-8 w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 rounded-[4px] border border-input bg-white py-1 pr-2 pl-2.5 text-left text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50',
           className,
         )}
       >

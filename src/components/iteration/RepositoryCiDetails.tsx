@@ -4,17 +4,17 @@ import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import type { RepoSummary } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Descriptions } from '@/components/ui/descriptions';
+import { SectionHeader } from '../section-header';
 import { StatusBadge } from '../StatusBadge';
 import { WriteOpButton } from '../WriteOpButton';
 import { JenkinsBuildDialog } from './JenkinsBuildDialog';
-import { InfoItem } from '../info-item';
 import { TableEmptyRow } from '../table-empty-row';
 import { buildRunParameter, ciProviderLabel, ciStatusText, triggerRepoCiWithFeedback } from '@/lib/ci';
 import { humanizeError } from '@/lib/error-format';
@@ -73,33 +73,50 @@ export function RepositoryCiDetails({
         </DrawerHeader>
         <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col gap-5 p-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>构建详情</CardTitle>
-                <CardDescription>
-                  按仓库绑定的 CI 提供方展示；分支 / 环境取自最近一次构建的实际参数，未记录时显示"未记录"。
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-3">
-                <InfoItem label="CI 目标" value={
-                  isFlow ? binding.pipelineName || '未选择流水线'
-                    : isJenkins ? binding.jobFullName || '未填写 Job'
-                      : '未绑定'
-                } />
-                <InfoItem label="最近构建分支" value={latestBranch} />
-                <InfoItem label="最近构建环境" value={latestEnvironment} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>构建操作</CardTitle>
-                <CardDescription>
+            <section className="flex flex-col gap-3">
+              <SectionHeader
+                title="构建详情"
+                hint="按仓库绑定的 CI 提供方展示；分支 / 环境取自最近一次构建的实际参数，未记录时显示「未记录」"
+              />
+              <Descriptions
+                  column={{ xs: 1, sm: 3 }}
+                  items={[
+                    {
+                      key: 'target',
+                      label: 'CI 目标',
+                      children: isFlow ? binding.pipelineName || '未选择流水线'
+                        : isJenkins ? binding.jobFullName || '未填写 Job'
+                          : '未绑定',
+                      copyable: Boolean(isFlow ? binding.pipelineName : isJenkins ? binding.jobFullName : false),
+                      contentClassName: 'font-mono font-medium',
+                    },
+                    {
+                      key: 'branch',
+                      label: '最近构建分支',
+                      children: latestBranch,
+                      copyable: latestBranch !== '未记录',
+                      contentClassName: 'font-mono font-medium',
+                    },
+                    {
+                      key: 'environment',
+                      label: '最近构建环境',
+                      children: latestEnvironment,
+                      copyable: latestEnvironment !== '未记录',
+                      contentClassName: 'font-mono font-medium',
+                    },
+                  ]}
+                />
+            </section>
+            <section className="flex flex-col gap-3">
+              <SectionHeader
+                title="构建操作"
+                hint={<>
                   {isJenkins && '选择 Jenkins Job、环境和分支；勾选记住后，下次会预填本次选择。'}
                   {isFlow && '触发该仓库绑定的云效 Flow 流水线（按流水线当前配置运行）。'}
                   {!isBound && '先为该仓库绑定 CI（云效 Flow 流水线或 Jenkins Job），或直接在此选择 Jenkins Job。'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-2">
+                </>}
+              />
+              <div className="flex flex-wrap items-center gap-2">
                 {isJenkins && (
                   <JenkinsBuildDialog
                     repoId={repo.id}
@@ -137,14 +154,10 @@ export function RepositoryCiDetails({
                     {entry?.loading ? '刷新中…' : '刷新状态'}
                   </Button>
                 )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>最近运行</CardTitle>
-                <CardDescription>最近 5 次构建；参数取自各自构建记录，点击查看日志</CardDescription>
-              </CardHeader>
-              <CardContent>
+              </div>
+            </section>
+            <section className="flex flex-col gap-3">
+              <SectionHeader title="最近运行" hint="最近 5 次构建；参数取自各自构建记录，点击查看日志" />
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -219,8 +232,7 @@ export function RepositoryCiDetails({
                     )}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
+            </section>
           </div>
         </ScrollArea>
       </DrawerContent>
