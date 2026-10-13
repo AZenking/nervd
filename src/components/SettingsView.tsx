@@ -90,6 +90,8 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
         description="令牌与组织信息，用于访问云效 DevOps API。"
       >
         <SettingsRow
+          orientation="horizontal"
+          controlWidth="w-72"
           label={(
             <span className="flex items-center gap-1.5">
               个人访问令牌
@@ -111,6 +113,8 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
         />
 
         <SettingsRow
+          orientation="horizontal"
+          controlWidth="w-72"
           label="组织 ID"
           description="浏览器地址 devops.aliyun.com/organization/<组织 ID> 中的一段。"
           htmlFor="org"
@@ -127,6 +131,8 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
 
         {/* UX A4：校验错误内联到字段，不再走底部文案条 */}
         <SettingsRow
+          orientation="horizontal"
+          controlWidth="w-72"
           label="默认项目空间"
           description="工作项列表从此项目空间读取。"
           htmlFor="space"
@@ -162,6 +168,8 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
         description="仓库从云效组织获取。这里选择需求未单独关联云效仓库时参与扫描的默认仓库。"
       >
         <SettingsRow
+          orientation="horizontal"
+          controlWidth="w-72"
           label="关联正则"
           description="命中后自动关联对应工作项，如 (?:REQ|BUG|TASK)[-_]?(\d+)。"
           htmlFor="pattern"
@@ -223,15 +231,12 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
   );
 
   if (embedded) {
-    // 工作区设置：分区导航在左侧栏（设置菜单），内容列按 Linear 版式左对齐
+    // 工作区设置：分区导航在左侧栏（设置菜单），内容列按 Linear 版式在卡内居中
     const activeSection = SETTINGS_SECTIONS.find((s) => s.value === settingsSection) ?? SETTINGS_SECTIONS[0];
     return (
-      <div className="flex w-full max-w-2xl flex-col gap-6 pb-20 pt-6">
-        {/* Linear 设置页头：标题 + 描述，无 eyebrow 无分隔线 */}
-        <div className="flex flex-col gap-1.5">
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">{activeSection.label}</h1>
-          <p className="text-[13px] leading-5 text-muted-foreground">{activeSection.description}</p>
-        </div>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 pb-20 pt-8">
+        {/* Linear 设置页头：仅 24px medium 标题（指引由各组描述携带，页头不放副标题） */}
+        <h1 className="text-2xl font-medium tracking-tight text-foreground">{activeSection.label}</h1>
         {sectionContent[settingsSection]}
         {saveBar}
       </div>
@@ -249,7 +254,7 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
       <main className="flex min-h-0 flex-1 justify-center overflow-y-auto workspace-scroll px-5 py-8 sm:px-8">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-20">
           <div className="flex flex-col gap-1.5">
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">设置</h1>
+            <h1 className="text-2xl font-medium tracking-tight text-foreground">设置</h1>
             <p className="text-[13px] leading-5 text-muted-foreground">{SETTINGS_SECTIONS[0].description}</p>
           </div>
 

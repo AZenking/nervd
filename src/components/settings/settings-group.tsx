@@ -23,14 +23,14 @@ export function SettingsGroup({
     <section className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-4 px-0.5">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <h2 className="text-sm font-medium text-foreground">{title}</h2>
           {description && (
             <p className="text-xs leading-5 text-muted-foreground">{description}</p>
           )}
         </div>
         {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
       </div>
-      <div className="flex flex-col rounded-lg border border-border bg-card">
+      <div className="flex flex-col rounded-xl border border-border bg-card">
         {children}
       </div>
     </section>
