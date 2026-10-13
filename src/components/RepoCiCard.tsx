@@ -45,7 +45,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
     });
 
   return (
-    <section className="rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary/35">
+    <section className="rounded-lg border border-border bg-card p-5 transition-colors hover:border-line-strong">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={snapshot?.status} />
         <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-foreground">

@@ -131,7 +131,7 @@ export function IterationBranches() {
           ))}
         </div>
       )}
-      {!templates.length && <p className="empty-state px-3 py-4 text-xs text-muted-foreground">还没有模板。可先创建 A 局点（master）、B 局点（test）或 Hotfix（master）模板。</p>}
+      {!templates.length && <p className="px-3 py-4 text-xs text-muted-foreground">还没有模板。可先创建 A 局点（master）、B 局点（test）或 Hotfix（master）模板。</p>}
 
       <Dialog
         open={dialogOpen}

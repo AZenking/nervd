@@ -106,7 +106,6 @@ export function OverviewView() {
     <div className="flex flex-col pt-5">
       {/* 页头（统一 PageHeader 形态）：贴左全宽，正文居中限宽；pt-5 顶距由视图自带（滚动容器不再带 pt） */}
       <PageHeader
-        eyebrow="Delivery overview"
         title="总览"
         // D5：副标题不再直出项目空间原始哈希，只保留类别名
         description={CATEGORY_LABELS[category]}
@@ -214,7 +213,7 @@ export function OverviewView() {
           <SectionHeader title={`工作项速览 · ${CATEGORY_LABELS[category]}`} count={workitemStats.total} hint="点击进入工作台" />
           <div className="flex flex-col gap-3 lg:flex-row">
             <div className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-lg border border-border bg-card p-6">
-              <div className="eyebrow">状态分布</div>
+              <div className="text-[13px] font-medium text-muted-foreground">状态分布</div>
               {statusRows.map(([status, count]) => (
                 <div key={status} className="flex items-center gap-3 text-xs">
                   <StatusIcon status={status} className="size-3.5 shrink-0" />
@@ -228,7 +227,7 @@ export function OverviewView() {
               {!statusRows.length && <div className="py-4 text-center text-xs text-muted-foreground">暂无工作项</div>}
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border border-border bg-card p-6">
-              <div className="eyebrow">最近更新</div>
+              <div className="text-[13px] font-medium text-muted-foreground">最近更新</div>
               {recentItems.map((it) => (
                 <Button
                   key={it.workitemId || it.identifier}
