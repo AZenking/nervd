@@ -26,3 +26,6 @@ dist-ssr
 .fleet/runs/
 .fleet/worktrees/
 .fleet/wiki/
+
+# pnpm 本地包缓存（勿提交）
+.pnpm-store/
