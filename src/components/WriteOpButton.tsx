@@ -16,11 +16,12 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const INLINE_CONFIRM_TIMEOUT_MS = 4000;
 
@@ -38,6 +39,8 @@ export function WriteOpButton({
   variant = 'default',
   confirm = 'dialog',
   confirmLabel = '确认执行',
+  /** 菜单项形态（Linear 式 ⋯ 下拉）：渲染 DropdownMenuItem，保留门控/确认弹窗 */
+  asMenuItem = false,
 }: {
   label: string;
   onAction: () => Promise<void>;
@@ -48,6 +51,7 @@ export function WriteOpButton({
   /** 确认形态：dialog = AlertDialog 二次确认；inline = 两段式按钮 */
   confirm?: 'dialog' | 'inline';
   confirmLabel?: string;
+  asMenuItem?: boolean;
 }) {
   const allow = useApp((s) => s.settings?.allowWriteOps ?? false);
   const openSettings = useUi((s) => s.openSettings);
@@ -164,29 +168,9 @@ export function WriteOpButton({
     );
   }
 
-  // ---- AlertDialog 二次确认（默认） ----
-  if (blocked) {
-    return (
-      <>
-        {readonlyTrigger}
-        {readonlyDialog}
-      </>
-    );
-  }
-  return (
+  // ---- AlertDialog 二次确认（默认；受控弹窗，按钮/菜单两种触发形态共用） ----
+  const confirmDialog = (
     <AlertDialog open={open} onOpenChange={(next) => { if (!next) disarm(); setOpen(next); }}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <AlertDialogTrigger
-              render={<Button size="sm" variant={variant} disabled={busy || disabled} />}
-            />
-          }
-        >
-          {busy ? (<Spinner data-icon="inline-start" />) : label}
-        </TooltipTrigger>
-        <TooltipContent>{tip}</TooltipContent>
-      </Tooltip>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>确认{title ?? label}</AlertDialogTitle>
@@ -202,5 +186,58 @@ export function WriteOpButton({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+
+  // ---- 菜单项形态（Linear 式 ⋯ 下拉）：只读项保持可点（打开说明弹窗），带原因副行 ----
+  if (asMenuItem) {
+    const showReason = blocked || (disabled && Boolean(disabledReason));
+    return (
+      <>
+        <DropdownMenuItem
+          disabled={busy || (!blocked && disabled)}
+          className={cn('h-auto flex-col items-stretch gap-0.5 py-2', blocked && 'text-muted-foreground')}
+          onClick={() => {
+            if (blocked) {
+              setReadonlyOpen(true);
+              return;
+            }
+            setOpen(true);
+          }}
+        >
+          <span>{busy ? (<><Spinner data-icon="inline-start" />{label}…</>) : label}</span>
+          {showReason && (
+            <span className="text-xs font-normal text-muted-foreground">
+              {blocked ? '写操作已关闭（当前只读模式）' : disabledReason}
+            </span>
+          )}
+        </DropdownMenuItem>
+        {readonlyDialog}
+        {confirmDialog}
+      </>
+    );
+  }
+
+  if (blocked) {
+    return (
+      <>
+        {readonlyTrigger}
+        {readonlyDialog}
+      </>
+    );
+  }
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button size="sm" variant={variant} disabled={busy || disabled} onClick={() => setOpen(true)} />
+          }
+        >
+          {busy ? (<Spinner data-icon="inline-start" />) : label}
+        </TooltipTrigger>
+        <TooltipContent>{tip}</TooltipContent>
+      </Tooltip>
+      {confirmDialog}
+    </>
   );
 }

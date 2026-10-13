@@ -14,6 +14,9 @@ import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -472,32 +475,34 @@ function LinkedRepoRow({
               defaultBranch={matchedBranches[0] || developerBranch}
             />
           )}
-          <Collapsible render={<div className="contents" />}>
-            <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
-              <MoreHorizontalIcon data-icon="inline-start" />
-              更多操作
-            </CollapsibleTrigger>
-            <CollapsibleContent className="basis-full flex flex-wrap items-center justify-end gap-1.5 pt-1">
+          {/* Linear 式次级动作：⋯ 图标按钮 → 下拉菜单（门控原因以副行展示，选中后走确认弹窗） */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" aria-label="更多操作" />}
+            >
+              <MoreHorizontalIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
               <WriteOpButton
+                asMenuItem
                 label="创建分支"
                 title={developerBranch ? `创建需求分支 ${developerBranch}` : '创建需求分支'}
-                variant="outline"
                 disabled={Boolean(branchDisabledReason)}
                 disabledReason={branchDisabledReason}
                 onAction={createDeveloperBranch}
               />
               <WriteOpButton
+                asMenuItem
                 label="创建 MR"
                 title={developerBranch && operationBaseBranch
                   ? `创建 MR：${developerBranch} → ${operationBaseBranch}`
                   : '创建 MR'}
-                variant="outline"
                 disabled={Boolean(mergeRequestDisabledReason)}
                 disabledReason={mergeRequestDisabledReason}
                 onAction={createMergeRequest}
               />
-            </CollapsibleContent>
-          </Collapsible>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </TableCell>
     </TableRow>
