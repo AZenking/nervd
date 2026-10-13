@@ -270,6 +270,145 @@ pub async fn update_workitem(
         .await
 }
 
+/// 项目内某类别（Task/Bug…）的工作项类型列表：
+/// oapi/v1 GET projects/{space}/workitemTypes?category=…（端点形态依据
+/// alibabacloud-devops-mcp-server@0.3.64 getWorkItemTypesFunc 逆向）。
+/// 创建子任务时由前端拉取，defaultType 优先预选。
+#[tauri::command]
+pub async fn list_workitem_types(
+    state: State<'_, AppState>,
+    category: String,
+) -> Result<Value, String> {
+    let category = category.trim().to_string();
+    if category.is_empty() {
+        return Err("工作项类别不能为空".into());
+    }
+    let c = client_of(&state)?;
+    let org = org_of(&state)?;
+    let space = {
+        let st = state.settings.lock().unwrap();
+        st.default_space_identifier.trim().to_string()
+    };
+    if space.is_empty() {
+        return Err("NOT_CONFIGURED: 请先在设置中选择默认项目空间".into());
+    }
+    let resp = c
+        .get(
+            &format!("/oapi/v1/projex/organizations/{org}/projects/{space}/workitemTypes"),
+            &[("category", category.clone())],
+        )
+        .await?;
+    let types: Vec<Value> = as_array(&resp)
+        .iter()
+        .map(|t| {
+            let id = s2(t, "id", "identifier");
+            let name = {
+                let n = s2(t, "name", "nameEn");
+                if n.is_empty() { id.clone() } else { n }
+            };
+            json!({
+                "id": id,
+                "name": name,
+                "category": s(t, "categoryId"),
+                "defaultType": t.get("defaultType").and_then(Value::as_bool).unwrap_or(false),
+            })
+        })
+        .filter(|t| !s(t, "id").is_empty())
+        .collect();
+    if types.is_empty() {
+        return Err(format!("云效未返回可用的 {category} 工作项类型"));
+    }
+    Ok(Value::Array(types))
+}
+
+/// 在需求下创建子工作项（**写操作**）：
+/// oapi/v1 POST workitems，body { spaceId, subject, workitemTypeId, parentId, sprint? }
+/// （端点与 body 字段依据 alibabacloud-devops-mcp-server@0.3.64 createWorkItemFunc 逆向，
+/// parentId 即挂载父级）。spaceId 取父详情 space.id（子项与父同空间，缺失回退默认
+/// 项目空间）；sprint 继承父项迭代；处理人不传（云效默认为创建人）。
+#[tauri::command]
+pub async fn create_workitem_child(
+    state: State<'_, AppState>,
+    parent_workitem_id: String,
+    subject: String,
+    workitem_type_id: String,
+) -> Result<Value, String> {
+    ensure_write(&state)?;
+    let parent_workitem_id = parent_workitem_id.trim().to_string();
+    let workitem_type_id = workitem_type_id.trim().to_string();
+    let subject = subject.trim().to_string();
+    if parent_workitem_id.is_empty() {
+        return Err("父工作项 ID 不能为空".into());
+    }
+    if subject.is_empty() || subject.len() > 500 || subject.chars().any(char::is_control) {
+        return Err("子任务名称不能为空，且不能超过 500 个字符".into());
+    }
+    if workitem_type_id.is_empty() {
+        return Err("请选择子任务类型".into());
+    }
+    let c = client_of(&state)?;
+    let org = org_of(&state)?;
+
+    // 父详情：spaceId / sprintId（与 get_workitem_workflow_statuses 相同的防御式解包）
+    let detail_response = c
+        .get(
+            &format!("/oapi/v1/projex/organizations/{org}/workitems/{parent_workitem_id}"),
+            &[],
+        )
+        .await?;
+    let detail = detail_response
+        .get("workitem")
+        .or_else(|| detail_response.get("data"))
+        .unwrap_or(&detail_response);
+    let space_id = {
+        let from_parent = nested_s(detail, "space", "id").trim().to_string();
+        if from_parent.is_empty() {
+            state.settings.lock().unwrap().default_space_identifier.trim().to_string()
+        } else {
+            from_parent
+        }
+    };
+    if space_id.is_empty() {
+        return Err("NOT_CONFIGURED: 无法确定项目空间，请先在设置中选择默认项目空间".into());
+    }
+    let sprint_id = nested_s(detail, "sprint", "id").trim().to_string();
+
+    let mut body = json!({
+        "spaceId": space_id,
+        "subject": subject,
+        "workitemTypeId": workitem_type_id,
+        "parentId": parent_workitem_id,
+    });
+    if !sprint_id.is_empty() {
+        body["sprint"] = json!(sprint_id);
+    }
+    let resp = c
+        .post(&format!("/oapi/v1/projex/organizations/{org}/workitems"), &[], body)
+        .await?;
+
+    // 归一化为子项行（与 list_workitem_children 映射一致）；创建响应顶层即工作项对象，
+    // 防御式兼容 workitem/data 包装
+    let row = resp
+        .get("workitem")
+        .filter(|w| !s(w, "id").is_empty())
+        .or_else(|| resp.get("data").filter(|w| !s(w, "id").is_empty()))
+        .unwrap_or(&resp);
+    let status_name = {
+        let n = nested_s(row, "status", "name");
+        if n.is_empty() { nested_s(row, "status", "displayName") } else { n }
+    };
+    Ok(json!({
+        "workitemId": s(row, "id"),
+        "identifier": s(row, "serialNumber"),
+        "subject": s(row, "subject"),
+        "category": s(row, "categoryId"),
+        "statusId": nested_s(row, "status", "id"),
+        "status": status_name,
+        "assignedTo": nested_s(row, "assignedTo", "name"),
+        "gmtModified": i64_of(row, "gmtModified").map(chrono_ms_to_local).unwrap_or_default(),
+    }))
+}
+
 // ---------- 附件图片代理（富文本描述内联直显） ----------
 
 /// 代理响应大小上限：5MB

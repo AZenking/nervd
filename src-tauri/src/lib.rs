@@ -54,6 +54,8 @@ pub fn run() {
             commands::list_workitem_children,
             commands::get_workitem_workflow_statuses,
             commands::update_workitem,
+            commands::list_workitem_types,
+            commands::create_workitem_child,
             commands::proxy_workitem_file,
             commands::list_repos,
             commands::list_branches,

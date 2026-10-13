@@ -5,7 +5,7 @@ import * as api from '@/lib/api';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
-import { PropertyRow } from '../section-header';
+import { Descriptions } from '@/components/ui/descriptions';
 import { StatusBadge } from '../StatusBadge';
 import { RichDescription } from './rich-description';
 
@@ -71,13 +71,26 @@ export function ChildDetailDrawer({
           </DrawerDescription>
         </DrawerHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-5">
-          <div className="flex flex-col">
-            <PropertyRow label="状态">
-              <StatusBadge status={child?.status || field('status') || undefined} />
-            </PropertyRow>
-            <PropertyRow label="处理人">{child?.assignedTo || field('assignedTo') || '—'}</PropertyRow>
-            <PropertyRow label="更新时间">{child?.gmtModified || field('gmtModified') || field('updatedAt') || '—'}</PropertyRow>
-          </div>
+          {/* 详情属性区：Descriptions plain 形态；编号可拷贝（提交信息 / 分支命名常用） */}
+          <Descriptions
+            variant="plain"
+            items={[
+              {
+                key: 'identifier',
+                label: '编号',
+                children: child?.identifier || '—',
+                copyable: Boolean(child?.identifier),
+                contentClassName: 'font-mono',
+              },
+              {
+                key: 'status',
+                label: '状态',
+                children: <StatusBadge status={child?.status || field('status') || undefined} />,
+              },
+              { key: 'assignee', label: '处理人', children: child?.assignedTo || field('assignedTo') || '—' },
+              { key: 'updated', label: '更新时间', children: child?.gmtModified || field('gmtModified') || field('updatedAt') || '—' },
+            ]}
+          />
           <div className="flex flex-col gap-2">
             <p className="text-sm font-semibold text-foreground">描述</p>
             {loading ? (

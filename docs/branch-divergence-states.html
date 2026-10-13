@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BranchDivergenceCheck 状态图 · feature × 迭代基准分支</title>
+<link rel="stylesheet" href="https://esm.sh/@xyflow/react@12.8.2/dist/style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.1.0",
+    "react/jsx-runtime": "https://esm.sh/react@19.1.0/jsx-runtime",
+    "react-dom/client": "https://esm.sh/react-dom@19.1.0/client?deps=react@19.1.0",
+    "@xyflow/react": "https://esm.sh/@xyflow/react@12.8.2?deps=react@19.1.0,react-dom@19.1.0"
+  }
+}
+</script>
+<style>
+  :root {
+    --ink: #1f2328;
+    --muted: #6b7280;
+    --line: #d8dee5;
+    --bg: #f6f8fa;
+    --card: #ffffff;
+    --ok: #1aae39;
+    --ok-bg: #e9f7ee;
+    --warn: #dd5b00;
+    --warn-bg: #fdf0e7;
+    --err: #d41717;
+    --err-bg: #fdeaea;
+    --run: #2563eb;
+    --run-bg: #e8effd;
+  }
+  * { box-sizing: border-box; }
+  html, body, #root { height: 100%; margin: 0; }
+  body {
+    font: 14px/1.55 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    color: var(--ink); background: var(--bg);
+  }
+  .app { display: flex; flex-direction: column; height: 100%; }
+  header {
+    padding: 14px 20px 10px; border-bottom: 1px solid var(--line);
+    background: var(--card); display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline;
+  }
+  header h1 { font-size: 16px; margin: 0 8px 0 0; }
+  header p { margin: 0; color: var(--muted); font-size: 12.5px; }
+  .legend { display: flex; gap: 6px; align-items: center; margin-left: auto; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; background: var(--card); }
+  .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+  .flow { flex: 1; min-height: 0; }
+
+  /* ---- 自定义节点 ---- */
+  .rf-state {
+    width: 250px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px 11px; box-shadow: 0 1px 3px rgb(16 24 40 / 8%);
+    font-size: 13px;
+  }
+  .rf-state.tone-ok    { border-color: color-mix(in srgb, var(--ok) 45%, white); }
+  .rf-state.tone-warn  { border-color: color-mix(in srgb, var(--warn) 50%, white); }
+  .rf-state.tone-err   { border-color: color-mix(in srgb, var(--err) 45%, white); }
+  .rf-state.tone-run   { border-color: color-mix(in srgb, var(--run) 40%, white); border-style: dashed; }
+  .rf-state.tone-muted { border-style: dashed; }
+  .rf-state .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .rf-state .title { font-weight: 650; font-size: 14px; }
+  .rf-state .counts {
+    font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; white-space: nowrap;
+  }
+  .rf-state .rows { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+  .rf-state .row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .rf-state .k { flex: 0 0 34px; }
+  .badge { display: inline-block; border-radius: 999px; border: 1px solid; padding: 1px 9px; font-size: 12px; font-weight: 600; line-height: 1.5; }
+  .badge.ok   { color: color-mix(in srgb, var(--ok) 80%, black); border-color: color-mix(in srgb, var(--ok) 40%, white); background: var(--ok-bg); }
+  .badge.warn { color: color-mix(in srgb, var(--warn) 85%, black); border-color: color-mix(in srgb, var(--warn) 45%, white); background: var(--warn-bg); }
+  .badge.err  { color: color-mix(in srgb, var(--err) 85%, black); border-color: color-mix(in srgb, var(--err) 40%, white); background: var(--err-bg); }
+  .badge.run  { color: color-mix(in srgb, var(--run) 85%, black); border-color: color-mix(in srgb, var(--run) 35%, white); background: var(--run-bg); }
+  .badge.muted{ color: var(--muted); border-color: var(--line); background: var(--bg); }
+  .rf-state .note { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--muted); font-size: 12px; }
+  .rf-axis { font-size: 12px; color: var(--muted); letter-spacing: .12em; font-weight: 600; }
+  .rf-axis.vertical { writing-mode: vertical-rl; }
+  .rf-tag {
+    font-size: 12px; color: var(--ink); background: var(--card);
+    border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; white-space: nowrap;
+    box-shadow: 0 1px 2px rgb(16 24 40 / 6%);
+  }
+
+  .react-flow__edge-text { font-size: 11.5px; }
+  footer {
+    padding: 8px 20px; border-top: 1px solid var(--line); background: var(--card);
+    color: var(--muted); font-size: 12px; display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  footer code { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import { createElement as h } from 'react';
+import { createRoot } from 'react-dom/client';
+import { ReactFlow, Background, Controls, MarkerType, Handle, Position } from '@xyflow/react';
+
+const TONES = { ok: 'ok', warn: 'warn', err: 'err', run: 'run', muted: 'muted' };
+
+function StateNode({ data }) {
+  const hidden = { visibility: 'hidden', width: 0, height: 0, minWidth: 0, minHeight: 0, border: 'none' };
+  const handle = (id, type, position) => h(Handle, { id, type, position, style: hidden, isConnectable: false });
+  return h('div', { className: `rf-state tone-${TONES[data.tone] || 'muted'}` },
+    handle('tl', 'target', Position.Left),
+    handle('tt', 'target', Position.Top),
+    handle('tb', 'target', Position.Bottom),
+    handle('sr', 'source', Position.Right),
+    handle('st', 'source', Position.Top),
+    handle('sb', 'source', Position.Bottom),
+    h('div', { className: 'head' },
+      h('span', { className: 'title' }, data.title),
+      data.counts ? h('span', { className: 'counts' }, data.counts) : null,
+    ),
+    h('div', { className: 'rows' },
+      data.current ? h('div', { className: 'row' },
+        h('span', { className: 'k' }, '当前'),
+        h('span', { className: `badge ${TONES[data.current.tone] || 'muted'}` }, data.current.text),
+      ) : null,
+      data.proposed ? h('div', { className: 'row' },
+        h('span', { className: 'k' }, '建议'),
+        h('span', { className: `badge ${TONES[data.proposed.tone] || 'muted'}` }, data.proposed.text),
+      ) : null,
+    ),
+    data.note ? h('div', { className: 'note' }, data.note) : null,
+  );
+}
+
+function AxisNode({ data }) {
+  return h('div', { className: `rf-axis${data.vertical ? ' vertical' : ''}` }, data.label);
+}
+
+function TagNode({ data }) {
+  return h('div', { className: 'rf-tag' }, data.label);
+}
+
+const nodeTypes = { state: StateNode, axis: AxisNode, tag: TagNode };
+
+const nodes = [
+  // ── 前置链路 ──
+  { id: 'start', type: 'state', position: { x: 20, y: 236 }, data: {
+    tone: 'muted', title: '打开需求详情',
+    note: '该仓库已选择分支模板（templateEnabled），否则不渲染此检查',
+  } },
+  { id: 'baseline_checking', type: 'state', position: { x: 300, y: 236 }, data: {
+    tone: 'run', title: '核实迭代基准分支',
+    current: { text: '正在核实迭代分支…', tone: 'muted' },
+    note: '查远端 iteration/{iteration}/Nationwide 是否存在',
+  } },
+  { id: 'baseline_missing', type: 'state', position: { x: 300, y: 40 }, data: {
+    tone: 'muted', title: '迭代基准分支未创建',
+    current: { text: '迭代分支尚未创建', tone: 'muted' },
+    note: '可从模板源分支创建基准，再从基准创建需求分支',
+  } },
+  { id: 'baseline_error', type: 'state', position: { x: 300, y: 486 }, data: {
+    tone: 'err', title: '基准查询失败',
+    current: { text: '基准查询失败 + 重试', tone: 'err' },
+    note: '接口异常，进入重试',
+  } },
+  { id: 'comparing', type: 'state', position: { x: 640, y: 236 }, data: {
+    tone: 'run', title: '双向比较中',
+    current: { text: '自动查询中…', tone: 'muted' },
+    note: '两次 compare（straight=false，基于 merge-base）',
+  } },
+  { id: 'compare_error', type: 'state', position: { x: 590, y: 452 }, data: {
+    tone: 'err', title: '比较失败',
+    current: { text: '比较失败：{原因}', tone: 'err' },
+    note: '可点「重新检查」重跑',
+  } },
+
+  // ── 状态空间：四象限（x→ 开发独有，y↑ 迭代独有）──
+  { id: 'q0b', type: 'state', position: { x: 940, y: 36 }, data: {
+    tone: 'ok', title: '已合入', counts: '0 · N',
+    current: { text: '有偏差 ⚠️', tone: 'warn' },
+    proposed: { text: '已合入', tone: 'ok' },
+    note: '多出的 N 条是合并提交 —— 合入后的正常形态，当前却渲染成橙色警告，正是困惑来源',
+  } },
+  { id: 'qab', type: 'state', position: { x: 1210, y: 36 }, data: {
+    tone: 'warn', title: '双向分叉', counts: 'N · M',
+    current: { text: '有偏差', tone: 'warn' },
+    proposed: { text: '分叉：待合入 N 条', tone: 'warn' },
+    note: '常见于 squash 合并或两边各有改动',
+  } },
+  { id: 'q00', type: 'state', position: { x: 940, y: 330 }, data: {
+    tone: 'ok', title: '一致', counts: '0 · 0',
+    current: { text: '一致', tone: 'ok' },
+    proposed: { text: '已同步', tone: 'ok' },
+    note: '同名分支或两边提交完全相同；正常合并之后到不了这里',
+  } },
+  { id: 'qa0', type: 'state', position: { x: 1210, y: 330 }, data: {
+    tone: 'warn', title: '待合入', counts: 'N · 0',
+    current: { text: '有偏差', tone: 'warn' },
+    proposed: { text: '待合入 N 条', tone: 'warn' },
+    note: 'feature 上还有 N 条提交未进迭代分支 —— 唯一真正需要动作的状态',
+  } },
+
+  // ── 轴说明与转移标注（不参与连线的浮动标签）──
+  { id: 'axisNote', type: 'axis', position: { x: 1050, y: 560 }, data: { label: 'x → 开发分支独有 ｜ y ↑ 迭代分支独有' }, draggable: false, selectable: false },
+  { id: 'tagRetry', type: 'tag', position: { x: 830, y: 464 }, data: { label: '重新检查' }, draggable: false, selectable: false },
+  { id: 'tagMerge', type: 'tag', position: { x: 1108, y: 268 }, data: { label: '合并 MR（merge commit）' }, draggable: false, selectable: false },
+  { id: 'tagSquash', type: 'tag', position: { x: 1350, y: 268 }, data: { label: 'squash 合并' }, draggable: false, selectable: false },
+  { id: 'tagBack', type: 'tag', position: { x: 952, y: 268 }, data: { label: '反向合回（罕见）' }, draggable: false, selectable: false },
+];
+
+const edgeBase = {
+  labelBgPadding: [4, 2], labelBgBorderRadius: 4,
+  labelBgStyle: { fill: 'rgba(255,255,255,0.95)' },
+  style: { stroke: '#9aa6b2' },
+};
+const edge = (id, source, sH, target, tH, extra = {}) => ({
+  id, source, sourceHandle: sH, target, targetHandle: tH, ...edgeBase, ...extra,
+  markerEnd: extra.markerEnd ?? { type: MarkerType.ArrowClosed, color: '#9aa6b2' },
+});
+
+const edges = [
+  edge('e1', 'start', 'sr', 'baseline_checking', 'tl'),
+  edge('e2', 'baseline_checking', 'st', 'baseline_missing', 'tb', { label: '远端无此分支' }),
+  edge('e3', 'baseline_checking', 'sb', 'baseline_error', 'tt', { label: '接口失败' }),
+  edge('e4', 'baseline_checking', 'sr', 'comparing', 'tl', { label: '基准存在' }),
+  edge('e5', 'baseline_missing', 'sr', 'comparing', 'tt', { label: '创建迭代基准分支' }),
+  edge('e6', 'baseline_error', 'sr', 'baseline_checking', 'tb', { label: '重试' }),
+  edge('e7', 'comparing', 'sr', 'q00', 'tl'),
+  edge('e8', 'comparing', 'sr', 'q0b', 'tl'),
+  edge('e9', 'comparing', 'sr', 'qa0', 'tl'),
+  edge('e10', 'comparing', 'sr', 'qab', 'tl'),
+  edge('e11', 'comparing', 'sb', 'compare_error', 'tt', { label: '比较接口失败' }),
+  edge('e12', 'compare_error', 'st', 'comparing', 'tb'),
+  edge('e13', 'qa0', 'st', 'q0b', 'tb', {
+    label: '', style: { stroke: '#1aae39', strokeWidth: 1.6 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#1aae39' },
+  }),
+  edge('e14', 'qa0', 'st', 'qab', 'tb', {
+    label: '', style: { stroke: '#dd5b00', strokeWidth: 1.6 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#dd5b00' },
+  }),
+  edge('e15', 'q0b', 'sb', 'q00', 'tt', {
+    label: '', animated: true, style: { stroke: '#9aa6b2', strokeDasharray: '6 4' },
+  }),
+];
+
+function App() {
+  return h('div', { className: 'app' },
+    h('header', null,
+      h('h1', null, '需求分支 × 迭代基准分支 —— 状态图'),
+      h('p', null, 'feature/BENZ-5938 ⇄ iteration/BENZ-5938/Nationwide（BranchDivergenceCheck）'),
+      h('div', { className: 'legend' },
+        h('span', { className: 'chip' }, h('span', { className: 'dot', style: { background: 'var(--ok)' } }), '同步完成'),
+        h('span', { className: 'chip' }, h('span', { className: 'dot', style: { background: 'var(--warn)' } }), '需要动作/需判断'),
+        h('span', { className: 'chip' }, h('span', { className: 'dot', style: { background: 'var(--err)' } }), '失败'),
+        h('span', { className: 'chip' }, h('span', { className: 'dot', style: { background: 'var(--run)' } }), '进行中'),
+        h('span', { className: 'chip' }, '虚线 = 罕见路径'),
+      ),
+    ),
+    h('div', { className: 'flow' },
+      h(ReactFlow, {
+        nodes, edges, nodeTypes, fitView: true, fitViewOptions: { padding: 0.15 },
+        minZoom: 0.4, nodesConnectable: false,
+      },
+        h(Background, { gap: 18, size: 1.4 }),
+        h(Controls, { showInteractive: false }),
+      ),
+    ),
+    h('footer', null,
+      h('span', null, '读法：徽章的判断轴建议从「两边是否一致」换成「开发分支是否已全部进入迭代分支」'),
+      h('span', null, '依据：', h('code', null, 'src/components/iteration/BranchDivergenceCheck.tsx')),
+      h('span', null, '截图案例：financial-view 0·1（已合入）；mobile-view / maintain-view 1·0（待合入）'),
+    ),
+  );
+}
+
+createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>

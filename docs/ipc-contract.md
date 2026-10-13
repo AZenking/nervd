@@ -117,6 +117,8 @@ src-tauri/src/
 | `get_workitem` | `workitemId: String` | `Value` | 详情 |
 | `get_workitem_workflow_statuses` | `workitemId: String` | `Vec<WorkitemStatusOption>` | 读取该工作项类型在线的状态选项 |
 | `update_workitem` | `workitemId: String, subject?: String, statusId?: String` | `Value` | **写操作**；更新子工作项名称和/或状态 |
+| `list_workitem_types` | `category: String` | `Vec<WorkitemTypeOption>`（`{id,name,category,defaultType}`） | 项目内该类别（Task/Bug…）的工作项类型；oapi/v1 `GET projects/{space}/workitemTypes?category=`，创建子任务时选择类型 |
+| `create_workitem_child` | `parentWorkitemId: String, subject: String, workitemTypeId: String` | 子项行（同 `list_workitem_children` items 形态） | **写操作**；在需求下创建子工作项：oapi/v1 `POST workitems`，body `{spaceId, subject, workitemTypeId, parentId, sprint?}`（spaceId 取父详情 space.id，迭代继承父项；处理人不传，云效默认创建人） |
 | `list_workitem_children` | `workitemId: String` | `{items: WorkitemChild[]}` | 查找子工作项；行内含 `statusId` 供状态编辑 |
 | `list_workitem_comments` | `workitemId: String` | `Vec<Value>` | |
 | `list_repos` | `search: Option<String>, page: Option<i64>` | `Vec<RepoSummary>` | |

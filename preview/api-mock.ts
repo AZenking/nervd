@@ -5,7 +5,7 @@ import type {
   JenkinsJobSummary, MrSummary, OrgSummary, RepoCiBinding, RepoCiSnapshot, Settings, SettingsView,
   WorkitemPage, WorkitemStatusOption,
 } from '../src/types';
-import type { WorkitemChild, WorkitemRow } from '../src/lib/api';
+import type { WorkitemChild, WorkitemRow, WorkitemTypeOption } from '../src/lib/api';
 
 export type { WorkitemRow };
 
@@ -254,6 +254,39 @@ export async function updateWorkitem(workitemId: string, update: { subject?: str
     child.status = status.name;
   }
   return { success: true };
+}
+const mockWorkitemTypes: Record<string, WorkitemTypeOption[]> = {
+  Task: [
+    { id: 'type-task', name: '任务', category: 'Task', defaultType: true },
+    { id: 'type-tech-task', name: '技术任务', category: 'Task' },
+  ],
+  Bug: [{ id: 'type-bug', name: '缺陷', category: 'Bug', defaultType: true }],
+};
+export async function listWorkitemTypes(category: string): Promise<WorkitemTypeOption[]> {
+  await sleep(120);
+  return (mockWorkitemTypes[category] ?? mockWorkitemTypes.Task).map((type) => ({ ...type }));
+}
+let mockChildSeq = 6230;
+export async function createWorkitemChild(
+  parentWorkitemId: string,
+  p: { subject: string; workitemTypeId: string },
+): Promise<WorkitemChild> {
+  await sleep(400);
+  if (!mockChildren[parentWorkitemId]) mockChildren[parentWorkitemId] = [];
+  mockChildSeq += 1;
+  const type = Object.values(mockWorkitemTypes).flat().find((item) => item.id === p.workitemTypeId);
+  const child: WorkitemChild = {
+    workitemId: `wi-gen-${mockChildSeq}`,
+    identifier: `BENZ-${mockChildSeq}`,
+    subject: p.subject,
+    category: type?.category ?? 'Task',
+    statusId: 'status-todo',
+    status: '待处理',
+    assignedTo: '我',
+    gmtModified: '刚刚',
+  };
+  mockChildren[parentWorkitemId].push(child);
+  return { ...child };
 }
 export async function proxyWorkitemFile(): Promise<string> { throw new Error('preview 无附件代理'); }
 export async function listRepos(search?: string, page = 1): Promise<typeof repositories> {

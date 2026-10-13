@@ -107,6 +107,28 @@ export async function getWorkitemWorkflowStatuses(workitemId: string): Promise<W
 export async function updateWorkitem(workitemId: string, update: { subject?: string; statusId?: string }): Promise<unknown> {
   return invoke('update_workitem', { workitemId, ...update });
 }
+
+/** 项目内某类别的工作项类型（list_workitem_types 归一化产物） */
+export interface WorkitemTypeOption {
+  id: string;
+  name: string;
+  category?: string;
+  /** 云效标记的默认类型（创建对话框预选） */
+  defaultType?: boolean;
+}
+
+/** 工作项类型列表：oapi/v1 GET projects/{defaultSpace}/workitemTypes?category=… */
+export async function listWorkitemTypes(category: string): Promise<WorkitemTypeOption[]> {
+  return invoke('list_workitem_types', { category });
+}
+
+/** 在需求下创建子工作项（写操作）：parentId 挂到父项，返回与子项列表同形态的行 */
+export async function createWorkitemChild(
+  parentWorkitemId: string,
+  p: { subject: string; workitemTypeId: string },
+): Promise<WorkitemChild> {
+  return invoke('create_workitem_child', { parentWorkitemId, ...p });
+}
 /** 附件图片代理：Rust 侧校验 host 白名单 / image/* / ≤5MB，成功返回 data: URL */
 export async function proxyWorkitemFile(url: string): Promise<string> {
   return invoke('proxy_workitem_file', { url });
