@@ -40,7 +40,7 @@ src/components/       新 UI（nervd-new-ui v0 基准）：
   iteration/          迭代视图 / 工作项详情 / 环境与策略
 src-tauri/src/
   yunxiao.rs          云效 ROA REST 客户端（PAT 鉴权）
-  commands.rs         22 个 Tauri 命令（写操作门控）
+  commands/           按域拆分的 45 个 Tauri 命令（写操作门控）
   credentials.rs      Keychain PAT + settings.json
   poller.rs           流水线轮询 → 事件 + 系统通知
 docs/yunxiao-api.md   云效 API 离线参考（提取自 aliyun CLI 元数据）
@@ -50,9 +50,10 @@ docs/ipc-contract.md  IPC 契约（并发构建的分区依据）
 ## UI 基准与占位说明
 
 主界面按 `nervd-new-ui.zip`（v0 生成）重构：inset 侧栏 + 迭代视图 + 需求详情 +
-环境与策略。其中 **迭代壳、分支来源关系、缺陷关联与子工作项的端内新增为占位**
-（云效暂无对应 IPC）；**子任务展示为真实数据**（`GetWorkitemRelations
-relationType=SUB`，点击子项可跳详情）。其余（工作项、追溯、CI 状态、
+环境与策略。其中 **迭代壳、分支来源关系、缺陷关联的端内新增为占位**（云效暂无对应
+IPC）；**子任务展示为真实数据**（`GetWorkitemRelations
+relationType=SUB`，点击子项可跳详情），且支持**端内新建子任务**（需求详情 → 子任务卡 →
+新建子任务；类型取项目 Task 工作项类型，迭代继承父需求）。其余（工作项、追溯、CI 状态、
 Jenkins 实例与绑定、建分支/MR/回写状态、日志）均为真实功能。
 
 浏览器内免 Tauri 预览（静态 mock 数据）：
