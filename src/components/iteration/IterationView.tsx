@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   RefreshCwIcon,
-  LoaderCircleIcon,
-  XIcon,
   ChevronRightIcon,
   SearchXIcon,
 } from 'lucide-react';
@@ -12,7 +10,6 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -22,7 +19,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import {
-  useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters,
+  useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters, buildWorkitemFilterOptions,
 } from '@/store/ui';
 import { CATEGORY_LABELS, type Category, type RepoSummary } from '@/types';
 import { ciProviderLabel, ciStatusText } from '@/lib/ci';
@@ -35,8 +32,12 @@ import { CiSummaryButton } from '../ci-summary-button';
 import { TableEmptyRow } from '../table-empty-row';
 import { SectionHeader } from '../section-header';
 import { StatusIcon, STATUS_TONE_ORDER } from '../status-icon';
+import { WorkitemFilterBar } from './workitem-filter-menu';
 import { IterationBranches } from './IterationBranches';
 import { RepositoryCiDetails } from './RepositoryCiDetails';
+
+/** 每页渲染的分支行数：需求过多时全量渲染会卡，列表分页消化 */
+const PAGE_SIZE = 30;
 
 /** 工作项行类型：直接从 app store 的 items 元素推导，避免再引一层 lib/api */
 type WorkitemItem = ReturnType<typeof useApp.getState>['items'][number];
@@ -117,7 +118,7 @@ function WorkitemSkeletonRows() {
  * 列表区不再有卡片边框容器：全宽裸行 + 状态分组折叠，操作逻辑对齐 Linear（j/k/Enter 与悬停跟随光标）。
  */
 export function IterationView() {
-  const { iterationKey, setIteration, openWorkitem, filters, clearFilters, listSearch, setListSearch } = useUi();
+  const { iterationKey, setIteration, openWorkitem, filters } = useUi();
   const {
     items, repositories, category, setCategory, loadingList, loadList, nextToken, loadRepoCi,
     iterations: realIterations, loadingIterations, loadIterations,
@@ -166,13 +167,29 @@ export function IterationView() {
     () => scopedItems(items, iterationKey, realIterations),
     [items, iterationKey, realIterations],
   );
-  const filtered = useMemo(() => {
-    const k = listSearch.trim().toLowerCase();
-    return applyWorkitemFilters(scoped, filters).filter((it) => {
-      if (!k) return true;
-      return it.subject.toLowerCase().includes(k) || it.identifier.toLowerCase().includes(k);
-    });
-  }, [scoped, filters, listSearch]);
+  const filtered = useMemo(
+    () => applyWorkitemFilters(scoped, filters),
+    [scoped, filters],
+  );
+
+  // 筛选选项（含计数）：处理人 / 关联人 / 状态三个多选菜单共用
+  const filterOptions = useMemo(() => buildWorkitemFilterOptions(scoped), [scoped]);
+
+  // 分页（需求过多时全量渲染会卡）：每页 30 条，状态分组按当前页切片计算
+  const [pageIndex, setPageIndex] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems = useMemo(
+    () => filtered.slice((pageIndex - 1) * PAGE_SIZE, pageIndex * PAGE_SIZE),
+    [filtered, pageIndex],
+  );
+
+  // 类别 / 迭代 / 筛选变化时回到第一页
+  useEffect(() => { setPageIndex(1); }, [category, iterationKey, activeFilterCount]);
+
+  // 当前页未填满且云端还有数据 → 自动补拉下一接口页（effect 随 loaded 增长连续触发，直至填满或取尽）
+  useEffect(() => {
+    if (pageItems.length < PAGE_SIZE && nextToken && !loadingList) void loadList(true);
+  }, [pageItems.length, nextToken, loadingList, loadList]);
 
   // 计数口径（工具行尾部 + 列表底部共用）：全部已加载 y 项（当前迭代 x 项在工具行单独拼）
   const countSummary = `全部已加载 ${items.length} 项`;
@@ -183,8 +200,8 @@ export function IterationView() {
     + ` · ${countSummary}`
     + (usingFallback ? ` · 占位数据 · 迭代接口不可用${loadingIterations ? '，获取中…' : ''}` : '');
 
-  // 状态分组：组顺序按 tone（进行中 → 失败 → 待处理 → 已完成），组内保持原顺序
-  const groups = useMemo(() => groupByStatus(filtered), [filtered]);
+  // 状态分组：组顺序 = run → fail → idle → ok，组内保持原顺序（按当前页切片）
+  const groups = useMemo(() => groupByStatus(pageItems), [pageItems]);
 
   // 折叠状态：status 原文集合（折叠的组不渲染数据行）
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
@@ -226,8 +243,6 @@ export function IterationView() {
 
   // 行右键上下文菜单：{行数据, 视口坐标}；受控 DropdownMenu 以隐藏零尺寸 trigger 锚定到该坐标
   const [ctxMenu, setCtxMenu] = useState<{ item: WorkitemItem; x: number; y: number } | null>(null);
-  // '/' 聚焦筛选输入框（Linear 全局快捷键）：ref 供 window keydown 分支使用
-  const filterInputRef = useRef<HTMLInputElement>(null);
 
   // 键盘光标：扁平可见行索引；ref 镜像供 keydown 闭包读取（避免逐键重绑监听器）
   const [cursor, setCursor] = useState(0);
@@ -265,17 +280,6 @@ export function IterationView() {
       if (useUi.getState().commandOpen) return;
       if (ctxMenu) return;
 
-      // / 聚焦筛选输入框（Linear 行为）：光标移到末尾，续接输入而不是插到开头
-      if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        e.preventDefault();
-        const input = filterInputRef.current;
-        if (input) {
-          input.focus();
-          input.setSelectionRange(input.value.length, input.value.length);
-        }
-        return;
-      }
-
       if (e.key === 'j' || e.key === 'ArrowDown' || e.key === 'k' || e.key === 'ArrowUp') {
         e.preventDefault();
         const delta = e.key === 'k' || e.key === 'ArrowUp' ? -1 : 1;
@@ -292,21 +296,6 @@ export function IterationView() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [flatIds, itemById, openDetail, applyCursor, ctxMenu]);
-
-  // 滚动加载哨兵：进入视口（提前 240px）自动拉取下一页；加载完成即重挂观察器，列表仍短则继续拉取
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !nextToken || loadingList) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) void loadList(true);
-      },
-      { rootMargin: '240px 0px' },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [nextToken, loadingList, loadList, items.length]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -349,20 +338,9 @@ export function IterationView() {
             </TabsList>
           </Tabs>
           <span className="min-w-0 truncate text-xs text-muted-foreground">{toolSummary}</span>
+          {/* 筛选组（自侧栏迁入）：处理人 / 关联人 / 状态多选，命中时给清除入口 */}
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            {activeFilterCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <XIcon data-icon="inline-start" />
-                清除筛选（{activeFilterCount}）
-              </Button>
-            )}
-            <Input
-              ref={filterInputRef}
-              value={listSearch}
-              onChange={(e) => setListSearch(e.target.value)}
-              placeholder="筛选列表…"
-              className="h-8 w-48"
-            />
+            <WorkitemFilterBar options={filterOptions} activeFilterCount={activeFilterCount} />
           </div>
         </div>
       </header>
@@ -449,28 +427,35 @@ export function IterationView() {
               icon={SearchXIcon}
               title="无匹配工作项"
               description={items.length && !usingFallback && activeFilterCount
-                ? '当前迭代无匹配工作项（可清除侧栏筛选或点击「加载更多」）'
+                ? '当前迭代无匹配工作项（可清除筛选试试）'
                 : nextToken
-                  ? '当前迭代暂无已加载的工作项（向下滚动或点击「加载更多」继续拉取）'
+                  ? '当前迭代暂无已加载的工作项（翻到下一页会继续拉取）'
                   : undefined}
             />
           )}
-          {/* 滚动加载哨兵：进入视口即自动拉取下一页；常驻按钮保证键盘/触屏可达 */}
-          <div ref={sentinelRef} className="h-px" aria-hidden />
-          {nextToken && (
-            <>
-              {loadingList && items.length > 0 && <WorkitemSkeletonRows />}
-              <div className="flex items-center justify-center py-2">
-                <Button variant="outline" size="sm" disabled={loadingList} onClick={() => void loadList(true)}>
-                  {loadingList && <LoaderCircleIcon data-icon="inline-start" className="animate-spin" />}
-                  加载更多
-                </Button>
-              </div>
-            </>
-          )}
-          {!nextToken && items.length > 0 && !loadingList && (
-            <div className="py-2 text-center text-xs text-muted-foreground">
-              已加载全部 · {countSummary}
+          {/* 分页器：换页时若目标页数据未加载，自动向云效补拉（见上方补拉 effect） */}
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-center gap-3 py-2 text-xs text-muted-foreground">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pageIndex <= 1}
+                onClick={() => setPageIndex((p) => Math.max(1, p - 1))}
+              >
+                上一页
+              </Button>
+              <span className="tabular-nums">
+                {pageIndex} / {totalPages}
+                {loadingList && ' · 加载中…'}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pageIndex >= totalPages}
+                onClick={() => setPageIndex((p) => Math.min(totalPages, p + 1))}
+              >
+                下一页
+              </Button>
             </div>
           )}
         </div>

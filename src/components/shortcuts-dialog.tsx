@@ -28,7 +28,6 @@ const LIST_ROWS: ShortcutRow[] = [
   { keys: ['j', '↓'], label: '下一项' },
   { keys: ['k', '↑'], label: '上一项' },
   { keys: ['↵'], label: '打开' },
-  { keys: ['/'], label: '聚焦筛选' },
 ];
 
 /** 键位胶囊（与 command-menu 底部提示同款形态） */

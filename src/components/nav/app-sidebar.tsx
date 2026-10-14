@@ -31,7 +31,7 @@ import { SETTINGS_SECTIONS } from '../settings/sections';
  * 进入设置后整体切换为设置菜单。头部干净无分隔线，不使用卡片式盒子。
  */
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { view, settingsSection, setSettingsSection, setView } = useUi();
+  const { view, settingsSection, setSettingsSection, setView, openSettings } = useUi();
   const { settings } = useApp();
   const inSettings = view === 'full-settings';
 
@@ -56,6 +56,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     settings?.allowWriteOps ? 'bg-sig-ok' : 'bg-sig-idle',
                   )}
                 />
+                {/* 只读提示徽标（原内容区顶部横幅迁入）：点击直达安全设置 */}
+                {settings != null && !settings.allowWriteOps && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); openSettings('security'); }}
+                    className="cursor-pointer rounded bg-muted px-1 py-px text-[10px] leading-4 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    只读
+                  </button>
+                )}
                 <ChevronDownIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
               </SidebarMenuButton>
             </SidebarMenuItem>

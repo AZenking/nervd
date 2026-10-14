@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -9,16 +10,10 @@ import {
 } from '@/components/ui/sidebar';
 import { NavCollapsibleGroup } from './nav-group';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { StatusBadge } from '../StatusBadge';
 import { StatusIcon } from '../status-icon';
-import {
-  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  ChevronRightIcon, ListFilterIcon, PlusIcon, XIcon,
+  ChevronRightIcon, PlusIcon,
 } from 'lucide-react';
 import { useApp } from '@/store/app';
 import {
@@ -87,51 +82,13 @@ function RequirementTitle({ title }: { title: string }) {
   );
 }
 
-/** 多选筛选下拉（侧栏紧凑版）：选项取自当前迭代已加载工作项（含计数），选中不关闭菜单 */
-function FilterMenu({ label, kind, options }: {
-  label: string;
-  kind: keyof WorkitemFilters;
-  options: [string, number][];
-}) {
-  const selected = useUi((s) => s.filters[kind]);
-  const toggleFilter = useUi((s) => s.toggleFilter);
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant={selected.length ? 'secondary' : 'outline'} size="sm" className="h-6 min-w-0 flex-1 gap-1 rounded-md px-1 text-xs" />}
-      >
-        <span className="min-w-0 truncate">{label}</span>
-        {selected.length > 0 && (
-          <Badge variant="secondary" className="shrink-0 rounded-full px-1.5 text-xs">{selected.length}</Badge>
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-72 w-52 overflow-y-auto">
-        {options.map(([value, count]) => (
-          <DropdownMenuCheckboxItem
-            key={value}
-            checked={selected.includes(value)}
-            onCheckedChange={() => toggleFilter(kind, value)}
-            closeOnClick={false}
-          >
-            <span className="min-w-0 flex-1 truncate">{value}</span>
-            <span className="shrink-0 pl-2 text-xs tabular-nums text-muted-foreground">{count}</span>
-          </DropdownMenuCheckboxItem>
-        ))}
-        {!options.length && (
-          <p className="px-2 py-3 text-center text-xs text-muted-foreground">暂无可筛选项</p>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 /**
  * 迭代分组（UX A6：每个迭代独立展开，chevron 仅负责展开/收起，点行主体切换迭代）：
  * 云效 sprints OpenAPI 的真实迭代列表（不可用时回退占位壳）。
- * 筛选控件只出现在当前迭代下方（与主区工作项网格共享同一份选中状态）。
+ * 筛选控件已迁至迭代视图工具行（WorkitemFilterBar），共享同一份选中状态。
  */
 export function NavProjects() {
-  const { iterationKey, setIteration, filters, clearFilters, openWorkitem } = useUi();
+  const { iterationKey, setIteration, filters, openWorkitem } = useUi();
   const {
     items, selectedId, loadingList,
     iterations: realIterations, loadingIterations,
@@ -232,8 +189,6 @@ export function NavProjects() {
                 {/* Linear 式状态图形：迭代状态（未开始/进行中/已完成）直接外化为图标 */}
                 <StatusIcon status={iteration.state} />
                 <IterationName name={iteration.name} />
-                {/* 迭代状态统一徽章（进行中 / 未开始） */}
-                <StatusBadge status={iteration.state} size="sm" className="ml-auto shrink-0" />
                 {/* UX A6：chevron 为装饰态（键盘经行按钮操作展开）；hover-reveal——展开态常驻指示方向 */}
                 <ChevronRightIcon
                   aria-hidden="true"
@@ -251,39 +206,6 @@ export function NavProjects() {
               </SidebarMenuButton>
               {expanded && (
                 <SidebarMenuSub>
-                  {/* 筛选控件：处理人 / 关联人 / 状态（同时作用于主区工作项网格）——仅当前迭代 */}
-                  {isActive && (
-                    <SidebarMenuSubItem>
-                      <div className="flex flex-col gap-1.5 py-1">
-                        <div className="flex items-center gap-1">
-                          <ListFilterIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                          <span className="text-xs font-medium text-muted-foreground">筛选</span>
-                          {activeFilterCount > 0 && (
-                            <>
-                              <Badge variant="outline" className="px-1.5 text-xs">
-                                命中 {filtered.length}
-                              </Badge>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="xs"
-                                className="ml-auto h-auto gap-0.5 px-1 py-0.5 text-xs font-normal text-muted-foreground hover:text-foreground"
-                                onClick={clearFilters}
-                              >
-                                <XIcon />
-                                清除
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          <FilterMenu label="处理人" kind="assignees" options={options.assignees} />
-                          <FilterMenu label="关联人" kind="related" options={options.related} />
-                          <FilterMenu label="状态" kind="statuses" options={options.statuses} />
-                        </div>
-                      </div>
-                    </SidebarMenuSubItem>
-                  )}
                   {requirementEntries.map((requirement) => (
                     <SidebarMenuSubItem key={requirement.id}>
                       <SidebarMenuSubButton
