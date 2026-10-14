@@ -38,7 +38,7 @@ export function PipelineCard({
     <div className="rounded-lg border border-border bg-card px-6 py-5 transition-colors hover:border-line-strong">
       <div className="flex items-center gap-2">
         <StatusBadge status={latest?.status} />
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-foreground">{pipelineName}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-tight text-foreground">{pipelineName}</span>
         <WriteOpButton
           label="运行"
           title={`触发 ${pipelineName}`}

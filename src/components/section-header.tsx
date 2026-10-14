@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * 区块标题（Linear 语言：14px semibold）：
- * - h2（默认）：主要区块，text-sm semibold + hairline 分割；
- * - h3：次级/折叠区块，同为 text-sm semibold、弱化色、无分割线——靠弱化色轻一档。
+ * 区块标题（Linear 语言：14px medium）：
+ * - h2（默认）：主要区块，text-sm medium + hairline 分割；
+ * - h3：次级/折叠区块，同为 text-sm medium、弱化色、无分割线——靠弱化色轻一档。
  */
 export function SectionHeader({
   title,
@@ -20,8 +20,8 @@ export function SectionHeader({
   level?: 'h2' | 'h3';
 }) {
   const headingClass = level === 'h3'
-    ? 'text-sm font-semibold text-foreground/75'
-    : 'text-sm font-semibold text-foreground';
+    ? 'text-sm font-medium text-foreground/75'
+    : 'text-sm font-medium text-foreground';
   const Tag = (level === 'h3' ? 'h3' : 'h2') as 'h2';
   return (
     <div

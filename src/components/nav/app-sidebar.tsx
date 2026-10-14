@@ -47,7 +47,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <div className="flex aspect-square size-6 shrink-0 items-center justify-center rounded-[6px] bg-sidebar-primary text-sidebar-primary-foreground">
                   <TerminalIcon className="size-3.5" />
                 </div>
-                <span className="truncate text-[13px] font-semibold">nervd</span>
+                <span className="truncate text-[13px] font-medium">nervd</span>
                 {/* 读写策略小圆点：绿=可写，灰=只读 */}
                 <span
                   title={settings?.allowWriteOps ? '可写' : '只读'}

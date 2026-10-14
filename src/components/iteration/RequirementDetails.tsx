@@ -837,7 +837,7 @@ export function RequirementDetails() {
           <Collapsible defaultOpen={false} render={<div className="rounded-lg border border-border/70" />}>
             <div className="flex items-start justify-between gap-3 p-4">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">分支同步状态图</p>
+                <p className="text-sm font-medium text-foreground">分支同步状态图</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   以需求为根的分支树：仓库 → 基准 / 迭代 / 开发分支；绿 / 橙箭头标注各段合并状态（按真实双向比较结果）。
                 </p>

@@ -506,7 +506,7 @@ export function IterationView() {
       <Collapsible defaultOpen={false} render={<div className="rounded-lg border border-border/70" />}>
         <div className="flex items-start justify-between gap-3 p-4">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">分支规则模板{templateCount ? `（${templateCount}）` : ''}</p>
+            <p className="text-sm font-medium text-foreground">分支规则模板{templateCount ? `（${templateCount}）` : ''}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               低频配置：模板保存在本机，需求仓库单独选用。基准模板支持 {'{iteration}'}、{'{template}'}，需求分支支持 {'{identifier}'}。
             </p>

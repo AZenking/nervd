@@ -75,7 +75,7 @@ function RootNode({ data }: NodeProps<RootNodeT>) {
       <Handle id="tt" type="target" position={Position.Top} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
       <div className="font-mono text-[11px] text-muted-foreground">{data.identifier}</div>
-      <div className="mt-0.5 line-clamp-2 text-sm font-semibold leading-5 text-foreground">{data.subject || data.identifier}</div>
+      <div className="mt-0.5 line-clamp-2 text-sm font-medium leading-5 text-foreground">{data.subject || data.identifier}</div>
     </div>
   );
 }
@@ -87,7 +87,7 @@ function RepoNode({ data }: NodeProps<RepoNodeT>) {
       <Handle id="ttr" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="sbr" type="source" position={Position.Bottom} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
-      <div className="truncate text-sm font-semibold text-foreground">{data.name}</div>
+      <div className="truncate text-sm font-medium text-foreground">{data.name}</div>
     </div>
   );
 }

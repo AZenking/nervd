@@ -248,7 +248,7 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-sidebar/70 px-5">
         <span className="size-2 rounded-sm bg-primary shadow-[0_0_0_3px_var(--accent-dim)]" />
-        <span className="text-sm font-semibold tracking-tight">nervd</span>
+        <span className="text-sm font-medium tracking-tight">nervd</span>
         <span className="text-xs text-muted-foreground">初始配置</span>
       </header>
       <main className="flex min-h-0 flex-1 justify-center overflow-y-auto workspace-scroll px-5 py-8 sm:px-8">

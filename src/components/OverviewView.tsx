@@ -107,6 +107,7 @@ export function OverviewView() {
       {/* 页头（统一 PageHeader 形态）：贴左全宽，正文居中限宽；pt-5 顶距由视图自带（滚动容器不再带 pt） */}
       <PageHeader
         title="总览"
+        titleClassName="text-2xl font-medium tracking-tight"
         // D5：副标题不再直出项目空间原始哈希，只保留类别名
         description={CATEGORY_LABELS[category]}
         actions={<Button variant="ghost" size="sm" onClick={refresh}>刷新</Button>}
@@ -212,7 +213,7 @@ export function OverviewView() {
         <section className="flex flex-col gap-3">
           <SectionHeader title={`工作项速览 · ${CATEGORY_LABELS[category]}`} count={workitemStats.total} hint="点击进入工作台" />
           <div className="flex flex-col gap-3 lg:flex-row">
-            <div className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-lg border border-border bg-card p-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-lg border border-border bg-card p-5">
               <div className="text-[13px] font-medium text-muted-foreground">状态分布</div>
               {statusRows.map(([status, count]) => (
                 <div key={status} className="flex items-center gap-3 text-xs">
@@ -226,7 +227,7 @@ export function OverviewView() {
               ))}
               {!statusRows.length && <div className="py-4 text-center text-xs text-muted-foreground">暂无工作项</div>}
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border border-border bg-card p-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border border-border bg-card p-5">
               <div className="text-[13px] font-medium text-muted-foreground">最近更新</div>
               {recentItems.map((it) => (
                 <Button

@@ -92,7 +92,7 @@ export function ChildDetailDrawer({
             ]}
           />
           <div className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-foreground">描述</p>
+            <p className="text-sm font-medium text-foreground">描述</p>
             {loading ? (
               <p className="text-xs text-muted-foreground">加载描述…</p>
             ) : (
