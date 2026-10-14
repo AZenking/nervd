@@ -51,6 +51,8 @@ export function AppBreadcrumb() {
         });
       }
     }
+  } else if (view === 'integration') {
+    items.push(crumbPage('集成分支'));
   } else if (view === 'overview') {
     items.push(crumbPage('总览'));
   } else {

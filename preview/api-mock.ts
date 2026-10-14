@@ -380,11 +380,15 @@ export async function listBranches(repoId: number, search?: string, page = 1, pe
     { name: 'test', commit: { id: 't357001', message: 'test baseline' } },
     { name: 'dev', commit: { id: 'de00d00' } },
     { name: 'iteration/Benz-20261016', commit: { id: 'ab12cd3', message: 'iteration baseline' } },
+    { name: 'release/Benz-20261016', commit: { id: 'r16ab01', message: 'chore: release Benz-20261016 build', committedDate: '2026-10-13T18:20:00Z' } },
+    { name: 'integration/joint-debug-1014', commit: { id: 'jd41f02', message: 'chore: joint debug merge', committedDate: '2026-10-14T09:30:00Z' } },
   ] : repoId === 102 ? [
     { name: 'feature/REQ-2048-core', commit: { id: '9988ff1' } },
     { name: 'master', commit: { id: '0000000' } },
     { name: 'test', commit: { id: 't357002', message: 'test baseline' } },
     { name: 'dev', commit: { id: 'de00d00' } },
+    { name: 'release/Benz-20261016', commit: { id: 'r16c02', message: 'chore: release Benz-20261016', committedDate: '2026-10-13T19:05:00Z' } },
+    { name: 'temp/hotfix-login', commit: { id: 't05ha11', message: 'fix: login redirect', committedDate: '2026-10-12T21:12:00Z' } },
   ] : [];
   const branches = [...baseBranches, ...(createdBranches[repoId] ?? [])];
   const filtered = search ? branches.filter((branch) => branch.name.includes(search)) : branches;
@@ -397,7 +401,10 @@ export async function compareBranches(repoId: number, fromBranch: string, toBran
   const knownBranches = (await listBranches(repoId)).result as BranchInfo[];
   if (!knownBranches.some((branch) => branch.name === fromBranch)) throw new Error(`来源分支不存在：${fromBranch}`);
   if (!knownBranches.some((branch) => branch.name === toBranch)) throw new Error(`目标分支不存在：${toBranch}`);
-  return { commits: [] };
+  // 确定性差异：同名比较稳定，不同分支间 1~7 条不等，便于演示领先/落后
+  const seed = fromBranch.length + toBranch.length * 3;
+  const count = (seed % 6) + 1;
+  return { commits: Array.from({ length: count }, (_, index) => ({ id: `c${seed}x${index}`, message: 'mock commit' })) };
 }
 export async function createBranch(repoId: number, branchName: string, refName: string): Promise<unknown> {
   await sleep(400);

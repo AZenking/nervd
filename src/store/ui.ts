@@ -92,7 +92,7 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
   });
 }
 
-export type WorkspaceView = 'iteration' | 'requirement' | 'overview' | 'full-settings';
+export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'full-settings';
 export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security';
 
 /** 面包屑上的工作项（父 › 子层级链的节点） */

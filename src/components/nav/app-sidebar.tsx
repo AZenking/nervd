@@ -16,6 +16,7 @@ import {
   ArrowLeftIcon,
   CalendarDaysIcon,
   ChevronDownIcon,
+  GitBranchIcon,
   LayoutDashboardIcon,
   SearchIcon,
   TerminalIcon,
@@ -125,6 +126,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 // 迭代详情（requirement）沿用同一高亮
                 view: 'iteration',
                 isActive: view === 'iteration' || view === 'requirement',
+              },
+              {
+                title: '集成分支',
+                icon: <GitBranchIcon />,
+                view: 'integration',
               },
               {
                 title: '总览',

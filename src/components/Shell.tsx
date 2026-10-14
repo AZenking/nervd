@@ -7,6 +7,7 @@ import { AppSidebar } from './nav/app-sidebar';
 import { AppBreadcrumb } from './nav/app-breadcrumb';
 import { IterationView } from './iteration/IterationView';
 import { RequirementDetails } from './iteration/RequirementDetails';
+import { IntegrationView } from './integration/IntegrationView';
 import { LogViewer } from './LogViewer';
 import { OverviewView } from './OverviewView';
 import { SettingsView } from './SettingsView';
@@ -236,6 +237,7 @@ export function Shell() {
             <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-14 sm:px-8 lg:px-10">
               {view === 'iteration' && <IterationView />}
               {view === 'requirement' && <RequirementDetails />}
+              {view === 'integration' && <IntegrationView />}
               {view === 'overview' && <OverviewView />}
               {/* 设置为全页布局：左侧栏即设置菜单，这里只渲染当前分区内容（宽度由 embedded 视图自带） */}
               {view === 'full-settings' && <SettingsView embedded />}
