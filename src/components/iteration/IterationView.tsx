@@ -31,6 +31,7 @@ import { useCiPolling } from '@/hooks/use-ci-polling';
 import { useBatchSelection } from '@/hooks/use-batch-selection';
 import { WorkitemFilterBar } from './workitem-filter-menu';
 import { IterationBranches } from './IterationBranches';
+import { useFusedBranchTemplates } from '@/lib/iteration-templates';
 import { RequirementDetails } from './RequirementDetails';
 import { WorkitemStatusDropdown } from './workitem-status-dropdown';
 import { FloatingBatchBar } from './floating-batch-bar';
@@ -110,8 +111,6 @@ export function IterationView() {
     settings,
   } = useApp();
 
-  const templateCount = settings?.branchRuleTemplates?.length ?? 0;
-
   // CI 轮询：覆盖所有已绑定仓库（Flow + Jenkins），与仓库表/CI 详情同一数据源
   const { refreshCi } = useCiPolling({ repositories });
 
@@ -119,6 +118,9 @@ export function IterationView() {
   const iteration = iterations.find((it) => it.name === iterationKey) ?? iterations[0];
   const usingFallback = !realIterations.length;
   const activeFilterCount = filters.assignees.length + filters.related.length + filters.statuses.length;
+
+  const fusedTemplates = useFusedBranchTemplates(iteration?.id);
+  const templateCount = fusedTemplates.length;
 
   // 回退到首个迭代时同步 store：面包屑（iterationKey）= 页面标题 = 切换器
   useEffect(() => {
@@ -137,6 +139,19 @@ export function IterationView() {
 
   // 筛选选项（含计数）：处理人 / 关联人 / 状态三个多选菜单共用
   const filterOptions = useMemo(() => buildWorkitemFilterOptions(scoped), [scoped]);
+
+  // 本迭代实际涉及仓库数统计：按本迭代工作项关联动态聚合
+  const scopedRepoCount = useMemo(() => {
+    const repoIds = new Set<number>();
+    for (const it of scoped) {
+      const hasOverride = it.workitemId != null && Object.prototype.hasOwnProperty.call(settings?.workitemRepos ?? {}, it.workitemId);
+      const rIds = hasOverride
+        ? (settings?.workitemRepos[it.workitemId] ?? [])
+        : (settings?.watchedRepos ?? []);
+      for (const rId of rIds) repoIds.add(rId);
+    }
+    return repositories.filter((r) => repoIds.has(r.id)).length;
+  }, [scoped, settings, repositories]);
 
   // 分页（需求过多时全量渲染会卡）：每页 30 条，状态分组按当前页切片计算
   const [pageIndex, setPageIndex] = useState(1);
@@ -473,14 +488,23 @@ export function IterationView() {
     </section>
   );
 
-  // 关联仓库与 CI 独立视图（Linear 风格干净卡片）
-  const reposView = <IterationRepoTab />;
+  // 本迭代涉及仓库与 CI 独立视图（按当前迭代动态聚合）
+  const reposView = (
+    <IterationRepoTab
+      iterationKey={iteration.name}
+      scopedItems={scoped}
+      onOpenDetail={openDetail}
+    />
+  );
 
   // 分支规则模板独立视图
   const branchesView = (
     <div className="flex flex-col gap-4">
       <div className="rounded-lg border border-border/70 p-4 bg-background">
-        <IterationBranches />
+        <IterationBranches
+          iterationId={iteration?.id}
+          iterationName={iteration?.name ?? iterationKey}
+        />
       </div>
     </div>
   );
@@ -546,7 +570,7 @@ export function IterationView() {
                 >
                   <TabsList className="h-6 bg-muted/60 p-0.5">
                     <TabsTrigger value="workitems" className="px-2 py-0 text-[11px]">工作项</TabsTrigger>
-                    <TabsTrigger value="repos" className="px-2 py-0 text-[11px]">仓库</TabsTrigger>
+                    <TabsTrigger value="repos" className="px-2 py-0 text-[11px]">涉及仓库</TabsTrigger>
                     <TabsTrigger value="branches" className="px-2 py-0 text-[11px]">模板</TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -670,10 +694,10 @@ export function IterationView() {
                   </span>
                 </TabsTrigger>
                 <TabsTrigger value="repos" className="px-2.5 py-0.5 text-xs gap-1.5">
-                  <span>关联仓库与 CI</span>
-                  {repositories.length > 0 && (
+                  <span>涉及仓库</span>
+                  {scopedRepoCount > 0 && (
                     <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                      {repositories.length}
+                      {scopedRepoCount}
                     </span>
                   )}
                 </TabsTrigger>
@@ -734,7 +758,7 @@ export function IterationView() {
 
         {viewTab === 'repos' && (
           <div className="flex items-center justify-between gap-3 pt-1 text-xs text-muted-foreground">
-            <span>当前迭代绑定的云效与 Jenkins 仓库，点击卡片可查看 CI 详情与构建记录</span>
+            <span>本迭代工作项实际涉及的代码仓库，可手动选择分支与环境触发验证，并实时监控构建 Job</span>
             <Button
               variant="ghost"
               size="xs"

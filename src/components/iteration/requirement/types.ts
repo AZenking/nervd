@@ -1,5 +1,6 @@
 import type { useApp } from '@/store/app';
 import type { WorkitemChild } from '@/lib/api';
+import type { BranchRuleTemplate } from '@/types';
 
 export interface ResolvedRepoBranchRule {
   sourceBranch: string;
@@ -31,9 +32,11 @@ export function resolveRepoBranchRule(
   repoId: number,
   iterationName: string,
   identifier: string,
+  customTemplates?: BranchRuleTemplate[],
 ): ResolvedRepoBranchRule | undefined {
   const templateId = settings?.workitemRepoBranchTemplates?.[workitemId]?.[String(repoId)];
-  const template = settings?.branchRuleTemplates?.find((item) => item.id === templateId);
+  const allTemplates = customTemplates ?? settings?.branchRuleTemplates ?? [];
+  const template = allTemplates.find((item) => item.id === templateId);
   if (template) {
     return {
       sourceBranch: template.sourceBranch,

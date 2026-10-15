@@ -4,6 +4,7 @@ import {
   ExternalLinkIcon, FolderIcon, InboxIcon, LayersIcon, MousePointerClickIcon, PlusIcon, RefreshCwIcon, UserIcon, XIcon,
 } from 'lucide-react';
 import { findRemoteBranch } from '@/lib/iteration-branches';
+import { useFusedBranchTemplates } from '@/lib/iteration-templates';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { WorkitemChild } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -159,9 +160,10 @@ export function RequirementDetails({
       || cur?.sprintName
       || (typeof sprint.name === 'string' ? sprint.name : '')
     : (cur?.sprintName || (typeof sprint.name === 'string' ? sprint.name : ''));
+  const fusedTemplates = useFusedBranchTemplates(iterationId);
   const repoBranchRules: Record<number, ResolvedRepoBranchRule> = iterationId && selectedId
     ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
-      const rule = resolveRepoBranchRule(settings, selectedId, repoId, iterationName, identifier);
+      const rule = resolveRepoBranchRule(settings, selectedId, repoId, iterationName, identifier, fusedTemplates);
       return rule ? [[repoId, rule]] : [];
     }))
     : {};
@@ -614,14 +616,17 @@ export function RequirementDetails({
                         onValueChange={(value) => setLinkDraftTemplateId(value && value !== '__none' ? value : '')}
                         items={[
                           { label: '不应用模板', value: '__none' },
-                          ...(settings?.branchRuleTemplates ?? []).map((template): SearchableSelectOption<string> => ({
-                            label: template.name,
-                            value: template.id,
-                          })),
+                          ...fusedTemplates.map((template): SearchableSelectOption<string> => {
+                            const scopeTag = template.scope === 'iteration' ? ' (迭代专属)' : ' (全局)';
+                            return {
+                              label: `${template.name}${scopeTag}`,
+                              value: template.id,
+                            };
+                          }),
                         ]}
                       />
-                      {!settings?.branchRuleTemplates?.length && (
-                        <p className="text-xs text-muted-foreground">请先在迭代页创建分支模板。</p>
+                      {!fusedTemplates.length && (
+                        <p className="text-xs text-muted-foreground">请先在全局设置或当前迭代页创建分支模板。</p>
                       )}
                     </Field>
                   )}
@@ -650,7 +655,7 @@ export function RequirementDetails({
                     loadingBranches={traceLoading && !branchesByRepoId.has(repo.id)}
                     traceAvailable={branchesByRepoId.has(repo.id)}
                     templateId={selectedId ? settings?.workitemRepoBranchTemplates?.[selectedId]?.[String(repo.id)] : undefined}
-                    templates={settings?.branchRuleTemplates ?? []}
+                    templates={fusedTemplates}
                     templateEnabled={Boolean(isRequirement && iterationId)}
                     baselineBranch={rule?.baselineBranch}
                     baselineState={rule

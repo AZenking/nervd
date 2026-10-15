@@ -8,6 +8,7 @@ import { errorLog, humanizeError } from '@/lib/error-format';
 import { ciStatusText, triggerRepoCiWithFeedback } from '@/lib/ci';
 import { useApp } from '@/store/app';
 import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
+import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -40,7 +41,7 @@ export interface LinkedRepoCardProps {
   loadingBranches: boolean;
   traceAvailable: boolean;
   templateId?: string;
-  templates: BranchRuleTemplate[];
+  templates: (BranchRuleTemplate | ScopedBranchRuleTemplate)[];
   templateEnabled: boolean;
   baselineBranch?: string;
   baselineState: IterationBaselineCheck['state'] | undefined;
@@ -353,10 +354,18 @@ export function LinkedRepoCard({
                 onValueChange={(value) => onTemplateChange(value && value !== '__none' ? value : null)}
                 items={[
                   { label: '未选择模板', value: '__none' },
-                  ...templates.map((template): SearchableSelectOption<string> => ({
-                    label: template.name,
-                    value: template.id,
-                  })),
+                  ...templates.map((template): SearchableSelectOption<string> => {
+                    const scopeTag =
+                      'scope' in template && template.scope === 'iteration'
+                        ? ' (迭代专属)'
+                        : 'scope' in template && template.scope === 'global'
+                          ? ' (全局)'
+                          : '';
+                    return {
+                      label: `${template.name}${scopeTag}`,
+                      value: template.id,
+                    };
+                  }),
                   ...(templateId && !templates.some((template) => template.id === templateId)
                     ? [{ label: '模板不可用', value: templateId, disabled: true }]
                     : []),

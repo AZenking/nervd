@@ -205,9 +205,8 @@ export function JenkinsBuildDialog({
         const values: Record<string, string> = {};
         for (const parameter of definitions) {
           const choices = parameter.choices ?? [];
-          const preferredBranch = branches.includes(defaultBranch ?? '')
-            ? defaultBranch ?? ''
-            : branches[0] ?? '';
+          const preferredBranch = defaultBranch?.trim()
+            || (branches.includes(defaultBranch ?? '') ? defaultBranch ?? '' : branches[0] ?? '');
           values[parameter.name] = (parameter.name === branchName && preferredBranch ? preferredBranch : undefined)
             ?? parameter.defaultValue
             ?? choices[0]
