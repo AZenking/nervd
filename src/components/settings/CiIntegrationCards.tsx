@@ -18,7 +18,7 @@ import { SettingsGroup } from './settings-group';
 /** Jenkins 实例管理卡（读写设置草稿；测试连接 / 验证 Job 的瞬态结果显示在卡内） */
 export function JenkinsInstancesCard() {
   const { settings } = useApp();
-  const { draft, jenkinsTokens, addJenkins, updateJenkins, removeJenkins, setJenkinsToken } = useSettingsDraft();
+  const { draft, jenkinsTokens, addJenkins, updateJenkins, removeJenkins, setJenkinsToken, flushAutoSave, save } = useSettingsDraft();
   const [ciResults, setCiResults] = useState<Record<string, string>>({});
 
   const connections = draft?.jenkinsConnections ?? [];
@@ -48,12 +48,37 @@ export function JenkinsInstancesCard() {
       {connections.map((connection) => {
         const saved = settings?.jenkinsConnections.find((item) => item.id === connection.id);
         return (
-          <div key={connection.id} className="flex flex-col gap-2.5 border-b border-border/70 px-4 py-4 last:border-b-0">
+          <div key={connection.id} className="flex flex-col gap-2.5 border-b border-border/50 px-4 py-4 last:border-b-0">
             <div className="grid gap-2 md:grid-cols-2">
-              <Input aria-label="Jenkins 实例名称" value={connection.name} placeholder="例如：研发 Jenkins" onChange={(e) => updateJenkins(connection.id, { name: e.target.value })} />
-              <Input aria-label="Jenkins 地址" value={connection.baseUrl} placeholder="https://jenkins.example.com" onChange={(e) => updateJenkins(connection.id, { baseUrl: e.target.value })} />
-              <Input aria-label="Jenkins 用户名" value={connection.username} placeholder="用户名" onChange={(e) => updateJenkins(connection.id, { username: e.target.value })} />
-              <Input aria-label="Jenkins API Token" type="password" value={jenkinsTokens[connection.id] ?? ''} placeholder={saved?.hasToken ? 'Token 已保存（留空保持不变）' : 'API Token'} onChange={(e) => setJenkinsToken(connection.id, e.target.value)} />
+              <Input
+                aria-label="Jenkins 实例名称"
+                value={connection.name}
+                placeholder="例如：研发 Jenkins"
+                onChange={(e) => updateJenkins(connection.id, { name: e.target.value })}
+                onBlur={() => void flushAutoSave()}
+              />
+              <Input
+                aria-label="Jenkins 地址"
+                value={connection.baseUrl}
+                placeholder="https://jenkins.example.com"
+                onChange={(e) => updateJenkins(connection.id, { baseUrl: e.target.value })}
+                onBlur={() => void flushAutoSave()}
+              />
+              <Input
+                aria-label="Jenkins 用户名"
+                value={connection.username}
+                placeholder="用户名"
+                onChange={(e) => updateJenkins(connection.id, { username: e.target.value })}
+                onBlur={() => void flushAutoSave()}
+              />
+              <Input
+                aria-label="Jenkins API Token"
+                type="password"
+                value={jenkinsTokens[connection.id] ?? ''}
+                placeholder={saved?.hasToken ? 'Token 已保存（留空保持不变）' : 'API Token'}
+                onChange={(e) => setJenkinsToken(connection.id, e.target.value)}
+                onBlur={() => { if (jenkinsTokens[connection.id]?.trim()) void save({ silent: true }); }}
+              />
               <div className="flex flex-wrap items-center gap-2 md:col-span-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => void testJenkins(connection)}>测试连接</Button>
                 <Tooltip>
@@ -89,7 +114,7 @@ export function JenkinsInstancesCard() {
 /** 仓库 CI Job 绑定卡（云效 Flow 流水线 / Jenkins Job，读写设置草稿） */
 export function RepoCiBindingsCard() {
   const { settings, repositories, pipelines, loadPipelines } = useApp();
-  const { draft, setRepoBinding, fieldErrors } = useSettingsDraft();
+  const { draft, setRepoBinding, fieldErrors, flushAutoSave } = useSettingsDraft();
   const [ciResults, setCiResults] = useState<Record<string, string>>({});
 
   const bindings = draft?.repoCiBindings ?? {};
@@ -134,7 +159,7 @@ export function RepoCiBindingsCard() {
           && savedProfile.username === draftProfile.username);
         const error = fieldErrors[`repo-${repo.id}`];
         return (
-          <div key={repo.id} className="flex flex-col gap-2.5 border-b border-border/70 px-4 py-3.5 last:border-b-0">
+          <div key={repo.id} className="flex flex-col gap-2.5 border-b border-border/50 px-4 py-3.5 last:border-b-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
               <Badge variant={binding ? 'secondary' : 'outline'}>{binding ? '已绑定' : '未绑定'}</Badge>
@@ -192,7 +217,13 @@ export function RepoCiBindingsCard() {
                       })),
                     ]}
                   />
-                  <Input aria-label={`${label} Jenkins Job 全路径`} value={binding.jobFullName} placeholder="folder/job-name" onChange={(e) => setRepoBinding(repo.id, { ...binding, jobFullName: e.target.value })} />
+                  <Input
+                    aria-label={`${label} Jenkins Job 全路径`}
+                    value={binding.jobFullName}
+                    placeholder="folder/job-name"
+                    onChange={(e) => setRepoBinding(repo.id, { ...binding, jobFullName: e.target.value }, false)}
+                    onBlur={() => void flushAutoSave()}
+                  />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="button" variant="outline" size="sm" disabled={!canVerifyJob || !binding.connectionId || !binding.jobFullName.trim()} onClick={() => void verifyJenkinsJob(repo.id, binding)}>验证 Job</Button>
@@ -218,7 +249,7 @@ export function SettingsSaveBar({ children }: { children?: React.ReactNode }) {
   const { save, saving } = useSettingsDraft();
   const dirty = useSettingsDraft((s) => s.isDirty());
   return (
-    <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-border bg-background pt-4">
+    <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-border/60 bg-background/90 backdrop-blur-sm py-3 mt-4">
       {children}
       <div className="ml-auto flex items-center gap-2.5">
         {dirty && <Badge variant="secondary">有未保存修改</Badge>}

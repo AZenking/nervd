@@ -30,7 +30,7 @@ export function SettingsGroup({
         </div>
         {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
       </div>
-      <div className="flex flex-col rounded-xl border border-border bg-card">
+      <div className="flex flex-col rounded-xl border border-border/60 bg-card/50">
         {children}
       </div>
     </section>
@@ -45,8 +45,10 @@ export function SettingsRow({
   control,
   /** horizontal：label 左、控件右（开关/选择）；vertical：label 上、控件整宽（输入类） */
   orientation = 'vertical',
-  /** 横排时控件的定宽档（默认 w-56） */
-  controlWidth = 'w-56',
+  /** 横排时控件的定宽档（输入框如 w-72，开关/按钮等紧凑控件留空自适应靠右） */
+  controlWidth,
+  /** 垂直对齐方式（默认 center 居中对齐） */
+  align = 'center',
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -55,10 +57,14 @@ export function SettingsRow({
   control: ReactNode;
   orientation?: 'vertical' | 'horizontal';
   controlWidth?: string;
+  align?: 'start' | 'center';
 }) {
   const header = (
-    <div className="flex min-w-0 flex-col gap-1">
-      <label htmlFor={htmlFor} className="text-[13px] font-medium text-foreground">
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <label
+        htmlFor={htmlFor}
+        className={`text-[13px] font-medium text-foreground ${htmlFor ? 'cursor-pointer' : ''}`}
+      >
         {label}
       </label>
       {description && (
@@ -70,9 +76,13 @@ export function SettingsRow({
 
   if (orientation === 'horizontal') {
     return (
-      <div className="flex items-start justify-between gap-6 border-b border-border/70 px-4 py-3.5 last:border-b-0">
+      <div
+        className={`flex justify-between gap-6 border-b border-border/50 px-4 py-3.5 last:border-b-0 ${
+          align === 'start' ? 'items-start' : 'items-center'
+        }`}
+      >
         {header}
-        <div className={controlWidth}>
+        <div className={`flex shrink-0 items-center justify-end ${controlWidth ?? ''}`}>
           {control}
         </div>
       </div>
@@ -80,7 +90,7 @@ export function SettingsRow({
   }
 
   return (
-    <div className="flex flex-col gap-2.5 border-b border-border/70 px-4 py-3.5 last:border-b-0">
+    <div className="flex flex-col gap-2.5 border-b border-border/50 px-4 py-3.5 last:border-b-0">
       {header}
       {control}
     </div>
