@@ -7,6 +7,9 @@
     "core:default",
     "opener:default",
     "notification:default",
-    "core:event:default"
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize"
   ]
 }
