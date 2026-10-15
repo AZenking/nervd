@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import {
-  BugIcon, CheckIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, ShieldCheckIcon,
+  BugIcon, CheckIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, ShieldCheckIcon, UserIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
@@ -8,7 +8,7 @@ import type { WorkitemChild, WorkitemTypeOption } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
-import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
+import { useWorkitemWorkflowStatuses, type WorkflowStatusItem } from '@/hooks/use-workitem-workflow-statuses';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ import { EmptyHint } from '@/components/empty-hint';
 import { SectionHeader } from '@/components/section-header';
 import { StatusIcon } from '@/components/status-icon';
 
-/** 行首快速状态切换下拉（免弹窗极速流转） */
+/** 行首快速状态切换下拉（免弹窗极速流转，即时回显 + 乐观更新） */
 export function InlineStatusDropdown({
   task,
   parentWorkitemId,
@@ -32,17 +32,41 @@ export function InlineStatusDropdown({
   task: WorkitemChild;
   parentWorkitemId: string;
 }) {
-  const { loadChildren } = useApp();
+  const { loadChildren, updateChildStatusOptimistic } = useApp();
   const [open, setOpen] = useState(false);
+  const [localStatus, setLocalStatus] = useState({ id: task.statusId, name: task.status });
+
+  // 同步外部 task 状态变化
+  useEffect(() => {
+    setLocalStatus({ id: task.statusId, name: task.status });
+  }, [task.statusId, task.status]);
+
   const { statuses, loadingStatuses, updatingStatus, fetchStatuses, changeStatus } =
     useWorkitemWorkflowStatuses({
       workitemId: task.workitemId,
-      currentStatusId: task.statusId,
-      currentStatusName: task.status,
+      currentStatusId: localStatus.id,
+      currentStatusName: localStatus.name,
       onSuccess: async () => {
-        await loadChildren(parentWorkitemId);
+        // 延迟后台拉取最新状态（由 store 内时间戳防御 ES 索引延迟覆盖）
+        setTimeout(() => {
+          void loadChildren(parentWorkitemId);
+        }, 1500);
       },
     });
+
+  const handleSelectStatus = async (s: WorkflowStatusItem) => {
+    // 立即乐观变更本地回显与 store 状态（<1ms 极速响应）
+    const previous = { ...localStatus };
+    setLocalStatus({ id: s.id, name: s.name });
+    updateChildStatusOptimistic(task.workitemId, s.name, s.id);
+    const ok = await changeStatus(s);
+    if (!ok) {
+      setLocalStatus(previous);
+      updateChildStatusOptimistic(task.workitemId, previous.name ?? '', previous.id);
+    }
+  };
+
+  const displayStatus = localStatus.name || task.status;
 
   return (
     <DropdownMenu
@@ -68,10 +92,10 @@ export function InlineStatusDropdown({
         {updatingStatus ? (
           <Spinner className="size-3.5" />
         ) : (
-          <StatusIcon status={task.status} className="size-3.5 shrink-0" />
+          <StatusIcon status={displayStatus} className="size-3.5 shrink-0" />
         )}
         <span className="text-[12px] text-muted-foreground group-hover/status:text-foreground">
-          {task.status || '未指定'}
+          {displayStatus || '未指定'}
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-36">
@@ -87,14 +111,14 @@ export function InlineStatusDropdown({
           </div>
         )}
         {!loadingStatuses && statuses.map((s) => {
-          const isCurrent = s.id === task.statusId || s.name === task.status;
+          const isCurrent = s.id === localStatus.id || s.name === localStatus.name;
           return (
             <DropdownMenuItem
               key={s.id}
               className={cn('flex cursor-pointer items-center justify-between text-xs', isCurrent && 'font-medium text-primary')}
               onClick={(e) => {
                 e.stopPropagation();
-                void changeStatus(s);
+                void handleSelectStatus(s);
               }}
             >
               <div className="flex items-center gap-2">
@@ -110,6 +134,12 @@ export function InlineStatusDropdown({
   );
 }
 
+export interface AssigneeOption {
+  id: string;
+  name: string;
+  role?: string;
+}
+
 export interface ChildrenCardProps {
   title: string;
   category: 'Task' | 'Bug';
@@ -119,6 +149,8 @@ export interface ChildrenCardProps {
   debug?: string | null;
   parentWorkitemId: string;
   parentAssigneeId?: string;
+  parentAssigneeName?: string;
+  candidateAssignees?: AssigneeOption[];
   selectedChildId?: string | null;
   onSelect: (child: WorkitemChild) => void;
   onEdit?: (child: WorkitemChild) => void;
@@ -137,6 +169,8 @@ export function ChildrenCard({
   debug,
   parentWorkitemId,
   parentAssigneeId,
+  parentAssigneeName,
+  candidateAssignees,
   selectedChildId,
   onSelect,
   footnote,
@@ -158,6 +192,8 @@ export function ChildrenCard({
   const [typeId, setTypeId] = useState('');
   const [loadingTypes, setLoadingTypes] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState<AssigneeOption | null>(null);
+  const [selectedSeverity, setSelectedSeverity] = useState<string>('一般');
 
   const startAdding = async () => {
     if (!allowWriteOps) {
@@ -173,6 +209,14 @@ export function ChildrenCard({
       return;
     }
     setIsAdding(true);
+    // 默认指定人为需求负责人或候选列表首项
+    if (!selectedAssignee) {
+      const defaultAssignee = candidateAssignees?.find((a) => a.id === parentAssigneeId || a.name === parentAssigneeName)
+        ?? candidateAssignees?.[0]
+        ?? (parentAssigneeId ? { id: parentAssigneeId, name: parentAssigneeName || '需求负责人', role: '需求负责人' } : null);
+      setSelectedAssignee(defaultAssignee);
+    }
+    setSelectedSeverity('一般');
     if (!types.length && !loadingTypes) {
       setLoadingTypes(true);
       try {
@@ -213,11 +257,13 @@ export function ChildrenCard({
       const created = await api.createWorkitemChild(parentWorkitemId, {
         subject: trimmed,
         workitemTypeId: typeId || (types[0]?.id ?? ''),
-        assignedTo: parentAssigneeId,
+        assignedTo: selectedAssignee?.id || parentAssigneeId,
+        severity: isBug ? selectedSeverity : undefined,
       });
       await loadChildren(parentWorkitemId);
       setToast({ text: `${title}「${created.identifier || trimmed}」已创建`, kind: 'ok' });
       setNewSubject('');
+      setIsAdding(false);
     } catch (cause) {
       errorLog('inline-subtask-create', cause);
       setToast({ text: `${title}创建失败：${humanizeError(cause)}`, kind: 'fail' });
@@ -265,7 +311,7 @@ export function ChildrenCard({
   );
 
   const inlineAddRow = (
-    <div className="flex items-center gap-2 p-2 bg-muted/25 transition-colors">
+    <div className="flex flex-wrap items-center gap-2 p-2 bg-muted/25 transition-colors">
       {types.length > 1 ? (
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -298,13 +344,102 @@ export function ChildrenCard({
         </div>
       )}
 
+      {/* 缺陷专属：严重程度快速选择 */}
+      {isBug && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded border border-border/60 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-none"
+                title="选择严重程度"
+              />
+            }
+          >
+            <span
+              className={cn('size-1.5 rounded-full shrink-0', {
+                'bg-red-500': selectedSeverity === '致命',
+                'bg-amber-500': selectedSeverity === '严重',
+                'bg-yellow-500': selectedSeverity === '一般',
+                'bg-emerald-400': selectedSeverity === '轻微',
+              })}
+            />
+            <span>{selectedSeverity}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-28">
+            {[
+              { label: '致命', color: 'bg-red-500' },
+              { label: '严重', color: 'bg-amber-500' },
+              { label: '一般', color: 'bg-yellow-500' },
+              { label: '轻微', color: 'bg-emerald-400' },
+            ].map((sev) => (
+              <DropdownMenuItem
+                key={sev.label}
+                className={cn(
+                  'text-xs cursor-pointer flex items-center justify-between',
+                  sev.label === selectedSeverity && 'font-medium text-primary',
+                )}
+                onClick={() => setSelectedSeverity(sev.label)}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={cn('size-1.5 rounded-full shrink-0', sev.color)} />
+                  <span>{sev.label}</span>
+                </div>
+                {sev.label === selectedSeverity && <CheckIcon className="size-3" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
+      {/* 指定人选择器 */}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded border border-border/60 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-none max-w-44"
+              title="选择指定处理人"
+            />
+          }
+        >
+          <UserIcon className="size-3 text-muted-foreground shrink-0" />
+          <span className="truncate">{selectedAssignee?.name || parentAssigneeName || '指定人'}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-48 max-h-64 overflow-y-auto">
+          {(!candidateAssignees || candidateAssignees.length === 0) && (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+              {parentAssigneeName ? `默认指派给：${parentAssigneeName}` : '未找到候选成员'}
+            </div>
+          )}
+          {candidateAssignees?.map((a) => {
+            const isSel = selectedAssignee?.id === a.id || selectedAssignee?.name === a.name;
+            return (
+              <DropdownMenuItem
+                key={a.id || a.name}
+                className={cn('text-xs cursor-pointer flex items-center justify-between', isSel && 'font-medium text-primary')}
+                onClick={() => setSelectedAssignee(a)}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Avatar className="size-4 shrink-0">
+                    <AvatarFallback className="text-[9px]">{a.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <span className="truncate">{a.name}</span>
+                </div>
+                {a.role && <span className="text-[10px] text-muted-foreground ml-1.5 shrink-0">{a.role}</span>}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <Input
         value={newSubject}
         onChange={(e) => setNewSubject(e.target.value)}
         maxLength={500}
         autoFocus
         placeholder={isBug ? '输入缺陷描述，按 ↵ 快速创建…' : '输入子任务名称，按 ↵ 快速创建…'}
-        className="h-7 text-xs flex-1 bg-background"
+        className="h-7 text-xs flex-1 min-w-44 bg-background"
         disabled={submitting}
         onKeyDown={(e) => {
           if (e.key === 'Enter') void handleCreate();

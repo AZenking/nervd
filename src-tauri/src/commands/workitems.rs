@@ -352,9 +352,45 @@ fn extract_user_id(val: Option<&Value>) -> String {
 
 /// 在需求下创建子工作项（**写操作**）：
 /// oapi/v1 POST workitems，body { spaceId, subject, workitemTypeId, parentId, sprint?, assignedTo }
+fn resolve_user_id(name_or_id: &str, detail: &Value) -> String {
+    let trimmed = name_or_id.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    // 1. 若入参等于父项负责人/创建人/修改人的姓名，提取其真实 ID
+    for key in ["assignedTo", "creator", "modifier", "verifier"] {
+        if let Some(user_val) = detail.get(key) {
+            let user_name = s2(user_val, "name", "displayName");
+            if user_name == trimmed {
+                let id = extract_user_id(Some(user_val));
+                if !id.is_empty() {
+                    return id;
+                }
+            }
+        }
+    }
+    // 2. 若入参等于 participants 中的姓名，提取其真实 ID
+    if let Some(participants) = detail.get("participants").and_then(Value::as_array) {
+        for p in participants {
+            let p_name = s2(p, "name", "displayName");
+            if p_name == trimmed {
+                let id = extract_user_id(Some(p));
+                if !id.is_empty() {
+                    return id;
+                }
+            }
+        }
+    }
+    // 3. 否则入参本身即为用户 ID/标识
+    trimmed.to_string()
+}
+
+/// 在需求下创建子工作项（**写操作**）：
+/// oapi/v1 POST workitems，body { spaceId, subject, workitemTypeId, parentId, sprint?, assignedTo, severity? }
 /// （端点与 body 字段依据 alibabacloud-devops-mcp-server@0.3.64 createWorkItemFunc 逆向，
 /// parentId 即挂载父级）。spaceId 取父详情 space.id（子项与父同空间，缺失回退默认
 /// 项目空间）；sprint 继承父项迭代；assignedTo 取显式传入、父项负责人、父项创建人或当前用户。
+/// 针对缺陷（Bug）自动读取字段配置并补充【严重程度】（severity）等必填项，防止云效 400 校验报错。
 #[tauri::command]
 pub async fn create_workitem_child(
     state: State<'_, AppState>,
@@ -362,6 +398,7 @@ pub async fn create_workitem_child(
     subject: String,
     workitem_type_id: String,
     assigned_to: Option<String>,
+    severity: Option<String>,
 ) -> Result<Value, String> {
     ensure_write(&state)?;
     let parent_workitem_id = parent_workitem_id.trim().to_string();
@@ -415,7 +452,10 @@ pub async fn create_workitem_child(
 
     // 云效 Projex 要求 assignedTo（指派人）不能为空：
     // 优先级：显式入参 -> 父项负责人 -> 父项创建人 -> 父项修改人 -> 当前平台用户
-    let mut assignee_id = assigned_to.unwrap_or_default().trim().to_string();
+    let mut assignee_id = assigned_to
+        .as_deref()
+        .map(|s| resolve_user_id(s, detail))
+        .unwrap_or_default();
     if assignee_id.is_empty() {
         assignee_id = extract_user_id(detail.get("assignedTo"));
     }
@@ -433,7 +473,108 @@ pub async fn create_workitem_child(
     if !assignee_id.is_empty() {
         body["assignedTo"] = json!(assignee_id);
     } else {
-        return Err("指派人不能为空：无法从父需求或当前登录用户获取指派人 ID".into());
+        return Err("指派人不能为空：无法从指定处理人、父需求或当前登录用户获取指派人 ID".into());
+    }
+
+    // 自动检查该工作项类型的字段配置，填充必填字段（尤其是 Bug 的【严重程度】等）
+    let fields_url = format!("/oapi/v1/projex/organizations/{org}/projects/{space_id}/workitemTypes/{workitem_type_id}/fields");
+    if let Ok(fields_resp) = c.get(&fields_url, &[]).await {
+        let fields_list = if let Some(arr) = fields_resp.as_array() {
+            arr.clone()
+        } else if let Some(arr) = fields_resp.get("result").and_then(Value::as_array) {
+            arr.clone()
+        } else if let Some(arr) = fields_resp.get("data").and_then(Value::as_array) {
+            arr.clone()
+        } else {
+            Vec::new()
+        };
+
+        for f in &fields_list {
+            let name = s2(f, "name", "displayName");
+            let ident = {
+                let id = s(f, "identifier");
+                if id.is_empty() { s(f, "id") } else { id }
+            };
+            if ident.is_empty() {
+                continue;
+            }
+            let is_severity = name.contains("严重程度") || ident.eq_ignore_ascii_case("severity");
+            let is_required = f.get("isRequired").and_then(Value::as_bool).unwrap_or(false)
+                || f.get("required").and_then(Value::as_bool).unwrap_or(false)
+                || is_severity;
+
+            if is_severity || is_required {
+                let options = f.get("options")
+                    .or_else(|| f.get("items"))
+                    .or_else(|| f.get("values"))
+                    .and_then(Value::as_array);
+
+                let mut chosen_val: Option<String> = None;
+
+                if is_severity {
+                    // 若调用方显式传入了 severity（如 "一般" / "致命" 或 optionId），优先按名称或标识匹配
+                    if let Some(target_sev) = severity.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                        if let Some(opts) = options {
+                            for opt in opts {
+                                let opt_id = s2(opt, "identifier", "id");
+                                let opt_name = s2(opt, "name", "displayName");
+                                if opt_id == target_sev || opt_name == target_sev {
+                                    chosen_val = Some(opt_id);
+                                    break;
+                                }
+                            }
+                        }
+                        if chosen_val.is_none() {
+                            chosen_val = Some(target_sev.to_string());
+                        }
+                    }
+                }
+
+                // 若未指定或未匹配，尝试从 defaultValue / defaultOption 取
+                if chosen_val.is_none() {
+                    if let Some(def) = f.get("defaultValue").and_then(|v| {
+                        if let Some(s) = v.as_str() { Some(s.to_string()) }
+                        else if let Some(id) = v.get("id").or_else(|| v.get("identifier")).and_then(|x| x.as_str()) { Some(id.to_string()) }
+                        else { None }
+                    }) {
+                        if !def.is_empty() {
+                            chosen_val = Some(def);
+                        }
+                    }
+                }
+
+                // 若仍未获取，从 options 列表中找「一般/Normal」或第一项备选
+                if chosen_val.is_none() {
+                    if let Some(opts) = options {
+                        let normal_opt = opts.iter().find(|o| {
+                            let n = s2(o, "name", "displayName");
+                            n.contains("一般") || n.eq_ignore_ascii_case("normal")
+                        });
+                        let picked = normal_opt.or_else(|| opts.first());
+                        if let Some(p) = picked {
+                            let opt_id = s2(p, "identifier", "id");
+                            if !opt_id.is_empty() {
+                                chosen_val = Some(opt_id);
+                            }
+                        }
+                    }
+                }
+
+                if let Some(val) = chosen_val {
+                    body[ident.clone()] = json!(val);
+                    if is_severity {
+                        body["severity"] = json!(val);
+                    }
+                    if let Some(cfv) = body.get_mut("customFieldValues").and_then(Value::as_object_mut) {
+                        cfv.insert(ident.clone(), json!(val));
+                    } else {
+                        let mut cfv = serde_json::Map::new();
+                        cfv.insert(ident.clone(), json!(val));
+                        body["customFieldValues"] = Value::Object(cfv);
+                    }
+                }
+            }
+        }
     }
 
     let resp = c

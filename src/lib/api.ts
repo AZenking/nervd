@@ -125,7 +125,7 @@ export async function listWorkitemTypes(category: string): Promise<WorkitemTypeO
 /** 在需求下创建子工作项（写操作）：parentId 挂到父项，返回与子项列表同形态的行 */
 export async function createWorkitemChild(
   parentWorkitemId: string,
-  p: { subject: string; workitemTypeId: string; assignedTo?: string },
+  p: { subject: string; workitemTypeId: string; assignedTo?: string; severity?: string },
 ): Promise<WorkitemChild> {
   return invoke('create_workitem_child', { parentWorkitemId, ...p });
 }

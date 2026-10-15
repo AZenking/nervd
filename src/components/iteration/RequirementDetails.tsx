@@ -718,6 +718,43 @@ export function RequirementDetails({
               setActiveChildId(child.workitemId);
               setDrawerChild(child);
             };
+
+            // 汇总候选处理人：父需求负责人、创建人、参与人、已有子项负责人及当前迭代成员
+            const candidateAssignees = (() => {
+              const map = new Map<string, { id: string; name: string; role?: string }>();
+              if (parentAssigneeId && assignedToName) {
+                map.set(parentAssigneeId, { id: parentAssigneeId, name: assignedToName, role: '需求负责人' });
+              }
+              const creator = (wi.creator ?? {}) as Record<string, unknown>;
+              const creatorId = typeof creator.id === 'string' ? creator.id
+                : typeof creator.identifier === 'string' ? creator.identifier : undefined;
+              const creatorName = typeof creator.name === 'string' ? creator.name
+                : typeof creator.displayName === 'string' ? creator.displayName : undefined;
+              if (creatorId && creatorName && !map.has(creatorId)) {
+                map.set(creatorId, { id: creatorId, name: creatorName, role: '创建人' });
+              }
+              if (Array.isArray(wi.participants)) {
+                for (const p of wi.participants as Record<string, unknown>[]) {
+                  const pid = typeof p.id === 'string' ? p.id : typeof p.identifier === 'string' ? p.identifier : '';
+                  const pname = typeof p.name === 'string' ? p.name : typeof p.displayName === 'string' ? p.displayName : '';
+                  if (pid && pname && !map.has(pid)) {
+                    map.set(pid, { id: pid, name: pname, role: '参与人' });
+                  }
+                }
+              }
+              for (const c of children) {
+                if (c.assignedTo && !map.has(c.assignedTo)) {
+                  map.set(c.assignedTo, { id: c.assignedTo, name: c.assignedTo, role: '成员' });
+                }
+              }
+              for (const it of items) {
+                if (it.assignedTo && !map.has(it.assignedTo)) {
+                  map.set(it.assignedTo, { id: it.assignedTo, name: it.assignedTo, role: '成员' });
+                }
+              }
+              return Array.from(map.values());
+            })();
+
             return (
               <div className="flex flex-col gap-6">
                 <ChildrenCard
@@ -729,6 +766,8 @@ export function RequirementDetails({
                   debug={childrenDebug}
                   parentWorkitemId={selectedId ?? ''}
                   parentAssigneeId={parentAssigneeId}
+                  parentAssigneeName={assignedToName}
+                  candidateAssignees={candidateAssignees}
                   selectedChildId={activeChildId}
                   onSelect={openChild}
                 />
@@ -741,6 +780,8 @@ export function RequirementDetails({
                   debug={childrenDebug}
                   parentWorkitemId={selectedId ?? ''}
                   parentAssigneeId={parentAssigneeId}
+                  parentAssigneeName={assignedToName}
+                  candidateAssignees={candidateAssignees}
                   selectedChildId={activeChildId}
                   onSelect={openChild}
                 />

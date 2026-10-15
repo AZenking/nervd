@@ -96,12 +96,14 @@ interface AppStore {
   setToast(t: Toast | null): void;
   saveAll(s: Settings, pat?: string): Promise<void>;
   updateWorkitemStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): Promise<boolean>;
+  updateChildStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): void;
 }
 
 const requests = { connection: 0, list: 0, detail: 0, trace: 0, pipelines: 0, logs: 0 };
 const pipelineRunRequests = new Map<number, number>();
 const repoCiRequests = new Map<number, number>();
 const childrenRequests = new Map<string, number>();
+const optimisticChildStatuses = new Map<string, { status: string; statusId?: string; updatedAt: number }>();
 let pipelineRunRequestSequence = 0;
 const nextPipelineRunRequest = (pipelineId: number) => {
   const requestId = ++pipelineRunRequestSequence;
@@ -281,7 +283,16 @@ export const useApp = create<AppStore>((set, get) => ({
     try {
       const result = await api.listWorkitemChildren(workitemId);
       if (childrenRequests.get(workitemId) !== requestId || get().selectedId !== workitemId) return;
-      set({ children: result.items, childrenError: null, childrenDebug: result.rawSample ?? null });
+      const now = Date.now();
+      const mergedItems = result.items.map((item) => {
+        const opt = optimisticChildStatuses.get(item.workitemId);
+        // 如果 10 秒内有乐观状态变更，优先保留乐观状态，防御 ES 搜索索引延迟导致返回旧状态
+        if (opt && now - opt.updatedAt < 10000) {
+          return { ...item, status: opt.status, statusId: opt.statusId ?? item.statusId };
+        }
+        return item;
+      });
+      set({ children: mergedItems, childrenError: null, childrenDebug: result.rawSample ?? null });
     } catch (error) {
       if (childrenRequests.get(workitemId) !== requestId || get().selectedId !== workitemId) return;
       set({ children: [], childrenError: String(error), childrenDebug: null });
@@ -619,16 +630,37 @@ export const useApp = create<AppStore>((set, get) => ({
     }
   },
 
+  updateChildStatusOptimistic: (workitemId: string, newStatus: string, statusId?: string) => {
+    optimisticChildStatuses.set(workitemId, { status: newStatus, statusId, updatedAt: Date.now() });
+    set({
+      children: get().children.map((c) =>
+        c.workitemId === workitemId
+          ? { ...c, status: newStatus, statusId: statusId ?? c.statusId }
+          : c,
+      ),
+    });
+  },
+
   updateWorkitemStatusOptimistic: async (workitemId: string, newStatus: string, statusId?: string): Promise<boolean> => {
     const prevItems = get().items;
     const prevDetail = get().detail;
+    const prevChildren = get().children;
     const targetItem = prevItems.find((it) => it.workitemId === workitemId);
-    const oldStatus = targetItem?.status;
+    const targetChild = prevChildren.find((c) => c.workitemId === workitemId);
+    const oldStatus = targetItem?.status ?? targetChild?.status;
     if (oldStatus === newStatus) return true;
+
+    // 记录乐观状态时间戳，防止 ES 索引延迟覆盖
+    optimisticChildStatuses.set(workitemId, { status: newStatus, statusId, updatedAt: Date.now() });
 
     // 1. 乐观即时更新本地 UI (<50ms)
     set({
       items: prevItems.map((it) => (it.workitemId === workitemId ? { ...it, status: newStatus } : it)),
+      children: prevChildren.map((c) =>
+        c.workitemId === workitemId
+          ? { ...c, status: newStatus, statusId: statusId ?? c.statusId }
+          : c,
+      ),
       detail:
         prevDetail && (prevDetail.workitemId === workitemId || prevDetail.id === workitemId)
           ? { ...prevDetail, status: newStatus, statusStageName: newStatus }
@@ -652,11 +684,12 @@ export const useApp = create<AppStore>((set, get) => ({
       if (targetStatusId) {
         await api.updateWorkitem(workitemId, { statusId: targetStatusId });
       }
-      get().setToast({ text: `${targetItem?.identifier || '工作项'} 状态已流转为「${newStatus}」`, kind: 'ok' });
+      get().setToast({ text: `${targetItem?.identifier || targetChild?.identifier || '工作项'} 状态已流转为「${newStatus}」`, kind: 'ok' });
       return true;
     } catch (err) {
+      optimisticChildStatuses.delete(workitemId);
       // 3. 接口报错回滚
-      set({ items: prevItems, detail: prevDetail });
+      set({ items: prevItems, detail: prevDetail, children: prevChildren });
       get().setToast({ text: `状态流转失败: ${String(err)}`, kind: 'fail' });
       return false;
     }
