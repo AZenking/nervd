@@ -15,8 +15,9 @@ interface ShortcutRow {
 
 /** 导航组：g 前缀序列与全局动作（实现均在 Shell 的全局 keydown 层） */
 const NAV_ROWS: ShortcutRow[] = [
-  { keys: ['g', 'i'], label: '当前迭代' },
   { keys: ['g', 'o'], label: '总览' },
+  { keys: ['g', 'i'], label: '当前迭代' },
+  { keys: ['g', 'b'], label: '集成分支' },
   { keys: ['g', 's'], label: '设置' },
   { keys: ['⌘K'], label: '命令面板' },
   { keys: ['⌘←'], label: '后退' },
@@ -28,6 +29,7 @@ const LIST_ROWS: ShortcutRow[] = [
   { keys: ['j', '↓'], label: '下一项' },
   { keys: ['k', '↑'], label: '上一项' },
   { keys: ['↵'], label: '打开' },
+  { keys: ['[', ']'], label: '上一页 / 下一页' },
 ];
 
 /** 键位胶囊（与 command-menu 底部提示同款形态） */

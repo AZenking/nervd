@@ -31,7 +31,7 @@ export function SectionHeader({
       )}
     >
       <div className="flex min-w-0 items-baseline gap-2">
-        <Tag className={cn('min-w-0 truncate', headingClass)}>{title}</Tag>
+        <Tag className={cn('shrink-0', headingClass)}>{title}</Tag>
         {count !== undefined && <span className="shrink-0 font-mono text-xs text-muted-foreground">{count}</span>}
         {hint && <span className="min-w-0 truncate text-xs text-muted-foreground">{hint}</span>}
       </div>

@@ -4,6 +4,7 @@ import { triggerRepoCiWithFeedback } from '../lib/ci';
 import { formatDateTime, formatDuration } from '../lib/format';
 import { humanizeError } from '@/lib/error-format';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { RefreshCwIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StatusBadge } from './StatusBadge';
@@ -45,7 +46,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
     });
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5 transition-colors hover:border-line-strong">
+    <section className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-muted/40">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={snapshot?.status} />
         <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-tight text-foreground">
@@ -73,7 +74,10 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
       {entry?.error ? (
         <div className="mt-3 rounded-md border border-sig-fail/20 bg-sig-fail/8 px-3 py-2 text-xs text-sig-fail">CI 查询失败：{humanizeError(entry.error, '未能获取 CI 状态，请稍后重试')}</div>
       ) : !snapshot && entry?.loading ? (
-        <p className="mt-2 text-xs text-muted-foreground">读取 Job 状态…</p>
+        <div className="mt-3 flex flex-col gap-2" aria-hidden>
+          <Skeleton className="h-4 w-3/4 rounded" />
+          <Skeleton className="h-3.5 w-1/2 rounded" />
+        </div>
       ) : !snapshot ? (
         <p className="mt-2 text-xs text-muted-foreground">该仓库尚未绑定云效 Flow 或 Jenkins Job，可在设置中配置。</p>
       ) : (

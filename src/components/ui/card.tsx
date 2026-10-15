@@ -24,8 +24,8 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-header"
       className={cn(
-        // 统一头部带：hairline 下边 + 暖纸白底（bg-muted/15）；业务实例不再各自覆写
-        "group/card-header @container/card-header grid auto-rows-min items-start gap-1 rounded-t-lg border-b border-border bg-muted/15 px-(--card-spacing) py-4 has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-4",
+        // 统一头部带：hairline 下边 + 纯净底（bg-card）；对齐 Linear 发丝线风格
+        "group/card-header @container/card-header grid auto-rows-min items-start gap-1 rounded-t-lg border-b border-border bg-card px-(--card-spacing) py-4 has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-4",
         className
       )}
       {...props}

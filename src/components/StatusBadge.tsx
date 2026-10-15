@@ -46,7 +46,7 @@ const CANONICAL: Record<string, StatusMeta> = {
 /** 中文状态关键词分组（云效工作项 / 迭代状态名透传展示） */
 function toneOfChinese(status: string): StatusTone {
   if (/进行|运行|处理中|开发中|开启|加载/.test(status)) return 'run';
-  if (/完成|成功|通过|已解决|已关闭|已发布|已合并|已修复/.test(status)) return 'ok';
+  if (/完成|成功|通过|已解决|已关闭|已发布|已合并|已修复|结束|已结束|归档|已归档/.test(status)) return 'ok';
   if (/失败|错误|阻塞|异常/.test(status)) return 'fail';
   return 'idle';
 }

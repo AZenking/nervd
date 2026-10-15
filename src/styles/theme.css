@@ -61,8 +61,8 @@
 
   /* ---------- Typography ---------- */
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  /* The source spec uses one family throughout, including data labels. */
-  --font-mono: var(--font-sans);
+  /* 等宽字体栈（标识符、分支名、运行号、统计数字与快捷键） */
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 
   /* ---------- shadcn semantic tokens mapped to design.md ---------- */
   /* Linear 式分层：侧栏灰底（--sidebar）、主区白底（--background / SidebarInset） */
@@ -98,6 +98,57 @@
   --sidebar-accent: #eef0f2;
   --sidebar-accent-foreground: #26282d;
   --sidebar-border: #e8e9eb;
+  --sidebar-ring: #5e6ad2;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* ---------- Linear Dark Mode (LCH-based) ---------- */
+  --bg-0: #0b0b0e;
+  --bg-1: #121215;
+  --bg-2: #18181c;
+  --bg-3: #222228;
+  --canvas: #121215;
+  --canvas-soft: #0b0b0e;
+  --surface: #18181c;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --ink: #f7f8f8;
+  --ink-secondary: #8a8f98;
+  --ink-muted: #62666d;
+  --ink-faint: #44474e;
+  --ink-0: #f7f8f8;
+  --ink-1: #8a8f98;
+  --ink-2: #44474e;
+
+  --background: #121215;
+  --foreground: #f7f8f8;
+  --card: #18181c;
+  --card-foreground: #f7f8f8;
+  --popover: #18181c;
+  --popover-foreground: #f7f8f8;
+  --primary: #5e6ad2;
+  --primary-foreground: #ffffff;
+  --secondary: #1e1e24;
+  --secondary-foreground: #8a8f98;
+  --muted: #1e1e24;
+  --muted-foreground: #8a8f98;
+  --accent: #22232a;
+  --accent-foreground: #f7f8f8;
+  --destructive: #e5484d;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #5e6ad2;
+
+  --sidebar: #0b0b0e;
+  --sidebar-foreground: #f7f8f8;
+  --sidebar-primary: #5e6ad2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #18181c;
+  --sidebar-accent-foreground: #f7f8f8;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #5e6ad2;
 }
 
@@ -288,4 +339,33 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* ---------- View Transitions: antfu.me 风格圆形遮罩明暗切换动效 ---------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+.dark::view-transition-old(root) {
+  z-index: 9999;
+}
+
+.dark::view-transition-new(root) {
+  z-index: 1;
 }

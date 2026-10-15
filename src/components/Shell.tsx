@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type WorkspaceView } from '../store/ui';
 import { AppSidebar } from './nav/app-sidebar';
-import { AppBreadcrumb } from './nav/app-breadcrumb';
 import { IterationView } from './iteration/IterationView';
 import { RequirementDetails } from './iteration/RequirementDetails';
 import { IntegrationView } from './integration/IntegrationView';
@@ -16,6 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { useWindowDrag } from '@/hooks/use-window-drag';
 
 /** g 前缀序列的等待窗口（Linear g+letter：g 后 1200ms 内的下一键才生效） */
 const G_SEQUENCE_TIMEOUT_MS = 1200;
@@ -91,6 +91,9 @@ export function Shell() {
   const { view } = useUi();
   const restoreScroll = useUi((s) => s.restoreScroll);
 
+  // 绑定 macOS 桌面端安全边距与页头拖拽 / 双击最大化
+  useWindowDrag();
+
   // ---- 全局快捷键层（Linear 操作逻辑，合并原有 ⌘K / ⌘←）----
   // 处理顺序：① ⌘/Ctrl 组合键（不参与 g 序列）→ ② 浮层/输入焦点让路 → ③ g 前缀序列 → ④ ? 面板 → ⑤ Esc 后退。
   // j/k/Enter 与 `/` 列表导航归 IterationView 自身监听，此处不重复绑定。
@@ -144,12 +147,13 @@ export function Shell() {
         return;
       }
 
-      // ③ g 前缀序列跳转（g i 迭代 / g o 总览 / g s 设置）：第二键未命中也照常复位
+      // ③ g 前缀序列跳转（g o 总览 / g i 迭代 / g b 集成分支 / g s 设置）：第二键未命中也照常复位
       const awaitingG = gTimerRef.current != null;
       resetGSequence();
       if (awaitingG) {
-        if (e.key === 'i') return void ui.setView('iteration');
         if (e.key === 'o') return void ui.setView('overview');
+        if (e.key === 'i') return void ui.setView('iteration');
+        if (e.key === 'b') return void ui.setView('integration');
         if (e.key === 's') return void ui.openSettings('connection');
         // 其他键：已复位，继续落入下方单键逻辑
       } else if (e.key === 'g') {
@@ -190,28 +194,21 @@ export function Shell() {
       {/* Linear 浮动主卡：inset 变体自带 m-2 圆角（ui/sidebar.tsx），这里只管裁切 */}
       <SidebarInset className="overflow-hidden">
         <div className="flex h-full min-h-0">
-          <section className="flex min-w-0 flex-1 flex-col">
-            {/* 迭代/需求详情：面包屑已上移进页头（PageHeader breadcrumb 槽），顶栏不再重复 */}
-            {(view === 'overview' || view === 'full-settings') && (
-              <div className="workspace-topbar px-5 pt-2 sm:px-8">
-                <div className="flex min-h-12 w-full items-center gap-3 px-1">
-                  <AppBreadcrumb />
-                </div>
+          <section className="flex min-w-0 flex-1 flex-col h-full min-h-0 overflow-hidden">
+            {view === 'iteration' ? (
+              <IterationView />
+            ) : (
+              /* 顶部留白不放在滚动容器上（由各视图 / 吸顶页头自带 pt-5）：
+                  吸顶 PageHeader 的 top-0 才能严格贴住可视顶部，避免吸顶缝隙；
+                  overflow-x-hidden 阻断页头负边距在滚动条占位时引发的微量水平溢出 */
+              <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10">
+                {view === 'requirement' && <RequirementDetails />}
+                {view === 'integration' && <IntegrationView />}
+                {view === 'overview' && <OverviewView />}
+                {/* 设置为全页布局：左侧栏即设置菜单，这里只渲染当前分区内容（宽度由 embedded 视图自带） */}
+                {view === 'full-settings' && <SettingsView embedded />}
               </div>
             )}
-
-            {/* 只读横幅：在内容网格之上，不挤占三栏布局 */}
-
-            {/* 顶部留白不放在滚动容器上（由各视图 / 吸顶页头自带 pt-5）：
-                吸顶 PageHeader 的 top-0 才能严格贴住可视顶部，否则吸顶后顶部会露出一条 padding 缝隙 */}
-            <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-14 sm:px-8 lg:px-10">
-              {view === 'iteration' && <IterationView />}
-              {view === 'requirement' && <RequirementDetails />}
-              {view === 'integration' && <IntegrationView />}
-              {view === 'overview' && <OverviewView />}
-              {/* 设置为全页布局：左侧栏即设置菜单，这里只渲染当前分区内容（宽度由 embedded 视图自带） */}
-              {view === 'full-settings' && <SettingsView embedded />}
-            </div>
           </section>
         </div>
       </SidebarInset>

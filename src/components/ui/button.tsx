@@ -9,9 +9,9 @@ const buttonVariants = cva(
       variant: {
         default: "rounded-md bg-primary text-primary-foreground hover:bg-(--primary-active) active:bg-(--primary-active)",
         outline:
-          "rounded-md border-border bg-white text-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "rounded-md border-border bg-background text-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
-          "rounded-md border-border bg-white text-secondary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.02),0_2px_8px_rgba(0,0,0,0.03)] hover:bg-muted aria-expanded:bg-muted aria-expanded:text-secondary-foreground",
+          "rounded-md border-border bg-background text-secondary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.02),0_2px_8px_rgba(0,0,0,0.03)] hover:bg-muted aria-expanded:bg-muted aria-expanded:text-secondary-foreground",
         ghost:
           "rounded-md hover:bg-foreground/5 hover:text-foreground aria-expanded:bg-foreground/5 aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
@@ -24,11 +24,11 @@ const buttonVariants = cva(
         xs: "h-6 gap-1 rounded-md px-1.5 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-7 gap-1 rounded-md px-2.5 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3",
         lg: "h-9 gap-2 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
-        icon: "size-8 rounded-full",
+        icon: "size-8 rounded-md",
         "icon-xs":
-          "size-6 rounded-full in-data-[slot=button-group]:rounded-full [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-7 rounded-full in-data-[slot=button-group]:rounded-full",
-        "icon-lg": "size-9 rounded-full",
+          "size-6 rounded-sm in-data-[slot=button-group]:rounded-sm [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-7 rounded-sm in-data-[slot=button-group]:rounded-sm",
+        "icon-lg": "size-9 rounded-md",
       },
     },
     defaultVariants: {

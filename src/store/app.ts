@@ -68,6 +68,7 @@ interface AppStore {
 
   pipelines: { pipelineId: number; pipelineName: string; status?: string }[];
   runsByPipeline: Record<number, PipelineRunSummary[]>;
+  loadingPipelines: boolean;
 
   logView: LogViewState | null;
   toast: Toast | null;
@@ -94,6 +95,7 @@ interface AppStore {
   closeLogs(): void;
   setToast(t: Toast | null): void;
   saveAll(s: Settings, pat?: string): Promise<void>;
+  updateWorkitemStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): Promise<boolean>;
 }
 
 const requests = { connection: 0, list: 0, detail: 0, trace: 0, pipelines: 0, logs: 0 };
@@ -137,6 +139,7 @@ export const useApp = create<AppStore>((set, get) => ({
 
   pipelines: [],
   runsByPipeline: {},
+  loadingPipelines: false,
 
   logView: null,
   toast: null,
@@ -326,23 +329,36 @@ export const useApp = create<AppStore>((set, get) => ({
     } finally {
       if (isCurrent()) set({ loadingDetail: false });
     }
-    const selected = get().items.find((item) => item.workitemId === id);
+    const { items, detail, children } = get();
+    const wi = (detail?.workitem ?? detail ?? {}) as Record<string, unknown>;
+    const selected = items.find((item) => item.workitemId === id);
+    const childItem = children.find((c) => c.workitemId === id);
+    const category = (typeof wi.category === 'string' && wi.category)
+      || selected?.category
+      || childItem?.category
+      || get().category;
     const reposForTrace = s
-      ? workitemRepoIds(selected?.category ?? get().category, id, s)
+      ? workitemRepoIds((category as Category) || 'Req', id, s)
       : [];
     if (isCurrent() && reposForTrace.length > 0) void get().loadTrace();
   },
 
   async loadTrace() {
     const requestId = ++requests.trace;
-    const { settings: s, selectedId, items } = get();
+    const { settings: s, selectedId, items, detail, children } = get();
     if (!s || !selectedId) {
       set({ trace: null, traceLoading: false });
       return;
     }
+    const wi = (detail?.workitem ?? detail ?? {}) as Record<string, unknown>;
     const cur = items.find((i) => i.workitemId === selectedId)
       ?? items.find((i) => i.identifier === selectedId);
-    const identifier = cur?.identifier ?? '';
+    const childItem = children.find((c) => c.workitemId === selectedId);
+    const identifier = cur?.identifier
+      || childItem?.identifier
+      || (typeof wi.identifier === 'string' ? wi.identifier : '')
+      || (typeof wi.serialNumber === 'string' ? wi.serialNumber : '')
+      || '';
     if (!identifier) {
       set({ trace: null, traceLoading: false });
       return;
@@ -352,11 +368,14 @@ export const useApp = create<AppStore>((set, get) => ({
 
     set({ traceLoading: true });
     try {
-      const current = items.find((item) => item.workitemId === selectedId);
-      const trace = await loadWorkitemTrace(selectedId, identifier, current?.category ?? get().category, s);
+      const category = (typeof wi.category === 'string' && wi.category)
+        || cur?.category
+        || childItem?.category
+        || get().category;
+      const trace = await loadWorkitemTrace(selectedId, identifier, (category as Category) || 'Req', s);
       if (isCurrent()) {
         set({ trace });
-        if ((current?.category ?? get().category) === 'Req') {
+        if (category === 'Req') {
           await Promise.all(trace.repositories.map((repo) => get().loadRepoCi(repo.repoId)));
         }
       }
@@ -459,6 +478,7 @@ export const useApp = create<AppStore>((set, get) => ({
 
   async loadPipelines() {
     const requestId = ++requests.pipelines;
+    set({ loadingPipelines: true });
     try {
       const pipelines = await api.listPipelines(20);
       if (requestId !== requests.pipelines) return;
@@ -485,6 +505,10 @@ export const useApp = create<AppStore>((set, get) => ({
       });
     } catch {
       /* 静默：流水线区失败不阻塞主流程 */
+    } finally {
+      if (requestId === requests.pipelines) {
+        set({ loadingPipelines: false });
+      }
     }
   },
 
@@ -570,10 +594,11 @@ export const useApp = create<AppStore>((set, get) => ({
             children: [],
             childrenError: null,
             childrenDebug: null,
-          loadingDetail: false,
-          pipelines: [],
-          runsByPipeline: {},
-          logView: null,
+            loadingDetail: false,
+            pipelines: [],
+            runsByPipeline: {},
+            loadingPipelines: false,
+            logView: null,
         }
         : {}),
       ...(traceContextChanged ? { trace: null, traceLoading: false } : {}),
@@ -591,6 +616,49 @@ export const useApp = create<AppStore>((set, get) => ({
       } else if (repoCiChanged && get().trace) {
         void Promise.all(get().trace!.repositories.map((repo) => get().loadRepoCi(repo.repoId)));
       }
+    }
+  },
+
+  updateWorkitemStatusOptimistic: async (workitemId: string, newStatus: string, statusId?: string): Promise<boolean> => {
+    const prevItems = get().items;
+    const prevDetail = get().detail;
+    const targetItem = prevItems.find((it) => it.workitemId === workitemId);
+    const oldStatus = targetItem?.status;
+    if (oldStatus === newStatus) return true;
+
+    // 1. 乐观即时更新本地 UI (<50ms)
+    set({
+      items: prevItems.map((it) => (it.workitemId === workitemId ? { ...it, status: newStatus } : it)),
+      detail:
+        prevDetail && (prevDetail.workitemId === workitemId || prevDetail.id === workitemId)
+          ? { ...prevDetail, status: newStatus, statusStageName: newStatus }
+          : prevDetail,
+    });
+
+    // 2. 后台异步调用 API
+    try {
+      let targetStatusId = statusId;
+      if (!targetStatusId) {
+        try {
+          const statuses = await api.getWorkitemWorkflowStatuses(workitemId);
+          const match = statuses.find(
+            (s) => s.name === newStatus || s.name.includes(newStatus) || newStatus.includes(s.name),
+          );
+          if (match) targetStatusId = match.id;
+        } catch {
+          // 忽略状态字典拉取失败，尝试直接传 statusId
+        }
+      }
+      if (targetStatusId) {
+        await api.updateWorkitem(workitemId, { statusId: targetStatusId });
+      }
+      get().setToast({ text: `${targetItem?.identifier || '工作项'} 状态已流转为「${newStatus}」`, kind: 'ok' });
+      return true;
+    } catch (err) {
+      // 3. 接口报错回滚
+      set({ items: prevItems, detail: prevDetail });
+      get().setToast({ text: `状态流转失败: ${String(err)}`, kind: 'fail' });
+      return false;
     }
   },
 }));

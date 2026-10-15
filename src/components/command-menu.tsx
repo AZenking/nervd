@@ -2,11 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
   CalendarDaysIcon,
+  GitBranchIcon,
   LayoutDashboardIcon,
   LockIcon,
+  MoonIcon,
   RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
+  SunIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
@@ -53,7 +56,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export function CommandMenu() {
   const open = useUi((s) => s.commandOpen);
   const setCommandOpen = useUi((s) => s.setCommandOpen);
-  const { view, setView, openSettings, setIteration, openWorkitem } = useUi();
+  const { view, setView, openSettings, setIteration, openWorkitem, theme, toggleTheme } = useUi();
   const items = useApp((s) => s.items);
   const realIterations = useApp((s) => s.iterations);
   const loadList = useApp((s) => s.loadList);
@@ -73,22 +76,31 @@ export function CommandMenu() {
 
     const nav: CommandEntry[] = [
       {
-        id: 'nav-iteration',
-        group: '导航',
-        label: '当前迭代',
-        icon: <CalendarDaysIcon className="size-4" />,
-        keywords: '迭代 iteration sprint',
-        active: view === 'iteration' || view === 'requirement',
-        run: () => setView('iteration'),
-      },
-      {
         id: 'nav-overview',
         group: '导航',
         label: '总览',
         icon: <LayoutDashboardIcon className="size-4" />,
-        keywords: '总览 overview dashboard',
+        keywords: '总览 overview dashboard 大盘',
         active: view === 'overview',
         run: () => setView('overview'),
+      },
+      {
+        id: 'nav-iteration',
+        group: '导航',
+        label: '当前迭代',
+        icon: <CalendarDaysIcon className="size-4" />,
+        keywords: '迭代 iteration sprint 工作项',
+        active: view === 'iteration' || view === 'requirement',
+        run: () => setView('iteration'),
+      },
+      {
+        id: 'nav-integration',
+        group: '导航',
+        label: '集成分支',
+        icon: <GitBranchIcon className="size-4" />,
+        keywords: '集成分支 分支 branch integration release',
+        active: view === 'integration',
+        run: () => setView('integration'),
       },
       {
         id: 'nav-settings',
@@ -143,6 +155,14 @@ export function CommandMenu() {
         },
       },
       {
+        id: 'action-theme',
+        group: '操作',
+        label: theme === 'dark' ? '切换为浅色模式' : '切换为深色模式',
+        icon: theme === 'dark' ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />,
+        keywords: '主题 theme dark light 深色 浅色 模式切换',
+        run: () => toggleTheme(),
+      },
+      {
         id: 'action-security',
         group: '操作',
         label: '安全与写操作设置',
@@ -158,7 +178,7 @@ export function CommandMenu() {
       ...workitemEntries,
       ...actions.filter(hit),
     ];
-  }, [q, view, realIterations, items, setView, openSettings, setIteration, openWorkitem, loadList, loadIterations]);
+  }, [q, view, realIterations, items, setView, openSettings, setIteration, openWorkitem, loadList, loadIterations, theme, toggleTheme]);
 
   // 非空组（保持 GROUP_ORDER 顺序）+ 扁平序（键盘 active 索引按扁平序计）
   const groups = useMemo<{ group: CommandGroup; entries: CommandEntry[] }[]>(

@@ -52,6 +52,17 @@ export function validateSettings(s: Settings): Record<string, string> {
   return errors;
 }
 
+export type AutoSaveStatus = 'saved' | 'saving' | 'error' | 'unsaved';
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearDebounce = () => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+};
+
 interface SettingsDraftStore {
   /** 编辑中的草稿；null = 尚未开始编辑 */
   draft: Settings | null;
@@ -61,6 +72,7 @@ interface SettingsDraftStore {
   pat: string;
   jenkinsTokens: Record<string, string>;
   saving: boolean;
+  autoSaveStatus: AutoSaveStatus;
   fieldErrors: Record<string, string>;
   /** dirty 时被导航守卫拦截的目标视图（由 ui store 写入，Shell 弹确认） */
   pendingView: string | null;
@@ -70,16 +82,18 @@ interface SettingsDraftStore {
   beginEdit(saved: SettingsView | null): void;
   /** 保存成功后：以已保存 settings 覆盖草稿并清空输入中的令牌 */
   syncFromSaved(saved: SettingsView | null): void;
-  update(patch: Partial<Settings>): void;
+  update(patch: Partial<Settings>, immediateSave?: boolean): void;
   setPat(pat: string): void;
   setJenkinsToken(id: string, token: string): void;
   addJenkins(): void;
-  updateJenkins(id: string, patch: Partial<JenkinsConnection>): void;
+  updateJenkins(id: string, patch: Partial<JenkinsConnection>, immediateSave?: boolean): void;
   removeJenkins(id: string): void;
-  setRepoBinding(repoId: number, binding: RepoCiBinding | null): void;
+  setRepoBinding(repoId: number, binding: RepoCiBinding | null, immediateSave?: boolean): void;
   setFieldError(key: string, message: string | null): void;
   setPendingView(view: string | null): void;
-  save(): Promise<boolean>;
+  scheduleAutoSave(delayMs?: number): void;
+  flushAutoSave(): Promise<boolean>;
+  save(options?: { silent?: boolean }): Promise<boolean>;
   discard(): void;
 }
 
@@ -89,6 +103,7 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
   pat: '',
   jenkinsTokens: {},
   saving: false,
+  autoSaveStatus: 'saved',
   fieldErrors: {},
   pendingView: null,
 
@@ -101,11 +116,13 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
 
   beginEdit(saved) {
     if (get().isDirty()) return; // 有未保存修改：跨入口继续编辑，保留草稿
+    clearDebounce();
     const next = normalize(saved) ?? { ...EMPTY_SETTINGS };
-    set({ draft: next, baseline: next, fieldErrors: {} });
+    set({ draft: next, baseline: next, fieldErrors: {}, autoSaveStatus: 'saved' });
   },
 
   syncFromSaved(saved) {
+    clearDebounce();
     const next = normalize(saved) ?? { ...EMPTY_SETTINGS };
     set({
       draft: next,
@@ -114,15 +131,38 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
       jenkinsTokens: {},
       fieldErrors: {},
       pendingView: null,
+      autoSaveStatus: 'saved',
     });
   },
 
-  update(patch) {
-    set((st) => ({ draft: st.draft ? { ...st.draft, ...patch } : { ...{ ...EMPTY_SETTINGS }, ...patch } }));
+  scheduleAutoSave(delayMs = 800) {
+    clearDebounce();
+    set({ autoSaveStatus: 'unsaved' });
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      void get().save({ silent: true });
+    }, delayMs);
   },
-  setPat(pat) { set({ pat }); },
+
+  async flushAutoSave() {
+    clearDebounce();
+    return await get().save({ silent: true });
+  },
+
+  update(patch, immediateSave = false) {
+    set((st) => ({ draft: st.draft ? { ...st.draft, ...patch } : { ...{ ...EMPTY_SETTINGS }, ...patch } }));
+    if (immediateSave) {
+      void get().save({ silent: true });
+    } else {
+      get().scheduleAutoSave();
+    }
+  },
+  setPat(pat) {
+    set({ pat });
+    set({ autoSaveStatus: 'unsaved' });
+  },
   setJenkinsToken(id, token) {
-    set((st) => ({ jenkinsTokens: { ...st.jenkinsTokens, [id]: token } }));
+    set((st) => ({ jenkinsTokens: { ...st.jenkinsTokens, [id]: token }, autoSaveStatus: 'unsaved' }));
   },
   addJenkins() {
     const id = crypto.randomUUID().replace(/-/g, '');
@@ -130,14 +170,20 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
       draft: st.draft
         ? { ...st.draft, jenkinsConnections: [...st.draft.jenkinsConnections, { id, name: '', baseUrl: '', username: '' }] }
         : st.draft,
+      autoSaveStatus: 'unsaved',
     }));
   },
-  updateJenkins(id, patch) {
+  updateJenkins(id, patch, immediateSave = false) {
     set((st) => ({
       draft: st.draft
         ? { ...st.draft, jenkinsConnections: st.draft.jenkinsConnections.map((c) => (c.id === id ? { ...c, ...patch } : c)) }
         : st.draft,
     }));
+    if (immediateSave) {
+      void get().save({ silent: true });
+    } else {
+      get().scheduleAutoSave();
+    }
   },
   removeJenkins(id) {
     set((st) => {
@@ -157,8 +203,9 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
         jenkinsTokens,
       };
     });
+    void get().save({ silent: true });
   },
-  setRepoBinding(repoId, binding) {
+  setRepoBinding(repoId, binding, immediateSave = true) {
     set((st) => {
       if (!st.draft) return {};
       const repoCiBindings = { ...st.draft.repoCiBindings };
@@ -166,6 +213,11 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
       else delete repoCiBindings[String(repoId)];
       return { draft: { ...st.draft, repoCiBindings } };
     });
+    if (immediateSave) {
+      void get().save({ silent: true });
+    } else {
+      get().scheduleAutoSave();
+    }
   },
   setFieldError(key, message) {
     set((st) => {
@@ -177,16 +229,19 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
   },
   setPendingView(view) { set({ pendingView: view }); },
 
-  async save() {
+  async save(options?: { silent?: boolean }) {
+    clearDebounce();
     const { draft } = get();
     if (!draft) return false;
     const errors = validateSettings(draft);
     if (Object.keys(errors).length) {
-      set({ fieldErrors: errors });
-      useApp.getState().setToast({ text: '设置有需要修正的内容，请检查标红的字段', kind: 'fail' });
+      set({ fieldErrors: errors, autoSaveStatus: 'error' });
+      if (!options?.silent) {
+        useApp.getState().setToast({ text: '设置有需要修正的内容，请检查标红的字段', kind: 'fail' });
+      }
       return false;
     }
-    set({ saving: true });
+    set({ saving: true, autoSaveStatus: 'saving' });
     try {
       const app = useApp.getState();
       const oldIds = (app.settings?.jenkinsConnections ?? []).map((c) => c.id);
@@ -200,10 +255,16 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
         if (!currentIds.has(id)) await api.deleteJenkinsToken(id);
       }
       get().syncFromSaved(useApp.getState().settings);
-      useApp.getState().setToast({ text: '设置已保存', kind: 'ok' });
+      set({ autoSaveStatus: 'saved' });
+      if (!options?.silent) {
+        useApp.getState().setToast({ text: '设置已保存', kind: 'ok' });
+      }
       return true;
     } catch (e) {
-      useApp.getState().setToast({ text: `保存失败：${String(e)}`, kind: 'fail' });
+      set({ autoSaveStatus: 'error' });
+      if (!options?.silent) {
+        useApp.getState().setToast({ text: `保存失败：${String(e)}`, kind: 'fail' });
+      }
       return false;
     } finally {
       set({ saving: false });
@@ -212,12 +273,14 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
 
   /** 放弃修改：回到基线（进入设置页时 beginEdit 会再用最新已保存值重建） */
   discard() {
+    clearDebounce();
     set((st) => ({
       draft: st.baseline ? { ...st.baseline } : st.baseline,
       pat: '',
       jenkinsTokens: {},
       fieldErrors: {},
       pendingView: null,
+      autoSaveStatus: 'saved',
     }));
   },
 }));

@@ -33,7 +33,7 @@ export function PageHeader({
 }) {
   if (breadcrumb) {
     return (
-      <header className={cn('flex flex-col gap-2', className)}>
+      <header data-tauri-drag-region className={cn('flex flex-col gap-2', className)}>
         <div className="flex min-w-0 items-center justify-between gap-4">
           <div className="min-w-0">{breadcrumb}</div>
           {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
@@ -51,7 +51,7 @@ export function PageHeader({
     );
   }
   return (
-    <header className={cn('flex flex-col gap-3', className)}>
+    <header data-tauri-drag-region className={cn('flex flex-col gap-3', className)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           {eyebrow && <p className="eyebrow">{eyebrow}</p>}
@@ -70,12 +70,11 @@ export function PageHeader({
 
 /**
  * 吸顶页头统一形态（迭代页 / 需求详情共用）：
- * - 顶部留白由页头自身 pt-5 提供（滚动容器不再带 pt），top-0 严格贴住可视顶部——
- *   修复 WKWebView 下吸顶后顶部留出一条滚动容器 padding 缝隙、滚过的内容从缝隙露出的缺陷；
+ * - 顶部留白由页头自身 pt-8 提供（包含 macOS 沉浸式窗口红绿灯避让与安全边距）；
  * - 负水平边距对冲滚动容器的 px-*，背景与下边框全宽贴边，窄屏下滚动内容不会从页头两侧穿出。
  */
 export const STICKY_PAGE_HEADER_CLASS =
-  'sticky top-0 z-10 -mx-5 border-b border-border bg-background px-5 pt-5 pb-4 sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10';
+  'sticky top-0 z-10 -mx-5 border-b border-border bg-background px-5 pt-8 pb-3.5 sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10';
 
 /** 便捷导出：状态徽章保持同一变体 */
 export function PageStatusBadge({ children }: { children: React.ReactNode }) {

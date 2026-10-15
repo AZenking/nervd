@@ -3,6 +3,7 @@
 // 与 store/app.ts 的业务状态分离；不持久化——每次启动回到当前迭代。
 // 导航历史与层级链（UX 评审 A2）：面包屑可点、⌘← 后退、子任务可回父需求。
 // 设置页互切/离开时若设置草稿有未保存修改，则拦截为 pendingView 由 Shell 弹确认（UX A1）。
+import { flushSync } from 'react-dom';
 import { create } from 'zustand';
 import type { IterationSummary } from '../types';
 import { useApp } from './app';
@@ -148,6 +149,10 @@ interface UiStore {
   shortcutsOpen: boolean;
   /** 快捷键面板开合（Base UI Dialog 受控） */
   setShortcutsOpen(open: boolean): void;
+  /** 主题模式：深色 dark（默认）与浅色 light */
+  theme: 'dark' | 'light';
+  setTheme(theme: 'dark' | 'light'): void;
+  toggleTheme(event?: { clientX: number; clientY: number } | null): void;
 }
 
 /** 离开设置视图且草稿有未保存修改 → 拦截，交给 Shell 的确认弹窗（UX A1） */
@@ -190,6 +195,72 @@ export const useUi = create<UiStore>((set, get) => {
     toggleCommandMenu: () => set((st) => ({ commandOpen: !st.commandOpen })),
     shortcutsOpen: false,
     setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+    theme: (typeof localStorage !== 'undefined' && (localStorage.getItem('nervd-theme') as 'dark' | 'light')) || 'dark',
+    setTheme: (theme) => {
+      if (typeof localStorage !== 'undefined') localStorage.setItem('nervd-theme', theme);
+      if (typeof document !== 'undefined') {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+      }
+      set({ theme });
+    },
+    toggleTheme: (event) => {
+      const current = get().theme;
+      const next = current === 'dark' ? 'light' : 'dark';
+
+      // 降级判定：检查环境支持与系统减弱动态效果偏好
+      const isReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const doc = typeof document !== 'undefined' ? (document as Document & {
+        startViewTransition?: (callback: () => void | Promise<void>) => { ready: Promise<void> };
+      }) : null;
+      const isAppearanceTransition = Boolean(
+        doc && typeof doc.startViewTransition === 'function' && !isReducedMotion,
+      );
+
+      if (!isAppearanceTransition || !doc?.startViewTransition) {
+        get().setTheme(next);
+        return;
+      }
+
+      const x = event?.clientX ?? (typeof window !== 'undefined' ? window.innerWidth / 2 : 0);
+      const y = event?.clientY ?? (typeof window !== 'undefined' ? window.innerHeight / 2 : 0);
+      const endRadius = Math.hypot(
+        Math.max(x, (typeof window !== 'undefined' ? window.innerWidth : 0) - x),
+        Math.max(y, (typeof window !== 'undefined' ? window.innerHeight : 0) - y),
+      );
+
+      const transition = doc.startViewTransition(() => {
+        flushSync(() => {
+          get().setTheme(next);
+        });
+      });
+
+      if (!transition) return;
+
+      void transition.ready.then(() => {
+        const isDark = next === 'dark';
+        const clipPath = [
+          `circle(0px at ${x}px ${y}px)`,
+          `circle(${endRadius}px at ${x}px ${y}px)`,
+        ];
+
+        try {
+          document.documentElement.animate(
+            {
+              clipPath: isDark ? [...clipPath].reverse() : clipPath,
+            },
+            {
+              duration: 400,
+              easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+              pseudoElement: isDark ? '::view-transition-old(root)' : '::view-transition-new(root)',
+            } as KeyframeAnimationOptions,
+          );
+        } catch {
+          // 在不支持伪元素 Web Animations 的早期 WebKit 中静默回退
+        }
+      });
+    },
     setView: (view) => {
       const st = get();
       if (view === st.view) return;

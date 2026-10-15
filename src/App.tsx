@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Shell } from './components/Shell';
 import { SettingsView } from './components/SettingsView';
 import { useApp } from './store/app';
+import { useUi } from './store/ui';
 import type { JenkinsBuildEvent, PipelineRunEvent } from './types';
 
 // 打开外部链接（经 plugin-opener）；被 scope 拒绝等失败场景降级为错误 toast
@@ -41,6 +42,8 @@ export default function App() {
   const { booting, settings, init, loadPipelines, loadRepoCi } = useApp();
 
   useEffect(() => {
+    const theme = useUi.getState().theme;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
     void init();
   }, []);
 
@@ -84,20 +87,35 @@ export default function App() {
     return (
       <TooltipProvider>
         <div className="flex h-full min-h-0 bg-background text-foreground">
-          <div className="flex w-64 shrink-0 flex-col gap-3 border-r border-border bg-muted/30 p-4">
-            <Skeleton className="h-10 w-full rounded-lg" />
-            {Array.from({ length: 7 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full rounded-md" />
-            ))}
-          </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <div className="px-8 pt-6">
-              <Skeleton className="h-8 w-64" />
+          <div className="flex w-64 shrink-0 flex-col gap-3 border-r border-border bg-sidebar p-3">
+            <div className="h-8 select-none" />
+            <div className="flex items-center gap-2 px-1">
+              <Skeleton className="size-6 rounded-md" />
+              <Skeleton className="h-4 w-20 rounded" />
             </div>
-            <div className="mx-auto flex max-w-4xl flex-col gap-4 px-8 pt-8">
-              <Skeleton className="h-24 w-full rounded-xl" />
-              <Skeleton className="h-40 w-full rounded-xl" />
-              <Skeleton className="h-56 w-full rounded-xl" />
+            <Skeleton className="h-7 w-full rounded-md mt-1" />
+            <div className="flex flex-col gap-1.5 mt-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2.5 px-2 py-1.5">
+                  <Skeleton className="size-4 rounded-sm" />
+                  <Skeleton className="h-3.5 flex-1 rounded" style={{ width: `${50 + (i * 11) % 35}%` }} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden flex flex-col">
+            <div className="h-12 border-b border-border/40 flex items-center justify-between px-8">
+              <Skeleton className="h-5 w-36 rounded" />
+              <Skeleton className="h-7 w-20 rounded" />
+            </div>
+            <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-8 py-6">
+              <div className="grid grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-20 w-full rounded-lg" />
+                ))}
+              </div>
+              <Skeleton className="h-36 w-full rounded-lg" />
+              <Skeleton className="h-48 w-full rounded-lg" />
             </div>
           </div>
         </div>

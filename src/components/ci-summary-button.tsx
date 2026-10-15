@@ -34,7 +34,7 @@ export function CiSummaryButton({
       >
         <StatusBadge status={status} />
         {runCount ? (
-          <span className="text-xs text-muted-foreground">· 最近 {runCount} 次</span>
+          <span className="whitespace-nowrap text-xs text-muted-foreground">· {runCount} 次运行</span>
         ) : null}
       </TooltipTrigger>
       <TooltipContent>{error ?? tooltip}</TooltipContent>

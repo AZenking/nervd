@@ -117,6 +117,7 @@ function DrawerContent({
         <DrawerPrimitive.Popup
           data-slot="drawer-popup"
           data-swipe-axis={swipeAxis}
+          data-swipe-direction={swipeDirection}
           data-snap-points={hasSnapPoints ? "" : undefined}
           className={cn(
             // Base.
@@ -167,7 +168,7 @@ function DrawerHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="drawer-header"
       className={cn(
-        "flex shrink-0 flex-col gap-0.5 p-4 pb-0 group-data-[swipe-axis=y]/drawer-popup:text-center md:gap-0.5 md:text-left",
+        "flex shrink-0 flex-col gap-0.5 p-4 pb-0 text-left",
         className
       )}
       {...props}
