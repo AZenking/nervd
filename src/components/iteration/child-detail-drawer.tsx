@@ -391,7 +391,7 @@ export function ChildDetailDrawer({
               </div>
             ) : (
               <div className="rounded-lg border border-border/50 bg-muted/10 p-3.5 text-sm leading-relaxed text-foreground/90">
-                <RichDescription raw={wi.description ?? wi.content} />
+                <RichDescription raw={wi.description ?? wi.content} workitemId={child?.workitemId} />
               </div>
             )}
           </section>

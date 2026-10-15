@@ -104,8 +104,19 @@ export async function listWorkitemChildren(workitemId: string): Promise<Workitem
 export async function getWorkitemWorkflowStatuses(workitemId: string): Promise<WorkitemStatusOption[]> {
   return invoke('get_workitem_workflow_statuses', { workitemId });
 }
-export async function updateWorkitem(workitemId: string, update: { subject?: string; statusId?: string }): Promise<unknown> {
+export async function updateWorkitem(
+  workitemId: string,
+  update: { subject?: string; statusId?: string; description?: string; formatType?: string },
+): Promise<unknown> {
   return invoke('update_workitem', { workitemId, ...update });
+}
+
+export async function createWorkitemComment(
+  workitemId: string,
+  content: string,
+  formatType?: string,
+): Promise<unknown> {
+  return invoke('create_workitem_comment', { workitemId, content, formatType });
 }
 
 /** 项目内某类别的工作项类型（list_workitem_types 归一化产物） */

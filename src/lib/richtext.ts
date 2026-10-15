@@ -181,3 +181,31 @@ export function extractRichImageUrls(raw: unknown): RichImage[] {
   const seen = new Set<string>();
   return out.filter((img) => (seen.has(img.url) ? false : (seen.add(img.url), true)));
 }
+
+/** 描述字段（unknown）→ HTML 字符串（用于富文本编辑器渲染与回填） */
+export function extractRichHtml(raw: unknown): string {
+  const doc = resolveRichDoc(raw);
+  if (doc?.htmlValue && typeof doc.htmlValue === 'string') {
+    return doc.htmlValue;
+  }
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (!s) return '';
+    if (s.startsWith('<') && s.endsWith('>')) {
+      return s;
+    }
+    return s
+      .split(/\n\s*\n/)
+      .map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+      .join('');
+  }
+  const plain = richTextToPlain(raw);
+  if (plain) {
+    return plain
+      .split(/\n\s*\n/)
+      .map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+      .join('');
+  }
+  return '';
+}
+

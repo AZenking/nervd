@@ -235,6 +235,8 @@ pub async fn update_workitem(
     workitem_id: String,
     subject: Option<String>,
     status_id: Option<String>,
+    description: Option<String>,
+    format_type: Option<String>,
 ) -> Result<Value, String> {
     ensure_write(&state)?;
     let workitem_id = workitem_id.trim();
@@ -256,8 +258,13 @@ pub async fn update_workitem(
         }
         body.insert("status".into(), json!(status_id));
     }
+    if let Some(description) = description {
+        body.insert("description".into(), json!(description));
+        let ft = format_type.unwrap_or_else(|| "RICHTEXT".to_string());
+        body.insert("formatType".into(), json!(ft));
+    }
     if body.is_empty() {
-        return Err("没有需要保存的子任务修改".into());
+        return Err("没有需要保存的工作项修改".into());
     }
     let client = client_of(&state)?;
     let org = org_of(&state)?;
@@ -269,6 +276,39 @@ pub async fn update_workitem(
         )
         .await
 }
+
+#[tauri::command]
+pub async fn create_workitem_comment(
+    state: State<'_, AppState>,
+    workitem_id: String,
+    content: String,
+    format_type: Option<String>,
+) -> Result<Value, String> {
+    ensure_write(&state)?;
+    let workitem_id = workitem_id.trim();
+    if workitem_id.is_empty() {
+        return Err("工作项 ID 不能为空".into());
+    }
+    let content = content.trim();
+    if content.is_empty() {
+        return Err("评论内容不能为空".into());
+    }
+    let client = client_of(&state)?;
+    let org = org_of(&state)?;
+    let ft = format_type.unwrap_or_else(|| "RICHTEXT".to_string());
+    let body = json!({
+        "content": content,
+        "formatType": ft,
+    });
+    client
+        .post(
+            &format!("/oapi/v1/projex/organizations/{org}/workitems/{workitem_id}/comments"),
+            &[],
+            body,
+        )
+        .await
+}
+
 
 /// 项目内某类别（Task/Bug…）的工作项类型列表：
 /// oapi/v1 GET projects/{space}/workitemTypes?category=…（端点形态依据

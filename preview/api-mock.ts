@@ -267,7 +267,7 @@ export async function getWorkitem(workitemId: string): Promise<Record<string, un
   };
 }
 export async function listWorkitemComments(): Promise<Record<string, unknown>> {
-  return [{ author: { name: '周荻' }, createdAt: '2026-10-08 10:22', content: '追溯面板的 CI 状态建议加环境维度。' }] as unknown as Record<string, unknown>;
+  return mockCommentsStore as unknown as Record<string, unknown>;
 }
 export async function listWorkitemChildren(workitemId: string) {
   return { items: (mockChildren[workitemId] ?? []).map((child) => ({ ...child })), rawSample: '' };
@@ -276,16 +276,37 @@ export async function getWorkitemWorkflowStatuses(): Promise<WorkitemStatusOptio
   await sleep(100);
   return mockSubtaskStatuses;
 }
-export async function updateWorkitem(workitemId: string, update: { subject?: string; statusId?: string }): Promise<unknown> {
+export async function updateWorkitem(
+  workitemId: string,
+  update: { subject?: string; statusId?: string; description?: string; formatType?: string },
+): Promise<unknown> {
   const child = Object.values(mockChildren).flat().find((item) => item.workitemId === workitemId);
-  if (!child) throw new Error('找不到预览子任务');
-  if (update.subject) child.subject = update.subject;
-  if (update.statusId) {
-    const status = mockSubtaskStatuses.find((item) => item.id === update.statusId);
-    if (!status) throw new Error('未知状态');
-    child.statusId = status.id;
-    child.status = status.name;
+  if (child) {
+    if (update.subject) child.subject = update.subject;
+    if (update.statusId) {
+      const status = mockSubtaskStatuses.find((item) => item.id === update.statusId);
+      if (!status) throw new Error('未知状态');
+      child.statusId = status.id;
+      child.status = status.name;
+    }
   }
+  return { success: true };
+}
+
+let mockCommentsStore: Record<string, unknown>[] = [
+  { author: { name: '周荻' }, createdAt: '2026-10-08 10:22', content: '追溯面板的 CI 状态建议加环境维度。' },
+];
+
+export async function createWorkitemComment(
+  _workitemId: string,
+  content: string,
+  _formatType?: string,
+): Promise<unknown> {
+  mockCommentsStore.unshift({
+    author: { name: '当前用户' },
+    createdAt: '刚刚',
+    content,
+  });
   return { success: true };
 }
 const mockWorkitemTypes: Record<string, WorkitemTypeOption[]> = {

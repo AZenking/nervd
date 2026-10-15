@@ -97,6 +97,7 @@ interface AppStore {
   saveAll(s: Settings, pat?: string): Promise<void>;
   updateWorkitemStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): Promise<boolean>;
   updateChildStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): void;
+  reloadComments(id?: string): Promise<void>;
 }
 
 const requests = { connection: 0, list: 0, detail: 0, trace: 0, pipelines: 0, logs: 0 };
@@ -352,6 +353,17 @@ export const useApp = create<AppStore>((set, get) => ({
       ? workitemRepoIds((category as Category) || 'Req', id, s)
       : [];
     if (isCurrent() && reposForTrace.length > 0) void get().loadTrace();
+  },
+
+  async reloadComments(id?: string) {
+    const targetId = id ?? get().selectedId;
+    if (!targetId) return;
+    try {
+      const raw = await api.listWorkitemComments(targetId);
+      set({ comments: arr(raw) });
+    } catch {
+      // 忽略评论刷新错误
+    }
   },
 
   async loadTrace() {
