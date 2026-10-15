@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { WriteOpButton } from '@/components/WriteOpButton';
+import { Skeleton } from '@/components/ui/skeleton';
+import { WriteOpButton, WriteOpGatedTrigger } from '@/components/WriteOpButton';
 import { SearchableSelect } from '../searchable-select';
 
 function branchNames(value: unknown): string[] {
@@ -105,6 +106,7 @@ export function JenkinsBuildDialog({
   buttonVariant?: ComponentProps<typeof Button>['variant'];
 }) {
   const { settings, setToast, loadRepoCi, saveRepoCiBinding } = useApp();
+  const allowWriteOps = settings?.allowWriteOps ?? false;
   const connections = (settings?.jenkinsConnections ?? []).filter((connection) => connection.hasToken);
   const currentBinding = settings?.repoCiBindings?.[String(repoId)];
   const savedBinding = currentBinding?.provider === 'jenkins' ? currentBinding : undefined;
@@ -302,10 +304,18 @@ export function JenkinsBuildDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button size="sm" variant={buttonVariant} onClick={openDialog}>
-        <WorkflowIcon data-icon="inline-start" />
-        {buttonLabel}
-      </Button>
+      {/* 只读门控（与 WriteOpButton 同规则）：写操作关闭时灰阶展示 + 说明弹窗，不进入向导 */}
+      <WriteOpGatedTrigger
+        label={buttonLabel}
+        icon={<WorkflowIcon data-icon="inline-start" />}
+        variant={buttonVariant}
+      />
+      {allowWriteOps && (
+        <Button size="sm" variant={buttonVariant} onClick={openDialog}>
+          <WorkflowIcon data-icon="inline-start" />
+          {buttonLabel}
+        </Button>
+      )}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>触发 Jenkins 构建</DialogTitle>
@@ -419,7 +429,11 @@ export function JenkinsBuildDialog({
                     )}
                   </Field>
                 </div>
-                {branchesLoading && <p className="text-xs text-muted-foreground">正在查询仓库分支…</p>}
+                {branchesLoading && (
+                  <div className="flex items-center gap-2 py-1" aria-hidden>
+                    <Skeleton className="h-3.5 w-32 rounded" />
+                  </div>
+                )}
                 <Collapsible className="rounded-lg border px-3 py-2">
                   <CollapsibleTrigger className="cursor-pointer text-xs font-medium">
                     其他 Job 参数
@@ -451,7 +465,20 @@ export function JenkinsBuildDialog({
                 此 Job 没有可读取的 Jenkins 参数，将按 Job 默认配置直接触发构建。
               </p>
             )}
-            {parametersLoading && <p className="text-xs text-muted-foreground">正在读取 Job 参数…</p>}
+            {parametersLoading && (
+              <div className="flex flex-col gap-3 py-1" aria-hidden>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Skeleton className="h-3.5 w-16 rounded" />
+                    <Skeleton className="h-9 w-full rounded-md" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Skeleton className="h-3.5 w-16 rounded" />
+                    <Skeleton className="h-9 w-full rounded-md" />
+                  </div>
+                </div>
+              </div>
+            )}
             {error && <p className="rounded-md bg-destructive/5 p-2 text-xs text-destructive">{error}</p>}
             <Label className="font-normal">
               <Checkbox

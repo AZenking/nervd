@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { PlusIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { GitBranchIcon, PlusIcon } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { BranchRuleTemplate } from '@/types';
@@ -10,6 +10,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { ConfirmButton } from '../ConfirmButton';
+import { EmptyHint } from '../empty-hint';
 
 const EMPTY_DRAFT: BranchRuleTemplate = {
   id: '',
@@ -30,6 +31,16 @@ export function IterationBranches() {
   const [editingId, setEditingId] = useState('');
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // 模板过多时分页展示
+  const TEMPLATE_PAGE_SIZE = 5;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(templates.length / TEMPLATE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedTemplates = useMemo(() => {
+    const start = (currentPage - 1) * TEMPLATE_PAGE_SIZE;
+    return templates.slice(start, start + TEMPLATE_PAGE_SIZE);
+  }, [templates, currentPage]);
 
   const reset = () => {
     setDraft(EMPTY_DRAFT);
@@ -95,28 +106,44 @@ export function IterationBranches() {
       .reduce((count, selections) => count + Object.values(selections).filter((id) => id === templateId).length, 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-0.5">
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          基准模板支持 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{'{iteration}'}</code>、<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{'{template}'}</code>，需求分支支持 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{'{identifier}'}</code>。模板保存在本机，需求详情中选用。
+        </p>
         <Button
-          size="sm"
+          size="xs"
           onClick={() => { reset(); setDialogOpen(true); }}
+          className="shrink-0"
         >
-          <PlusIcon data-icon="inline-start" />
+          <PlusIcon data-icon="inline-start" className="size-3.5" />
           新增模板
         </Button>
       </div>
+
       {templates.length > 0 && (
-        <div className="divide-y rounded-lg border border-border bg-muted/20">
-          {templates.map((template) => (
-            <div key={template.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{template.name}</p>
-                <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                  {template.sourceBranch} → {template.baselineBranchPattern} → {template.workitemBranchPattern}
-                </p>
+        <div className="overflow-hidden rounded-lg border border-border/60 bg-card divide-y divide-border/50">
+          {paginatedTemplates.map((template) => (
+            <div key={template.id} className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 transition-colors hover:bg-muted/30">
+              <div className="flex min-w-0 flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-medium text-foreground">{template.name}</span>
+                  {usageCount(template.id) > 0 && (
+                    <span className="rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {usageCount(template.id)} 个仓库使用
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                  <span className="rounded bg-muted/60 px-1.5 py-0.5 text-foreground/80">{template.sourceBranch}</span>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="rounded bg-muted/60 px-1.5 py-0.5 text-foreground/80">{template.baselineBranchPattern}</span>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">{template.workitemBranchPattern}</span>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => startEdit(template)}>编辑</Button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Button variant="outline" size="xs" onClick={() => startEdit(template)}>编辑</Button>
                 <ConfirmButton
                   label="删除"
                   title={`删除模板「${template.name}」？`}
@@ -124,14 +151,50 @@ export function IterationBranches() {
                     ? `该模板正被 ${usageCount(template.id)} 个需求仓库使用，删除后会一并清除这些模板选择。`
                     : '删除后不可恢复，已创建的远端分支不受影响。'}
                   confirmLabel="删除模板"
+                  size="xs"
                   onConfirm={() => remove(template)}
                 />
               </div>
             </div>
           ))}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border/40 bg-muted/10 px-3.5 py-2 text-xs text-muted-foreground">
+              <span className="text-[11px] text-muted-foreground">
+                共 {templates.length} 个模板（第 {(currentPage - 1) * TEMPLATE_PAGE_SIZE + 1} - {Math.min(currentPage * TEMPLATE_PAGE_SIZE, templates.length)}）
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="xs"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  上一页
+                </Button>
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  下一页
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
-      {!templates.length && <p className="px-3 py-4 text-xs text-muted-foreground">还没有模板。可先创建 A 局点（master）、B 局点（test）或 Hotfix（master）模板。</p>}
+      {!templates.length && (
+        <EmptyHint
+          icon={GitBranchIcon}
+          title="还没有分支规则模板"
+          description="可先创建 A 局点（master）、B 局点（test）或 Hotfix（master）模板供需求选用"
+          className="py-6"
+        />
+      )}
 
       <Dialog
         open={dialogOpen}

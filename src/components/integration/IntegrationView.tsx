@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowDownIcon, ArrowUpIcon, FolderIcon, GitBranchIcon, RefreshCwIcon,
+  ArrowDownIcon, ArrowUpIcon, FolderIcon, GitBranchIcon, RefreshCwIcon, SearchIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
@@ -9,16 +9,15 @@ import { extractWorkItemKeys } from '@/lib/link';
 import { comparisonCommits } from '../iteration/BranchDivergenceCheck';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
-import { useUi } from '@/store/ui';
 import type { BranchInfo } from '@/types';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SearchableSelect } from '../searchable-select';
 
-import { AppBreadcrumb } from '../nav/app-breadcrumb';
 import { STICKY_PAGE_HEADER_CLASS } from '../page-header';
 import { EmptyHint } from '../empty-hint';
+import { WorkitemPeekDrawer } from '../workitem-peek-drawer';
 
 /**
  * 集成分支视图（纯查看，零写操作）：
@@ -60,7 +59,6 @@ interface BranchRowState {
 
 export function IntegrationView() {
   const { repositories, settings, items } = useApp();
-  const { openWorkitem } = useUi();
   const linkPattern = settings?.linkPattern || '(?:REQ|BUG|TASK)[-_]?(\\d+)';
 
   // 可选仓库：优先设置中的默认云效仓库，未配置时回退全部已加载仓库
@@ -78,11 +76,17 @@ export function IntegrationView() {
   const [repoId, setRepoId] = useState<number | null>(null);
   const [base, setBase] = useState(DEFAULT_BASE);
   const [patterns, setPatterns] = useState(DEFAULT_PATTERNS);
-  const [debounced, setDebounced] = useState({ base: DEFAULT_BASE, patterns: DEFAULT_PATTERNS });
+  const debouncedBase = useDebounce(base.trim() || DEFAULT_BASE, DEBOUNCE_MS);
+  const debouncedPatterns = useDebounce(patterns.trim(), DEBOUNCE_MS);
+  const debounced = useMemo(
+    () => ({ base: debouncedBase, patterns: debouncedPatterns }),
+    [debouncedBase, debouncedPatterns],
+  );
   const [rows, setRows] = useState<BranchRowState[]>([]);
   const [phase, setPhase] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [drawerWorkitemId, setDrawerWorkitemId] = useState<string | null>(null);
 
   // 仓库选项就绪后选中第一个
   useEffect(() => {
@@ -90,18 +94,6 @@ export function IntegrationView() {
       setRepoId(Number(repoOptions[0].value));
     }
   }, [repoOptions, repoId]);
-
-  // 输入防抖（模式 / 基准每次击键都会引发成对的 compare 请求）
-  const debounceTimer = useRef<number | null>(null);
-  useEffect(() => {
-    if (debounceTimer.current != null) window.clearTimeout(debounceTimer.current);
-    debounceTimer.current = window.setTimeout(() => {
-      setDebounced({ base: base.trim() || DEFAULT_BASE, patterns: patterns.trim() });
-    }, DEBOUNCE_MS);
-    return () => {
-      if (debounceTimer.current != null) window.clearTimeout(debounceTimer.current);
-    };
-  }, [base, patterns]);
 
   const load = useCallback(() => setReloadKey((key) => key + 1), []);
 
@@ -164,7 +156,9 @@ export function IntegrationView() {
     <div className="flex flex-col gap-5">
       <header className={STICKY_PAGE_HEADER_CLASS}>
         <div className="flex min-h-9 items-center justify-between gap-3">
-          <AppBreadcrumb />
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-semibold tracking-tight text-foreground">集成分支</h1>
+          </div>
           <div className="flex shrink-0 items-center gap-2">
             <SearchableSelect
               className="w-56 text-xs"
@@ -178,23 +172,29 @@ export function IntegrationView() {
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-3 pt-1">
-          <span className="shrink-0 text-xs text-muted-foreground">基准</span>
-          <Input
-            value={base}
-            onChange={(event) => setBase(event.target.value)}
-            placeholder="master"
-            aria-label="基准分支"
-            className="h-7 w-36 font-mono text-xs"
-          />
-          <span className="shrink-0 text-xs text-muted-foreground">匹配模式（空格分隔，支持 *）</span>
-          <Input
-            value={patterns}
-            onChange={(event) => setPatterns(event.target.value)}
-            placeholder={DEFAULT_PATTERNS}
-            aria-label="集成分支匹配模式"
-            className="h-7 w-72 font-mono text-xs"
-          />
+        <div className="flex flex-wrap items-center gap-2.5 pt-1">
+          <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-xs">
+            <GitBranchIcon className="size-3 text-muted-foreground" />
+            <span className="text-[11px] font-medium text-muted-foreground">基准</span>
+            <input
+              value={base}
+              onChange={(event) => setBase(event.target.value)}
+              placeholder="master"
+              aria-label="基准分支"
+              className="h-6 w-24 bg-transparent font-mono text-xs outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-xs">
+            <SearchIcon className="size-3 text-muted-foreground" />
+            <span className="text-[11px] font-medium text-muted-foreground">匹配模式</span>
+            <input
+              value={patterns}
+              onChange={(event) => setPatterns(event.target.value)}
+              placeholder={DEFAULT_PATTERNS}
+              aria-label="集成分支匹配模式"
+              className="h-6 w-56 bg-transparent font-mono text-xs outline-none placeholder:text-muted-foreground"
+            />
+          </div>
           {phase === 'ready' && (
             <span className="min-w-0 truncate text-xs text-muted-foreground">
               {repoName} · 命中 {rows.length} 条
@@ -203,10 +203,30 @@ export function IntegrationView() {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
         {phase === 'loading' && (
           <div className="flex flex-col gap-1" aria-hidden>
-            {[0, 1, 2, 3, 4].map((key) => <Skeleton key={key} className="h-11 w-full rounded-lg" />)}
+            {[0, 1, 2, 3, 4].map((key) => (
+              <div
+                key={key}
+                className="flex h-11 w-full items-center gap-2 rounded-lg px-3 bg-muted/20"
+              >
+                <div className="flex w-64 shrink-0 items-center gap-1.5 pl-5">
+                  <Skeleton className="size-3.5 rounded" />
+                  <Skeleton className="h-3.5 w-36 rounded" />
+                </div>
+                <Skeleton className="h-3.5 min-w-0 flex-1 rounded" style={{ width: `${50 + ((key * 13) % 40)}%` }} />
+                <div className="flex w-24 shrink-0 items-center gap-1">
+                  <Skeleton className="h-4 w-16 rounded-full" />
+                </div>
+                <div className="flex w-28 shrink-0 items-center gap-1">
+                  <Skeleton className="h-5 w-16 rounded" />
+                </div>
+                <div className="flex w-20 shrink-0 justify-end">
+                  <Skeleton className="h-3.5 w-14 rounded" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -239,7 +259,15 @@ export function IntegrationView() {
               <FolderIcon className="size-3.5 text-muted-foreground" />
               <span className="min-w-0 truncate text-[13px] font-medium">{repoName}</span>
               <span className="text-xs text-muted-foreground tabular-nums">{rows.length}</span>
-              <span className="ml-auto text-xs text-muted-foreground">基准 {debounced.base}</span>
+              <span className="ml-auto text-xs text-muted-foreground font-mono">基准 {debounced.base}</span>
+            </div>
+            {/* 列名提示栏（Linear 式微弱字距表头） */}
+            <div className="flex h-7 items-center gap-2 px-3 text-[11px] font-medium text-muted-foreground">
+              <span className="w-64 shrink-0 pl-5">分支</span>
+              <span className="min-w-0 flex-1">最新提交</span>
+              <span className="w-24 shrink-0">基准对比</span>
+              <span className="w-28 shrink-0">关联需求</span>
+              <span className="w-20 shrink-0 text-right">提交日期</span>
             </div>
             <div className="flex flex-col gap-0.5">
               {rows.map((row) => {
@@ -260,13 +288,15 @@ export function IntegrationView() {
                       <button
                         key={key}
                         type="button"
-                        className="cursor-pointer rounded bg-accent px-1.5 py-0.5 font-mono text-xs text-foreground transition-colors hover:bg-accent/70"
+                        className={cn(
+                          'cursor-pointer rounded px-1.5 py-0.5 font-mono text-xs transition-colors',
+                          workitem.workitemId === drawerWorkitemId
+                            ? 'bg-primary text-primary-foreground font-semibold'
+                            : 'bg-accent text-foreground hover:bg-accent/70',
+                        )}
                         onClick={() => {
-                          openWorkitem(workitem.workitemId, {
-                            workitemId: workitem.workitemId,
-                            identifier: workitem.identifier,
-                            subject: workitem.subject,
-                          });
+                          setDrawerWorkitemId(workitem.workitemId);
+                          void useApp.getState().select(workitem.workitemId);
                         }}
                       >
                         {key}
@@ -287,7 +317,7 @@ export function IntegrationView() {
                     {/* 领先 / 落后基准 */}
                     <span
                       className={cn(
-                        'flex shrink-0 items-center gap-1 text-xs tabular-nums',
+                        'flex w-24 shrink-0 items-center gap-1 text-xs tabular-nums',
                         diverged ? 'text-foreground' : 'text-muted-foreground',
                       )}
                       title={row.ahead == null || row.behind == null
@@ -302,9 +332,9 @@ export function IntegrationView() {
                       {row.behind ?? '—'}
                     </span>
                     {/* 命中的需求编号：有工作项则可点击进入详情 */}
-                    {row.keys.length > 0 && (
-                      <span className="flex shrink-0 items-center gap-1">{requirementButtons}</span>
-                    )}
+                    <span className="flex w-28 shrink-0 items-center gap-1 truncate">
+                      {requirementButtons.length ? requirementButtons : <span className="text-xs text-muted-foreground">—</span>}
+                    </span>
                     <span className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
                       {dayOf(row.committedDate)}
                     </span>
@@ -326,6 +356,12 @@ export function IntegrationView() {
           />
         )}
       </div>
+
+      {/* 需求详情抽屉（Linear Peek View）：就地滑出，保留集成分支列表上下文 */}
+      <WorkitemPeekDrawer
+        workitemId={drawerWorkitemId}
+        onClose={() => setDrawerWorkitemId(null)}
+      />
     </div>
   );
 }

@@ -1,10 +1,13 @@
 import { useEffect } from 'react';
-import { Link2Icon, RefreshCwIcon, XIcon } from 'lucide-react';
+import { Link2Icon, RefreshCwIcon } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import type { RepoSummary } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -21,7 +24,7 @@ import { humanizeError } from '@/lib/error-format';
 import { formatDuration } from '@/lib/format';
 
 /**
- * CI 详情抽屉（迭代页 / 需求详情共用）：按仓库实际绑定的 CI 提供方展示状态、运行与操作。
+ * CI 详情模态弹窗（迭代页 / 需求详情共用）：统一为 Linear 居中 Dialog 规范。
  * Flow 绑定 → 流水线状态 + 触发流水线；Jenkins 绑定 → Job 参数构建；未绑定 → 引导去绑定，不误导"Jenkins 未配置"。
  */
 export function RepositoryCiDetails({
@@ -53,24 +56,19 @@ export function RepositoryCiDetails({
   }, [open, isBound, repo.id, loadRepoCi]);
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">
-      <DrawerContent className="w-[100vw] sm:w-[min(40rem,100vw)]">
-        <DrawerHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] sm:max-w-2xl overflow-hidden flex flex-col p-0">
+        <DialogHeader className="p-4 border-b border-border/70">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <DrawerTitle>{repo.name} · CI 详情</DrawerTitle>
-              <DrawerDescription>仓库 #{repo.id} · {providerLabel}{isFlow && binding.pipelineName ? ` · ${binding.pipelineName}` : ''}</DrawerDescription>
+              <DialogTitle>{repo.name} · CI 详情</DialogTitle>
+              <DialogDescription>仓库 #{repo.id} · {providerLabel}{isFlow && binding.pipelineName ? ` · ${binding.pipelineName}` : ''}</DialogDescription>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 pr-6">
               <StatusBadge status={isBound ? ciStatusText(snapshot?.status, entry) : '未绑定'} />
-              <DrawerClose
-                render={<Button variant="ghost" size="icon-sm" aria-label="关闭" />}
-              >
-                <XIcon />
-              </DrawerClose>
             </div>
           </div>
-        </DrawerHeader>
+        </DialogHeader>
         <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col gap-5 p-4">
             <section className="flex flex-col gap-3">
@@ -220,22 +218,31 @@ export function RepositoryCiDetails({
                         </TableCell>
                       </TableRow>
                     ))}
-                    {!runs.length && (
+                    {entry?.loading && !runs.length ? (
+                      [0, 1, 2, 3].map((i) => (
+                        <TableRow key={i}>
+                          <TableCell><Skeleton className="h-4 w-12 rounded" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-14 rounded" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-28 rounded" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-16 rounded" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-24 rounded" /></TableCell>
+                          <TableCell className="text-right"><Skeleton className="h-7 w-12 ml-auto rounded" /></TableCell>
+                        </TableRow>
+                      ))
+                    ) : !runs.length ? (
                       <TableEmptyRow
                         colSpan={6}
-                        title={entry?.loading
-                          ? '加载运行记录…'
-                          : entry?.error
-                            ? `查询失败：${humanizeError(entry.error, '未能获取运行记录，请稍后重试')}`
-                            : isBound ? '暂无运行记录，触发一次构建后展示' : '未绑定 CI，请先绑定流水线或 Jenkins Job'}
+                        title={entry?.error
+                          ? `查询失败：${humanizeError(entry.error, '未能获取运行记录，请稍后重试')}`
+                          : isBound ? '暂无运行记录，触发一次构建后展示' : '未绑定 CI，请先绑定流水线或 Jenkins Job'}
                       />
-                    )}
+                    ) : null}
                   </TableBody>
                 </Table>
             </section>
           </div>
         </ScrollArea>
-      </DrawerContent>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }

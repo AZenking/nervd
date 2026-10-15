@@ -1,118 +1,423 @@
 import { useEffect, useState } from 'react';
-import { ExternalLinkIcon, PencilIcon } from 'lucide-react';
+import {
+  ArrowUpRightIcon,
+  BugIcon,
+  CheckIcon,
+  ClockIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  FolderIcon,
+  LayersIcon,
+  UserIcon,
+  XIcon,
+} from 'lucide-react';
 import type { WorkitemChild } from '@/lib/api';
 import * as api from '@/lib/api';
 import { CATEGORY_LABELS, type Category } from '@/types';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
-import { Descriptions } from '@/components/ui/descriptions';
-import { StatusBadge } from '../StatusBadge';
+import { Descriptions, type DescriptionsItem } from '@/components/ui/descriptions';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import { errorLog } from '@/lib/error-format';
+import { useApp } from '@/store/app';
+import { useClipboard } from '@/hooks/use-clipboard';
+import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
+import { StatusIcon } from '../status-icon';
 import { RichDescription } from './rich-description';
 
+export interface ChildDetailDrawerProps {
+  child: WorkitemChild | null;
+  parentWorkitem?: {
+    workitemId: string;
+    identifier: string;
+    subject?: string;
+  } | null;
+  onClose: () => void;
+  onOpenInWorkbench: (child: WorkitemChild) => void;
+  onStatusChange?: (childId: string, newStatus: string) => void;
+}
+
 /**
- * 子工作项/缺陷详情抽屉：列表行点击就地打开，不再跳转工作台。
- * - 描述按需拉取（getWorkitem），随 children 刷新自动重取；
- * - 编辑复用既有 SubtaskEditDialog（仅子任务），全页查看走「在工作台打开」。
+ * 子任务 / 缺陷轻量查看抽屉（Linear Peek Drawer 风格）：
+ * - 点击子任务/缺陷行就地滑出，底层父需求数据、展开状态与滚动条完全保持静止；
+ * - 异步按需拉取描述，避免触发全链路流水线与 Git 探测开销；
+ * - 抽屉内支持就地快速状态流转，联动同步父需求列表；
+ * - 支持 Esc / 点击遮罩退出，精准停留在前序子任务行。
  */
 export function ChildDetailDrawer({
   child,
+  parentWorkitem,
   onClose,
-  onEdit,
   onOpenInWorkbench,
-}: {
-  child: WorkitemChild | null;
-  onClose: () => void;
-  /** 子任务可编辑（缺陷暂无编辑入口） */
-  onEdit?: (child: WorkitemChild) => void;
-  onOpenInWorkbench: (child: WorkitemChild) => void;
-}) {
+  onStatusChange,
+}: ChildDetailDrawerProps) {
   const open = child != null;
-  const [rawDetail, setRawDetail] = useState<unknown>(null);
-  const [loading, setLoading] = useState(false);
+  const loadChildren = useApp((s) => s.loadChildren);
 
+  const [rawDetail, setRawDetail] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { copy: copyText, copied } = useClipboard({
+    successMessage: (id) => `已复制编号 ${id}`,
+  });
+
+  // 状态流转状态
+  const [statusName, setStatusName] = useState<string>(child?.status ?? '');
+  const [statusId, setStatusId] = useState<string>(child?.statusId ?? '');
+  const [statusOpen, setStatusOpen] = useState(false);
+
+  const {
+    statuses,
+    loadingStatuses,
+    updatingStatus,
+    fetchStatuses,
+    changeStatus,
+  } = useWorkitemWorkflowStatuses({
+    workitemId: child?.workitemId,
+    currentStatusId: statusId,
+    currentStatusName: statusName,
+    onSuccess: async (st) => {
+      setStatusName(st.name);
+      setStatusId(st.id);
+      if (parentWorkitem?.workitemId) {
+        await loadChildren(parentWorkitem.workitemId);
+      }
+      if (child) {
+        onStatusChange?.(child.workitemId, st.name);
+      }
+    },
+  });
+
+  // 随 child 变化同步与请求
   useEffect(() => {
     if (!child) {
       setRawDetail(null);
+      setStatusName('');
+      setStatusId('');
       return;
     }
+
+    setStatusName(child.status || '');
+    setStatusId(child.statusId || '');
+
     let alive = true;
     setLoading(true);
+
     void api.getWorkitem(child.workitemId)
-      .then((detail) => {
-        if (alive) setRawDetail((detail as Record<string, unknown>)?.workitem ?? detail);
+      .then((res) => {
+        if (!alive) return;
+        const root = (res as Record<string, unknown>)?.workitem ?? res;
+        const wi = (root && typeof root === 'object' ? root : {}) as Record<string, unknown>;
+        setRawDetail(wi);
+        if (typeof wi.status === 'string' && wi.status) setStatusName(wi.status);
+        if (typeof wi.statusId === 'string' && wi.statusId) setStatusId(wi.statusId);
       })
-      .catch(() => {
+      .catch((e) => {
+        errorLog('child-drawer-detail', e);
         if (alive) setRawDetail(null);
       })
       .finally(() => {
         if (alive) setLoading(false);
       });
-    return () => { alive = false; };
-  }, [child]);
 
-  const wi = (rawDetail ?? {}) as Record<string, unknown>;
-  const field = (key: string): string => {
-    const value = wi[key];
-    return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
-  };
+    return () => { alive = false; };
+  }, [child?.workitemId]);
+
+  const wi = rawDetail ?? {};
+  const isBug = child?.category === 'Bug';
   const categoryLabel = child?.category && child.category in CATEGORY_LABELS
     ? CATEGORY_LABELS[child.category as Category]
-    : child?.category || '—';
-  const canEdit = Boolean(onEdit && child && child.category !== 'Bug');
+    : isBug ? '缺陷' : '子任务';
+
+  const assignedTo = (typeof wi.assignedTo === 'string' && wi.assignedTo) || child?.assignedTo || '';
+  const gmtModified = (typeof wi.gmtModified === 'string' && wi.gmtModified)
+    || (typeof wi.updatedAt === 'string' && wi.updatedAt)
+    || child?.gmtModified
+    || '';
+
+  // 复制编号
+  const copyIdentifier = () => {
+    if (child?.identifier) void copyText(child.identifier);
+  };
+
+  // 就地执行流转状态
+  const handleSelectStatus = async (status: { id: string; name: string }) => {
+    await changeStatus(status);
+  };
+
+  const statusDropdown = (
+    <DropdownMenu
+      open={statusOpen}
+      onOpenChange={(v) => {
+        setStatusOpen(v);
+        if (v) void fetchStatuses();
+      }}
+    >
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className={cn(
+              'group/status inline-flex items-center gap-1.5 rounded border border-border/60 bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer',
+              updatingStatus && 'pointer-events-none opacity-60',
+            )}
+            title="点击快速更改状态"
+          />
+        }
+      >
+        {updatingStatus ? (
+          <Spinner className="size-3.5" />
+        ) : (
+          <StatusIcon status={statusName} className="size-3.5 shrink-0" />
+        )}
+        <span className="text-foreground">{statusName || '未指定'}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-36 z-50">
+        {loadingStatuses && (
+          <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+            <Spinner className="size-3" />
+            <span>读取状态流程…</span>
+          </div>
+        )}
+        {!loadingStatuses && statuses.length === 0 && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>
+        )}
+        {!loadingStatuses && statuses.map((s) => {
+          const isCurrent = s.id === statusId || s.name === statusName;
+          return (
+            <DropdownMenuItem
+              key={s.id}
+              className={cn('flex cursor-pointer items-center justify-between text-xs', isCurrent && 'font-medium text-primary')}
+              onClick={() => void handleSelectStatus(s)}
+            >
+              <div className="flex items-center gap-2">
+                <StatusIcon status={s.name} className="size-3" />
+                <span>{s.name}</span>
+              </div>
+              {isCurrent && <CheckIcon className="size-3.5" />}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const attributeItems: DescriptionsItem[] = [
+    {
+      key: 'status',
+      label: (
+        <span className="flex items-center gap-1.5">
+          <StatusIcon status={statusName} className="size-3.5" />
+          <span>状态</span>
+        </span>
+      ),
+      children: statusDropdown,
+    },
+    {
+      key: 'assignee',
+      label: (
+        <span className="flex items-center gap-1.5">
+          <UserIcon className="size-3.5" />
+          <span>处理人</span>
+        </span>
+      ),
+      children: assignedTo ? (
+        <div className="flex items-center gap-1.5">
+          <Avatar className="size-4">
+            <AvatarFallback className="text-[9px]">{assignedTo.charAt(0) || '—'}</AvatarFallback>
+          </Avatar>
+          <span className="font-medium text-foreground">{assignedTo}</span>
+        </div>
+      ) : <span className="text-muted-foreground">未分配</span>,
+    },
+    {
+      key: 'category',
+      label: (
+        <span className="flex items-center gap-1.5">
+          <LayersIcon className="size-3.5" />
+          <span>类型</span>
+        </span>
+      ),
+      children: (
+        <div className="flex items-center gap-1.5">
+          {isBug && <BugIcon className="size-3.5 text-destructive" />}
+          <span>{categoryLabel}</span>
+        </div>
+      ),
+    },
+    ...(parentWorkitem ? [{
+      key: 'parent',
+      label: (
+        <span className="flex items-center gap-1.5">
+          <FolderIcon className="size-3.5" />
+          <span>所属父需求</span>
+        </span>
+      ),
+      children: (
+        <span className="truncate font-mono text-xs text-muted-foreground" title={parentWorkitem.subject}>
+          {parentWorkitem.identifier} {parentWorkitem.subject ? `· ${parentWorkitem.subject}` : ''}
+        </span>
+      ),
+    }] : []),
+    {
+      key: 'updatedAt',
+      label: (
+        <span className="flex items-center gap-1.5">
+          <ClockIcon className="size-3.5" />
+          <span>更新时间</span>
+        </span>
+      ),
+      children: gmtModified
+        ? String(gmtModified).slice(0, 16).replace('T', ' ')
+        : <span className="text-muted-foreground">—</span>,
+      contentClassName: 'font-mono text-xs',
+    },
+  ];
 
   return (
     <Drawer open={open} onOpenChange={(o) => { if (!o) onClose(); }} swipeDirection="right">
-      <DrawerContent className="w-[100vw] sm:w-[min(36rem,100vw)]">
-        <DrawerHeader>
-          <DrawerTitle className="min-w-0 truncate">{child?.subject ?? ''}</DrawerTitle>
-          <DrawerDescription className="flex items-center gap-2 font-mono text-xs">
-            <span>{child?.identifier}</span>
-            <span>· {categoryLabel}</span>
+      <DrawerContent className="w-full sm:w-[500px] lg:w-[560px] [--drawer-content-width:min(560px,100vw)]">
+        {/* 顶部页头与快捷工具栏 */}
+        <DrawerHeader className="border-b border-border/70 pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <Badge
+                variant="outline"
+                className={cn(
+                  'gap-1 px-1.5 py-0.5 text-[11px] font-normal shrink-0',
+                  isBug
+                    ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                    : 'border-primary/30 bg-primary/10 text-primary',
+                )}
+              >
+                {isBug ? <BugIcon className="size-3" /> : <LayersIcon className="size-3" />}
+                <span>{categoryLabel}</span>
+              </Badge>
+
+              {child?.identifier && (
+                <button
+                  type="button"
+                  onClick={copyIdentifier}
+                  className="group inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer shrink-0"
+                  title="点击复制编号"
+                >
+                  <span>{child.identifier}</span>
+                  {copied ? (
+                    <CheckIcon className="size-3 text-sig-ok" />
+                  ) : (
+                    <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />
+                  )}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => {
+                        if (child) onOpenInWorkbench(child);
+                      }}
+                      aria-label="在工作台全屏打开"
+                    />
+                  }
+                >
+                  <ExternalLinkIcon className="size-3.5" />
+                </TooltipTrigger>
+                <TooltipContent>在独立工作台全屏打开</TooltipContent>
+              </Tooltip>
+
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={onClose}
+                aria-label="关闭抽屉 (Esc)"
+                title="关闭抽屉 (Esc)"
+              >
+                <XIcon className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          <DrawerTitle className="mt-2.5 text-base sm:text-lg font-semibold tracking-tight text-foreground line-clamp-2">
+            {child?.subject || child?.identifier || '工作项详情'}
+          </DrawerTitle>
+          <DrawerDescription className="sr-only">
+            {child?.identifier} {categoryLabel} 详情与描述
           </DrawerDescription>
         </DrawerHeader>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-5">
-          {/* 详情属性区：Descriptions plain 形态；编号可拷贝（提交信息 / 分支命名常用） */}
-          <Descriptions
-            variant="plain"
-            items={[
-              {
-                key: 'identifier',
-                label: '编号',
-                children: child?.identifier || '—',
-                copyable: Boolean(child?.identifier),
-                contentClassName: 'font-mono',
-              },
-              {
-                key: 'status',
-                label: '状态',
-                children: <StatusBadge status={child?.status || field('status') || undefined} />,
-              },
-              { key: 'assignee', label: '处理人', children: child?.assignedTo || field('assignedTo') || '—' },
-              { key: 'updated', label: '更新时间', children: child?.gmtModified || field('gmtModified') || field('updatedAt') || '—' },
-            ]}
-          />
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium text-foreground">描述</p>
+
+        {/* 抽屉滚动内容主体 */}
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-5">
+          {/* 属性列表：对齐 Linear 裸行规范 */}
+          <section className="flex flex-col gap-2">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              属性
+            </p>
+            <div className="rounded-lg border border-border/50 bg-muted/15 p-2">
+              <Descriptions variant="plain" items={attributeItems} />
+            </div>
+          </section>
+
+          {/* 描述正文 */}
+          <section className="flex flex-col gap-2.5">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              描述
+            </p>
             {loading ? (
-              <p className="text-xs text-muted-foreground">加载描述…</p>
+              <div className="flex flex-col gap-2 p-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
             ) : (
-              <RichDescription raw={wi.description ?? wi.content} />
+              <div className="rounded-lg border border-border/50 bg-muted/10 p-3.5 text-sm leading-relaxed text-foreground/90">
+                <RichDescription raw={wi.description ?? wi.content} />
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* 底部操作条 */}
+        <div className="flex items-center justify-between border-t border-border/70 px-5 py-3 bg-muted/20">
+          <span className="text-xs text-muted-foreground font-mono">
+            Esc 或点击外部关闭
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              关闭
+            </Button>
+            {child && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenInWorkbench(child)}
+                className="gap-1.5"
+              >
+                <ArrowUpRightIcon className="size-3.5" />
+                <span>在工作台打开</span>
+              </Button>
             )}
           </div>
-        </div>
-        <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
-          {canEdit && child && (
-            <Button variant="outline" size="sm" onClick={() => onEdit?.(child)}>
-              <PencilIcon data-icon="inline-start" />
-              编辑
-            </Button>
-          )}
-          {child && (
-            <Button size="sm" onClick={() => onOpenInWorkbench(child)}>
-              <ExternalLinkIcon data-icon="inline-start" />
-              在工作台打开
-            </Button>
-          )}
         </div>
       </DrawerContent>
     </Drawer>

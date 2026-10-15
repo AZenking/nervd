@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
 
@@ -91,7 +92,7 @@ export function BranchDivergenceCheck({
     );
   }
   if (baselineState !== 'exists') {
-    return <span className="text-xs text-muted-foreground">正在核实迭代分支…</span>;
+    return <Skeleton className="h-5 w-24 rounded" />;
   }
 
   const ready = check.status === 'ready';

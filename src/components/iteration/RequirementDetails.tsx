@@ -1,539 +1,124 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import {
-  CalendarIcon, ChevronRightIcon, ClockIcon, DatabaseIcon, FolderIcon, GitBranchIcon, InboxIcon,
-  MessageSquareIcon, MoreHorizontalIcon, MousePointerClickIcon, PlusIcon, UserIcon, XIcon,
+  ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, ClockIcon, CopyIcon, DatabaseIcon,
+  ExternalLinkIcon, FolderIcon, InboxIcon, LayersIcon, MousePointerClickIcon, PlusIcon, RefreshCwIcon, UserIcon, XIcon,
 } from 'lucide-react';
-import * as api from '@/lib/api';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { WorkitemChild } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
-import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
+import { CATEGORY_LABELS, type Category } from '@/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Field, FieldLabel } from '@/components/ui/field';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SearchableSelect, type SearchableSelectOption } from '../searchable-select';
 import { PageHeader, STICKY_PAGE_HEADER_CLASS } from '../page-header';
 import { AppBreadcrumb } from '../nav/app-breadcrumb';
 import { EmptyHint } from '../empty-hint';
-import { BranchDivergenceCheck } from './BranchDivergenceCheck';
 import type { BranchSyncRepo } from './BranchStateDiagram';
-import { JenkinsBuildDialog } from './JenkinsBuildDialog';
-import { RepositoryCiDetails } from './RepositoryCiDetails';
-import { ChildDetailDrawer } from './child-detail-drawer';
 import { RichDescription } from './rich-description';
-import { SubtaskEditDialog } from './SubtaskEditDialog';
-import { SubtaskCreateDialog } from './SubtaskCreateDialog';
-import { WriteOpButton } from '../WriteOpButton';
-import { CiSummaryButton } from '../ci-summary-button';
-import { TableEmptyRow } from '../table-empty-row';
+import { ChildDetailDrawer } from './child-detail-drawer';
 import { SectionHeader } from '../section-header';
 import { StatusIcon } from '../status-icon';
-import { ciStatusText, triggerRepoCiWithFeedback } from '@/lib/ci';
+import {
+  resolveRepoBranchRule,
+  type IterationBaselineCheck,
+  type RequirementDetailsProps,
+  type ResolvedRepoBranchRule,
+} from './requirement/types';
+import { RequirementDetailsSkeleton } from './requirement/requirement-skeleton';
+import { ChildrenCard } from './requirement/children-card';
+import { LinkedRepoCard } from './requirement/linked-repo-card';
+import { DetailStatusPopover, RequirementProperties } from './requirement/requirement-properties';
+import { RequirementActivity } from './requirement/requirement-activity';
+
+export { RequirementDetailsSkeleton };
+export type { RequirementDetailsProps };
 
 /** 分支同步状态图（教学用静态图）：默认折叠，展开时才加载 React Flow 代码（lazy chunk） */
 const BranchStateDiagram = lazy(() => import('./BranchStateDiagram'));
 
-interface ResolvedRepoBranchRule {
-  sourceBranch: string;
-  baselineBranch: string;
-  workitemBranch: string;
-  templateName: string;
-}
-
-function expandBranchPattern(
-  pattern: string,
-  values: { iteration: string; template: string; identifier: string },
-): string {
-  const branchPart = (value: string) => value.trim().replace(/\s+/g, '-').replace(/\\/g, '-');
-  return pattern
-    .replace(/\{iteration\}/g, branchPart(values.iteration))
-    .replace(/\{template\}/g, branchPart(values.template))
-    .replace(/\{identifier\}/g, branchPart(values.identifier));
-}
-
-function resolveRepoBranchRule(
-  settings: ReturnType<typeof useApp.getState>['settings'],
-  workitemId: string,
-  repoId: number,
-  iterationName: string,
-  identifier: string,
-): ResolvedRepoBranchRule | undefined {
-  const templateId = settings?.workitemRepoBranchTemplates?.[workitemId]?.[String(repoId)];
-  const template = settings?.branchRuleTemplates?.find((item) => item.id === templateId);
-  if (template) {
-    return {
-      sourceBranch: template.sourceBranch,
-      baselineBranch: expandBranchPattern(template.baselineBranchPattern, {
-        iteration: iterationName,
-        template: template.name,
-        identifier,
-      }),
-      workitemBranch: expandBranchPattern(template.workitemBranchPattern, {
-        iteration: iterationName,
-        template: template.name,
-        identifier,
-      }),
-      templateName: template.name,
-    };
-  }
-  return undefined;
-}
-
-interface IterationBaselineCheck {
-  branch: string;
-  state: 'loading' | 'exists' | 'missing' | 'error';
-  error?: string;
-}
-
-function mergeRequestRows(value: unknown): Record<string, unknown>[] {
-  const root = value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
-  const rows = Array.isArray(value)
-    ? value
-    : ['result', 'data', 'items'].map((key) => root?.[key]).find(Array.isArray) ?? [];
-  return rows.filter((row): row is Record<string, unknown> =>
-    Boolean(row) && typeof row === 'object' && !Array.isArray(row),
-  );
-}
-
-function mergeRequestBranch(request: Record<string, unknown>, camel: string, snake: string): string {
-  const value = request[camel] ?? request[snake];
-  return typeof value === 'string' ? value : '';
-}
-
-/** 子工作项/缺陷区块（列表行形态）：行内极简展示，点击开详情抽屉 */
-function ChildrenCard({
-  title, description, items, error, debug, onSelect, action, footnote,
-}: {
-  title: string;
-  description: string;
-  items: WorkitemChild[];
-  error?: string | null;
-  debug?: string | null;
-  onSelect: (child: WorkitemChild) => void;
-  /** 标题行右侧动作（如「新建子任务」） */
-  action?: ReactNode;
-  /** 列表非空时的尾部说明（如缺陷的「请在网页端新增」占位） */
-  footnote?: string;
-}) {
-  return (
-    <section className="flex flex-col gap-2.5 border-b border-border/70 pb-6">
-      <SectionHeader title={title} count={items.length} hint={description} action={action} />
-      {items.map((task) => (
-        <button
-          key={task.workitemId}
-          type="button"
-          className="group/row flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/60"
-          onClick={() => onSelect(task)}
-        >
-          <StatusIcon status={task.status} className="size-3.5 shrink-0" />
-          <span className="w-24 shrink-0 truncate font-mono text-xs text-muted-foreground">{task.identifier}</span>
-          <span className="min-w-0 flex-1 truncate text-sm">{task.subject || task.identifier}</span>
-          <ChevronRightIcon className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100" />
-        </button>
-      ))}
-        {!items.length && !error && (
-          <EmptyHint compact icon={InboxIcon} title={`暂无${title}`} className="min-h-0" />
-        )}
-        {!items.length && debug && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <p className="max-h-20 overflow-y-auto break-all rounded bg-muted/50 px-3 py-2 font-mono text-xs leading-4 text-muted-foreground" />
-              }
-            >
-              接口返回：{debug}
-            </TooltipTrigger>
-            <TooltipContent className="max-w-96">接口原始返回（诊断用）</TooltipContent>
-          </Tooltip>
-        )}
-        {!items.length && error && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-xs text-destructive">
-            {title}加载失败：{error}
-          </div>
-        )}
-        {items.length > 0 && footnote && (
-          <p className="text-xs text-muted-foreground">{footnote}</p>
-        )}
-    </section>
-  );
-}
-
-/** 仓库行：展示当前工作项匹配到的远端分支与 CI 状态 */
-function LinkedRepoRow({
-  repo,
-  identifier,
-  subject,
-  iterationId,
-  placeholderIteration,
-  branchRule,
-  mergeRequests,
-  matchedBranches,
-  loadingBranches,
-  traceAvailable,
-  templateId,
-  templates,
-  templateEnabled,
-  baselineBranch,
-  baselineState,
-  onRetryBaseline,
-  onTemplateChange,
-}: {
-  repo: RepoSummary;
-  identifier: string;
-  subject: string;
-  iterationId?: string;
-  placeholderIteration: boolean;
-  branchRule?: ResolvedRepoBranchRule;
-  mergeRequests: MrSummary[];
-  matchedBranches: string[];
-  loadingBranches: boolean;
-  traceAvailable: boolean;
-  templateId?: string;
-  templates: BranchRuleTemplate[];
-  templateEnabled: boolean;
-  baselineBranch?: string;
-  baselineState: IterationBaselineCheck['state'] | undefined;
-  onRetryBaseline: () => void;
-  onTemplateChange: (templateId: string | null) => void;
-}) {
-  const { repoCiByRepo, settings, loadTrace, setToast } = useApp();
-  const [ciDetailsOpen, setCiDetailsOpen] = useState(false);
-  const entry = repoCiByRepo[repo.id];
-  const snapshot = entry?.snapshot;
-  const ciBinding = settings?.repoCiBindings?.[String(repo.id)];
-  const isFlowBound = ciBinding?.provider === 'flow';
-  const developerBranch = branchRule?.workitemBranch.trim() || (identifier ? `feature/${identifier}` : '');
-  const operationBaseBranch = iterationId ? baselineBranch?.trim() ?? '' : 'master';
-  const templateSourceBranch = branchRule?.sourceBranch.trim() ?? '';
-  const hasValidRule = Boolean(
-    branchRule?.sourceBranch.trim() && branchRule.baselineBranch.trim() && branchRule.workitemBranch.trim(),
-  );
-  const [developerBranchState, setDeveloperBranchState] = useState<IterationBaselineCheck['state']>('loading');
-  const [defaultBaseState, setDefaultBaseState] = useState<IterationBaselineCheck['state']>('loading');
-  const [createdMergeRequestKey, setCreatedMergeRequestKey] = useState('');
-  const mergeRequestKey = `${repo.id}:${developerBranch}->${operationBaseBranch}`;
-
-  useEffect(() => {
-    let active = true;
-    if (!developerBranch) {
-      setDeveloperBranchState('missing');
-      return () => { active = false; };
-    }
-    setDeveloperBranchState('loading');
-    void findRemoteBranch(repo.id, developerBranch)
-      .then((branch) => { if (active) setDeveloperBranchState(branch ? 'exists' : 'missing'); })
-      .catch(() => { if (active) setDeveloperBranchState('error'); });
-    return () => { active = false; };
-  }, [repo.id, developerBranch]);
-
-  useEffect(() => {
-    let active = true;
-    if (iterationId) {
-      setDefaultBaseState('missing');
-      return () => { active = false; };
-    }
-    setDefaultBaseState('loading');
-    void findRemoteBranch(repo.id, 'master')
-      .then((branch) => { if (active) setDefaultBaseState(branch ? 'exists' : 'missing'); })
-      .catch(() => { if (active) setDefaultBaseState('error'); });
-    return () => { active = false; };
-  }, [repo.id, iterationId]);
-
-  const mergeRequestExists = createdMergeRequestKey === mergeRequestKey || mergeRequests.some((request) =>
-    request.sourceBranch === developerBranch && request.targetBranch === operationBaseBranch,
-  );
-
-  const branchDisabledReason = placeholderIteration
-    ? '占位迭代不支持创建云效分支'
-    : !identifier
-      ? '工作项编号不可用'
-      : iterationId && !hasValidRule
-        ? '请先为此仓库选择有效的分支模板'
-        : iterationId && baselineState === 'loading'
-          ? '正在查询迭代基准分支'
-          : iterationId && baselineState === 'error'
-            ? '迭代基准查询失败，请重试后再创建'
-            : !iterationId && defaultBaseState === 'loading'
-              ? '正在查询 master 分支'
-              : !iterationId && defaultBaseState !== 'exists'
-                ? 'master 分支不可用，无法创建需求分支'
-                : !operationBaseBranch
-                  ? '模板未生成有效的迭代基准分支'
-                  : developerBranchState === 'loading'
-                    ? '正在查询需求分支'
-                    : developerBranchState === 'exists'
-                      ? '需求分支已存在'
-                      : undefined;
-
-  const mergeRequestDisabledReason = placeholderIteration
-    ? '占位迭代不支持创建 MR'
-    : !identifier
-      ? '工作项编号不可用'
-      : iterationId && !hasValidRule
-        ? '请先为此仓库选择有效的分支模板'
-        : iterationId && baselineState !== 'exists'
-          ? baselineState === 'error' ? '迭代基准查询失败，请重试后再创建' : '请先创建需求分支和迭代基准分支'
-          : !iterationId && defaultBaseState !== 'exists'
-            ? 'master 分支不可用，无法创建 MR'
-            : developerBranchState === 'loading'
-              ? '正在查询需求分支'
-              : developerBranchState === 'error'
-                ? '需求分支查询失败，请刷新详情后重试'
-                : developerBranchState !== 'exists'
-                  ? '请先创建需求分支'
-                  : !traceAvailable
-                    ? '正在查询 MR 状态'
-                    : mergeRequestExists
-                      ? '此需求分支的 MR 已创建'
-                      : undefined;
-
-  const createDeveloperBranch = async () => {
-    try {
-      if (!identifier || !developerBranch || !operationBaseBranch) throw new Error('需求分支参数不完整');
-      if (placeholderIteration) throw new Error('占位迭代不支持创建云效分支');
-      if (iterationId && !hasValidRule) throw new Error('请先为此仓库选择有效的分支模板');
-      if (developerBranch === operationBaseBranch) throw new Error('需求分支不能与迭代基准分支同名');
-
-      const existing = await findRemoteBranch(repo.id, developerBranch);
-      if (existing) {
-        setDeveloperBranchState('exists');
-        setToast({ text: `需求分支已存在，不会重复创建：${developerBranch}`, kind: 'info' });
-        void loadTrace();
-        return;
-      }
-
-      if (iterationId) {
-        let baseline = await findRemoteBranch(repo.id, operationBaseBranch);
-        if (!baseline) {
-          if (!templateSourceBranch || templateSourceBranch === operationBaseBranch) {
-            throw new Error('分支模板的源分支或迭代基准无效');
-          }
-          const source = await findRemoteBranch(repo.id, templateSourceBranch);
-          if (!source) throw new Error(`模板源分支「${templateSourceBranch}」在线上不存在`);
-          await api.createBranch(repo.id, operationBaseBranch, templateSourceBranch);
-          baseline = await findRemoteBranch(repo.id, operationBaseBranch);
-          if (!baseline) throw new Error(`迭代基准「${operationBaseBranch}」创建后未能查询到`);
-          onRetryBaseline();
-        }
-      }
-
-      const source = await findRemoteBranch(repo.id, operationBaseBranch);
-      if (!source) throw new Error(`来源分支「${operationBaseBranch}」在线上不存在`);
-      await api.createBranch(repo.id, developerBranch, operationBaseBranch);
-      setDeveloperBranchState('exists');
-      setToast({ text: `需求分支已创建：${developerBranch}`, kind: 'ok' });
-      onRetryBaseline();
-      void loadTrace();
-    } catch (error) {
-      errorLog('workitem-action', error); setToast({ text: humanizeError(error), kind: 'fail' });
-    }
-  };
-
-  const createMergeRequest = async () => {
-    try {
-      if (!identifier || !developerBranch || !operationBaseBranch) throw new Error('MR 参数不完整');
-      if (placeholderIteration) throw new Error('占位迭代不支持创建 MR');
-      if (iterationId && (!hasValidRule || baselineState !== 'exists')) {
-        throw new Error('请先确认分支模板和迭代基准分支');
-      }
-      const [sourceBranch, targetBranch] = await Promise.all([
-        findRemoteBranch(repo.id, developerBranch),
-        findRemoteBranch(repo.id, operationBaseBranch),
-      ]);
-      if (!sourceBranch) throw new Error(`需求分支「${developerBranch}」在线上不存在`);
-      if (!targetBranch) throw new Error(`目标分支「${operationBaseBranch}」在线上不存在`);
-      if (developerBranch === operationBaseBranch) throw new Error('MR 源分支和目标分支不能相同');
-
-      const remoteRequests = mergeRequestRows(await api.listMergeRequests(repo.id));
-      const existing = remoteRequests.some((request) =>
-        mergeRequestBranch(request, 'sourceBranch', 'source_branch') === developerBranch
-        && mergeRequestBranch(request, 'targetBranch', 'target_branch') === operationBaseBranch,
-      );
-      if (existing) {
-        setCreatedMergeRequestKey(mergeRequestKey);
-        setToast({ text: `此需求分支的 MR 已存在：${developerBranch} → ${operationBaseBranch}`, kind: 'info' });
-        void loadTrace();
-        return;
-      }
-
-      await api.createMergeRequest({
-        repoId: repo.id,
-        title: `${identifier} ${subject}`.trim(),
-        sourceBranch: developerBranch,
-        targetBranch: operationBaseBranch,
-        description: `关联工作项：${identifier}`,
-      });
-      setCreatedMergeRequestKey(mergeRequestKey);
-      setToast({ text: `MR 已创建：${developerBranch} → ${operationBaseBranch}`, kind: 'ok' });
-      void loadTrace();
-    } catch (error) {
-      errorLog('workitem-action', error); setToast({ text: humanizeError(error), kind: 'fail' });
-    }
-  };
-
-  return (
-    <>
-    <TableRow>
-      <TableCell className="font-medium">
-        <Tooltip>
-          <TooltipTrigger render={<span className="block max-w-64 truncate" />}>
-            {repo.name}
-          </TooltipTrigger>
-          <TooltipContent className="max-w-96 break-all">
-            {repo.pathWithNamespace || repo.name}
-          </TooltipContent>
-        </Tooltip>
-      </TableCell>
-      <TableCell className="min-w-40">
-        {templateEnabled ? (
-          <SearchableSelect
-            className="text-xs"
-            value={templateId || '__none'}
-            onValueChange={(value) => onTemplateChange(value && value !== '__none' ? value : null)}
-            items={[
-              { label: '未选择模板', value: '__none' },
-              ...templates.map((template): SearchableSelectOption<string> => ({
-                label: template.name,
-                value: template.id,
-              })),
-              ...(templateId && !templates.some((template) => template.id === templateId)
-                ? [{ label: '模板不可用', value: templateId, disabled: true }]
-                : []),
-            ]}
-          />
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        )}
-      </TableCell>
-      <TableCell className="align-top">
-        {loadingBranches ? (
-          <span className="text-xs text-muted-foreground">追溯中…</span>
-        ) : matchedBranches.length ? (
-          <div className="flex min-w-40 flex-col items-start gap-1">
-            {matchedBranches.map((branch) => (
-              <div key={`${branch}:${baselineBranch ?? ''}`} className="flex flex-col items-start gap-1">
-                <Tooltip>
-                  <TooltipTrigger render={<code className="block max-w-56 truncate rounded bg-muted px-1.5 py-0.5 text-xs text-foreground" />}>
-                    {branch}
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-96 break-all">{branch}</TooltipContent>
-                </Tooltip>
-                {templateEnabled && (
-                  <BranchDivergenceCheck
-                    repoId={repo.id}
-                    developmentBranch={branch}
-                    baselineBranch={baselineBranch}
-                    baselineState={baselineState}
-                    onRetryBaseline={onRetryBaseline}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">
-            {traceAvailable ? '暂无匹配分支' : '—'}
-          </span>
-        )}
-      </TableCell>
-      <TableCell>
-        <CiSummaryButton
-          status={ciStatusText(snapshot?.status, entry)}
-          runCount={snapshot?.runs.length ?? 0}
-          error={entry?.error}
-          tooltip="点击查看 CI Job、构建分支和环境详情"
-          onOpen={() => setCiDetailsOpen(true)}
-        />
-      </TableCell>
-      <TableCell className="min-w-32 text-right align-top">
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
-          {/* 按提供方分流：Flow 绑定 → 触发流水线；Jenkins / 未绑定 → Jenkins 构建向导 */}
-          {isFlowBound ? (
-            <WriteOpButton
-              label="触发流水线"
-              title={`触发流水线 ${ciBinding.pipelineName}`}
-              variant="default"
-              onAction={() => triggerRepoCiWithFeedback(repo.id, repo.name)}
-            />
-          ) : (
-            <JenkinsBuildDialog
-              repoId={repo.id}
-              repoName={repo.name}
-              defaultBranch={matchedBranches[0] || developerBranch}
-            />
-          )}
-          {/* Linear 式次级动作：⋯ 图标按钮 → 下拉菜单（门控原因以副行展示，选中后走确认弹窗） */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" aria-label="更多操作" />}
-            >
-              <MoreHorizontalIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <WriteOpButton
-                asMenuItem
-                label="创建分支"
-                title={developerBranch ? `创建需求分支 ${developerBranch}` : '创建需求分支'}
-                disabled={Boolean(branchDisabledReason)}
-                disabledReason={branchDisabledReason}
-                onAction={createDeveloperBranch}
-              />
-              <WriteOpButton
-                asMenuItem
-                label="创建 MR"
-                title={developerBranch && operationBaseBranch
-                  ? `创建 MR：${developerBranch} → ${operationBaseBranch}`
-                  : '创建 MR'}
-                disabled={Boolean(mergeRequestDisabledReason)}
-                disabledReason={mergeRequestDisabledReason}
-                onAction={createMergeRequest}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </TableCell>
-    </TableRow>
-    <RepositoryCiDetails repo={repo} open={ciDetailsOpen} onOpenChange={setCiDetailsOpen} />
-    </>
-  );
-}
-
-/** Linear 式属性行：图标 + 裸文本，有值近黑 / 无值灰色（Linear Properties 形态） */
-function PropertyItem({ icon, value, placeholder, active }: { icon: ReactNode; value?: string | null; placeholder: string; active?: boolean }) {
-  const has = Boolean(value && value !== '—');
-  return (
-    <div className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px]">
-      <span className="shrink-0 text-muted-foreground">{icon}</span>
-      <span className={cn('min-w-0 truncate', has || active ? 'text-foreground' : 'text-muted-foreground')}>
-        {has ? value : placeholder}
-      </span>
-    </div>
-  );
-}
-
-/** 需求/工作项详情（UX A10：仓库与 CI 状态前置；基本信息压缩为元信息行） */
-export function RequirementDetails() {
+/** 需求/工作项详情（1:1 对齐 Linear 工具风格） */
+export function RequirementDetails({
+  embedded = false,
+  parentWorkitem,
+  onOpenWorkbench,
+  onClose,
+  onSelectChild,
+  onSelectParent,
+}: RequirementDetailsProps = {}) {
   const {
     selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
-    iterations, trace, traceLoading,
+    iterations, trace, traceLoading, loadTrace,
     saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast,
   } = useApp();
-  const { openWorkitem } = useUi();
+  const { openWorkitem, chain } = useUi();
+  const currentCrumb = chain[chain.length - 1];
+  const parentCrumb = chain.length > 1 ? chain[0] : null;
+  const parent = parentWorkitem ?? parentCrumb;
+
   const cur = items.find((i) => i.workitemId === selectedId);
-  const isRequirement = cur?.category === 'Req';
+  const childFromStore = children.find((c) => c.workitemId === selectedId);
+  const wi = (detail?.workitem ?? detail ?? {}) as Record<string, unknown>;
+
+  const identifier = (typeof wi.identifier === 'string' && wi.identifier)
+    || (typeof wi.serialNumber === 'string' && wi.serialNumber)
+    || childFromStore?.identifier
+    || (currentCrumb?.workitemId === selectedId ? currentCrumb.identifier : '')
+    || cur?.identifier
+    || '';
+
+  const subject = (typeof wi.subject === 'string' && wi.subject)
+    || (typeof wi.name === 'string' && wi.name)
+    || childFromStore?.subject
+    || (currentCrumb?.workitemId === selectedId ? currentCrumb.subject : '')
+    || cur?.subject
+    || '';
+
+  const category = (typeof wi.category === 'string' && wi.category)
+    || childFromStore?.category
+    || cur?.category
+    || (parent ? 'Task' : 'Req');
+
+  const isRequirement = category === 'Req';
+
+  const statusName = (typeof wi.status === 'string' && wi.status)
+    || (wi.status && typeof wi.status === 'object' && typeof (wi.status as any).name === 'string' ? (wi.status as any).name : '')
+    || childFromStore?.status
+    || cur?.status
+    || '';
+
+  const assignedToName = (typeof wi.assignedTo === 'string' && wi.assignedTo)
+    || (wi.assignedTo && typeof wi.assignedTo === 'object' && typeof (wi.assignedTo as any).name === 'string' ? (wi.assignedTo as any).name : '')
+    || childFromStore?.assignedTo
+    || cur?.assignedTo
+    || '';
+
+  const parentAssigneeId = (wi.assignedTo && typeof wi.assignedTo === 'object'
+    ? (typeof (wi.assignedTo as any).identifier === 'string' ? (wi.assignedTo as any).identifier
+      : typeof (wi.assignedTo as any).id === 'string' ? (wi.assignedTo as any).id
+      : typeof (wi.assignedTo as any).userId === 'string' ? (wi.assignedTo as any).userId : undefined)
+    : (typeof wi.assignedTo === 'string' && wi.assignedTo ? wi.assignedTo : undefined))
+    || (wi.creator && typeof wi.creator === 'object'
+      ? (typeof (wi.creator as any).identifier === 'string' ? (wi.creator as any).identifier
+        : typeof (wi.creator as any).id === 'string' ? (wi.creator as any).id : undefined)
+      : (typeof wi.creator === 'string' && wi.creator ? wi.creator : undefined));
+
+  const spaceName = (typeof wi.spaceName === 'string' && wi.spaceName)
+    || (wi.space && typeof wi.space === 'object' && typeof (wi.space as any).name === 'string' ? (wi.space as any).name : '')
+    || cur?.spaceName
+    || '';
+
+  const updatedAt = (typeof wi.gmtModified === 'string' && wi.gmtModified)
+    || (typeof wi.updatedAt === 'string' && wi.updatedAt)
+    || childFromStore?.gmtModified
+    || cur?.updatedAt
+    || '';
+
   const hasRepoOverride = selectedId != null && Object.prototype.hasOwnProperty.call(settings?.workitemRepos ?? {}, selectedId);
   const effectiveRepoIds = hasRepoOverride
     ? settings?.workitemRepos[selectedId!] ?? []
@@ -541,13 +126,26 @@ export function RequirementDetails() {
   const [linkDraft, setLinkDraft] = useState('');
   const [linkDraftTemplateId, setLinkDraftTemplateId] = useState('');
   const [savingRepos, setSavingRepos] = useState(false);
-  const [editingChild, setEditingChild] = useState<WorkitemChild | null>(null);
-  /** 新建子任务对话框（子任务卡标题行入口） */
-  const [creatingChild, setCreatingChild] = useState(false);
-  /** 行点击的详情抽屉（不再直接跳转工作台） */
-  const [detailChild, setDetailChild] = useState<WorkitemChild | null>(null);
+  const [showAddRepo, setShowAddRepo] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
 
-  const wi = (detail?.workitem ?? detail ?? {}) as Record<string, unknown>;
+  // 子工作项/缺陷详情侧滑抽屉（Linear Peek 机制）：免刷新浏览，保留父需求完整上下文与列表焦点
+  const [drawerChild, setDrawerChild] = useState<WorkitemChild | null>(null);
+  const [activeChildId, setActiveChildId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDrawerChild(null);
+    setActiveChildId(null);
+  }, [selectedId]);
+
+  const copyIdentifier = () => {
+    if (!identifier) return;
+    void navigator.clipboard.writeText(identifier);
+    setCopiedId(true);
+    setToast({ text: `已复制编号 ${identifier}`, kind: 'ok' });
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
   const sprint = wi.sprint && typeof wi.sprint === 'object'
     ? wi.sprint as Record<string, unknown>
     : {};
@@ -560,10 +158,10 @@ export function RequirementDetails() {
     ? iterations.find((iteration) => iteration.id === iterationId)?.name
       || cur?.sprintName
       || (typeof sprint.name === 'string' ? sprint.name : '')
-    : '';
+    : (cur?.sprintName || (typeof sprint.name === 'string' ? sprint.name : ''));
   const repoBranchRules: Record<number, ResolvedRepoBranchRule> = iterationId && selectedId
     ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
-      const rule = resolveRepoBranchRule(settings, selectedId, repoId, iterationName, cur?.identifier ?? '');
+      const rule = resolveRepoBranchRule(settings, selectedId, repoId, iterationName, identifier);
       return rule ? [[repoId, rule]] : [];
     }))
     : {};
@@ -614,29 +212,18 @@ export function RequirementDetails() {
           ? repoBranchRules[effectiveRepoIds[0]].templateName
           : configuredBaselineCount + ' 个仓库已选择模板';
 
-  const s = (k: string): string => {
-    const v = wi[k];
-    if (typeof v === 'string') return v;
-    if (typeof v === 'number') return String(v);
-    if (v && typeof v === 'object') {
-      const o = v as Record<string, unknown>;
-      return typeof o.name === 'string' ? o.name : '';
-    }
-    return '';
-  };
-
   if (!selectedId) {
     return (
       <EmptyHint
         icon={MousePointerClickIcon}
         title="未选择工作项"
         description="在侧栏「迭代」分组或迭代页工作项卡片中选择一项以查看详情"
-        className="mt-16"
+        className={embedded ? 'py-16' : 'mt-16'}
       />
     );
   }
   if (loadingDetail) {
-    return <div className="mt-16 py-16 text-center text-sm text-muted-foreground">加载详情…</div>;
+    return <RequirementDetailsSkeleton embedded={embedded} />;
   }
 
   const linkedRepos = repositories.filter((r) => effectiveRepoIds.includes(r.id));
@@ -688,6 +275,7 @@ export function RequirementDetails() {
         setToast({ text: `已关联云效仓库 ${linkDraft}${linkDraftTemplateId ? ' 并应用分支模板' : ''}`, kind: 'ok' });
         setLinkDraft('');
         setLinkDraftTemplateId('');
+        setShowAddRepo(false);
       } catch (error) {
         setToast({
           text: (repoLinked ? '仓库已关联，但分支模板保存失败' : '云效仓库关联保存失败') + '：' + humanizeError(error),
@@ -711,99 +299,349 @@ export function RequirementDetails() {
     }
   };
 
+  const unlinkRepo = (repoId: number) => {
+    if (!selectedId) return;
+    setSavingRepos(true);
+    const nextRepoIds = effectiveRepoIds.filter((id) => id !== repoId);
+    void saveWorkitemRepos(selectedId, nextRepoIds)
+      .then(() => setToast({ text: '已取消关联云效仓库', kind: 'ok' }))
+      .catch((e) => {
+        errorLog('repo-unlink', e);
+        setToast({ text: `取消关联云效仓库失败：${humanizeError(e)}`, kind: 'fail' });
+      })
+      .finally(() => setSavingRepos(false));
+  };
+
   return (
-    <div className="flex flex-col gap-5">
-      {/* 统一 PageHeader：eyebrow=编号；高频的仓库/CI 状态紧随其后的属性区 */}
-      <PageHeader
-        breadcrumb={<AppBreadcrumb />}
-        title={<span className="flex min-w-0 items-center gap-2.5"><StatusIcon status={cur?.status || s('status')} className="size-4" /><span className="min-w-0 truncate">{s('subject') || cur?.subject}</span></span>}
-        titleClassName="text-2xl font-medium tracking-tight"
-        className={STICKY_PAGE_HEADER_CLASS}
-      />
-
-      {/* 页头贴左全宽，正文（左主列 + 右属性栏）居中限宽 */}
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start xl:gap-10">
-      {/* 左主列：仓库/CI 区块、描述、子任务/缺陷、评论 */}
-      <div className="flex min-w-0 flex-col gap-2">
-
-      <section className="flex flex-col gap-3 border-b border-border/70 pb-6">
-        <SectionHeader
-          title="关联的云效仓库与代码操作"
-          count={`${effectiveRepoIds.length} 个仓库`}
-          hint={hasRepoOverride
-            ? '此需求使用单独配置的云效仓库；可在列表中配置模板并创建开发分支或 MR'
-            : '当前使用设置中的默认云效仓库；保存选择后将覆盖默认值'}
-          action={hasRepoOverride && (
-            <Button
-              variant="outline" size="sm" disabled={savingRepos}
-              onClick={() => {
-                if (!selectedId) return;
-                setSavingRepos(true);
-                void saveWorkitemRepos(selectedId, null)
-                  .then(() => setToast({ text: '已恢复默认云效仓库', kind: 'ok' }))
-                  .catch((e) => { errorLog('repo-link-save', e); setToast({ text: `云效仓库关联保存失败：${humanizeError(e)}`, kind: 'fail' }); })
-                  .finally(() => setSavingRepos(false));
-              }}
-            >
-              恢复默认
-            </Button>
-          )}
-        />
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-            <Field>
-              <FieldLabel>添加云效仓库</FieldLabel>
-              <SearchableSelect
-                value={linkDraft || null}
-                onValueChange={(v) => setLinkDraft(v ?? '')}
-                items={repositories
-                  .filter((r) => !effectiveRepoIds.includes(r.id))
-                  .map((r): SearchableSelectOption<string> => ({ label: r.pathWithNamespace || r.name, value: r.pathWithNamespace || r.name }))}
-                placeholder="搜索并选择云效仓库"
-              />
-            </Field>
-            {isRequirement && iterationId && (
-              <Field>
-                <FieldLabel>应用分支模板</FieldLabel>
-                <SearchableSelect
-                  value={linkDraftTemplateId || '__none'}
-                  onValueChange={(value) => setLinkDraftTemplateId(value && value !== '__none' ? value : '')}
-                  items={[
-                    { label: '不应用模板', value: '__none' },
-                    ...(settings?.branchRuleTemplates ?? []).map((template): SearchableSelectOption<string> => ({
-                      label: template.name,
-                      value: template.id,
-                    })),
-                  ]}
-                />
-                {!settings?.branchRuleTemplates?.length && (
-                  <p className="text-xs text-muted-foreground">请先在迭代页创建分支模板。</p>
-                )}
-              </Field>
+    <div className="flex flex-col gap-6">
+      {embedded ? (
+        <div data-tauri-drag-region className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border/70 bg-popover/95 px-5 pt-7 pb-3 backdrop-blur-sm">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {parent && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="size-6 text-muted-foreground hover:text-foreground shrink-0 -ml-1 mr-0.5"
+                onClick={() => {
+                  if (onSelectParent) onSelectParent(parent.workitemId);
+                  else openWorkitem(parent.workitemId, parent);
+                }}
+                title={`返回父需求 ${parent.identifier}`}
+              >
+                <ArrowLeftIcon className="size-3.5" />
+              </Button>
             )}
-            <div className="flex items-end">
-              <Button onClick={linkRepository} disabled={!linkDraft || savingRepos}>关联云效仓库</Button>
-            </div>
+            <StatusIcon status={statusName} className="size-4 shrink-0" />
+            {identifier && (
+              <button
+                type="button"
+                onClick={copyIdentifier}
+                className="group inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+                title="点击复制编号"
+              >
+                <span>{identifier}</span>
+                {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
+              </button>
+            )}
+            <h2 className="min-w-0 truncate text-base font-semibold text-foreground">
+              {subject}
+            </h2>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>云效仓库</TableHead>
-                <TableHead>分支模板</TableHead>
-                <TableHead>{isRequirement ? '需求关联分支' : '工作项关联分支'}</TableHead>
-                <TableHead>CI</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => void loadTrace()}
+              title="刷新追溯"
+            >
+              <RefreshCwIcon className={cn('size-3.5', traceLoading && 'animate-spin')} />
+            </Button>
+            {onOpenWorkbench && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={onOpenWorkbench}
+                title="在工作台全屏打开"
+              >
+                <ExternalLinkIcon className="size-3.5" />
+              </Button>
+            )}
+            {onClose && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={onClose}
+                title="关闭分栏 (Esc)"
+              >
+                <XIcon className="size-3.5" />
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <PageHeader
+          breadcrumb={<AppBreadcrumb />}
+          title={(
+            <span className="flex min-w-0 items-center gap-2.5">
+              <StatusIcon status={statusName} className="size-4 shrink-0" />
+              <span className="min-w-0 truncate text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
+                {subject}
+              </span>
+            </span>
+          )}
+          titleBadge={identifier ? (
+            <button
+              type="button"
+              onClick={copyIdentifier}
+              className="group inline-flex items-center gap-1.5 rounded-md bg-muted/70 px-2 py-0.5 font-mono text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+              title="点击复制编号"
+            >
+              <span>{identifier}</span>
+              {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
+            </button>
+          ) : undefined}
+          titleClassName="text-2xl font-semibold tracking-tight"
+          actions={(
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void loadTrace()}
+              >
+                刷新追溯
+              </Button>
+            </div>
+          )}
+          className={STICKY_PAGE_HEADER_CLASS}
+        />
+      )}
+
+      {/* 嵌入分栏模式下的紧凑元数据条（替代占用整列的右属性栏，释放横向空间） */}
+      {embedded && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/50 bg-muted/20 px-5 py-2 text-xs text-muted-foreground">
+          <DetailStatusPopover
+            status={statusName}
+            workitemId={selectedId ?? undefined}
+            variant="badge"
+          />
+          <span className="text-border">|</span>
+          <div className="flex items-center gap-1.5">
+            <UserIcon className="size-3.5 text-muted-foreground" />
+            {assignedToName ? (
+              <span className="flex items-center gap-1 text-foreground">
+                <Avatar className="size-4">
+                  <AvatarFallback className="text-[9px]">{assignedToName.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <span>{assignedToName}</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">未分配</span>
+            )}
+          </div>
+          <span className="text-border">|</span>
+          <div className="flex items-center gap-1.5">
+            <LayersIcon className="size-3.5 text-muted-foreground" />
+            <span className="text-foreground">{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</span>
+          </div>
+          {parent && (
+            <>
+              <span className="text-border">|</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground">父需求</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onSelectParent) onSelectParent(parent.workitemId);
+                    else openWorkitem(parent.workitemId, parent);
+                  }}
+                  className="font-mono text-primary hover:underline cursor-pointer"
+                >
+                  {parent.identifier}
+                </button>
+              </div>
+            </>
+          )}
+          <span className="text-border">|</span>
+          <div className="flex items-center gap-1.5">
+            <CalendarIcon className="size-3.5 text-muted-foreground" />
+            <span className="text-foreground">{iterationName || '未关联迭代'}</span>
+          </div>
+          {spaceName && (
+            <>
+              <span className="text-border">|</span>
+              <div className="flex items-center gap-1.5">
+                <FolderIcon className="size-3.5 text-muted-foreground" />
+                <span>{spaceName}</span>
+              </div>
+            </>
+          )}
+          {updatedAt && (
+            <>
+              <span className="text-border">|</span>
+              <div className="flex items-center gap-1.5 font-mono">
+                <ClockIcon className="size-3.5 text-muted-foreground" />
+                <span>{String(updatedAt).slice(0, 16).replace('T', ' ')}</span>
+              </div>
+            </>
+          )}
+          <span className="text-border">|</span>
+          <div className="flex items-center gap-1.5">
+            <DatabaseIcon className="size-3.5 text-muted-foreground" />
+            <span>{effectiveRepoIds.length} 个仓库</span>
+            {iterationBranchValue && iterationBranchValue !== '—' && (
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
+                {iterationBranchValue}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 正文容器：embedded 下全宽单列呼吸感布局，非 embedded 下保留 xl:grid 右属性栏 */}
+      <div className={cn(
+        'mx-auto flex w-full flex-col gap-8 pb-12',
+        embedded
+          ? 'max-w-full px-5 py-2'
+          : 'max-w-7xl xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start xl:gap-10 px-5 py-2',
+      )}>
+        {/* 左主列：无卡片白框，纯粹呼吸感的 Linear 画布 */}
+        <div className="flex min-w-0 flex-col gap-8">
+          {parent && (
+            <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/30 px-3.5 py-2.5 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-muted-foreground shrink-0">
+                  {category === 'Bug' ? '关联缺陷挂载于需求：' : '子任务挂载于需求：'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (embedded && onSelectParent) {
+                      onSelectParent(parent.workitemId);
+                    } else {
+                      openWorkitem(parent.workitemId, parent);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline cursor-pointer truncate"
+                >
+                  <span className="font-mono text-xs shrink-0">{parent.identifier}</span>
+                  <span className="truncate">{parent.subject}</span>
+                </button>
+              </div>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="h-6 text-[11px] text-muted-foreground hover:text-foreground shrink-0"
+                onClick={() => {
+                  if (embedded && onSelectParent) {
+                    onSelectParent(parent.workitemId);
+                  } else {
+                    openWorkitem(parent.workitemId, parent);
+                  }
+                }}
+              >
+                查看父需求 ›
+              </Button>
+            </div>
+          )}
+
+          {/* 需求描述 (Linear 风格无边框融入画板) */}
+          <section className="flex flex-col gap-3">
+            <SectionHeader title="描述" hint="来自云效的图文描述与内联附件" />
+            <div className="text-sm leading-relaxed text-foreground/90">
+              <RichDescription raw={wi.description ?? wi.content} />
+            </div>
+          </section>
+
+          {/* 关联云效仓库与代码操作 (Linear Integrations 风格) */}
+          <section className="flex flex-col gap-3">
+            <SectionHeader
+              title="关联云效仓库与代码操作"
+              count={`${effectiveRepoIds.length} 个仓库`}
+              hint={hasRepoOverride
+                ? '此需求使用单独配置的云效仓库；可在列表中配置模板并创建开发分支或 MR'
+                : '当前使用设置中的默认云效仓库；保存选择后将覆盖默认值'}
+              action={(
+                <div className="flex items-center gap-2">
+                  {hasRepoOverride && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={savingRepos}
+                      onClick={() => {
+                        if (!selectedId) return;
+                        setSavingRepos(true);
+                        void saveWorkitemRepos(selectedId, null)
+                          .then(() => setToast({ text: '已恢复默认云效仓库', kind: 'ok' }))
+                          .catch((e) => { errorLog('repo-link-save', e); setToast({ text: `云效仓库关联保存失败：${humanizeError(e)}`, kind: 'fail' }); })
+                          .finally(() => setSavingRepos(false));
+                      }}
+                    >
+                      恢复默认
+                    </Button>
+                  )}
+                  <Button
+                    variant={showAddRepo ? 'secondary' : 'outline'}
+                    size="sm"
+                    onClick={() => setShowAddRepo((v) => !v)}
+                  >
+                    <PlusIcon data-icon="inline-start" />
+                    {showAddRepo ? '收起表单' : '关联仓库'}
+                  </Button>
+                </div>
+              )}
+            />
+
+            {/* 按需展开的添加仓库表单 */}
+            {showAddRepo && (
+              <div className="rounded-lg border border-border/70 bg-muted/20 p-3.5">
+                <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                  <Field>
+                    <FieldLabel>添加云效仓库</FieldLabel>
+                    <SearchableSelect
+                      value={linkDraft || null}
+                      onValueChange={(v) => setLinkDraft(v ?? '')}
+                      items={repositories
+                        .filter((r) => !effectiveRepoIds.includes(r.id))
+                        .map((r): SearchableSelectOption<string> => ({ label: r.pathWithNamespace || r.name, value: r.pathWithNamespace || r.name }))}
+                      placeholder="搜索并选择云效仓库"
+                    />
+                  </Field>
+                  {isRequirement && iterationId && (
+                    <Field>
+                      <FieldLabel>应用分支模板</FieldLabel>
+                      <SearchableSelect
+                        value={linkDraftTemplateId || '__none'}
+                        onValueChange={(value) => setLinkDraftTemplateId(value && value !== '__none' ? value : '')}
+                        items={[
+                          { label: '不应用模板', value: '__none' },
+                          ...(settings?.branchRuleTemplates ?? []).map((template): SearchableSelectOption<string> => ({
+                            label: template.name,
+                            value: template.id,
+                          })),
+                        ]}
+                      />
+                      {!settings?.branchRuleTemplates?.length && (
+                        <p className="text-xs text-muted-foreground">请先在迭代页创建分支模板。</p>
+                      )}
+                    </Field>
+                  )}
+                  <div className="flex items-end">
+                    <Button onClick={linkRepository} disabled={!linkDraft || savingRepos}>确认关联</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3.5">
               {linkedRepos.map((repo) => {
                 const rule = repoBranchRules[repo.id];
                 const baselineCheck = baselineChecks[repo.id];
                 return (
-                  <LinkedRepoRow
+                  <LinkedRepoCard
                     key={repo.id}
                     repo={repo}
-                    identifier={cur?.identifier ?? ''}
-                    subject={cur?.subject ?? ''}
+                    identifier={identifier}
+                    subject={subject}
                     iterationId={iterationId}
                     placeholderIteration={placeholderIteration}
                     branchRule={rule}
@@ -820,186 +658,138 @@ export function RequirementDetails() {
                       : undefined}
                     onRetryBaseline={() => setBaselineRetry((value) => value + 1)}
                     onTemplateChange={(templateId) => void saveRepoTemplate(repo.id, templateId)}
+                    onUnlinkRepo={effectiveRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}
                   />
                 );
               })}
               {!linkedRepos.length && (
-                <TableEmptyRow
-                  colSpan={5}
+                <EmptyHint
+                  icon={InboxIcon}
                   title="未关联云效仓库"
-                  description="可在上方选择后关联，或在设置中选择默认云效仓库"
+                  description="可在上方「关联仓库」选择后添加，或在设置中指定默认云效仓库"
+                  className="rounded-xl border border-dashed py-8"
                 />
               )}
-            </TableBody>
-          </Table>
-
-          {/* 分支同步状态图：默认折叠，不占首屏（可折叠区块形态，与迭代页模板区一致） */}
-          <Collapsible defaultOpen={false} render={<div className="rounded-lg border border-border/70" />}>
-            <div className="flex items-start justify-between gap-3 p-4">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">分支同步状态图</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  以需求为根的分支树：仓库 → 基准 / 迭代 / 开发分支；绿 / 橙箭头标注各段合并状态（按真实双向比较结果）。
-                </p>
-              </div>
-              <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
-                <ChevronRightIcon className="transition-transform duration-200 group-data-panel-open/collapsible:rotate-90" />
-                展开 / 收起
-              </CollapsibleTrigger>
             </div>
-            <CollapsibleContent>
-              <div className="border-t border-border/70 p-4">
-                <Suspense fallback={<div className="flex h-72 items-center justify-center text-xs text-muted-foreground">状态图加载中…</div>}>
-                  <BranchStateDiagram
-                    requirement={{ identifier: cur?.identifier ?? '', subject: s('subject') || cur?.subject || '' }}
-                    repos={syncDiagramRepos}
-                  />
-                </Suspense>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-      </section>
 
-      <section className="flex flex-col gap-3 border-b border-border/70 pb-6">
-        <SectionHeader title="描述" hint="来自云效的富文本描述与内联附件" />
-        <RichDescription raw={wi.description ?? wi.content} />
-      </section>
-
-      {isRequirement && (() => {
-        const subtasks = children.filter((c) => c.category !== 'Bug');
-        const defects = children.filter((c) => c.category === 'Bug');
-        // UX A2：行点击 = 详情抽屉；「在工作台打开」保留原跳转（父 › 子 面包屑链）
-        const openChild = (child: WorkitemChild) => {
-          if (!selectedId || !cur) return;
-          openWorkitem(
-            child.workitemId,
-            { workitemId: child.workitemId, identifier: child.identifier, subject: child.subject },
-            { workitemId: selectedId, identifier: cur.identifier, subject: cur.subject },
-          );
-        };
-        return (
-          <>
-            {/* 右属性栏挤压主列宽度：子任务/缺陷改单列堆叠（Linear 子任务即全宽列表） */}
-            <div className="flex flex-col items-stretch gap-5">
-              <ChildrenCard
-                title="子任务"
-                description="挂载在该需求下的子工作项，点击打开详情抽屉"
-                items={subtasks}
-                error={childrenError}
-                debug={childrenDebug}
-                onSelect={setDetailChild}
-                action={(
-                  <Button variant="ghost" size="sm" onClick={() => setCreatingChild(true)}>
-                    <PlusIcon data-icon="inline-start" />
-                    新建子任务
-                  </Button>
-                )}
-              />
-              <ChildrenCard
-                title="缺陷"
-                description="挂载在该需求下的缺陷，点击打开详情抽屉"
-                items={defects}
-                error={childrenError}
-                debug={childrenDebug}
-                onSelect={setDetailChild}
-                footnote="缺陷新增请在云效网页端操作。"
-              />
-            </div>
-            <ChildDetailDrawer
-              child={detailChild}
-              onClose={() => setDetailChild(null)}
-              onEdit={setEditingChild}
-              onOpenInWorkbench={(child) => { openChild(child); setDetailChild(null); }}
-            />
-          </>
-        );
-      })()}
-      {editingChild && selectedId && (
-        <SubtaskEditDialog
-          child={editingChild}
-          parentWorkitemId={selectedId}
-          onClose={() => setEditingChild(null)}
-        />
-      )}
-      {creatingChild && selectedId && (
-        <SubtaskCreateDialog
-          parentWorkitemId={selectedId}
-          onClose={() => setCreatingChild(false)}
-        />
-      )}
-
-      <section className="flex flex-col gap-3 border-b border-border/70 pb-6">
-        <SectionHeader title="评论" count={comments.length || undefined} hint="来自云效的工作项评论" />
-        {comments.length ? (
-          <div className="flex flex-col gap-5">
-            {(comments as Record<string, unknown>[]).map((c, i) => (
-              <article key={i} className="flex items-start gap-3">
-                <Avatar className="size-6">
-                  <AvatarFallback className="text-[10px]">
-                    {String((c.author as Record<string, unknown>)?.name ?? c.creator ?? '—').charAt(0) || '—'}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <span className="text-sm font-medium">
-                      {String((c.author as Record<string, unknown>)?.name ?? c.creator ?? '—')}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{String(c.createdAt ?? c.gmtCreate ?? '')}</span>
-                  </div>
-                  <div className="mt-1 text-sm leading-6 whitespace-pre-wrap text-foreground/85">{String(c.content ?? '')}</div>
+            {/* 分支同步状态图：折叠 */}
+            <Collapsible defaultOpen={false} render={<div className="rounded-lg border border-border/70" />}>
+              <div className="flex items-start justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">分支同步状态图</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    以需求为根的分支树：仓库 → 基准 / 迭代 / 开发分支；绿 / 橙箭头标注各段合并状态（按真实双向比较结果）。
+                  </p>
                 </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyHint icon={MessageSquareIcon} title="暂无评论" className="py-6" />
+                <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
+                  <ChevronRightIcon className="transition-transform duration-200 group-data-panel-open/collapsible:rotate-90" />
+                  展开 / 收起
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent>
+                <div className="border-t border-border/70 p-4">
+                  <Suspense
+                    fallback={(
+                      <div className="flex h-72 w-full flex-col items-center justify-center gap-4 rounded-lg border border-border/40 bg-muted/10 p-6" aria-hidden>
+                        <Skeleton className="h-9 w-36 rounded-md" />
+                        <div className="h-6 w-px bg-border/60" />
+                        <div className="flex items-center gap-8">
+                          <Skeleton className="h-9 w-32 rounded-md" />
+                          <Skeleton className="h-9 w-32 rounded-md" />
+                        </div>
+                      </div>
+                    )}
+                  >
+                    <BranchStateDiagram
+                      requirement={{ identifier, subject }}
+                      repos={syncDiagramRepos}
+                    />
+                  </Suspense>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </section>
+
+          {/* 子工作项与缺陷 (Linear Sub-issues 风格) */}
+          {isRequirement && (() => {
+            const subtasks = children.filter((c) => c.category !== 'Bug');
+            const defects = children.filter((c) => c.category === 'Bug');
+            const openChild = (child: WorkitemChild) => {
+              setActiveChildId(child.workitemId);
+              setDrawerChild(child);
+            };
+            return (
+              <div className="flex flex-col gap-6">
+                <ChildrenCard
+                  title="子任务"
+                  category="Task"
+                  description="挂载在该需求下的子任务"
+                  items={subtasks}
+                  error={childrenError}
+                  debug={childrenDebug}
+                  parentWorkitemId={selectedId ?? ''}
+                  parentAssigneeId={parentAssigneeId}
+                  selectedChildId={activeChildId}
+                  onSelect={openChild}
+                />
+                <ChildrenCard
+                  title="缺陷"
+                  category="Bug"
+                  description="挂载在该需求下的缺陷"
+                  items={defects}
+                  error={childrenError}
+                  debug={childrenDebug}
+                  parentWorkitemId={selectedId ?? ''}
+                  parentAssigneeId={parentAssigneeId}
+                  selectedChildId={activeChildId}
+                  onSelect={openChild}
+                />
+              </div>
+            );
+          })()}
+
+          {/* Activity / 评论讨论（1:1 对齐 Linear Activity 时间轴） */}
+          <RequirementActivity comments={comments} />
+        </div>
+
+        {/* 右侧边栏：Linear 式属性栏（全屏/非 embedded 模式下展示） */}
+        {!embedded && (
+          <RequirementProperties
+            statusName={statusName}
+            selectedId={selectedId}
+            assignedToName={assignedToName}
+            category={category}
+            parent={parent}
+            spaceName={spaceName}
+            iterationName={iterationName}
+            updatedAt={updatedAt}
+            effectiveRepoCount={effectiveRepoIds.length}
+            iterationBranchValue={iterationBranchValue}
+            embedded={embedded}
+            onSelectParent={onSelectParent}
+          />
         )}
-      </section>
-
-      {settings?.allowWriteOps === false && (
-        <p className={cn('flex items-center gap-1.5 text-xs text-muted-foreground')}>
-          <XIcon data-icon="inline-start" />
-          写操作未开启：设置 → 安全 → 允许写操作
-        </p>
-      )}
       </div>
 
-      {/* 右属性栏：Linear 式裸行属性（图标 + 裸文本；属性 / 交付 两组） */}
-      <aside className="flex w-full flex-col gap-5 xl:sticky xl:top-24 xl:w-auto">
-        <div className="flex flex-col">
-          <p className="text-[13px] font-medium text-muted-foreground">属性</p>
-          <div className="flex flex-col gap-0.5">
-            <PropertyItem
-              active
-              icon={<StatusIcon status={cur?.status || s('status')} className="size-4" />}
-              value={cur?.status || s('status')}
-              placeholder="—"
-            />
-            <PropertyItem
-              icon={cur?.assignedTo || s('assignedTo')
-                ? (
-                  <Avatar className="size-4.5">
-                    <AvatarFallback className="text-[10px]">{(cur?.assignedTo || s('assignedTo')).charAt(0) || '—'}</AvatarFallback>
-                  </Avatar>
-                )
-                : <UserIcon className="size-4" />}
-              value={cur?.assignedTo || s('assignedTo')}
-              placeholder="未分配"
-            />
-            <PropertyItem icon={<FolderIcon className="size-4" />} value={cur?.spaceName || s('spaceName')} placeholder="—" />
-            <PropertyItem icon={<CalendarIcon className="size-4" />} value={iterationName} placeholder="未关联" />
-            <PropertyItem icon={<ClockIcon className="size-4" />} value={cur?.updatedAt || s('updatedAt')} placeholder="—" />
-          </div>
-        </div>
-        <div className="flex flex-col">
-          <p className="text-[13px] font-medium text-muted-foreground">交付</p>
-          <div className="flex flex-col gap-0.5">
-            <PropertyItem icon={<DatabaseIcon className="size-4" />} value={`${effectiveRepoIds.length} 个`} placeholder="—" />
-            <PropertyItem icon={<GitBranchIcon className="size-4" />} value={iterationBranchValue} placeholder="未选择模板" />
-          </div>
-        </div>
-      </aside>
-      </div>
+      {/* 子工作项/缺陷详情侧滑抽屉（Linear Peek 面板） */}
+      <ChildDetailDrawer
+        child={drawerChild}
+        parentWorkitem={selectedId && identifier ? { workitemId: selectedId, identifier, subject } : null}
+        onClose={() => setDrawerChild(null)}
+        onOpenInWorkbench={(child) => {
+          setDrawerChild(null);
+          if (!selectedId) return;
+          if (embedded && onSelectChild) {
+            onSelectChild(child);
+          } else {
+            openWorkitem(
+              child.workitemId,
+              { workitemId: child.workitemId, identifier: child.identifier, subject: child.subject },
+              { workitemId: selectedId, identifier, subject },
+            );
+          }
+        }}
+      />
     </div>
   );
 }

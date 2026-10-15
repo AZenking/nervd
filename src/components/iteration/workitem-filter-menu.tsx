@@ -25,7 +25,7 @@ function FilterMenu({ label, kind, options }: {
       >
         <span className="max-w-24 truncate">{label}</span>
         {selected.length > 0 && (
-          <Badge variant="secondary" className="shrink-0 rounded-full px-1.5">{selected.length}</Badge>
+          <Badge variant="secondary" className="shrink-0 rounded-sm px-1.5">{selected.length}</Badge>
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
