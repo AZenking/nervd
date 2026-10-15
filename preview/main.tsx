@@ -7,9 +7,19 @@ import { Shell } from '../src/components/Shell';
 import { Toaster } from '../src/components/ui/toast';
 import { TooltipProvider } from '../src/components/ui/tooltip';
 
+import { useUi } from '../src/store/ui';
+
 // 预览入口：浏览器内以 mock 数据驱动新 UI（不经过 App 的 Tauri 事件监听）
 function Preview() {
   const init = useApp((s) => s.init);
+  const theme = useUi((s) => s.theme);
+
+  React.useEffect(() => {
+    (window as any).__nervd_app = useApp;
+    (window as any).__nervd_ui = useUi;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
   React.useEffect(() => { void init(); }, [init]);
   return (
     <React.StrictMode>

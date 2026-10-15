@@ -4,7 +4,7 @@
 // 第二次点击执行；用于已经打开的 Dialog/向导内部，避免"弹窗套弹窗"。
 // 只读门控（设计审计 A4）：不再用 HTML disabled（会吞掉 hover/focus，Tooltip 永不出现），
 // 改为 aria-disabled + 灰阶样式，点击打开说明弹窗并引导前往设置。
-import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { useApp } from '../store/app';
 import { useUi } from '../store/ui';
 import {
@@ -21,6 +21,7 @@ import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
 const INLINE_CONFIRM_TIMEOUT_MS = 4000;
@@ -29,6 +30,57 @@ const INLINE_CONFIRM_TIMEOUT_MS = 4000;
  *  hover 一并压成灰阶，避免 variant=default 的 hover:bg-primary/90 让只读按钮悬停闪回品牌蓝。 */
 const READONLY_BTN_CLASS =
   'bg-muted text-muted-foreground border-border shadow-none hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted';
+
+export { READONLY_BTN_CLASS };
+
+/** 只读门控触发器：供自带确认流程的写操作入口复用（如 JenkinsBuildDialog 的向导入口）。
+ *  allowWriteOps=false 时渲染灰阶 aria-disabled 按钮，点击通过 Toast 引导前往设置开启写权限；
+ *  允许写操作时返回 null，由调用方渲染真实入口。 */
+export function WriteOpGatedTrigger({
+  label,
+  icon,
+  variant = 'outline',
+}: {
+  label: string;
+  icon?: ReactNode;
+  variant?: ComponentProps<typeof Button>['variant'];
+}) {
+  const allow = useApp((s) => s.settings?.allowWriteOps ?? false);
+  const openSettings = useUi((s) => s.openSettings);
+  if (allow) return null;
+
+  const handleClick = () => {
+    toast.add({
+      title: '当前处于只读模式',
+      description: `「${label}」是写操作。可在「设置 → 安全」中开启写权限后执行。`,
+      type: 'warning',
+      actionProps: {
+        children: '前往设置',
+        onClick: () => openSettings('security'),
+      },
+    });
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            size="sm"
+            variant={variant}
+            aria-disabled="true"
+            className={READONLY_BTN_CLASS}
+            onClick={handleClick}
+          />
+        }
+      >
+        {icon}
+        {label}
+      </TooltipTrigger>
+      <TooltipContent>写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function WriteOpButton({
   label,
@@ -57,7 +109,6 @@ export function WriteOpButton({
   const openSettings = useUi((s) => s.openSettings);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
-  const [readonlyOpen, setReadonlyOpen] = useState(false);
   const [armed, setArmed] = useState(false);
   const armTimer = useRef<number | null>(null);
 
@@ -72,6 +123,18 @@ export function WriteOpButton({
     : disabled
       ? disabledReason ?? title ?? label
       : title ?? label;
+
+  const notifyReadonly = () => {
+    toast.add({
+      title: '当前处于只读模式',
+      description: `「${label}」是写操作。可在「设置 → 安全」中开启写权限后执行。`,
+      type: 'warning',
+      actionProps: {
+        children: '前往设置',
+        onClick: () => openSettings('security'),
+      },
+    });
+  };
 
   const run = async () => {
     setBusy(true);
@@ -101,24 +164,6 @@ export function WriteOpButton({
     void run();
   };
 
-  // ---- 只读说明弹窗：说明原因 + 前往设置（A4） ----
-  const readonlyDialog = (
-    <AlertDialog open={readonlyOpen} onOpenChange={setReadonlyOpen}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>写操作已关闭</AlertDialogTitle>
-          <AlertDialogDescription>
-            「{label}」是写操作，会对云效上的真实资源生效。当前为只读模式：需在「设置 → 安全」中开启写操作（需写权限令牌）。
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>知道了</AlertDialogCancel>
-          <AlertDialogAction onClick={() => openSettings('security')}>前往设置</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-
   // ---- 只读门控触发器：aria-disabled + 灰阶，保留 Tooltip 与点击反馈 ----
   const readonlyTrigger = (
     <Tooltip>
@@ -129,7 +174,7 @@ export function WriteOpButton({
             variant={variant}
             aria-disabled="true"
             className={READONLY_BTN_CLASS}
-            onClick={() => setReadonlyOpen(true)}
+            onClick={notifyReadonly}
           />
         }
       >
@@ -142,12 +187,7 @@ export function WriteOpButton({
   // ---- 内联两段式（向导内使用） ----
   if (confirm === 'inline') {
     if (blocked) {
-      return (
-        <>
-          {readonlyTrigger}
-          {readonlyDialog}
-        </>
-      );
+      return readonlyTrigger;
     }
     return (
       <Tooltip>
@@ -188,7 +228,7 @@ export function WriteOpButton({
     </AlertDialog>
   );
 
-  // ---- 菜单项形态（Linear 式 ⋯ 下拉）：只读项保持可点（打开说明弹窗），带原因副行 ----
+  // ---- 菜单项形态（Linear 式 ⋯ 下拉）：只读项保持可点（触发 Toast 提示），带原因副行 ----
   if (asMenuItem) {
     const showReason = blocked || (disabled && Boolean(disabledReason));
     return (
@@ -198,7 +238,7 @@ export function WriteOpButton({
           className={cn('h-auto flex-col items-stretch gap-0.5 py-2', blocked && 'text-muted-foreground')}
           onClick={() => {
             if (blocked) {
-              setReadonlyOpen(true);
+              notifyReadonly();
               return;
             }
             setOpen(true);
@@ -211,19 +251,13 @@ export function WriteOpButton({
             </span>
           )}
         </DropdownMenuItem>
-        {readonlyDialog}
         {confirmDialog}
       </>
     );
   }
 
   if (blocked) {
-    return (
-      <>
-        {readonlyTrigger}
-        {readonlyDialog}
-      </>
-    );
+    return readonlyTrigger;
   }
   return (
     <>

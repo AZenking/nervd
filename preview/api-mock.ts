@@ -213,29 +213,62 @@ export async function listWorkitems(p: {
   const rows = generatedPage(category, page, Math.min(perPage, total - start));
   return { items: rows, nextToken: start + perPage < total ? String(page + 1) : null };
 }
-export async function getWorkitem(workitemId: string): Promise<Record<string, unknown>> {
-  const cur = items.find((i) => i.workitemId === workitemId)
-    ?? generatedRows.get(workitemId)
-    ?? items.map((i) => ({ ...i, subject: '（mock 子工作项）完善交付链路' })).find((i) => i.workitemId === workitemId);
-  return { workitem: { subject: cur?.subject, status: cur?.status, description: { raw_text: '让“需求 → 分支 → 提交 → MR → 流水线”在一个工作面内可解释、可操作。当前需求正在整理追溯链路展示。' } } };
-}
-export async function listWorkitemComments(): Promise<Record<string, unknown>> {
-  return [{ author: { name: '周荻' }, createdAt: '2026-10-08 10:22', content: '追溯面板的 CI 状态建议加环境维度。' }] as unknown as Record<string, unknown>;
-}
 const mockSubtaskStatuses: WorkitemStatusOption[] = [
   { id: 'status-todo', name: '待处理' },
   { id: 'status-doing', name: '处理中' },
   { id: 'status-done', name: '已完成' },
 ];
 const mockRequirementChildren: WorkitemChild[] = [
-    { workitemId: 'wi-2049', identifier: 'BENZ-6214', subject: '完成追溯面板 UI 联调', category: 'Task', statusId: 'status-doing', status: '处理中', assignedTo: '杨阳', gmtModified: '2026-10-08 12:40' },
-    { workitemId: 'wi-2050', identifier: 'BENZ-6220', subject: '追溯规则正则回归测试', category: 'Task', statusId: 'status-done', status: '已完成', assignedTo: '杨阳', gmtModified: '2026-10-07 17:05' },
-    { workitemId: 'wi-2055', identifier: 'BENZ-6216', subject: '追溯面板 CI 状态在弱网下显示为空', category: 'Bug', statusId: 'status-todo', status: '待处理', assignedTo: '周荻', gmtModified: '2026-10-08 18:22' },
+  { workitemId: 'wi-2049', identifier: 'BENZ-6214', subject: '完成追溯面板 UI 联调', category: 'Task', statusId: 'status-doing', status: '处理中', assignedTo: '杨阳', gmtModified: '2026-10-08 12:40' },
+  { workitemId: 'wi-2050', identifier: 'BENZ-6220', subject: '追溯规则正则回归测试', category: 'Task', statusId: 'status-done', status: '已完成', assignedTo: '杨阳', gmtModified: '2026-10-07 17:05' },
+  { workitemId: 'wi-2055', identifier: 'BENZ-6216', subject: '追溯面板 CI 状态在弱网下显示为空', category: 'Bug', statusId: 'status-todo', status: '待处理', assignedTo: '周荻', gmtModified: '2026-10-08 18:22' },
 ];
 const mockChildren: Record<string, WorkitemChild[]> = {
   'wi-2048': mockRequirementChildren,
   'wi-req-2084': mockRequirementChildren,
 };
+
+export async function getWorkitem(workitemId: string): Promise<Record<string, unknown>> {
+  const allChildren = Object.values(mockChildren).flat();
+  const child = allChildren.find((c) => c.workitemId === workitemId);
+  if (child) {
+    return {
+      workitem: {
+        identifier: child.identifier,
+        serialNumber: child.identifier.replace(/^[A-Za-z]+-/, ''),
+        subject: child.subject,
+        status: child.status,
+        statusId: child.statusId,
+        category: child.category,
+        assignedTo: { name: child.assignedTo },
+        space: { name: '平台工程' },
+        sprint: { name: 'Benz-20261416' },
+        gmtModified: child.gmtModified,
+        description: { raw_text: `这是子工作项 ${child.identifier}（${child.subject}）的详细说明，挂载在父需求下。` },
+      },
+    };
+  }
+  const cur = items.find((i) => i.workitemId === workitemId)
+    ?? generatedRows.get(workitemId)
+    ?? items.map((i) => ({ ...i, subject: '（mock 子工作项）完善交付链路' })).find((i) => i.workitemId === workitemId);
+  return {
+    workitem: {
+      identifier: cur?.identifier,
+      serialNumber: cur?.identifier ? cur.identifier.replace(/^[A-Za-z]+-/, '') : undefined,
+      subject: cur?.subject,
+      status: cur?.status,
+      category: cur?.category,
+      assignedTo: { name: cur?.assignedTo },
+      space: { name: cur?.spaceName ?? '平台工程' },
+      sprint: { name: cur?.sprintName ?? 'Benz-20261416' },
+      gmtModified: cur?.updatedAt,
+      description: { raw_text: '让“需求 → 分支 → 提交 → MR → 流水线”在一个工作面内可解释、可操作。当前需求正在整理追溯链路展示。' },
+    },
+  };
+}
+export async function listWorkitemComments(): Promise<Record<string, unknown>> {
+  return [{ author: { name: '周荻' }, createdAt: '2026-10-08 10:22', content: '追溯面板的 CI 状态建议加环境维度。' }] as unknown as Record<string, unknown>;
+}
 export async function listWorkitemChildren(workitemId: string) {
   return { items: (mockChildren[workitemId] ?? []).map((child) => ({ ...child })), rawSample: '' };
 }
@@ -269,7 +302,7 @@ export async function listWorkitemTypes(category: string): Promise<WorkitemTypeO
 let mockChildSeq = 6230;
 export async function createWorkitemChild(
   parentWorkitemId: string,
-  p: { subject: string; workitemTypeId: string },
+  p: { subject: string; workitemTypeId: string; assignedTo?: string },
 ): Promise<WorkitemChild> {
   await sleep(400);
   if (!mockChildren[parentWorkitemId]) mockChildren[parentWorkitemId] = [];
@@ -282,7 +315,7 @@ export async function createWorkitemChild(
     category: type?.category ?? 'Task',
     statusId: 'status-todo',
     status: '待处理',
-    assignedTo: '我',
+    assignedTo: p.assignedTo || '我',
     gmtModified: '刚刚',
   };
   mockChildren[parentWorkitemId].push(child);

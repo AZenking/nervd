@@ -321,17 +321,47 @@ pub async fn list_workitem_types(
     Ok(Value::Array(types))
 }
 
+fn extract_user_id(val: Option<&Value>) -> String {
+    let Some(v) = val else { return String::new(); };
+    if let Some(s) = v.as_str() {
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    if let Some(obj) = v.as_object() {
+        for key in [
+            "identifier",
+            "id",
+            "userId",
+            "userIdentifier",
+            "accountencid",
+            "aliyunPk",
+            "account",
+        ] {
+            if let Some(s) = obj.get(key).and_then(|x| x.as_str()) {
+                let trimmed = s.trim();
+                if !trimmed.is_empty() {
+                    return trimmed.to_string();
+                }
+            }
+        }
+    }
+    String::new()
+}
+
 /// 在需求下创建子工作项（**写操作**）：
-/// oapi/v1 POST workitems，body { spaceId, subject, workitemTypeId, parentId, sprint? }
+/// oapi/v1 POST workitems，body { spaceId, subject, workitemTypeId, parentId, sprint?, assignedTo }
 /// （端点与 body 字段依据 alibabacloud-devops-mcp-server@0.3.64 createWorkItemFunc 逆向，
 /// parentId 即挂载父级）。spaceId 取父详情 space.id（子项与父同空间，缺失回退默认
-/// 项目空间）；sprint 继承父项迭代；处理人不传（云效默认为创建人）。
+/// 项目空间）；sprint 继承父项迭代；assignedTo 取显式传入、父项负责人、父项创建人或当前用户。
 #[tauri::command]
 pub async fn create_workitem_child(
     state: State<'_, AppState>,
     parent_workitem_id: String,
     subject: String,
     workitem_type_id: String,
+    assigned_to: Option<String>,
 ) -> Result<Value, String> {
     ensure_write(&state)?;
     let parent_workitem_id = parent_workitem_id.trim().to_string();
@@ -382,6 +412,30 @@ pub async fn create_workitem_child(
     if !sprint_id.is_empty() {
         body["sprint"] = json!(sprint_id);
     }
+
+    // 云效 Projex 要求 assignedTo（指派人）不能为空：
+    // 优先级：显式入参 -> 父项负责人 -> 父项创建人 -> 父项修改人 -> 当前平台用户
+    let mut assignee_id = assigned_to.unwrap_or_default().trim().to_string();
+    if assignee_id.is_empty() {
+        assignee_id = extract_user_id(detail.get("assignedTo"));
+    }
+    if assignee_id.is_empty() {
+        assignee_id = extract_user_id(detail.get("creator"));
+    }
+    if assignee_id.is_empty() {
+        assignee_id = extract_user_id(detail.get("modifier"));
+    }
+    if assignee_id.is_empty() {
+        if let Ok(user_resp) = c.get("/oapi/v1/platform/user", &[]).await {
+            assignee_id = extract_user_id(Some(&user_resp));
+        }
+    }
+    if !assignee_id.is_empty() {
+        body["assignedTo"] = json!(assignee_id);
+    } else {
+        return Err("指派人不能为空：无法从父需求或当前登录用户获取指派人 ID".into());
+    }
+
     let resp = c
         .post(&format!("/oapi/v1/projex/organizations/{org}/workitems"), &[], body)
         .await?;
