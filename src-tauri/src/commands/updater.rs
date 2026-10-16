@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::time::Duration;
 use tauri::AppHandle;
 
-pub const DEFAULT_REPO: &str = "alibaba/nervd";
+pub const DEFAULT_REPO: &str = "AZenking/nervd";
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]

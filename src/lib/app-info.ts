@@ -5,7 +5,7 @@ export const APP_NAME = 'nervd';
 export const APP_VERSION = '0.1.0';
 export const APP_TAGLINE = '以云效需求为核心维度的一站式 CI/CD 桌面工作台';
 export const APP_BUILD_CHANNEL = 'Stable (Universal)';
-export const REPO_URL = 'https://github.com/alibaba/nervd';
+export const REPO_URL = 'https://github.com/AZenking/nervd';
 export const DOCS_URL = 'https://devops.aliyun.com';
 
 /** 生成客户端诊断快照文本（用于报障排查与 Issue 提单） */

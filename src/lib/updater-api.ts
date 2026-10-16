@@ -19,7 +19,7 @@ export async function checkForUpdates(customEndpoint?: string | null): Promise<U
       releaseNotes: '当前为浏览器预览模式。在 macOS 桌面原生环境下将自动连接 GitHub / CDN 发布通道。',
       publishedAt: new Date().toISOString(),
       downloadUrl: null,
-      htmlUrl: 'https://github.com/alibaba/nervd',
+      htmlUrl: 'https://github.com/AZenking/nervd',
     };
   }
 
