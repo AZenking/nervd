@@ -116,6 +116,14 @@ nervd 的交互体验深度对齐 Linear 标准操作心智，确保双手无需
 ### 方式一：下载 macOS 预编译应用（推荐）
 从 [Releases 发布页面](https://github.com/AZenking/nervd/releases) 下载最新版本的 `.dmg` 安装包，拖拽至 `Applications` 文件夹即可直接运行（支持 Apple Silicon 与 Intel 芯片）。
 
+> [!TIP]
+> **macOS 安全提示（“已损坏，无法打开” 或 “无法验证开发者”）**：
+> 由于未购买 Apple 商业证书签名公证，首次打开若被 Gatekeeper 拦截，请在终端（Terminal）执行以下命令清除隔离属性：
+> ```bash
+> xattr -cr /Applications/nervd.app
+> ```
+> 执行后即可直接双击正常启动。
+
 ### 方式二：在线免安装体验
 直接打开 [nervd 在线工作台](https://azenking.github.io/nervd/)，体验由静态 Mock 驱动的完整工作流。
 
