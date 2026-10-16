@@ -98,6 +98,7 @@ export function AiSection() {
         temperature: next.temperature,
         breakdownMode: next.breakdownMode,
         defaultBreakdownTags: next.defaultBreakdownTags,
+        customPrompts: next.customPrompts,
       });
     } catch {
       toast.add({ title: '保存 AI 设置失败', type: 'error' });

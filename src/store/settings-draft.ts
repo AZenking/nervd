@@ -40,6 +40,13 @@ export function validateSettings(s: Settings): Record<string, string> {
   if (space && !/^[0-9a-f]{16,}$/i.test(space)) {
     errors.space = '项目空间需从下拉选择（值为 16 位以上的项目 ID），当前填写内容像是项目名称';
   }
+  for (const connection of s.jenkinsConnections) {
+    if (!connection.name.trim() || !connection.baseUrl.trim() || !connection.username.trim()) {
+      errors[`jenkins-${connection.id}`] = 'Jenkins 实例需要填写名称、地址和用户名';
+    } else if (!/^https?:\/\//i.test(connection.baseUrl.trim())) {
+      errors[`jenkins-${connection.id}`] = 'Jenkins 地址必须以 http:// 或 https:// 开头';
+    }
+  }
   for (const [repoId, binding] of Object.entries(s.repoCiBindings)) {
     if (binding.provider === 'flow' && (binding.pipelineId <= 0 || !binding.pipelineName.trim())) {
       errors[`repo-${repoId}`] = `仓库 #${repoId} 的云效流水线尚未选定`;
@@ -82,6 +89,8 @@ interface SettingsDraftStore {
   beginEdit(saved: SettingsView | null): void;
   /** 保存成功后：以已保存 settings 覆盖草稿并清空输入中的令牌 */
   syncFromSaved(saved: SettingsView | null): void;
+  /** 保存成功后：仅更新 baseline 与重排期，不覆盖当前正在输入的草稿 */
+  _applyBaseline(saved: SettingsView | null): void;
   update(patch: Partial<Settings>, immediateSave?: boolean): void;
   setPat(pat: string): void;
   setJenkinsToken(id: string, token: string): void;
@@ -135,6 +144,23 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
     });
   },
 
+  _applyBaseline(saved) {
+    const next = normalize(saved) ?? { ...EMPTY_SETTINGS };
+    set({
+      baseline: next,
+      pat: '',
+      jenkinsTokens: {},
+      fieldErrors: {},
+      pendingView: null,
+    });
+    // 若 draft 与新 baseline 仍有差异（保存期间用户继续输入），重新排期自动保存
+    if (!sameSettings(get().draft, next)) {
+      get().scheduleAutoSave();
+    } else {
+      set({ autoSaveStatus: 'saved' });
+    }
+  },
+
   scheduleAutoSave(delayMs = 800) {
     clearDebounce();
     set({ autoSaveStatus: 'unsaved' });
@@ -159,10 +185,11 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
   },
   setPat(pat) {
     set({ pat });
-    set({ autoSaveStatus: 'unsaved' });
+    get().scheduleAutoSave();
   },
   setJenkinsToken(id, token) {
-    set((st) => ({ jenkinsTokens: { ...st.jenkinsTokens, [id]: token }, autoSaveStatus: 'unsaved' }));
+    set((st) => ({ jenkinsTokens: { ...st.jenkinsTokens, [id]: token } }));
+    get().scheduleAutoSave();
   },
   addJenkins() {
     const id = crypto.randomUUID().replace(/-/g, '');
@@ -245,17 +272,16 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
     try {
       const app = useApp.getState();
       const oldIds = (app.settings?.jenkinsConnections ?? []).map((c) => c.id);
-      await app.saveAll(draft, get().pat.trim() || undefined);
       for (const connection of draft.jenkinsConnections) {
         const token = get().jenkinsTokens[connection.id]?.trim();
         if (token) await api.saveJenkinsToken(connection.id, token);
       }
+      await app.saveAll(draft, get().pat.trim() || undefined);
       const currentIds = new Set(draft.jenkinsConnections.map((c) => c.id));
       for (const id of oldIds) {
         if (!currentIds.has(id)) await api.deleteJenkinsToken(id);
       }
-      get().syncFromSaved(useApp.getState().settings);
-      set({ autoSaveStatus: 'saved' });
+      get()._applyBaseline(useApp.getState().settings);
       if (!options?.silent) {
         useApp.getState().setToast({ text: '设置已保存', kind: 'ok' });
       }

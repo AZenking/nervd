@@ -93,6 +93,7 @@ interface AppStore {
   ciActiveUntil: number;
 
   init(): Promise<void>;
+  loadSettings(): Promise<SettingsView | null>;
   refreshConnection(): Promise<void>;
   loadCurrentUser(): Promise<void>;
   setWorkitemHighlight(patch: Partial<WorkitemHighlightSettings>): void;
@@ -196,6 +197,17 @@ export const useApp = create<AppStore>((set, get) => ({
     } catch (e) {
       set({ booting: false, connection: 'fail' });
       get().setToast({ text: `初始化失败：${String(e)}`, kind: 'fail' });
+    }
+  },
+
+  async loadSettings() {
+    try {
+      const settings = await api.getSettings();
+      set({ settings });
+      return settings;
+    } catch (e) {
+      errorLog('app.loadSettings', e);
+      return null;
     }
   },
 
@@ -404,7 +416,7 @@ export const useApp = create<AppStore>((set, get) => ({
     } catch (e) {
       if (isCurrent()) get().setToast({ text: `详情加载失败：${String(e)}`, kind: 'fail' });
     } finally {
-      if (isCurrent()) set({ loadingDetail: false });
+      if (get().selectedId === id) set({ loadingDetail: false });
     }
     const { items, detail, children } = get();
     const wi = (detail?.workitem ?? detail ?? {}) as Record<string, unknown>;
@@ -760,6 +772,8 @@ export const useApp = create<AppStore>((set, get) => ({
       }
       if (targetStatusId) {
         await api.updateWorkitem(workitemId, { statusId: targetStatusId });
+      } else {
+        throw new Error(`无法找到目标状态「${newStatus}」对应的工作流状态 ID`);
       }
       get().setToast({ text: `${targetItem?.identifier || targetChild?.identifier || '工作项'} 状态已流转为「${newStatus}」`, kind: 'ok' });
       return true;

@@ -34,11 +34,16 @@ export function SettingsView({
   embedded?: boolean;
   onComplete?: () => void;
 }) {
-  const { settings, loadRepos, loadPipelines } = useApp();
+  const { settings, loadSettings, loadRepos, loadPipelines } = useApp();
   const settingsSection = useUi((state) => state.settingsSection);
   const setSettingsSection = useUi((state) => state.setSettingsSection);
   const theme = useUi((state) => state.theme);
   const toggleTheme = useUi((state) => state.toggleTheme);
+
+  // 挂载时拉取最新已保存凭据状态（例如 Keychain 中的 Token 状态）
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
 
   // 进入设置页：接管草稿会话（有未保存修改则保留，跨入口继续编辑）
   useEffect(() => {

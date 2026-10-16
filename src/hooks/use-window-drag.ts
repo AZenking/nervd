@@ -24,40 +24,17 @@ const INTERACTIVE_SELECTOR = [
   '[data-no-drag]',
 ].join(',');
 
-/** 检查点击位置是否属于顶部安全拖拽区域或已标记的拖拽区域 */
-function isDraggableElement(target: HTMLElement, e: MouseEvent): boolean {
-  // 1. 优先放行任何可交互元素及其子元素
-  if (target.closest(INTERACTIVE_SELECTOR)) {
-    return false;
-  }
-
-  // 2. 明确标记为 tauri 拖拽区域（如页头空隙、侧栏顶部 32px 交通灯占位等）
-  if (target.closest('[data-tauri-drag-region]')) {
-    return true;
-  }
-
-  // 3. 点击落在应用最顶部 8px 边缘（macOS 无边框沉浸式窗口的顶部微缝）
-  if (e.clientY <= 8) {
-    return true;
-  }
-
-  // 4. 点击落在侧边栏顶部最外层包装画布缝隙
-  if (target.getAttribute('data-slot') === 'sidebar-wrapper' && e.clientY <= 36) {
-    return true;
-  }
-
-  // 5. 点击落在非交互性的页头（header）空白区域
-  const header = target.closest('header');
-  if (header && !header.closest(INTERACTIVE_SELECTOR)) {
-    return true;
-  }
-
-  return false;
-}
-
 /**
- * 桌面端窗口全景安全边距与页头拖拽能力：
- * 配合 macOS Overlay titleBarStyle，使四周 8px 安全边距、侧栏顶部交通灯空隙与页头空白处支持顺畅拖拽窗口与双击最大化。
+ * 桌面端窗口顶部安全边缘拖拽能力：
+ * 配合 macOS Overlay titleBarStyle，仅在点击应用最顶部的 8px 系统边缘微缝时，
+ * 允许用户抓取窗口边缘进行拖拽。
+ *
+ * 架构防线：
+ * 1. 严禁在 JavaScript 层全局监听 dblclick 调用 toggleMaximize()：
+ *    macOS 系统本身会对标题栏拖拽区（data-tauri-drag-region）原生执行连按缩放，
+ *    若在 JS 再次调用，会在毫秒级内产生系统动作与 JS 动作冲突，导致“全屏 -> 放大 -> 又全屏”严重震颤。
+ * 2. 严禁在带有 data-tauri-drag-region 的元素上重复发起 startDragging()：
+ *    Tauri Webview 底层已有原生事件挂钩，JS 再次调用会导致拖拽锁冲突。
  */
 export function useWindowDrag() {
   React.useEffect(() => {
@@ -70,38 +47,26 @@ export function useWindowDrag() {
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
-      if (!isDraggableElement(target, e)) return;
+      // 交互式元素绝不拖拽
+      if (target.closest(INTERACTIVE_SELECTOR)) return;
 
-      try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        await getCurrentWindow().startDragging();
-      } catch {
-        // 静默降级
-      }
-    };
+      // 若元素已声明 data-tauri-drag-region，由 Tauri 底层原生接管，JS 不介入
+      if (target.closest('[data-tauri-drag-region]')) return;
 
-    const handleDoubleClick = async (e: MouseEvent) => {
-      if (e.button !== 0) return;
-
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-
-      if (!isDraggableElement(target, e)) return;
-
-      try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        await getCurrentWindow().toggleMaximize();
-      } catch {
-        // 静默降级
+      // 仅在应用最顶部 8px 系统边缘微缝处作为 fallback 允许拖拽窗口
+      if (e.clientY <= 8) {
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          await getCurrentWindow().startDragging();
+        } catch {
+          // 静默降级
+        }
       }
     };
 
     window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('dblclick', handleDoubleClick);
-
     return () => {
       window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('dblclick', handleDoubleClick);
     };
   }, []);
 }

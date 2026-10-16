@@ -6,6 +6,7 @@ import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { errorLog, humanizeError } from '@/lib/error-format';
+import { cn } from '@/lib/utils';
 import type { JenkinsConnection, RepoCiBinding } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ import { SettingsGroup } from './settings-group';
 /** Jenkins 实例管理卡（读写设置草稿；测试连接 / 验证 Job 的瞬态结果显示在卡内） */
 export function JenkinsInstancesCard() {
   const { settings } = useApp();
-  const { draft, jenkinsTokens, addJenkins, updateJenkins, removeJenkins, setJenkinsToken, flushAutoSave, save } = useSettingsDraft();
+  const { draft, jenkinsTokens, addJenkins, updateJenkins, removeJenkins, setJenkinsToken, flushAutoSave, fieldErrors } = useSettingsDraft();
   const [ciResults, setCiResults] = useState<Record<string, string>>({});
 
   const connections = draft?.jenkinsConnections ?? [];
@@ -26,6 +27,9 @@ export function JenkinsInstancesCard() {
   const testJenkins = async (connection: JenkinsConnection) => {
     setCiResults((r) => ({ ...r, [connection.id]: '连接测试中…' }));
     try {
+      if (jenkinsTokens[connection.id]?.trim()) {
+        await flushAutoSave();
+      }
       const message = await api.testJenkinsConnection(connection, jenkinsTokens[connection.id]);
       setCiResults((r) => ({ ...r, [connection.id]: message }));
     } catch (e) {
@@ -47,6 +51,14 @@ export function JenkinsInstancesCard() {
     >
       {connections.map((connection) => {
         const saved = settings?.jenkinsConnections.find((item) => item.id === connection.id);
+        const error = fieldErrors[`jenkins-${connection.id}`];
+        const draftToken = jenkinsTokens[connection.id]?.trim();
+        const hasSavedToken = Boolean(saved?.hasToken);
+        const isTesting = ciResults[connection.id] === '连接测试中…';
+        const testResult = ciResults[connection.id];
+        const testSuccess = Boolean(testResult && testResult.includes('连接正常'));
+        const testFail = Boolean(testResult && testResult.includes('失败'));
+
         return (
           <div key={connection.id} className="flex flex-col gap-2.5 border-b border-border/50 px-4 py-4 last:border-b-0">
             <div className="grid gap-2 md:grid-cols-2">
@@ -75,12 +87,25 @@ export function JenkinsInstancesCard() {
                 aria-label="Jenkins API Token"
                 type="password"
                 value={jenkinsTokens[connection.id] ?? ''}
-                placeholder={saved?.hasToken ? 'Token 已保存（留空保持不变）' : 'API Token'}
+                placeholder={hasSavedToken ? 'Token 已保存（留空保持不变）' : 'API Token'}
                 onChange={(e) => setJenkinsToken(connection.id, e.target.value)}
-                onBlur={() => { if (jenkinsTokens[connection.id]?.trim()) void save({ silent: true }); }}
+                onBlur={() => void flushAutoSave()}
               />
+              {error && (
+                <div className="md:col-span-2">
+                  <FieldError>{error}</FieldError>
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-2 md:col-span-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => void testJenkins(connection)}>测试连接</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isTesting}
+                  onClick={() => void testJenkins(connection)}
+                >
+                  测试连接
+                </Button>
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -97,8 +122,27 @@ export function JenkinsInstancesCard() {
                   </TooltipTrigger>
                   <TooltipContent>删除实例，并解除使用它的仓库 CI 绑定</TooltipContent>
                 </Tooltip>
-                <span className="text-xs text-muted-foreground">{saved?.hasToken ? 'Token 已保存' : '尚未保存 Token'}</span>
-                {ciResults[connection.id] && <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{ciResults[connection.id]}</span>}
+                {hasSavedToken ? (
+                  <Badge variant="secondary" className="text-xs text-emerald-600 dark:text-emerald-400">
+                    Token 已保存
+                  </Badge>
+                ) : draftToken ? (
+                  <span className="text-xs text-amber-500">Token 待保存</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">尚未保存 Token</span>
+                )}
+                {testResult && (
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-xs',
+                      testSuccess && 'text-emerald-600 dark:text-emerald-400',
+                      testFail && 'text-destructive',
+                      !testSuccess && !testFail && 'text-muted-foreground',
+                    )}
+                  >
+                    {testResult}
+                  </span>
+                )}
               </div>
             </div>
           </div>

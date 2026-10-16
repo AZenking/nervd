@@ -72,22 +72,35 @@ function groupByStatus(items: WorkitemItem[]): StatusGroup[] {
 /** 列表行骨架：首屏与翻页加载态共用，尺寸与列布局对齐真实数据行，避免布局跳动 */
 function WorkitemSkeletonRows() {
   return (
-    <div className="flex flex-col gap-1" aria-hidden>
-      {[0, 1, 2, 3, 4, 5, 6].map((key) => (
-        <div
-          key={key}
-          className="flex h-10 w-full items-center gap-2.5 rounded-md px-2.5 bg-muted/20"
-        >
-          <Skeleton className="size-3.5 rounded-sm shrink-0" />
-          <Skeleton className="h-5 w-14 rounded-full shrink-0" />
-          <Skeleton className="h-3.5 w-16 shrink-0" />
-          <Skeleton
-            className="h-3.5 rounded"
-            style={{ width: `${Math.floor(25 + ((key * 17) % 35))}%` }}
-          />
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            <Skeleton className="h-3.5 w-12 hidden md:block" />
-            <Skeleton className="size-5 rounded-full shrink-0" />
+    <div className="flex flex-col gap-6" aria-hidden>
+      {[0, 1].map((groupKey) => (
+        <div key={groupKey} className="flex flex-col gap-1.5">
+          {/* 模拟分组头骨架 */}
+          <div className="flex items-center gap-2 px-1">
+            <Skeleton className="size-3.5 rounded shrink-0" />
+            <Skeleton className="h-4 w-16 rounded" />
+            <Skeleton className="h-3.5 w-6 rounded-full" />
+          </div>
+          {/* 组内工作项骨架行 */}
+          <div className="flex flex-col gap-0.5 ml-2.5 pl-3 border-l border-border/40 py-0.5">
+            {[0, 1, 2, 3, 4].map((key) => (
+              <div
+                key={key}
+                className="flex h-10 w-full items-center gap-2.5 rounded-md px-2.5 bg-muted/15"
+              >
+                <Skeleton className="size-3.5 rounded-sm shrink-0" />
+                <Skeleton className="h-5 w-14 rounded-full shrink-0" />
+                <Skeleton className="h-3.5 w-16 shrink-0" />
+                <Skeleton
+                  className="h-3.5 rounded"
+                  style={{ width: `${Math.floor(25 + (((groupKey * 5 + key) * 17) % 35))}%` }}
+                />
+                <div className="ml-auto flex items-center gap-2 shrink-0">
+                  <Skeleton className="h-3.5 w-12 hidden md:block" />
+                  <Skeleton className="size-5 rounded-full shrink-0" />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ))}
@@ -244,7 +257,31 @@ export function IterationView() {
   // 键盘光标：扁平可见行索引；ref 镜像供 keydown 闭包读取（避免逐键重绑监听器）
   const [cursor, setCursor] = useState(0);
   const cursorRef = useRef(0);
+  const isKeyboardNavRef = useRef(false);
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+
+  /** 局限在直接父滚动容器内平稳使目标行可见，彻底规避原生 scrollIntoView 引起的祖先容器全局跳动 */
+  const scrollRowIntoView = useCallback((rowId: string) => {
+    const rowEl = rowRefs.current.get(rowId);
+    const container = listScrollRef.current;
+    if (!rowEl) return;
+
+    if (container) {
+      const rowRect = rowEl.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const safetyTop = 44;
+      const safetyBottom = 16;
+
+      if (rowRect.top < containerRect.top + safetyTop) {
+        container.scrollTop -= (containerRect.top + safetyTop - rowRect.top);
+      } else if (rowRect.bottom > containerRect.bottom - safetyBottom) {
+        container.scrollTop += (rowRect.bottom - (containerRect.bottom - safetyBottom));
+      }
+    } else {
+      rowEl.scrollIntoView({ block: 'nearest' });
+    }
+  }, []);
 
   /** 统一光标写入：state 与 ref 同步更新（键盘 handler 经 ref 读取） */
   const applyCursor = useCallback((next: number | ((prev: number) => number)) => {
@@ -255,16 +292,18 @@ export function IterationView() {
     });
   }, []);
 
-  // 过滤结果（搜索词 / 筛选 / 类别 / 折叠）变化时，光标收敛到合法区间
+  // 过滤结果（搜索词 / 筛选 / 类别 / 折叠）变化时，光标收敛到合法区间（静默校正，不扰动滚动）
   useEffect(() => {
     applyCursor((prev) => (flatIds.length ? Math.min(prev, flatIds.length - 1) : 0));
   }, [flatIds, applyCursor]);
 
-  // 光标变化（含悬停写入）时滚动跟随：只在必要时滚动，不打断阅读位置
+  // 仅在用户键盘按键主动切换光标时跟随滚动；数据加载、补拉追加、筛选收敛绝对不触发滚动
   useEffect(() => {
+    if (!isKeyboardNavRef.current) return;
+    isKeyboardNavRef.current = false;
     const id = flatIds[cursor];
-    if (id) rowRefs.current.get(id)?.scrollIntoView({ block: 'nearest' });
-  }, [cursor, flatIds]);
+    if (id) scrollRowIntoView(id);
+  }, [cursor, flatIds, scrollRowIntoView]);
 
   // 分栏打开状态下，键盘光标移动联动更新详情内容（Linear 核心交互：j/k 快速连续检视）
   // 仅在 cursor 变化且当前未在钻取子工作项时，联动切换工作项
@@ -325,6 +364,7 @@ export function IterationView() {
       if (e.key === 'j' || e.key === 'ArrowDown' || e.key === 'k' || e.key === 'ArrowUp') {
         e.preventDefault();
         const delta = e.key === 'k' || e.key === 'ArrowUp' ? -1 : 1;
+        isKeyboardNavRef.current = true;
         applyCursor((prev) => (flatIds.length ? (prev + delta + flatIds.length) % flatIds.length : 0));
         return;
       }
@@ -383,9 +423,10 @@ export function IterationView() {
                     const isActive = flatIndexById.get(rowId) === cursor || item.workitemId === splitWorkitemId;
                     const match = matchWorkitemUser(item, currentUser, workitemHighlight);
                     return (
-                      <button
+                      <div
                         key={rowId}
-                        type="button"
+                        role="listitem"
+                        tabIndex={-1}
                         ref={(el) => {
                           if (el) rowRefs.current.set(rowId, el);
                           else rowRefs.current.delete(rowId);
@@ -396,6 +437,13 @@ export function IterationView() {
                         onClick={() => {
                           applyCursor(flatIndexById.get(rowId) ?? 0);
                           openDetail(item);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            applyCursor(flatIndexById.get(rowId) ?? 0);
+                            openDetail(item);
+                          }
                         }}
                         onContextMenu={(e) => {
                           e.preventDefault();
@@ -469,7 +517,7 @@ export function IterationView() {
                             </span>
                           ) : null}
                         </span>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -595,7 +643,7 @@ export function IterationView() {
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-background">
         {/* 左侧 Master 列表列 */}
         <aside data-testid="split-master" className="flex flex-col w-[360px] md:w-[380px] lg:w-[420px] shrink-0 border-r border-border/70 h-full min-h-0 bg-background">
-          <header data-tauri-drag-region className="shrink-0 border-b border-border/70 bg-background px-3.5 pt-7 pb-2.5 flex flex-col gap-2">
+          <header className="shrink-0 border-b border-border/70 bg-background px-3.5 pt-7 pb-2.5 flex flex-col gap-2">
             <div className="flex min-h-8 items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <h1 className="text-sm font-semibold tracking-tight text-foreground shrink-0">迭代</h1>
@@ -653,7 +701,7 @@ export function IterationView() {
           </header>
 
           {/* 列表独立滚动容器 */}
-          <div className="workspace-scroll flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-5">
+          <div ref={listScrollRef} className="workspace-scroll flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-5">
             {renderWorkitemList(true)}
           </div>
         </aside>
@@ -710,9 +758,9 @@ export function IterationView() {
 
   // 全宽模式：居中单栏浏览形态
   return (
-    <div className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10">
+    <div ref={listScrollRef} className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10">
       {/* sticky 页头（Linear 无大标题形态）：行1 = 页面标题 + 视图 Tabs + 迭代切换/刷新；行2 = 视图工具栏 */}
-      <header data-tauri-drag-region className={STICKY_PAGE_HEADER_CLASS}>
+      <header className={STICKY_PAGE_HEADER_CLASS}>
         <div className="flex min-h-9 items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-sm font-semibold tracking-tight text-foreground">迭代</h1>

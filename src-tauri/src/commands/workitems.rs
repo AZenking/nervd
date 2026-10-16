@@ -659,6 +659,12 @@ fn proxy_host_allowed(host: &str) -> bool {
     h == "devops.aliyun.com" || h == "aliyuncs.com" || h.ends_with(".aliyuncs.com")
 }
 
+/// 仅云效核心 API 域名需要携带 x-yunxiao-token，OSS/CDN 等直链不携带 PAT
+fn is_yunxiao_api_host(host: &str) -> bool {
+    let h = host.trim_end_matches('.').to_ascii_lowercase();
+    h == "devops.aliyun.com" || h == "openapi-rdc.aliyuncs.com"
+}
+
 /// base64 标准字母表编码（不引入新依赖）
 fn base64_encode(data: &[u8]) -> String {
     const TBL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -697,6 +703,7 @@ pub async fn proxy_workitem_file(state: State<'_, AppState>, url: String) -> Res
     if !proxy_host_allowed(host) {
         return Err(format!("PROXY 拒绝: 主机 {host} 不在白名单（devops.aliyun.com / *.aliyuncs.com）"));
     }
+    let is_api_host = is_yunxiao_api_host(host);
     // 重定向目标也必须落在白名单内，最多 5 跳
     let redirect = reqwest::redirect::Policy::custom(|attempt| {
         match attempt.url().host_str().map(proxy_host_allowed) {
@@ -709,9 +716,11 @@ pub async fn proxy_workitem_file(state: State<'_, AppState>, url: String) -> Res
         .redirect(redirect)
         .build()
         .map_err(|e| format!("HTTP 客户端初始化失败: {e}"))?;
-    let resp = http
-        .get(parsed)
-        .header("x-yunxiao-token", &pat)
+    let mut req = http.get(parsed);
+    if is_api_host {
+        req = req.header("x-yunxiao-token", &pat);
+    }
+    let resp = req
         .send()
         .await
         .map_err(|e| format!("网络错误: {e}"))?;

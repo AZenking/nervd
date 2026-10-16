@@ -16,7 +16,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { useWindowDrag } from '@/hooks/use-window-drag';
 import { useGlobalCiScheduler } from '@/hooks/use-ci-polling';
 import { useApp } from '@/store/app';
 
@@ -93,9 +92,6 @@ function DirtyGuardDialog() {
 export function Shell() {
   const { view } = useUi();
   const restoreScroll = useUi((s) => s.restoreScroll);
-
-  // 绑定 macOS 桌面端安全边距与页头拖拽 / 双击最大化
-  useWindowDrag();
 
   // 挂载全局自适应 CI 轮询调度器（覆盖总览、迭代、需求详情全视图，活跃态 4s / 空闲态 60s）
   useGlobalCiScheduler();

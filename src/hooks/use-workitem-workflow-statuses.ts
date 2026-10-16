@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { toast } from '@/components/ui/toast';
-import { errorLog, humanizeError } from '@/lib/error-format';
+import { errorLog } from '@/lib/error-format';
 
 export interface WorkflowStatusItem {
   id: string;
@@ -21,17 +21,21 @@ export interface UseWorkitemWorkflowStatusesOptions {
  * 工作项工作流状态拉取与受控流转 Hook：
  * - 懒加载指定工作项的工作流可选状态列表
  * - 安全写操作门控拦截与只读提示
- * - 统一调用 api.updateWorkitemStatus 并通知应用状态
+ * - 统一调用 useApp.updateWorkitemStatusOptimistic 进行乐观流转与回滚
  */
 export function useWorkitemWorkflowStatuses(options: UseWorkitemWorkflowStatusesOptions = {}) {
   const { workitemId, currentStatusId, currentStatusName, onSuccess } = options;
-  const { settings, setToast } = useApp();
+  const allowWriteOps = useApp((s) => s.settings?.allowWriteOps ?? false);
   const openSettings = useUi((s) => s.openSettings);
-  const allowWriteOps = settings?.allowWriteOps ?? false;
 
   const [statuses, setStatuses] = useState<WorkflowStatusItem[]>([]);
   const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  useEffect(() => {
+    setStatuses([]);
+    setLoadingStatuses(false);
+  }, [workitemId]);
 
   const fetchStatuses = useCallback(async () => {
     if (!workitemId || statuses.length > 0 || loadingStatuses) return;
@@ -66,21 +70,23 @@ export function useWorkitemWorkflowStatuses(options: UseWorkitemWorkflowStatuses
 
       setUpdatingStatus(true);
       try {
-        await api.updateWorkitem(workitemId, { statusId: target.id });
-        setToast({ text: `状态已变更为「${target.name}」`, kind: 'ok' });
-        if (onSuccess) {
+        const success = await useApp.getState().updateWorkitemStatusOptimistic(
+          workitemId,
+          target.name,
+          target.id,
+        );
+        if (success && onSuccess) {
           await onSuccess(target);
         }
-        return true;
+        return success;
       } catch (e) {
         errorLog('update-workflow-status', e);
-        setToast({ text: `状态更新失败：${humanizeError(e)}`, kind: 'fail' });
         return false;
       } finally {
         setUpdatingStatus(false);
       }
     },
-    [allowWriteOps, workitemId, currentStatusId, currentStatusName, openSettings, setToast, onSuccess],
+    [allowWriteOps, workitemId, currentStatusId, currentStatusName, openSettings, onSuccess],
   );
 
   return {

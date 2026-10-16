@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -25,6 +26,12 @@ export function WorkitemPeekDrawer({
 }: WorkitemPeekDrawerProps) {
   const items = useApp((s) => s.items);
   const openWorkitem = useUi((s) => s.openWorkitem);
+
+  useEffect(() => {
+    if (workitemId) {
+      void useApp.getState().select(workitemId);
+    }
+  }, [workitemId]);
 
   const handleOpenWorkbench = () => {
     if (!workitemId) return;

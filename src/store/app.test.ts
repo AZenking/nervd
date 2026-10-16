@@ -59,13 +59,25 @@ describe('updateWorkitemStatusOptimistic', () => {
     expect(useApp.getState().toast?.text).toContain('状态流转失败');
   });
 
-  it('状态字典拉取失败时仍尝试直接更新（内部吞掉字典错误）', async () => {
+  it('状态字典拉取失败但提供了 statusId 时仍可成功更新', async () => {
     vi.mocked(api.getWorkitemWorkflowStatuses).mockRejectedValue(new Error('字典 500'));
     vi.mocked(api.updateWorkitem).mockResolvedValue({ success: true } as never);
 
-    const ok = await useApp.getState().updateWorkitemStatusOptimistic('wi-1', '已完成');
+    const ok = await useApp.getState().updateWorkitemStatusOptimistic('wi-1', '已完成', 's-done');
 
     expect(ok).toBe(true);
     expect(useApp.getState().items[0].status).toBe('已完成');
+    expect(api.updateWorkitem).toHaveBeenCalledWith('wi-1', { statusId: 's-done' });
+  });
+
+  it('状态字典拉取失败且未提供 statusId 时应回滚并报错', async () => {
+    vi.mocked(api.getWorkitemWorkflowStatuses).mockRejectedValue(new Error('字典 500'));
+
+    const ok = await useApp.getState().updateWorkitemStatusOptimistic('wi-1', '已完成');
+
+    expect(ok).toBe(false);
+    expect(useApp.getState().items[0].status).toBe('开发中');
+    expect(useApp.getState().toast?.kind).toBe('fail');
+    expect(useApp.getState().toast?.text).toContain('无法找到目标状态「已完成」');
   });
 });

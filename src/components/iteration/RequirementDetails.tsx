@@ -409,8 +409,8 @@ export function RequirementDetails({
   return (
     <div className="flex flex-col gap-6">
       {embedded ? (
-        <div data-tauri-drag-region className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border/70 bg-popover/95 px-5 pt-7 pb-3 backdrop-blur-sm">
-          <div className="flex min-w-0 items-center gap-2.5">
+        <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border/70 bg-popover/95 px-5 pt-7 pb-3 backdrop-blur-sm">
+          <div data-no-drag className="flex min-w-0 items-center gap-2.5 select-text">
             {parent && (
               <Button
                 variant="ghost"
@@ -437,7 +437,7 @@ export function RequirementDetails({
                 {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
               </button>
             )}
-            <h2 className="min-w-0 truncate text-base font-semibold text-foreground">
+            <h2 className="min-w-0 truncate text-base font-semibold text-foreground select-text cursor-text">
               {subject}
             </h2>
           </div>

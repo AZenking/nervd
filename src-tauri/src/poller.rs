@@ -179,7 +179,7 @@ async fn scan_once(
         }
         let key = format!("{pid}:{rid}");
         let prev = seen.insert(key.clone(), status.clone());
-        let was_active = matches!(prev.as_deref(), Some("RUNNING") | Some("WAITING") | None);
+        let was_active = matches!(prev.as_deref(), Some("RUNNING") | Some("WAITING"));
         let now_terminal = TERMINAL.contains(&status.as_str());
         if was_active && now_terminal && prev.as_deref() != Some(status.as_str()) {
             let payload = json!({
