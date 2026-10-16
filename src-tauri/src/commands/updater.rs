@@ -43,12 +43,77 @@ fn is_newer_version(local: &str, remote: &str) -> bool {
     }
 }
 
+/// 从 GitHub Release 网页或重定向 URL 中提取 tag 名称
+fn extract_tag_from_release_url(url: &str) -> Option<String> {
+    let needle = "/releases/tag/";
+    let pos = url.find(needle)?;
+    let after = &url[pos + needle.len()..];
+    let tag = after.split(&['/', '?', '#'][..]).next()?.trim();
+    if tag.is_empty() {
+        None
+    } else {
+        Some(tag.to_string())
+    }
+}
+
+/// 当 GitHub REST API 受到 IP Rate Limit (403/429) 或网络受阻时，
+/// 通过跟随 `https://github.com/{repo}/releases/latest` 的重定向获取最新版本。
+/// 该请求走常规网页跳转通道，不受 GitHub API 60次/小时 的 IP 限流限制。
+async fn fetch_latest_from_redirect(
+    client: &reqwest::Client,
+    repo: &str,
+    current_version: &str,
+) -> Result<UpdateCheckResult, String> {
+    let target_url = format!("https://github.com/{repo}/releases/latest");
+    let res = client
+        .get(&target_url)
+        .send()
+        .await
+        .map_err(|e| format!("请求 Release 重定向失败: {e}"))?;
+
+    let final_url = res.url().as_str();
+    let tag = extract_tag_from_release_url(final_url)
+        .ok_or_else(|| format!("无法从重定向 URL ({final_url}) 解析版本 Tag"))?;
+
+    let latest_version = tag.trim_start_matches(['v', 'V']).to_string();
+    let has_update = is_newer_version(current_version, &latest_version);
+    let release_name = format!("nervd {tag}");
+    let release_notes = "已通过发布重定向探针获取最新版本信息。点击下载按钮获取最新安装包，或访问 Release 页面查阅变更详情。".to_string();
+    let html_url = Some(format!("https://github.com/{repo}/releases/tag/{tag}"));
+
+    #[cfg(target_arch = "aarch64")]
+    let arch_keyword = "aarch64";
+    #[cfg(target_arch = "x86_64")]
+    let arch_keyword = "x86_64";
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+    let arch_keyword = "aarch64";
+
+    let download_url = Some(format!(
+        "https://github.com/{repo}/releases/download/{tag}/nervd_{latest_version}_{arch_keyword}.dmg"
+    ));
+
+    Ok(UpdateCheckResult {
+        has_update,
+        current_version: current_version.to_string(),
+        latest_version,
+        release_name,
+        release_notes,
+        published_at: None,
+        download_url,
+        html_url,
+    })
+}
+
 #[tauri::command]
 pub async fn check_for_updates(
     app: AppHandle,
     custom_endpoint: Option<String>,
 ) -> Result<UpdateCheckResult, String> {
     let current_version = app.package_info().version.to_string();
+    let is_custom = custom_endpoint
+        .as_ref()
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
 
     let endpoint = custom_endpoint
         .filter(|s| !s.trim().is_empty())
@@ -66,12 +131,47 @@ pub async fn check_for_updates(
         .get(&endpoint)
         .header("Accept", "application/vnd.github.v3+json")
         .send()
-        .await
-        .map_err(|e| format!("连接更新服务失败: {e}"))?;
+        .await;
+
+    let res = match res {
+        Ok(r) => r,
+        Err(e) => {
+            // 连接 GitHub API 失败时，如果为默认端点则尝试走重定向探测降级
+            if !is_custom {
+                if let Ok(fallback) =
+                    fetch_latest_from_redirect(&client, DEFAULT_REPO, &current_version).await
+                {
+                    return Ok(fallback);
+                }
+            }
+            return Err(format!("连接更新服务失败: {e}"));
+        }
+    };
 
     if !res.status().is_success() {
         let status = res.status();
         let body = res.text().await.unwrap_or_default();
+
+        // 遇到 403 (Rate Limit) 或 429 或其他异常时，若为默认端点，自动触发重定向探针降级
+        if !is_custom {
+            if let Ok(fallback) =
+                fetch_latest_from_redirect(&client, DEFAULT_REPO, &current_version).await
+            {
+                return Ok(fallback);
+            }
+        }
+
+        // 若 fallback 依然不可用，解析并返回对用户友好的错误信息
+        if body.contains("API rate limit exceeded")
+            || body.contains("rate limit exceeded")
+            || status.as_u16() == 403
+            || status.as_u16() == 429
+        {
+            return Err(
+                "GitHub API 访问频次达到限制 (IP 临时受限)。已尝试自动降级，请稍后重试或直接访问 Releases 页面查看与下载最新版本。".to_string(),
+            );
+        }
+
         return Err(format!("更新服务响应异常 ({status}): {body}"));
     }
 
@@ -211,5 +311,25 @@ mod tests {
         assert!(!is_newer_version("0.2.0", "0.1.0"));
         assert!(!is_newer_version("0.1.0", "0.1.0"));
         assert!(!is_newer_version("0.1.0-beta", "0.1.0"));
+    }
+
+    #[test]
+    fn test_extract_tag_from_release_url() {
+        assert_eq!(
+            extract_tag_from_release_url("https://github.com/AZenking/nervd/releases/tag/v0.1.1"),
+            Some("v0.1.1".to_string())
+        );
+        assert_eq!(
+            extract_tag_from_release_url("https://github.com/AZenking/nervd/releases/tag/v0.1.1/"),
+            Some("v0.1.1".to_string())
+        );
+        assert_eq!(
+            extract_tag_from_release_url("https://github.com/AZenking/nervd/releases/tag/0.2.0?foo=bar#hash"),
+            Some("0.2.0".to_string())
+        );
+        assert_eq!(
+            extract_tag_from_release_url("https://github.com/AZenking/nervd/releases"),
+            None
+        );
     }
 }

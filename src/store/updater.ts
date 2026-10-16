@@ -64,7 +64,16 @@ export const useUpdater = create<UpdaterState>((set, get) => ({
 
       return res;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      const isRateLimit =
+        rawMessage.includes('rate limit') ||
+        rawMessage.includes('403') ||
+        rawMessage.includes('API rate limit');
+
+      const message = isRateLimit
+        ? 'GitHub API 访问频次达到限制（IP 临时受限）。建议稍后重试，或直接访问 Releases 页面下载最新安装包。'
+        : rawMessage;
+
       set({
         status: 'error',
         error: message,
