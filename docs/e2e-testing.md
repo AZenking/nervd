@@ -10,13 +10,13 @@
 ```bash
 ./scripts/test.sh            # 单测(vitest) + E2E(playwright) 一键全跑
 ./scripts/test.sh --unit     # 仅单元测试（13 条）
-./scripts/test.sh --e2e      # 仅 E2E（13 条，自动拉起 preview mock 模式）
+./scripts/test.sh --e2e      # 仅 E2E（25 条，自动拉起 preview mock 模式）
 pnpm test:e2e:browsers       # 首次执行前安装 chromium 到 .playwright-browsers/
 ```
 
 - **单元层**：`vitest.config.ts` + `src/lib/link.test.ts` + `src/store/app.test.ts`（乐观更新回滚闭环）
-- **E2E 层**：`playwright.config.ts`（浏览器固定装在 `.playwright-browsers/`，不写系统缓存）+ `e2e/` 下 5 个 spec 13 条用例，全部映射 §4 用例 ID
-- **可控 mock**：`preview/api-mock.ts` 内建 `__nervd_mock` 协议（`fail` / `delay` / `callsOf` / `reset`）
+- **E2E 层**：`playwright.config.ts`（浏览器固定装在 `.playwright-browsers/`，不写系统缓存）+ `e2e/` 下 9 个 spec 25 条用例，覆盖五大模块的 P0/P1 功能点（见 §4 映射表）
+- **可控 mock**：`preview/api-mock.ts` 内建 `__nervd_mock` 协议（`fail` / `delay` / `callsOf` / `reset`），22 个命令挂钩
 - **质量门禁**：`scripts/verify.sh` 第 2 步已加入 vitest；E2E 走 `scripts/test.sh`（需要浏览器二进制，不进默认门禁）
 
 ---
@@ -160,9 +160,13 @@ vitest.config.ts            # 单测配置：jsdom + @ alias
 e2e/
   fixtures.ts               # app 就绪 fixture（等第 1 页填满稳态）+ 选择器/store/mock 助手
   iteration-workbench.spec.ts   # IT-001/003/004/005/006（分组、光标、分栏联动、多选、翻页补拉）
+  iteration-toolbar.spec.ts     # IT-010/011 + TH-001（类别切换、右键菜单、全屏工作台、主题切换）
   esc-hierarchy.spec.ts         # GL-003（Esc 阶梯：浮层→多选→钻取→分栏）
   optimistic-status.spec.ts     # IT-007/008（乐观即时呈现、失败回滚）
   readonly-gating.spec.ts       # IT-009（只读门控负向断言）
+  integration-branches.spec.ts  # IB-001/002/003（通配扫描、需求编号 Peek、零写操作负向）
+  overview-peek.spec.ts         # OV-001（最近更新 → Peek 抽屉 → 全屏工作台）
+  settings.spec.ts              # ST-001/002/003 + RD-002（自动保存防抖、只读徽标、写权限开关全链路、行内创建）
   shell-nav.spec.ts             # GL-001/002（g 序列、⌘K 让路、? 面板）
 src/lib/link.test.ts            # L1：追溯规则纯函数
 src/store/app.test.ts           # L2：乐观更新回滚闭环
@@ -396,7 +400,7 @@ macOS 下 `browserName: 'safari'`，Linux `'wry'`，Windows 走 Edge Chromium �
 
 **DoD**：P0 用例全绿进 PR 门禁；每条用例标题携带规约 ID（如 `GL-003`）保证可回溯；新功能合入必须附带对应用例，否则门禁不放行。
 
-**后续待补（P1）**：设置自动保存防抖（ST-001）、集成分支零写操作负向（IB-003）、总览 Peek 抽屉（OV-001）、子任务行内创建（RD-002）。
+**后续待补（P1/P2）**：⌘K 命令面板内部搜索与跳转、LogViewer 实时构建日志抽屉（自动滚动）、分支图谱（BranchStateDiagram）节点断言、Activity 评论发表（写权限开启后的正向链路）、迭代切换（SearchableSelect）、筛选菜单（处理人/关联人/状态）、设置其余分区（追溯规则 / CI 绑定 / AI）、L4 tauri-driver 桌面冒烟（Rust 层写拦截 + Keychain）。
 
 ## 8. 可选增强
 

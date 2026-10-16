@@ -35,14 +35,16 @@ test.describe('设置自动保存（Auto-Save）', () => {
     await page.getByRole('button', { name: '只读', exact: true }).click();
     await expect.poll(() => uiView(page)).toBe('full-settings');
     // 直达「安全」分区：写操作开关可见
-    await expect(page.locator('#allow-write-ops')).toBeVisible();
+    await expect(page.getByRole('switch', { name: /允许写操作/ })).toBeVisible();
   });
 });
 
 test('ST-003 + RD-002 开启写权限后子任务行内快速创建全链路', async ({ page }) => {
   // ① 只读徽标 → 安全分区 → 开启写操作开关（立即保存）
+  // 注意：#allow-write-ops 是 Base UI Switch 的隐藏原生 checkbox（不可点），
+  // 可见的可点击元素是 role="switch"
   await page.getByRole('button', { name: '只读', exact: true }).click();
-  const switchEl = page.locator('#allow-write-ops');
+  const switchEl = page.getByRole('switch', { name: /允许写操作/ });
   await expect(switchEl).toBeVisible();
   await switchEl.click();
   await expect(async () => {
@@ -50,6 +52,8 @@ test('ST-003 + RD-002 开启写权限后子任务行内快速创建全链路', a
     const last = calls.at(-1);
     expect(last?.args?.[0]).toMatchObject({ allowWriteOps: true });
   }).toPass({ timeout: 5_000 });
+  // 等保存真正落盘（指示器回到「已自动保存」）再导航——否则会撞上脏草稿离开守卫
+  await expect(page.getByText('已自动保存')).toBeVisible({ timeout: 5_000 });
 
   // ② 回到迭代 → 打开 REQ-2084 详情 → 行内新建子任务
   await page.keyboard.press('g');
