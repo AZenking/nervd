@@ -41,9 +41,11 @@ export function buildRunParameter(
   kind: 'branch' | 'environment',
 ): string {
   const parameters = run?.parameters ?? {};
-  const selectedValue = selectedName ? parameters[selectedName] : undefined;
-  if (selectedValue?.trim()) return selectedValue;
   const matcher = kind === 'branch' ? isBranchParameterName : isEnvironmentParameterName;
+  const oppositeMatcher = kind === 'branch' ? isEnvironmentParameterName : isBranchParameterName;
+  const isValidSelected = selectedName && !oppositeMatcher(selectedName);
+  const selectedValue = isValidSelected ? parameters[selectedName] : undefined;
+  if (selectedValue?.trim()) return selectedValue;
   const inferred = Object.entries(parameters).find(([name]) => matcher(name))?.[1];
   return inferred?.trim() || '未记录';
 }
@@ -58,10 +60,12 @@ export async function triggerRepoCiWithFeedback(
   repoName: string,
   opts?: { okText?: string; failText?: string; refreshDelayMs?: number },
 ): Promise<void> {
-  const { setToast, loadRepoCi } = useApp.getState();
+  const { setToast, loadRepoCi, markRepoCiActive } = useApp.getState();
   try {
     await api.triggerRepoCi(repoId);
     setToast({ text: opts?.okText ?? `已触发 ${repoName} 的流水线`, kind: 'ok' });
+    // 触发成功后将全局 CI 调度器拉入活跃态（高频轮询 90 秒，快速捕获运行状态）
+    markRepoCiActive(90_000);
     if (opts?.refreshDelayMs) {
       await new Promise((resolve) => setTimeout(resolve, opts.refreshDelayMs));
     }
