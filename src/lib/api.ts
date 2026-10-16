@@ -6,9 +6,21 @@ import type {
   WorkitemStatusOption, WorkitemSummary, BranchRuleTemplate,
 } from '../types';
 
+export interface CurrentYunxiaoUser {
+  id: string;
+  name: string;
+  email?: string;
+  avatarUrl?: string;
+  lastOrganization?: string;
+}
+
 /** 列表行 = WorkitemSummary + 后端增补字段 */
 export interface WorkitemRow extends WorkitemSummary {
+  assignedToId?: string;
   relatedTo?: string[]; // 关联人姓名（commands.rs names_of 防御式提取）
+  relatedToIds?: string[]; // 关联人 ID（commands.rs ids_of 提取）
+  creator?: string;
+  creatorId?: string;
   sprintId?: string; // 所属迭代（search 行 sprint.id，空串=未分配迭代）
   sprintName?: string;
 }
@@ -51,6 +63,9 @@ export async function deletePat(): Promise<boolean> {
 }
 export async function checkConnection(): Promise<OrgSummary[]> {
   return invoke('check_connection');
+}
+export async function getCurrentUser(): Promise<CurrentYunxiaoUser> {
+  return invoke('get_current_user');
 }
 export async function listProjects(search?: string): Promise<{ id: string; name: string }[]> {
   return invoke('list_projects', { search });

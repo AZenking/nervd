@@ -93,6 +93,38 @@ pub(super) fn names_of(v: &Value, keys: &[&str]) -> Vec<String> {
     }
     Vec::new()
 }
+
+/// 关联人 ID 列表：候选字段任一命中即取（元素为 {id} 对象或纯字符串），去重保序
+pub(super) fn ids_of(v: &Value, keys: &[&str]) -> Vec<String> {
+    for k in keys {
+        let ids: Vec<String> = v
+            .get(k)
+            .and_then(|x| x.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|e| {
+                        if let Some(s) = e.as_str() {
+                            return Some(s.to_string());
+                        }
+                        ["id", "identifier", "userId"]
+                            .iter()
+                            .find_map(|f| e.get(f).and_then(|n| n.as_str()).map(|s| s.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut out: Vec<String> = Vec::with_capacity(ids.len());
+        for id in ids {
+            if !id.is_empty() && !out.contains(&id) {
+                out.push(id);
+            }
+        }
+        if !out.is_empty() {
+            return out;
+        }
+    }
+    Vec::new()
+}
 pub(super) fn i64_of(v: &Value, key: &str) -> Option<i64> {
     v.get(key).and_then(|x| x.as_i64())
 }

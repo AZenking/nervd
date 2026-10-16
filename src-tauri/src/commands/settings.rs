@@ -328,6 +328,20 @@ pub async fn check_connection(state: State<'_, AppState>) -> Result<Value, Strin
     }]))
 }
 
+/// 获取当前登录用户信息（基于 PAT）：GET /oapi/v1/platform/user
+#[tauri::command]
+pub async fn get_current_user(state: State<'_, AppState>) -> Result<Value, String> {
+    let c = client_of(&state)?;
+    let resp = c.get("/oapi/v1/platform/user", &[]).await?;
+    Ok(json!({
+        "id": s(&resp, "id"),
+        "name": s(&resp, "name"),
+        "email": s(&resp, "email"),
+        "avatarUrl": s(&resp, "avatarUrl"),
+        "lastOrganization": s(&resp, "lastOrganization"),
+    }))
+}
+
 /// 项目列表（设置页项目空间下拉）：POST projects:search
 #[tauri::command]
 pub async fn list_projects(

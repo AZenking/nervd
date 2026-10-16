@@ -5,9 +5,9 @@ import type {
   JenkinsJobSummary, MrSummary, OrgSummary, RepoCiBinding, RepoCiSnapshot, Settings, SettingsView,
   WorkitemPage, WorkitemStatusOption,
 } from '../src/types';
-import type { WorkitemChild, WorkitemRow, WorkitemTypeOption } from '../src/lib/api';
+import type { WorkitemChild, WorkitemRow, WorkitemTypeOption, CurrentYunxiaoUser } from '../src/lib/api';
 
-export type { WorkitemRow };
+export type { WorkitemRow, CurrentYunxiaoUser };
 
 const settings: SettingsView = {
   hasPat: true,
@@ -517,3 +517,11 @@ export async function getPipelineRun() { return null; }
 export async function startPipelineRun(): Promise<unknown> { await sleep(400); return null; }
 export async function stopPipelineRun(): Promise<unknown> { await sleep(400); return null; }
 export async function getJobLogs(): Promise<string> { return '[mock] job logs'; }
+export async function getCurrentUser(): Promise<CurrentYunxiaoUser> {
+  return {
+    id: '675b9ce8ddf7780be0abb2e3',
+    name: '林默',
+    email: 'linmo@example.com',
+  };
+}
+

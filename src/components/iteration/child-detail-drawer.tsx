@@ -8,11 +8,13 @@ import {
   ExternalLinkIcon,
   FolderIcon,
   LayersIcon,
+  Maximize2Icon,
   UserIcon,
   XIcon,
 } from 'lucide-react';
 import type { WorkitemChild } from '@/lib/api';
 import * as api from '@/lib/api';
+import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -70,12 +72,31 @@ export function ChildDetailDrawer({
 }: ChildDetailDrawerProps) {
   const open = child != null;
   const loadChildren = useApp((s) => s.loadChildren);
+  const settings = useApp((s) => s.settings);
 
   const [rawDetail, setRawDetail] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
   const { copy: copyText, copied } = useClipboard({
     successMessage: (id) => `已复制编号 ${id}`,
   });
+
+  const handleOpenInYunxiao = () => {
+    if (!child) return;
+    const wi = (rawDetail?.workitem ?? rawDetail ?? {}) as Record<string, unknown>;
+    const spaceId = (wi.space && typeof wi.space === 'object' && typeof (wi.space as any).id === 'string' ? (wi.space as any).id : '')
+      || (wi.space && typeof wi.space === 'object' && typeof (wi.space as any).identifier === 'string' ? (wi.space as any).identifier : '')
+      || (typeof wi.spaceId === 'string' && wi.spaceId)
+      || (typeof wi.projectId === 'string' && wi.projectId)
+      || settings?.defaultSpaceIdentifier
+      || '';
+
+    void openWorkitemInYunxiao({
+      workitemId: child.workitemId,
+      spaceIdentifier: spaceId,
+      category: child.category,
+      organizationId: settings?.organizationId,
+    });
+  };
 
   // 状态流转状态
   const [statusName, setStatusName] = useState<string>(child?.status ?? '');
@@ -334,6 +355,22 @@ export function ChildDetailDrawer({
                     <Button
                       variant="ghost"
                       size="icon-xs"
+                      onClick={handleOpenInYunxiao}
+                      aria-label="在云效中打开"
+                    />
+                  }
+                >
+                  <ExternalLinkIcon className="size-3.5" />
+                </TooltipTrigger>
+                <TooltipContent>在云效中打开</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => {
                         if (child) onOpenInWorkbench(child);
                       }}
@@ -341,7 +378,7 @@ export function ChildDetailDrawer({
                     />
                   }
                 >
-                  <ExternalLinkIcon className="size-3.5" />
+                  <Maximize2Icon className="size-3.5" />
                 </TooltipTrigger>
                 <TooltipContent>在独立工作台全屏打开</TooltipContent>
               </Tooltip>

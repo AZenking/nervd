@@ -1,4 +1,4 @@
-use super::common::{as_array, client_of, ensure_write, i64_of, names_of, nested_s, org_of, s, s2};
+use super::common::{as_array, client_of, ensure_write, i64_of, ids_of, names_of, nested_s, org_of, s, s2};
 use crate::AppState;
 use serde_json::{json, Value};
 use tauri::State;
@@ -50,7 +50,11 @@ pub async fn list_workitems(
                 "status": nested_s(w, "status", "name"),
                 "statusStageName": nested_s(w, "status", "stageName"),
                 "assignedTo": nested_s(w, "assignedTo", "name"),
+                "assignedToId": nested_s(w, "assignedTo", "id"),
                 "relatedTo": names_of(w, &["participant", "participants", "relatedUsers"]),
+                "relatedToIds": ids_of(w, &["participant", "participants", "relatedUsers"]),
+                "creator": nested_s(w, "creator", "name"),
+                "creatorId": nested_s(w, "creator", "id"),
                 "sprintId": nested_s(w, "sprint", "id"),
                 "sprintName": nested_s(w, "sprint", "name"),
                 "spaceName": nested_s(w, "space", "name"),

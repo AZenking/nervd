@@ -33,10 +33,12 @@ import { WorkitemFilterBar } from './workitem-filter-menu';
 import { IterationBranches } from './IterationBranches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
 import { RequirementDetails } from './RequirementDetails';
+import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { WorkitemStatusDropdown } from './workitem-status-dropdown';
 import { FloatingBatchBar } from './floating-batch-bar';
 import { KeyboardPagination } from './keyboard-pagination';
 import { IterationRepoTab } from './iteration-repo-tab';
+import { matchWorkitemUser } from '@/lib/workitem-highlight';
 
 /** 每页渲染的分支行数：需求过多时全量渲染会卡，列表分页消化 */
 const PAGE_SIZE = 30;
@@ -109,6 +111,7 @@ export function IterationView() {
     items, repositories, category, setCategory, loadingList, loadList, nextToken,
     iterations: realIterations, loadingIterations, loadIterations,
     settings,
+    currentUser, workitemHighlight,
   } = useApp();
 
   // CI 轮询：覆盖所有已绑定仓库（Flow + Jenkins），与仓库表/CI 详情同一数据源
@@ -378,6 +381,7 @@ export function IterationView() {
                     const rowId = rowKeyOf(item);
                     const assignee = item.assignedTo && item.assignedTo !== '—' ? item.assignedTo : '';
                     const isActive = flatIndexById.get(rowId) === cursor || item.workitemId === splitWorkitemId;
+                    const match = matchWorkitemUser(item, currentUser, workitemHighlight);
                     return (
                       <button
                         key={rowId}
@@ -400,6 +404,8 @@ export function IterationView() {
                           'group flex w-full cursor-pointer items-center gap-2.5 rounded-md text-left transition-colors hover:bg-muted/60',
                           'data-[active=true]:bg-accent data-[active=true]:text-accent-foreground',
                           isMasterColumn ? 'h-9 px-2' : 'h-10 px-2.5',
+                          match.isAssigned && (isMasterColumn ? 'border-l-2 border-l-primary bg-primary/[0.04] pl-1.5' : 'border-l-2 border-l-primary bg-primary/[0.04] pl-2'),
+                          match.isRelated && !match.isAssigned && (isMasterColumn ? 'border-l-2 border-l-amber-500/80 bg-amber-500/[0.04] pl-1.5' : 'border-l-2 border-l-amber-500/80 bg-amber-500/[0.04] pl-2'),
                         )}
                       >
                         {/* 多选 Checkbox（Linear 风格：悬停滑出，已选常驻） */}
@@ -421,6 +427,18 @@ export function IterationView() {
 
                         {/* 编号 */}
                         <span className="shrink-0 font-mono text-xs text-muted-foreground">{item.identifier}</span>
+
+                        {/* 身份匹配高亮徽标（Linear 语义） */}
+                        {match.isAssigned ? (
+                          <span className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none bg-primary/15 text-primary border border-primary/25">
+                            我负责
+                          </span>
+                        ) : match.isRelated ? (
+                          <span className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                            我参与
+                          </span>
+                        ) : null}
+
                         {/* 标题 */}
                         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground/90">{item.subject}</span>
 
@@ -431,11 +449,15 @@ export function IterationView() {
                           )}
                           {assignee ? (
                             <>
-                              <Avatar className="size-5 shrink-0">
-                                <AvatarFallback className="text-[10px]">{assignee.charAt(0)}</AvatarFallback>
+                              <Avatar className={cn('size-5 shrink-0', match.isAssigned && 'ring-1.5 ring-primary ring-offset-1 ring-offset-background')}>
+                                <AvatarFallback className={cn('text-[10px]', match.isAssigned && 'bg-primary/10 text-primary font-medium')}>
+                                  {assignee.charAt(0)}
+                                </AvatarFallback>
                               </Avatar>
                               {!isMasterColumn && (
-                                <span className="hidden max-w-24 truncate lg:inline">{assignee}</span>
+                                <span className={cn('hidden max-w-24 truncate lg:inline', match.isAssigned && 'font-medium text-foreground')}>
+                                  {assignee}
+                                </span>
                               )}
                             </>
                           ) : !isMasterColumn ? (
@@ -532,6 +554,20 @@ export function IterationView() {
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => { if (ctxMenu) openInWorkbench(ctxMenu.item); }}>
           全屏打开
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            if (ctxMenu) {
+              void openWorkitemInYunxiao({
+                workitemId: ctxMenu.item.workitemId,
+                spaceIdentifier: settings?.defaultSpaceIdentifier,
+                category: ctxMenu.item.category,
+                organizationId: settings?.organizationId,
+              });
+            }
+          }}
+        >
+          在云效中打开
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

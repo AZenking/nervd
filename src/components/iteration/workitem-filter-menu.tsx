@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { ListFilterIcon, XIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -5,6 +6,7 @@ import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUi, type WorkitemFilters } from '@/store/ui';
+import { useApp } from '@/store/app';
 
 /**
  * 工作项筛选菜单（Linear 视图工具行形态）：
@@ -18,6 +20,20 @@ function FilterMenu({ label, kind, options }: {
 }) {
   const selected = useUi((s) => s.filters[kind]);
   const toggleFilter = useUi((s) => s.toggleFilter);
+  const currentUser = useApp((s) => s.currentUser);
+  const customName = useApp((s) => s.workitemHighlight.customName?.trim());
+
+  const myName = customName || currentUser?.name;
+
+  const sortedOptions = useMemo(() => {
+    if (!myName || (kind !== 'assignees' && kind !== 'related')) return options;
+    return [...options].sort((a, b) => {
+      if (a[0] === myName) return -1;
+      if (b[0] === myName) return 1;
+      return 0;
+    });
+  }, [options, myName, kind]);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -29,17 +45,27 @@ function FilterMenu({ label, kind, options }: {
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
-        {options.map(([value, count]) => (
-          <DropdownMenuCheckboxItem
-            key={value}
-            checked={selected.includes(value)}
-            onCheckedChange={() => toggleFilter(kind, value)}
-            closeOnClick={false}
-          >
-            <span className="min-w-0 flex-1 truncate">{value}</span>
-            <span className="shrink-0 pl-2 text-xs tabular-nums text-muted-foreground">{count}</span>
-          </DropdownMenuCheckboxItem>
-        ))}
+        {sortedOptions.map(([value, count]) => {
+          const isMe = Boolean(myName && (kind === 'assignees' || kind === 'related') && value === myName);
+          return (
+            <DropdownMenuCheckboxItem
+              key={value}
+              checked={selected.includes(value)}
+              onCheckedChange={() => toggleFilter(kind, value)}
+              closeOnClick={false}
+            >
+              <span className="min-w-0 flex-1 truncate flex items-center gap-1.5">
+                <span>{value}</span>
+                {isMe && (
+                  <span className="rounded bg-primary/15 px-1 py-0.2 text-[10px] font-medium leading-none text-primary">
+                    我
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 pl-2 text-xs tabular-nums text-muted-foreground">{count}</span>
+            </DropdownMenuCheckboxItem>
+          );
+        })}
         {!options.length && (
           <p className="px-2 py-3 text-center text-xs text-muted-foreground">暂无可筛选项</p>
         )}

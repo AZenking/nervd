@@ -1,8 +1,14 @@
 // zustand 全局状态（契约 §5）
 import { create } from 'zustand';
 import * as api from '../lib/api';
-import type { WorkitemRow, WorkitemChild } from '../lib/api';
+import type { WorkitemRow, WorkitemChild, CurrentYunxiaoUser } from '../lib/api';
 import { workitemRepoIds } from '../lib/workitem-repos';
+import {
+  type WorkitemHighlightSettings,
+  loadHighlightSettings,
+  saveHighlightSettings,
+} from '../lib/workitem-highlight';
+import { errorLog } from '../lib/error-format';
 import type {
   BranchRuleTemplate, Category, ConnectionState, IterationSummary, PipelineRunSummary,
   RepoCiBinding, RepoCiSnapshot, RepoSummary, Settings, SettingsView, TraceResult,
@@ -73,8 +79,23 @@ interface AppStore {
   logView: LogViewState | null;
   toast: Toast | null;
 
+  currentUser: CurrentYunxiaoUser | null;
+  loadingCurrentUser: boolean;
+  workitemHighlight: WorkitemHighlightSettings;
+
+  /** 最近一次工作项列表加载时间戳 */
+  listFetchedAt: number | null;
+  /** 最近一次迭代列表加载时间戳 */
+  iterationsFetchedAt: number | null;
+  /** 最近一次选中工作项详情加载时间戳 */
+  detailFetchedAt: number | null;
+  /** CI 活跃态保持时间戳截止点（ms） */
+  ciActiveUntil: number;
+
   init(): Promise<void>;
   refreshConnection(): Promise<void>;
+  loadCurrentUser(): Promise<void>;
+  setWorkitemHighlight(patch: Partial<WorkitemHighlightSettings>): void;
   setCategory(c: Category): Promise<void>;
   loadList(next?: boolean): Promise<void>;
   loadIterations(): Promise<void>;
@@ -98,6 +119,10 @@ interface AppStore {
   updateWorkitemStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): Promise<boolean>;
   updateChildStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): void;
   reloadComments(id?: string): Promise<void>;
+  markRepoCiActive(durationMs?: number): void;
+  refreshAllRepoCi(): Promise<void>;
+  reloadCurrentDetail(): Promise<void>;
+  revalidateIfStale(maxAgeMs?: number): Promise<void>;
 }
 
 const requests = { connection: 0, list: 0, detail: 0, trace: 0, pipelines: 0, logs: 0 };
@@ -147,10 +172,22 @@ export const useApp = create<AppStore>((set, get) => ({
   logView: null,
   toast: null,
 
+  currentUser: null,
+  loadingCurrentUser: false,
+  workitemHighlight: loadHighlightSettings(),
+
+  listFetchedAt: null,
+  iterationsFetchedAt: null,
+  detailFetchedAt: null,
+  ciActiveUntil: 0,
+
   async init() {
     try {
       const settings = await api.getSettings();
       set({ settings, booting: false });
+      if (settings.hasPat) {
+        void get().loadCurrentUser();
+      }
       if (settings.hasPat && settings.organizationId) {
         await get().refreshConnection();
         await Promise.all([get().loadList(), get().loadRepos(), get().loadIterations()]);
@@ -167,9 +204,33 @@ export const useApp = create<AppStore>((set, get) => ({
     try {
       await api.checkConnection();
       if (requestId === requests.connection) set({ connection: 'ok' });
+      void get().loadCurrentUser();
     } catch {
       if (requestId === requests.connection) set({ connection: 'fail' });
     }
+  },
+
+  async loadCurrentUser() {
+    const { settings } = get();
+    if (!settings?.hasPat) {
+      set({ currentUser: null });
+      return;
+    }
+    set({ loadingCurrentUser: true });
+    try {
+      const user = await api.getCurrentUser();
+      set({ currentUser: user });
+    } catch (e) {
+      errorLog('app.loadCurrentUser', e);
+    } finally {
+      set({ loadingCurrentUser: false });
+    }
+  },
+
+  setWorkitemHighlight(patch) {
+    const next = { ...get().workitemHighlight, ...patch };
+    saveHighlightSettings(next);
+    set({ workitemHighlight: next });
   },
 
   async setCategory(c) {
@@ -188,6 +249,8 @@ export const useApp = create<AppStore>((set, get) => ({
       loadingDetail: false,
       trace: null,
       traceLoading: false,
+      listFetchedAt: null,
+      detailFetchedAt: null,
     });
     await get().loadList();
   },
@@ -226,6 +289,7 @@ export const useApp = create<AppStore>((set, get) => ({
       set((st) => ({
         items: next ? [...st.items, ...mapped] : mapped,
         nextToken: page.nextToken,
+        listFetchedAt: Date.now(),
       }));
     } catch (e) {
       if (isCurrent()) get().setToast({ text: `列表加载失败：${String(e)}`, kind: 'fail' });
@@ -238,7 +302,7 @@ export const useApp = create<AppStore>((set, get) => ({
     set({ loadingIterations: true });
     try {
       const iterations = await api.listIterations();
-      set({ iterations, loadingIterations: false });
+      set({ iterations, loadingIterations: false, iterationsFetchedAt: Date.now() });
       // 真实列表到达后校正选中迭代：占位默认值或已失效的 key 回落到「进行中」迭代
       // （只在展示中的迭代里选：归档等不可见迭代不作为回落目标；直接改 key，不切视图——避免把停留在设置页的用户拽回迭代页）
       const key = useUi.getState().iterationKey;
@@ -335,6 +399,7 @@ export const useApp = create<AppStore>((set, get) => ({
         children: childrenRes.items,
         childrenError: childrenRes.error,
         childrenDebug: childrenRes.debug,
+        detailFetchedAt: Date.now(),
       });
     } catch (e) {
       if (isCurrent()) get().setToast({ text: `详情加载失败：${String(e)}`, kind: 'fail' });
@@ -704,6 +769,76 @@ export const useApp = create<AppStore>((set, get) => ({
       set({ items: prevItems, detail: prevDetail, children: prevChildren });
       get().setToast({ text: `状态流转失败: ${String(err)}`, kind: 'fail' });
       return false;
+    }
+  },
+
+  markRepoCiActive(durationMs = 90_000) {
+    const until = Date.now() + durationMs;
+    set((s) => ({ ciActiveUntil: Math.max(s.ciActiveUntil, until) }));
+  },
+
+  async refreshAllRepoCi() {
+    const { settings, repositories, repoCiByRepo, loadRepoCi } = get();
+    if (!settings?.repoCiBindings) return;
+    const targetIds: number[] = [];
+    for (const repo of repositories) {
+      if (settings.repoCiBindings[String(repo.id)] && !repoCiByRepo[repo.id]?.loading) {
+        targetIds.push(repo.id);
+      }
+    }
+    await Promise.all(targetIds.map((id) => loadRepoCi(id)));
+  },
+
+  async reloadCurrentDetail() {
+    const id = get().selectedId;
+    if (!id) return;
+    const requestId = ++requests.detail;
+    const isCurrent = () => requestId === requests.detail && get().selectedId === id;
+    try {
+      const [detail, commentsRaw, childrenRes] = await Promise.all([
+        api.getWorkitem(id),
+        api.listWorkitemComments(id).catch(() => ({})),
+        api.listWorkitemChildren(id).then(
+          (r) => ({ items: r.items, error: null as string | null, debug: r.rawSample ?? null }),
+          (e: unknown) => ({ items: [] as api.WorkitemChild[], error: String(e), debug: null as string | null }),
+        ),
+      ]);
+      if (!isCurrent()) return;
+      const comments = arr(commentsRaw);
+      set({
+        detail,
+        comments,
+        children: childrenRes.items,
+        childrenError: childrenRes.error,
+        childrenDebug: childrenRes.debug,
+        detailFetchedAt: Date.now(),
+      });
+      void get().loadTrace();
+    } catch (e) {
+      errorLog('app.reloadCurrentDetail', e);
+    }
+  },
+
+  async revalidateIfStale(maxAgeMs = 120_000) {
+    const {
+      booting, connection, settings,
+      listFetchedAt, iterationsFetchedAt, detailFetchedAt,
+      loadingList, loadingIterations, selectedId,
+    } = get();
+    if (booting || connection !== 'ok' || !settings?.organizationId || !settings?.defaultSpaceIdentifier) return;
+    const now = Date.now();
+    const tasks: Promise<void>[] = [];
+    if (!loadingList && (!listFetchedAt || now - listFetchedAt > maxAgeMs)) {
+      tasks.push(get().loadList(false));
+    }
+    if (!loadingIterations && (!iterationsFetchedAt || now - iterationsFetchedAt > maxAgeMs)) {
+      tasks.push(get().loadIterations());
+    }
+    if (selectedId && (!detailFetchedAt || now - detailFetchedAt > maxAgeMs)) {
+      tasks.push(get().reloadCurrentDetail());
+    }
+    if (tasks.length > 0) {
+      await Promise.all(tasks);
     }
   },
 }));
