@@ -11,7 +11,9 @@ import {
   TraceSection,
   BranchRulesSection,
   CiSection,
+  AiSection,
   SecuritySection,
+  AboutSection,
 } from './settings/sections/index';
 
 export { SettingsAutoSaveStatus };
@@ -50,7 +52,9 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
       </div>
     ),
     ci: <CiSection />,
+    ai: <AiSection />,
     security: <SecuritySection />,
+    about: <AboutSection />,
   };
 
   if (embedded) {

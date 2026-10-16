@@ -9,9 +9,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { NavCollapsibleGroup } from './nav-group';
 import {
   ArrowLeftIcon,
   GitBranchIcon,
@@ -27,7 +27,7 @@ import { SETTINGS_SECTIONS } from '../settings/sections';
  * 进入设置后整体切换为设置菜单。头部干净无冗余装饰，不使用卡片式盒子。
  */
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { view, settingsSection, setSettingsSection, setView, openSettings } = useUi();
+  const { view, settingsSection, setSettingsSection, setView, openSettings, setAboutOpen } = useUi();
   const { settings } = useApp();
   const inSettings = view === 'full-settings';
 
@@ -38,11 +38,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* macOS 沉浸式窗口：红绿灯安全留白避让与可拖拽区（Linear 桌面端标准） */}
         <div data-tauri-drag-region className="h-8 w-full shrink-0 select-none" />
         <div className="flex items-center justify-between gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1">
-            <div className="flex aspect-square size-6 shrink-0 items-center justify-center rounded-[6px] bg-sidebar-primary text-sidebar-primary-foreground shadow-xs">
+          <button
+            type="button"
+            onClick={() => setAboutOpen(true)}
+            title="关于 nervd"
+            className="group flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-sidebar-accent/50"
+          >
+            <div className="flex aspect-square size-6 shrink-0 items-center justify-center rounded-[6px] bg-sidebar-primary text-sidebar-primary-foreground shadow-xs transition-transform group-hover:scale-105">
               <img
                 src="/nervd-logo.png"
-                alt=""
+                alt="nervd logo"
                 aria-hidden="true"
                 className="size-full rounded-[6px] object-cover"
               />
@@ -50,6 +55,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <span className="truncate text-[13px] font-semibold tracking-tight text-foreground group-data-[collapsible=icon]:hidden">
               nervd
             </span>
+          </button>
+
+          <div className="flex items-center gap-1">
             {/* 读写策略指示：只读时展示微标，点击直达安全设置；可写时展示状态小绿点 */}
             <div className="group-data-[collapsible=icon]:hidden">
               {settings != null && !settings.allowWriteOps ? (
@@ -68,9 +76,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 />
               )}
             </div>
+            {/* 折叠钮收在侧栏品牌行右侧 */}
+            <SidebarTrigger aria-label="折叠/展开侧栏" className="shrink-0 opacity-60 transition-opacity hover:opacity-100" />
           </div>
-          {/* 折叠钮收在侧栏品牌行右侧 */}
-          <SidebarTrigger aria-label="折叠/展开侧栏" className="shrink-0 opacity-60 transition-opacity hover:opacity-100" />
         </div>
         {/* 搜索行（Linear 同款）：固定常驻在 Header 顶层，永不随滚动条滚走 */}
         {!inSettings && (
@@ -89,43 +97,35 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       {inSettings ? (
-        // 设置模式：左侧栏即设置菜单，右侧内容区按所选分区渲染（分区间共享同一份草稿，切换不丢未保存修改）
+        // 设置模式：左侧栏即设置菜单，顶部为返回工作区，下方直列各个设置分区
         <SidebarContent className="gap-1 px-2.5 py-2">
-          <NavCollapsibleGroup
-            label="设置"
-            labelClassName="px-2"
-            className="px-0"
-          >
-            <SidebarMenu>
-              {SETTINGS_SECTIONS.map((section) => (
-                <SidebarMenuItem key={section.value}>
-                  <SidebarMenuButton
-                    tooltip={section.label}
-                    isActive={settingsSection === section.value}
-                    onClick={() => setSettingsSection(section.value)}
-                  >
-                    <section.icon />
-                    <span>{section.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </NavCollapsibleGroup>
-          <NavCollapsibleGroup
-            label="工作区"
-            labelClassName="px-2"
-            className="px-0"
-          >
-            <SidebarMenu>
-              {/* 返回工作区按钮 */}
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="返回工作区" onClick={() => setView('iteration')}>
-                  <ArrowLeftIcon />
-                  <span>返回工作区</span>
+          {/* 返回工作区按钮置于顶部 */}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="返回工作区" onClick={() => setView('iteration')}>
+                <ArrowLeftIcon />
+                <span>返回工作区</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+
+          <SidebarSeparator className="my-1" />
+
+          {/* 设置分区列表 */}
+          <SidebarMenu>
+            {SETTINGS_SECTIONS.map((section) => (
+              <SidebarMenuItem key={section.value}>
+                <SidebarMenuButton
+                  tooltip={section.label}
+                  isActive={settingsSection === section.value}
+                  onClick={() => setSettingsSection(section.value)}
+                >
+                  <section.icon />
+                  <span>{section.label}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-            </SidebarMenu>
-          </NavCollapsibleGroup>
+            ))}
+          </SidebarMenu>
         </SidebarContent>
       ) : (
         <SidebarContent className="gap-1 px-2.5 py-2">

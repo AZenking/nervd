@@ -3,6 +3,7 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
   CalendarDaysIcon,
   GitBranchIcon,
+  InfoIcon,
   LayoutDashboardIcon,
   LockIcon,
   MoonIcon,
@@ -56,7 +57,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export function CommandMenu() {
   const open = useUi((s) => s.commandOpen);
   const setCommandOpen = useUi((s) => s.setCommandOpen);
-  const { view, setView, openSettings, setIteration, openWorkitem, theme, toggleTheme } = useUi();
+  const { view, setView, openSettings, setIteration, openWorkitem, theme, toggleTheme, setAboutOpen, settingsSection } = useUi();
   const items = useApp((s) => s.items);
   const realIterations = useApp((s) => s.iterations);
   const loadList = useApp((s) => s.loadList);
@@ -111,6 +112,15 @@ export function CommandMenu() {
         active: view === 'full-settings',
         run: () => openSettings('connection'),
       },
+      {
+        id: 'nav-about-settings',
+        group: '导航',
+        label: '关于 nervd (设置)',
+        icon: <InfoIcon className="size-4" />,
+        keywords: '关于 about settings 设置 版本 version',
+        active: view === 'full-settings' && settingsSection === 'about',
+        run: () => openSettings('about'),
+      },
     ];
 
     const iterationEntries: CommandEntry[] = iterationsOrFallback(realIterations).map((it) => ({
@@ -143,6 +153,15 @@ export function CommandMenu() {
       }));
 
     const actions: CommandEntry[] = [
+      {
+        id: 'action-about',
+        group: '操作',
+        label: '关于 nervd',
+        hint: 'v0.1.0',
+        icon: <InfoIcon className="size-4" />,
+        keywords: '关于 about version 版本 架构 检查更新 nervd',
+        run: () => setAboutOpen(true),
+      },
       {
         id: 'action-refresh',
         group: '操作',

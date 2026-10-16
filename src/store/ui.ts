@@ -94,7 +94,7 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
 }
 
 export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'full-settings';
-export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security';
+export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security' | 'ai' | 'about';
 
 /** 面包屑上的工作项（父 › 子层级链的节点） */
 export interface WorkitemCrumb {
@@ -149,6 +149,9 @@ interface UiStore {
   shortcutsOpen: boolean;
   /** 快捷键面板开合（Base UI Dialog 受控） */
   setShortcutsOpen(open: boolean): void;
+  /** 关于 nervd 弹窗开关 */
+  aboutOpen: boolean;
+  setAboutOpen(open: boolean): void;
   /** 主题模式：深色 dark（默认）与浅色 light */
   theme: 'dark' | 'light';
   setTheme(theme: 'dark' | 'light'): void;
@@ -195,6 +198,8 @@ export const useUi = create<UiStore>((set, get) => {
     toggleCommandMenu: () => set((st) => ({ commandOpen: !st.commandOpen })),
     shortcutsOpen: false,
     setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+    aboutOpen: false,
+    setAboutOpen: (aboutOpen) => set({ aboutOpen }),
     theme: (typeof localStorage !== 'undefined' && (localStorage.getItem('nervd-theme') as 'dark' | 'light')) || 'dark',
     setTheme: (theme) => {
       if (typeof localStorage !== 'undefined') localStorage.setItem('nervd-theme', theme);

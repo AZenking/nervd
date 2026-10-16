@@ -1,0 +1,106 @@
+import { create } from 'zustand';
+import { toast } from '@/components/ui/toast';
+import { checkForUpdates as fetchUpdateCheck } from '@/lib/updater-api';
+import { openExternal } from '@/lib/yunxiao-link';
+import type { UpdateCheckResult, UpdateStatus } from '@/types/updater';
+
+interface UpdaterState {
+  status: UpdateStatus;
+  updateInfo: UpdateCheckResult | null;
+  error: string | null;
+  lastCheckedAt: string | null;
+  dismissedVersion: string | null;
+
+  checkForUpdates: (silent?: boolean, customEndpoint?: string | null) => Promise<UpdateCheckResult | null>;
+  openDownload: () => Promise<void>;
+  dismissUpdate: () => void;
+}
+
+export const useUpdater = create<UpdaterState>((set, get) => ({
+  status: 'idle',
+  updateInfo: null,
+  error: null,
+  lastCheckedAt: null,
+  dismissedVersion: null,
+
+  checkForUpdates: async (silent = false, customEndpoint = null) => {
+    set({ status: 'checking', error: null });
+
+    try {
+      const res = await fetchUpdateCheck(customEndpoint);
+      const now = new Date().toISOString();
+
+      if (res.hasUpdate) {
+        set({
+          status: 'available',
+          updateInfo: res,
+          lastCheckedAt: now,
+          error: null,
+        });
+
+        if (!silent) {
+          toast.add({
+            title: `发现新版本 v${res.latestVersion}`,
+            description: res.releaseName || '点击“关于”查看更新内容并下载安装。',
+            type: 'info',
+          });
+        }
+      } else {
+        set({
+          status: 'up_to_date',
+          updateInfo: res,
+          lastCheckedAt: now,
+          error: null,
+        });
+
+        if (!silent) {
+          toast.add({
+            title: '已是最新版本',
+            description: `nervd v${res.currentVersion} 目前为最新版本，未发现新更新。`,
+            type: 'success',
+          });
+        }
+      }
+
+      return res;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      set({
+        status: 'error',
+        error: message,
+        lastCheckedAt: new Date().toISOString(),
+      });
+
+      if (!silent) {
+        toast.add({
+          title: '检查更新失败',
+          description: message,
+          type: 'error',
+        });
+      }
+
+      return null;
+    }
+  },
+
+  openDownload: async () => {
+    const { updateInfo } = get();
+    const url = updateInfo?.downloadUrl || updateInfo?.htmlUrl;
+    if (url) {
+      await openExternal(url);
+    } else {
+      toast.add({
+        title: '未找到下载地址',
+        description: '请访问 GitHub 仓库 Release 页面手动下载。',
+        type: 'error',
+      });
+    }
+  },
+
+  dismissUpdate: () => {
+    const { updateInfo } = get();
+    if (updateInfo) {
+      set({ dismissedVersion: updateInfo.latestVersion, status: 'idle' });
+    }
+  },
+}));

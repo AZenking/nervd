@@ -1,7 +1,7 @@
 // 设置分区唯一清单：侧栏设置菜单（AppSidebar）与设置页内容（SettingsView）共用，
 // 保证左侧菜单与右侧内容永远一一对应；新增分区只改这里。
 import type { LucideIcon } from 'lucide-react';
-import { CloudIcon, GitBranchIcon, ShieldIcon, WorkflowIcon } from 'lucide-react';
+import { CloudIcon, GitBranchIcon, InfoIcon, ShieldIcon, SparklesIcon, WorkflowIcon } from 'lucide-react';
 import type { SettingsSection } from '@/store/ui';
 
 export interface SettingsSectionMeta {
@@ -33,9 +33,21 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
     icon: WorkflowIcon,
   },
   {
+    value: 'ai',
+    label: 'AI 助手',
+    description: '配置大模型服务商（阿里云百炼 / OpenAI / DeepSeek），管理执行模式与拆解偏好。',
+    icon: SparklesIcon,
+  },
+  {
     value: 'security',
     label: '安全',
     description: '控制 nervd 对云效真实资源的写操作权限。',
     icon: ShieldIcon,
+  },
+  {
+    value: 'about',
+    label: '关于',
+    description: 'nervd 桌面工作台版本、系统环境、技术架构与安全状态。',
+    icon: InfoIcon,
   },
 ];
