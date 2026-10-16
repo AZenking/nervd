@@ -30,6 +30,10 @@ export function ConnectionSection() {
 
   const loadProjects = async () => {
     try {
+      // 若草稿中有未持久化的 PAT 或组织 ID 改动，先刷入保存，确保后端以最新凭据请求接口
+      if (draft.pat.trim() || draft.draft?.organizationId !== settings?.organizationId) {
+        await draft.flushAutoSave();
+      }
       const list = await api.listProjects();
       setProjects(list);
       if (!list.length) useSettingsDraft.getState().setFieldError('space', '未返回项目（检查令牌权限或组织 ID）');
@@ -191,7 +195,7 @@ export function ConnectionSection() {
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex items-center gap-2">
                 <span className="truncate text-sm font-semibold text-foreground">
-                  {currentUser?.name || (loadingCurrentUser ? '正在识别云效用户…' : '未识别到用户')}
+                  {currentUser?.name || (loadingCurrentUser ? '正在识别云效用户…' : settings?.hasPat ? '未识别到用户' : '待配置访问令牌')}
                 </span>
                 {currentUser && (
                   <Badge variant="secondary" className="h-4.5 px-1.5 text-[10px] font-mono text-muted-foreground">
@@ -205,7 +209,7 @@ export function ConnectionSection() {
                 ) : settings?.hasPat ? (
                   '已通过个人访问令牌 (PAT) 认证'
                 ) : (
-                  '请先保存个人访问令牌以识别用户身份'
+                  '在上方保存个人访问令牌后，将自动识别账号身份并激活高亮规则'
                 )}
               </span>
             </div>

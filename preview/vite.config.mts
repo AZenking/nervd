@@ -23,6 +23,19 @@ export default defineConfig({
         return null;
       },
     },
+    {
+      name: 'preview-logo-resolver',
+      enforce: 'pre',
+      transform(code, id) {
+        if ((id.endsWith('.tsx') || id.endsWith('.ts')) && code.includes('"/nervd-logo.png"')) {
+          return {
+            code: code.replaceAll('"/nervd-logo.png"', '"./nervd-logo.png"'),
+            map: null,
+          };
+        }
+        return null;
+      },
+    },
     react(),
     tailwindcss(),
   ],
