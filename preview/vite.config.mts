@@ -10,6 +10,7 @@ const previewRoot = path.dirname(fileURLToPath(import.meta.url));
 // 浏览器内直接渲染 Shell（无需 Tauri IPC）
 export default defineConfig({
   root: previewRoot,
+  publicDir: path.resolve(previewRoot, '../public'),
   plugins: [
     {
       name: 'preview-api-mock',

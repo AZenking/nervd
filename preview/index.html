@@ -1,12 +1,142 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/nervd-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>nervd · 新 UI 预览（mock）</title>
+    <script>
+      window.__NERVD_START_TIME__ = Date.now();
+      try {
+        var theme = localStorage.getItem('nervd-theme') || 'dark';
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (e) {}
+    </script>
+    <style>
+      :root {
+        --splash-bg: #ffffff;
+        --splash-card-bg: #ffffff;
+        --splash-border: rgba(0, 0, 0, 0.08);
+        --splash-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.12), 0 0 32px -4px rgba(94, 106, 210, 0.18);
+        --splash-primary: #5e6ad2;
+      }
+
+      html.dark {
+        --splash-bg: #121215;
+        --splash-card-bg: #18181c;
+        --splash-border: rgba(255, 255, 255, 0.08);
+        --splash-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.5), 0 0 32px -4px rgba(94, 106, 210, 0.25);
+        --splash-primary: #5e6ad2;
+      }
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background-color: var(--splash-bg);
+        overflow: hidden;
+      }
+
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--splash-bg);
+        opacity: 1;
+        transform: scale(1);
+        transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                    visibility 0.45s;
+        pointer-events: auto;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      #app-splash.fade-out {
+        opacity: 0;
+        transform: scale(0.96);
+        pointer-events: none;
+        visibility: hidden;
+      }
+
+      .splash-card {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 76px;
+        height: 76px;
+        border-radius: 18px;
+        background-color: var(--splash-card-bg);
+        box-shadow: var(--splash-shadow);
+        border: 1px solid var(--splash-border);
+        overflow: hidden;
+        animation: splash-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      .splash-logo {
+        width: 100%;
+        height: 100%;
+        border-radius: 18px;
+        object-fit: cover;
+        display: block;
+      }
+
+      .splash-loader-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent 0%, var(--splash-primary) 50%, transparent 100%);
+        background-size: 200% 100%;
+        animation: splash-shimmer 1.5s ease-in-out infinite;
+      }
+
+      @keyframes splash-pulse {
+        0%, 100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(0.985);
+          opacity: 0.94;
+        }
+      }
+
+      @keyframes splash-shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="app-splash" role="status" aria-label="正在加载 nervd...">
+      <div class="splash-card">
+        <img
+          src="/nervd-logo.png"
+          alt="nervd logo"
+          class="splash-logo"
+          fetchpriority="high"
+          loading="eager"
+        />
+        <div class="splash-loader-bar" aria-hidden="true"></div>
+      </div>
+    </div>
     <script type="module" src="./main.tsx"></script>
   </body>
 </html>
