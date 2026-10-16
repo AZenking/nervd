@@ -17,6 +17,12 @@ dist-ssr
 preview/dist
 *.tsbuildinfo
 
+# Test artifacts（playwright / vitest）
+.playwright-browsers/
+test-results/
+playwright-report/
+blob-report/
+
 # Rust & Tauri builds
 target/
 src-tauri/target/

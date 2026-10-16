@@ -3,6 +3,22 @@
 > 目标读者：为 nervd 编写功能测试用例 / E2E 测试的工程师与 Agent。
 > 本文回答两个问题：**① 按功能怎么拆测试用例；② 在这个 Tauri 项目里 E2E 怎么落地。**
 
+## ✅ 实施状态（2026-10-16）
+
+本文方案已落地为可运行基建：
+
+```bash
+./scripts/test.sh            # 单测(vitest) + E2E(playwright) 一键全跑
+./scripts/test.sh --unit     # 仅单元测试（13 条）
+./scripts/test.sh --e2e      # 仅 E2E（13 条，自动拉起 preview mock 模式）
+pnpm test:e2e:browsers       # 首次执行前安装 chromium 到 .playwright-browsers/
+```
+
+- **单元层**：`vitest.config.ts` + `src/lib/link.test.ts` + `src/store/app.test.ts`（乐观更新回滚闭环）
+- **E2E 层**：`playwright.config.ts`（浏览器固定装在 `.playwright-browsers/`，不写系统缓存）+ `e2e/` 下 5 个 spec 13 条用例，全部映射 §4 用例 ID
+- **可控 mock**：`preview/api-mock.ts` 内建 `__nervd_mock` 协议（`fail` / `delay` / `callsOf` / `reset`）
+- **质量门禁**：`scripts/verify.sh` 第 2 步已加入 vitest；E2E 走 `scripts/test.sh`（需要浏览器二进制，不进默认门禁）
+
 ---
 
 ## 1. 方法论：从「功能规约」到「测试用例」
@@ -86,77 +102,85 @@ Then: data-active 行从第 1 行移到第 4 行，页面滚动跟随
 
 因此 Playwright 只需 `webServer` 拉起 `pnpm preview:dev`，即可获得：**确定性数据、零真实云效网络、毫秒级启动、CI 友好**。这一层覆盖 L3 全部用例。
 
-### 3.2 把静态 mock 升级为「可控 mock」
+### 3.2 把静态 mock 升级为「可控 mock」（已实现）
 
-`preview/api-mock.ts` 目前是静态实现。E2E 需要三种控制能力：**注入失败**（测回滚）、**注入延迟**（测乐观即时呈现 / 骨架屏）、**记录调用**（测门控负向）。在文件顶部追加统一包装器，命令名与 `src/lib/api.ts` 中的真实 invoke 名保持一致（顺带成为 IPC 契约的回归检查）：
+`preview/api-mock.ts` 顶部内建 `gate()` 包装器，挂在各导出函数首行：记录调用 → 附加延迟 → 注入一次性失败。命令名与 `src/lib/api.ts` 的真实 invoke 名保持一致（顺带成为 IPC 契约的回归检查）：
 
 ```ts
-// preview/api-mock.ts —— 可控 mock 协议（追加）
-const mockState = {
-  calls: [] as Array<{ cmd: string; args: unknown[]; at: number }>,
-  failures: new Map<string, string>(),   // cmd -> 错误信息（一次性）
-  delays: new Map<string, number>(),     // cmd -> 附加延迟 ms
-};
-
-function tracked<A extends unknown[], R>(cmd: string, fn: (...args: A) => Promise<R>) {
-  return async (...args: A): Promise<R> => {
-    mockState.calls.push({ cmd, args, at: Date.now() });
-    const ms = mockState.delays.get(cmd);
-    if (ms) await new Promise((r) => setTimeout(r, ms));
-    const message = mockState.failures.get(cmd);
-    if (message != null) { mockState.failures.delete(cmd); throw new Error(message); }
-    return fn(...args);
-  };
+// preview/api-mock.ts（已实现，节选）
+async function gate(cmd: string, args: unknown[] = []): Promise<void> {
+  mockCalls.push({ cmd, args, at: Date.now() });
+  const ms = mockDelays.get(cmd);
+  if (ms) await sleep(ms);
+  const message = mockFailures.get(cmd);
+  if (message != null) { mockFailures.delete(cmd); throw new Error(message); }
 }
 
 (window as any).__nervd_mock = {
-  fail(cmd: string, message = `mock: ${cmd} failed`) { mockState.failures.set(cmd, message); },
-  delay(cmd: string, ms: number) { mockState.delays.set(cmd, ms); },
-  callsOf(cmd: string) { return mockState.calls.filter((c) => c.cmd === cmd); },
-  reset() { mockState.calls = []; mockState.failures.clear(); mockState.delays.clear(); },
+  fail(cmd, message) { ... },   // 注入一次性失败（乐观回滚用例）
+  delay(cmd, ms) { ... },       // 注入延迟（乐观即时呈现 / 骨架屏）
+  callsOf(cmd) { ... },         // 读取调用记录（只读门控负向断言）
+  reset() { ... },
 };
+
+// 各导出函数首行挂 gate（在既有 sleep 与状态变更之前，保证失败先于副作用抛出）：
+export async function updateWorkitem(workitemId: string, update: {...}): Promise<unknown> {
+  await gate('update_workitem', [workitemId, update]);
+  // …原有静态实现
+}
 ```
 
-然后把需要控制的导出函数改为包装（示例）：
+### 3.3 选择器策略（已落地）
 
-```ts
-const _updateWorkitem = async (workitemId: string, patch: WorkitemPatch) => { /* 原静态实现 */ };
-export const updateWorkitem = tracked('update_workitem', _updateWorkitem);
+关键交互点已补齐 `data-testid`（组件文件非冻结契约，允许改动）：
+
+| testid | 位置 | 用途 |
+|---|---|---|
+| `workitem-row`（+ `data-identifier`） | IterationView 列表行 | 行定位 / 光标断言 |
+| `split-master` / `split-detail` | 分栏左右容器 | 分栏开合断言 |
+| `floating-batch-bar` / `batch-bar-count` | 浮动批量条 | 多选状态断言 |
+| `row-status-trigger`（+ `data-status`） | 行首状态下拉 | 乐观更新断言 |
+| `child-row`（+ `data-identifier`） | 子任务行 | 钻取入口 |
+| `pagination-info` | 列表底部分页统计 | 翻页 / backfill 断言 |
+| `write-op-button` / `write-op-gated` | WriteOpButton 只读态 | 门控断言 |
+
+配套约定：
+
+1. 结构性锚点直接用语义选择器：`section[aria-label="迭代工作项"]`、行 `data-active`、组头 `aria-expanded`、Toast `[data-slot="toast"]`。
+2. **store 断言兜底**：`window.__nervd_ui.getState().view`（视图切换）、`__nervd_app.getState().detail`（分栏联动）。注意 `useBatchSelection` 的多选是组件局部 state，**必须**走 DOM 断言（浮动条计数）。
+3. 两个实战教训（写新用例必读）：
+   - 分栏打开时 `data-active` 会同时命中**光标行 + 选中行**两行（设计如此），联动断言请走 store 或按 `data-identifier` 钉行；
+   - 状态流转会让行**移入新分组**（列表重排），乐观更新断言必须按 `data-identifier` 钉住行，不能跟随光标。
+
+### 3.4 Playwright 配置与文件组织（已落地）
+
 ```
-
-### 3.3 选择器策略（现状：全库无 data-testid）
-
-当前代码可用的语义锚点：`section[aria-label="迭代工作项"]`、行 `button[data-active=true]`（光标行）、组头 `aria-expanded`、`aria-label="刷新"`。三层策略：
-
-1. **首批 PR 给关键交互点补 `data-testid`**（组件文件不是冻结契约，允许改动）：`workitem-row`（含 `data-identifier`）、`split-detail`、`floating-batch-bar`、`row-status-trigger`、`toast`、`pagination-info`、`child-row`、`batch-bar-count`。
-2. 结构性锚点直接用语义选择器（上列 aria 属性）。
-3. **store 断言兜底**：视图/选中态等可用 `page.evaluate(() => window.__nervd_ui.getState().view)` 直接读，注意 `useBatchSelection` 的多选是组件局部 state，**必须**走 DOM 断言（浮动条计数）。
-
-### 3.4 Playwright 配置与 Page Object
-
-```
+playwright.config.ts        # 根配置：webServer 拉起 preview:dev @1423，浏览器装在 .playwright-browsers/
+vitest.config.ts            # 单测配置：jsdom + @ alias
 e2e/
-  playwright.config.ts
-  fixtures.ts          # openApp / activeRow 等公共 fixture
-  iteration.spec.ts    # 迭代工作台（导航/多选/翻页/Esc/乐观/门控）
-  shell-nav.spec.ts    # g 序列 / ⌘K / ?
-  settings.spec.ts     # 自动保存 / 只读徽标
+  fixtures.ts               # app 就绪 fixture（等第 1 页填满稳态）+ 选择器/store/mock 助手
+  iteration-workbench.spec.ts   # IT-001/003/004/005/006（分组、光标、分栏联动、多选、翻页补拉）
+  esc-hierarchy.spec.ts         # GL-003（Esc 阶梯：浮层→多选→钻取→分栏）
+  optimistic-status.spec.ts     # IT-007/008（乐观即时呈现、失败回滚）
+  readonly-gating.spec.ts       # IT-009（只读门控负向断言）
+  shell-nav.spec.ts             # GL-001/002（g 序列、⌘K 让路、? 面板）
+src/lib/link.test.ts            # L1：追溯规则纯函数
+src/store/app.test.ts           # L2：乐观更新回滚闭环
+scripts/test.sh                 # 测试入口（--unit / --e2e / 默认全跑）
 ```
 
+关键配置（`playwright.config.ts`）：
+
 ```ts
-// e2e/playwright.config.ts
-import { defineConfig } from '@playwright/test';
+process.env.PLAYWRIGHT_BROWSERS_PATH ??= path.resolve('.playwright-browsers'); // 沙箱/CI 友好
 
 export default defineConfig({
-  testDir: '.',
-  timeout: 15_000,
-  fullyParallel: true,
+  testDir: './e2e',
   use: { baseURL: 'http://localhost:1423' },
   webServer: {
     command: 'pnpm preview:dev',
     url: 'http://localhost:1423',
     reuseExistingServer: !process.env.CI,   // 本地复用，CI 内独占
-    timeout: 30_000,
   },
 });
 ```
@@ -223,7 +247,9 @@ export const activeRow = (page: Page) => page.locator(`${LIST} button[data-activ
 
 ---
 
-## 5. 示例 Spec（可直接抄）
+## 5. Spec 实例（已落地于 `e2e/`，以下为演进版示例）
+
+> 下面代码与仓库内实际 spec 同源；实际版本以 `e2e/*.spec.ts` 为准（含按 `data-identifier` 钉行等实战修正）。
 
 ### 5.1 Esc 阶梯退回（GL-003，最能体现"按功能写用例"）
 
@@ -354,19 +380,23 @@ macOS 下 `browserName: 'safari'`，Linux `'wry'`，Windows 走 Edge Chromium �
 
 ---
 
-## 7. 落地路线（注意冻结契约）
+## 7. 落地路线（冻结契约注意事项）
 
-> `package.json` / `pnpm-lock.yaml` / `vite.config.ts` / `tsconfig.json` 为冻结契约（`AGENTS.md` §6.2，`scripts/verify.sh` 会硬性校验）。**引入任何测试依赖前必须先做架构决策解锁。**
+> `package.json` / `pnpm-lock.yaml` / `vite.config.ts` / `tsconfig.json` 为冻结契约（`AGENTS.md` §6.2，`scripts/verify.sh` 会硬性校验）。
 
-| 步骤 | 内容 | 涉及文件 |
+**当前状态（2026-10-16）：步骤 0–4 已完成。** `package.json` / `pnpm-lock.yaml` 的变更（新增 `@playwright/test`、`vitest`、`jsdom` 三个 devDependencies 与 `test*` 脚本）已获授权落地，但**在持有者 review 并 commit 之前，`verify.sh` 第 4 步冻结契约门禁会持续报告这两个文件**——这是门禁的设计行为，commit 后自动恢复。
+
+| 步骤 | 内容 | 状态 |
 |---|---|---|
-| 0 | 架构决策：解锁 `package.json`，新增 devDeps `@playwright/test`、`vitest`、`jsdom`、`@testing-library/react` | package.json（需解冻） |
-| 1 | 补关键交互点 `data-testid`；`preview/api-mock.ts` 升级 `tracked` 协议 | 组件 + preview（非冻结） |
-| 2 | 建 `e2e/` 目录 + config + fixtures + 首批 P0 用例（§4 表） | 新增目录 |
-| 3 | Vitest 层：`src/lib` 纯函数 + `src/store/app` 乐观逻辑 | 新增 `*.test.ts` |
-| 4 | 门禁：`scripts/verify.sh` 追加 `pnpm exec playwright test`（或独立 `scripts/test.sh`） | scripts/ |
+| 0 | 解锁 `package.json`，新增 devDeps `@playwright/test`、`vitest`、`jsdom` | ✅ 已完成（待 commit 基线化） |
+| 1 | 补关键交互点 `data-testid`；`preview/api-mock.ts` 升级 `gate` 协议 | ✅ 已完成 |
+| 2 | 建 `e2e/` 目录 + config + fixtures + 首批 P0 用例（§4 表） | ✅ 13 条全绿 |
+| 3 | Vitest 层：`src/lib` 纯函数 + `src/store/app` 乐观逻辑 | ✅ 13 条全绿 |
+| 4 | 门禁：`scripts/verify.sh` 追加 vitest；独立 `scripts/test.sh` 承载 e2e | ✅ 已完成 |
 
 **DoD**：P0 用例全绿进 PR 门禁；每条用例标题携带规约 ID（如 `GL-003`）保证可回溯；新功能合入必须附带对应用例，否则门禁不放行。
+
+**后续待补（P1）**：设置自动保存防抖（ST-001）、集成分支零写操作负向（IB-003）、总览 Peek 抽屉（OV-001）、子任务行内创建（RD-002）。
 
 ## 8. 可选增强
 

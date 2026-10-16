@@ -55,6 +55,8 @@ export function WorkitemStatusDropdown({
       return (
         <DropdownMenuTrigger
           onClick={(e) => e.stopPropagation()}
+          data-testid="row-status-trigger"
+          data-status={status || ''}
           className={cn(
             'flex size-6 shrink-0 items-center justify-center rounded-sm transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer',
             className,

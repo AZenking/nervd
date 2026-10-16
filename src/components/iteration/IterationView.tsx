@@ -391,6 +391,8 @@ export function IterationView() {
                           else rowRefs.current.delete(rowId);
                         }}
                         data-active={isActive}
+                        data-testid="workitem-row"
+                        data-identifier={item.identifier ?? ''}
                         onClick={() => {
                           applyCursor(flatIndexById.get(rowId) ?? 0);
                           openDetail(item);
@@ -492,7 +494,7 @@ export function IterationView() {
         {/* 底部数量统计与分页器 */}
         {filtered.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
-            <span className="text-[11px] text-muted-foreground">
+            <span data-testid="pagination-info" className="text-[11px] text-muted-foreground">
               共 {filtered.length} 项
               {totalPages > 1 && !isMasterColumn && `（第 ${(pageIndex - 1) * PAGE_SIZE + 1} - ${Math.min(pageIndex * PAGE_SIZE, filtered.length)} 项）`}
             </span>
@@ -592,7 +594,7 @@ export function IterationView() {
     return (
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-background">
         {/* 左侧 Master 列表列 */}
-        <aside className="flex flex-col w-[360px] md:w-[380px] lg:w-[420px] shrink-0 border-r border-border/70 h-full min-h-0 bg-background">
+        <aside data-testid="split-master" className="flex flex-col w-[360px] md:w-[380px] lg:w-[420px] shrink-0 border-r border-border/70 h-full min-h-0 bg-background">
           <header data-tauri-drag-region className="shrink-0 border-b border-border/70 bg-background px-3.5 pt-7 pb-2.5 flex flex-col gap-2">
             <div className="flex min-h-8 items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -657,7 +659,7 @@ export function IterationView() {
         </aside>
 
         {/* 右侧 Detail 详情区 */}
-        <main className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden bg-background">
+        <main data-testid="split-detail" className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden bg-background">
           <div className="flex-1 min-h-0 overflow-y-auto">
             <RequirementDetails
               embedded

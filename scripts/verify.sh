@@ -8,20 +8,23 @@ cd "$(dirname "$0")/.."
 
 fail() { echo "❌ $1" >&2; exit 1; }
 
-echo "== 1/4 TypeScript 类型检查 =="
+echo "== 1/5 TypeScript 类型检查 =="
 pnpm exec tsc --noEmit || fail "tsc 报错"
 
-echo "== 2/4 Rust cargo check =="
+echo "== 2/5 单元测试 (vitest) =="
+pnpm exec vitest run || fail "vitest 失败"
+
+echo "== 3/5 Rust cargo check =="
 (cd src-tauri && cargo check -q 2>&1 | tail -20) || fail "cargo check 报错"
 
-echo "== 3/4 契约符合性抽查 =="
+echo "== 4/5 契约符合性抽查 =="
 # 冻结文件不得被任务改动（相对当前分支 HEAD）
 if ! git diff --quiet HEAD -- src/types.ts docs/ipc-contract.md package.json pnpm-lock.yaml vite.config.ts tsconfig.json tsconfig.node.json; then
   fail "冻结文件被修改: $(git diff --name-only HEAD -- src/types.ts docs/ipc-contract.md package.json pnpm-lock.yaml vite.config.ts tsconfig.json tsconfig.node.json | tr '\n' ' ')"
 fi
 echo "   冻结文件完好"
 
-echo "== 4/4 关键产物存在性 =="
+echo "== 5/5 关键产物存在性 =="
 for f in src-tauri/src/yunxiao.rs src-tauri/src/commands/mod.rs src-tauri/src/credentials.rs src-tauri/src/poller.rs \
          src/lib/api.ts src/lib/link.ts src/store/app.ts \
          src/App.tsx src/main.tsx src/styles/theme.css; do

@@ -56,13 +56,14 @@ const items: WorkitemRow[] = [
 const iterations: IterationSummary[] = Array.from({ length: 9 }, (_, i) => {
   const start = new Date(2026, 6, 2 + i * 14);
   const end = new Date(2026, 6, 12 + i * 14);
-  const now = new Date();
   const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // 状态固定（不随墙钟变化）：保证 preview 演示与 e2e 断言确定性——
+  // sprint-107「进行中」恒为默认迭代（Benz-20261416），sprint-108「未开始」
   return {
     id: `sprint-${100 + i}`,
     name: `Benz-2026${String(7 + i).padStart(2, '0')}16`,
     title: `演示迭代 #${100 + i}`,
-    state: end < now ? '已结束' : start <= now ? '进行中' : '未开始',
+    state: i === 7 ? '进行中' : i === 8 ? '未开始' : '已结束',
     startDate: fmt(start),
     endDate: fmt(end),
   };
@@ -82,11 +83,22 @@ const generatedRows = new Map<string, WorkitemRow>();
 
 const sprintIds = iterations.map((it) => it.id);
 
+/** 纯数字编号行（真实云效编号形态）：驱动集成分支视图「关联需求」可点击链路（linkPattern 捕获组为纯数字） */
+const numericRow: WorkitemRow = {
+  identifier: '2098', workitemId: 'wi-2098', subject: '集成分支联调需求', status: '开发中',
+  category: 'Req', assignedTo: '林默', spaceName: '平台工程',
+  sprintId: sprintIds[7], sprintName: iterations.find((it) => it.id === sprintIds[7])?.name,
+  updatedAt: '2026-10-09 10:00',
+};
+generatedRows.set(numericRow.workitemId, numericRow);
+
 function generatedPage(category: Category, page: number, perPage: number): WorkitemRow[] {
   return Array.from({ length: perPage }, (_, i) => {
     const n = (page - 1) * perPage + i;
     const prefix = category === 'Req' ? 'REQ' : category === 'Bug' ? 'BUG' : 'TASK';
-    const sprintId = n % 13 === 0 ? '' : sprintIds[n % 9];
+    // 3/4 行归入默认迭代 sprint-107（每批约 +9 条，累计必然跨过 30 条分页线，
+    // 驱动 30/页视图分页与补拉演示），1/4 按序轮转分布到各迭代；n%13 留空模拟未分配迭代
+    const sprintId = n % 13 === 0 ? '' : n % 4 === 3 ? sprintIds[n % 9] : sprintIds[7];
     const row: WorkitemRow = {
       identifier: `${prefix}-${2100 - n}`,
       workitemId: `wi-${prefix.toLowerCase()}-${2100 - n}`,
@@ -131,8 +143,38 @@ const pipelines = [
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const mockJenkinsLogOffsets = new Map<string, number>();
 
-export async function getSettings(): Promise<SettingsView> { return { ...settings }; }
+// ---- 可控 mock 协议（e2e 测试注入窗口，docs/e2e-testing.md §3.2）----
+// gate() 挂在各导出函数首行：记录调用 → 附加延迟 → 注入一次性失败。
+// 命令名与 src/lib/api.ts 的 invoke 名保持一致，可兼作 IPC 契约回归。
+interface MockCallRecord { cmd: string; args: unknown[]; at: number }
+const mockCalls: MockCallRecord[] = [];
+const mockFailures = new Map<string, string>();
+const mockDelays = new Map<string, number>();
+
+async function gate(cmd: string, args: unknown[] = []): Promise<void> {
+  mockCalls.push({ cmd, args, at: Date.now() });
+  const ms = mockDelays.get(cmd);
+  if (ms) await sleep(ms);
+  const message = mockFailures.get(cmd);
+  if (message != null) {
+    mockFailures.delete(cmd);
+    throw new Error(message);
+  }
+}
+
+(window as unknown as { __nervd_mock?: unknown }).__nervd_mock = {
+  /** 注入一次性失败：cmd 下一次调用抛错（乐观回滚用例） */
+  fail(cmd: string, message = `mock: ${cmd} failed`) { mockFailures.set(cmd, message); },
+  /** 注入延迟：验证乐观即时呈现 / 骨架屏 */
+  delay(cmd: string, ms: number) { mockDelays.set(cmd, ms); },
+  /** 读取调用记录（只读门控负向断言） */
+  callsOf(cmd: string) { return mockCalls.filter((c) => c.cmd === cmd); },
+  reset() { mockCalls.length = 0; mockFailures.clear(); mockDelays.clear(); },
+};
+
+export async function getSettings(): Promise<SettingsView> { await gate('get_settings'); return { ...settings }; }
 export async function saveSettings(s: Settings): Promise<SettingsView> {
+  await gate('save_settings', [s]);
   Object.assign(settings, s, {
     branchRuleTemplates: s.branchRuleTemplates ?? [],
     workitemRepoBranchTemplates: s.workitemRepoBranchTemplates ?? {},
@@ -140,6 +182,7 @@ export async function saveSettings(s: Settings): Promise<SettingsView> {
   return { ...settings };
 }
 export async function saveWorkitemRepos(workitemId: string, repoIds: number[] | null): Promise<SettingsView> {
+  await gate('save_workitem_repos', [workitemId, repoIds]);
   if (repoIds == null) {
     delete settings.workitemRepos[workitemId];
     delete settings.workitemRepoBranchTemplates[workitemId];
@@ -153,6 +196,7 @@ export async function saveWorkitemRepos(workitemId: string, repoIds: number[] | 
   return { ...settings };
 }
 export async function saveBranchRuleTemplates(templates: BranchRuleTemplate[]): Promise<SettingsView> {
+  await gate('save_branch_rule_templates', [templates]);
   await sleep(150);
   const ids = new Set(templates.map((template) => template.id));
   settings.branchRuleTemplates = templates.map((template) => ({ ...template }));
@@ -168,6 +212,7 @@ export async function saveWorkitemRepoBranchTemplate(
   repoId: number,
   templateId: string | null,
 ): Promise<SettingsView> {
+  await gate('save_workitem_repo_branch_template', [workitemId, repoId, templateId]);
   await sleep(120);
   if (!workitemId.trim() || repoId <= 0) throw new Error('需求 ID 或仓库 ID 无效');
   if (templateId && !settings.branchRuleTemplates.some((template) => template.id === templateId)) {
@@ -181,13 +226,14 @@ export async function saveWorkitemRepoBranchTemplate(
   return { ...settings };
 }
 export async function saveRepoCiBinding(repoId: number, binding: RepoCiBinding | null): Promise<SettingsView> {
+  await gate('save_repo_ci_binding', [repoId, binding]);
   await sleep(120);
   if (binding) settings.repoCiBindings[String(repoId)] = binding;
   else delete settings.repoCiBindings[String(repoId)];
   return { ...settings };
 }
-export async function savePat(): Promise<boolean> { return true; }
-export async function deletePat(): Promise<boolean> { return true; }
+export async function savePat(): Promise<boolean> { await gate('save_pat'); return true; }
+export async function deletePat(): Promise<boolean> { await gate('delete_pat'); return true; }
 export async function checkConnection(): Promise<OrgSummary[]> {
   await sleep(300);
   return [{ organizationId: settings.organizationId, organizationName: '演示组织' }];
@@ -203,14 +249,17 @@ export async function listIterations(): Promise<IterationSummary[]> {
 export async function listWorkitems(p: {
   category: Category; nextToken?: string; sprintId?: string;
 }): Promise<WorkitemPage & { items: WorkitemRow[] }> {
+  await gate('list_workitems', [p]);
   await sleep(350);
   const category = p.category ?? 'Req';
   const perPage = 12;
-  const total = 57; // 5 页（12×4 + 9），驱动滚动加载演示
+  const total = 300; // 大数据量：驱动 30/页视图分页 + 跨接口页补拉（backfill）演示
   const page = Math.max(1, Number(p.nextToken) || 1);
   const start = (page - 1) * perPage;
   if (start >= total) return { items: [], nextToken: null };
-  const rows = generatedPage(category, page, Math.min(perPage, total - start));
+  const rows = page === 1
+    ? [numericRow, ...generatedPage(category, page, Math.min(perPage, total - start))]
+    : generatedPage(category, page, Math.min(perPage, total - start));
   return { items: rows, nextToken: start + perPage < total ? String(page + 1) : null };
 }
 const mockSubtaskStatuses: WorkitemStatusOption[] = [
@@ -229,6 +278,7 @@ const mockChildren: Record<string, WorkitemChild[]> = {
 };
 
 export async function getWorkitem(workitemId: string): Promise<Record<string, unknown>> {
+  await gate('get_workitem', [workitemId]);
   const allChildren = Object.values(mockChildren).flat();
   const child = allChildren.find((c) => c.workitemId === workitemId);
   if (child) {
@@ -273,6 +323,7 @@ export async function listWorkitemChildren(workitemId: string) {
   return { items: (mockChildren[workitemId] ?? []).map((child) => ({ ...child })), rawSample: '' };
 }
 export async function getWorkitemWorkflowStatuses(): Promise<WorkitemStatusOption[]> {
+  await gate('get_workitem_workflow_statuses');
   await sleep(100);
   return mockSubtaskStatuses;
 }
@@ -280,6 +331,7 @@ export async function updateWorkitem(
   workitemId: string,
   update: { subject?: string; statusId?: string; description?: string; formatType?: string },
 ): Promise<unknown> {
+  await gate('update_workitem', [workitemId, update]);
   const child = Object.values(mockChildren).flat().find((item) => item.workitemId === workitemId);
   if (child) {
     if (update.subject) child.subject = update.subject;
@@ -302,6 +354,7 @@ export async function createWorkitemComment(
   content: string,
   _formatType?: string,
 ): Promise<unknown> {
+  await gate('create_workitem_comment', [_workitemId, content, _formatType]);
   mockCommentsStore.unshift({
     author: { name: '当前用户' },
     createdAt: '刚刚',
@@ -325,6 +378,7 @@ export async function createWorkitemChild(
   parentWorkitemId: string,
   p: { subject: string; workitemTypeId: string; assignedTo?: string },
 ): Promise<WorkitemChild> {
+  await gate('create_workitem_child', [parentWorkitemId, p]);
   await sleep(400);
   if (!mockChildren[parentWorkitemId]) mockChildren[parentWorkitemId] = [];
   mockChildSeq += 1;
@@ -350,8 +404,8 @@ export async function listRepos(search?: string, page = 1): Promise<typeof repos
   const start = (Math.max(1, page) - 1) * REPO_PAGE_SIZE;
   return filtered.slice(start, start + REPO_PAGE_SIZE);
 }
-export async function saveJenkinsToken(): Promise<boolean> { return true; }
-export async function deleteJenkinsToken(): Promise<boolean> { return true; }
+export async function saveJenkinsToken(): Promise<boolean> { await gate('save_jenkins_token'); return true; }
+export async function deleteJenkinsToken(): Promise<boolean> { await gate('delete_jenkins_token'); return true; }
 export async function testJenkinsConnection(c: JenkinsConnection): Promise<string> {
   await sleep(600);
   return `连接正常：${c.baseUrl}（mock）`;
@@ -384,6 +438,7 @@ export async function triggerJenkinsJob(
   jobFullName: string,
   parameters: Record<string, string>,
 ): Promise<unknown> {
+  await gate('trigger_jenkins_job', [repoId, _connectionId, jobFullName, parameters]);
   await sleep(500);
   const previous = ciSnapshots[repoId] ?? { provider: 'jenkins' as const, name: jobFullName, runs: [] };
   const runId = String(Date.now()).slice(-5);
@@ -397,7 +452,7 @@ export async function getRepoCiSnapshot(repoId: number): Promise<RepoCiSnapshot>
   await sleep(250);
   return ciSnapshots[repoId] ?? { provider: 'flow', name: '—', runs: [] };
 }
-export async function triggerRepoCi(): Promise<unknown> { await sleep(500); return null; }
+export async function triggerRepoCi(): Promise<unknown> { await gate('trigger_repo_ci'); await sleep(500); return null; }
 export async function getRepoCiLogs(repoId: number, runId: string): Promise<string> {
   await sleep(300);
   return Array.from({ length: 24 }, (_, i) => `[mock] ${repoId}/${runId} step ${i + 1} … ok`).join('\n');
@@ -436,6 +491,7 @@ export async function listBranches(repoId: number, search?: string, page = 1, pe
     { name: 'iteration/Benz-20261016', commit: { id: 'ab12cd3', message: 'iteration baseline' } },
     { name: 'release/Benz-20261016', commit: { id: 'r16ab01', message: 'chore: release Benz-20261016 build', committedDate: '2026-10-13T18:20:00Z' } },
     { name: 'integration/joint-debug-1014', commit: { id: 'jd41f02', message: 'chore: joint debug merge', committedDate: '2026-10-14T09:30:00Z' } },
+    { name: 'temp/REQ-2098-hotfix', commit: { id: 'h2098f1', message: 'fix: 2098 hotfix', committedDate: '2026-10-11T09:00:00Z' } },
   ] : repoId === 102 ? [
     { name: 'feature/REQ-2048-core', commit: { id: '9988ff1' } },
     { name: 'master', commit: { id: '0000000' } },
@@ -461,6 +517,7 @@ export async function compareBranches(repoId: number, fromBranch: string, toBran
   return { commits: Array.from({ length: count }, (_, index) => ({ id: `c${seed}x${index}`, message: 'mock commit' })) };
 }
 export async function createBranch(repoId: number, branchName: string, refName: string): Promise<unknown> {
+  await gate('create_branch', [repoId, branchName, refName]);
   await sleep(400);
   const current = await listBranches(repoId);
   const branches = (current.result as BranchInfo[]) ?? [];
@@ -488,6 +545,7 @@ export async function listMergeRequests(repoId: number): Promise<unknown> {
 export async function createMergeRequest(input: {
   repoId: number; title: string; sourceBranch: string; targetBranch: string; description?: string;
 }): Promise<unknown> {
+  await gate('create_merge_request', [input]);
   await sleep(400);
   const current = await listMergeRequests(input.repoId) as { result?: MrSummary[] };
   if (current.result?.some((request) =>
@@ -505,7 +563,7 @@ export async function createMergeRequest(input: {
   createdMergeRequests[input.repoId] = [...(createdMergeRequests[input.repoId] ?? []), request];
   return request;
 }
-export async function mergeMergeRequest(): Promise<unknown> { await sleep(400); return null; }
+export async function mergeMergeRequest(): Promise<unknown> { await gate('merge_merge_request'); await sleep(400); return null; }
 export async function listPipelines(): Promise<typeof pipelines> { return pipelines; }
 export async function listPipelineRuns(pipelineId: number) {
   const p = pipelines.find((x) => x.pipelineId === pipelineId);
@@ -514,7 +572,7 @@ export async function listPipelineRuns(pipelineId: number) {
   ];
 }
 export async function getPipelineRun() { return null; }
-export async function startPipelineRun(): Promise<unknown> { await sleep(400); return null; }
+export async function startPipelineRun(): Promise<unknown> { await gate('start_pipeline_run'); await sleep(400); return null; }
 export async function stopPipelineRun(): Promise<unknown> { await sleep(400); return null; }
 export async function getJobLogs(): Promise<string> { return '[mock] job logs'; }
 export async function getCurrentUser(): Promise<CurrentYunxiaoUser> {

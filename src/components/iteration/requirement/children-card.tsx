@@ -623,6 +623,8 @@ export function ChildrenCard({
                 key={task.workitemId}
                 role="button"
                 tabIndex={0}
+                data-testid="child-row"
+                data-identifier={task.identifier ?? ''}
                 className={cn(
                   'group/row flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                   isSelected && 'bg-muted/80 ring-1 ring-primary/40',

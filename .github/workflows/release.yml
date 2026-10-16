@@ -14,6 +14,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-dmg:
     name: Build macOS DMG (${{ matrix.arch }})
@@ -21,12 +24,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            arch: aarch64
-          - os: macos-13
-            arch: x86_64
+          - arch: aarch64
+            target: aarch64-apple-darwin
+          - arch: x86_64
+            target: x86_64-apple-darwin
 
-    runs-on: ${{ matrix.os }}
+    # 全量使用 GitHub 当前活跃的 macOS Apple Silicon (arm64) Runner 池，杜绝 macos-13 停服死锁
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
@@ -42,8 +46,10 @@ jobs:
         with:
           version: 10
 
-      - name: Setup Rust
+      - name: Setup Rust with target
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
@@ -53,15 +59,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Tauri DMG
-        run: pnpm tauri build
+      - name: Build Tauri DMG (${{ matrix.target }})
+        run: pnpm tauri build --target ${{ matrix.target }}
 
       - name: Package Release Assets
         id: package
         run: |
           mkdir -p dist-assets
           VERSION=$(node -e "console.log(require('./src-tauri/tauri.conf.json').version)")
-          DMG_FILE=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" | head -n 1)
+          # 提取当前 target 对应的 dmg 产物
+          DMG_FILE=$(find src-tauri/target -name "*.dmg" -path "*/bundle/dmg/*" | head -n 1)
           if [ -f "$DMG_FILE" ]; then
             TARGET_NAME="nervd_${VERSION}_${{ matrix.arch }}.dmg"
             cp "$DMG_FILE" "dist-assets/${TARGET_NAME}"
@@ -70,7 +77,7 @@ jobs:
             cd ..
             echo "Created DMG: ${TARGET_NAME}"
           else
-            echo "Error: DMG not found in src-tauri/target/release/bundle/dmg" >&2
+            echo "Error: DMG not found in src-tauri/target" >&2
             exit 1
           fi
           ls -la dist-assets/

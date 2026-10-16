@@ -9,6 +9,21 @@ import { TooltipProvider } from '../src/components/ui/tooltip';
 
 import { useUi } from '../src/store/ui';
 import { dismissSplashScreen } from '../src/lib/splash';
+import { toast } from '../src/components/ui/toast';
+
+// zustand 单条 toast → Base UI 可堆叠 toast 队列（对齐 App.tsx 的 ToastHost，
+// 否则 preview 下 store 的 setToast（乐观更新成功/失败提示等）不会显示）
+function ToastHost() {
+  const t = useApp((s) => s.toast);
+  React.useEffect(() => {
+    if (!t) return;
+    toast.add({
+      title: t.text,
+      type: t.kind === 'ok' ? 'success' : t.kind === 'fail' ? 'error' : 'info',
+    });
+  }, [t]);
+  return <Toaster />;
+}
 
 // 预览入口：浏览器内以 mock 数据驱动新 UI（不经过 App 的 Tauri 事件监听）
 function Preview() {
@@ -32,7 +47,7 @@ function Preview() {
     <React.StrictMode>
       <TooltipProvider>
         <Shell />
-        <Toaster />
+        <ToastHost />
       </TooltipProvider>
     </React.StrictMode>
   );

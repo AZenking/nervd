@@ -69,6 +69,7 @@ export function WriteOpGatedTrigger({
             size="sm"
             variant={variant}
             aria-disabled="true"
+            data-testid="write-op-gated"
             className={READONLY_BTN_CLASS}
             onClick={handleClick}
           />
@@ -173,6 +174,7 @@ export function WriteOpButton({
             size="sm"
             variant={variant}
             aria-disabled="true"
+            data-testid="write-op-button"
             className={READONLY_BTN_CLASS}
             onClick={notifyReadonly}
           />
