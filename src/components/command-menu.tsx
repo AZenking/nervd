@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { iterationsOrFallback, useUi } from '@/store/ui';
+import { APP_VERSION } from '@/lib/app-info';
 import { StatusIcon } from './status-icon';
 
 /**
@@ -157,7 +158,7 @@ export function CommandMenu() {
         id: 'action-about',
         group: '操作',
         label: '关于 nervd',
-        hint: 'v0.1.0',
+        hint: `v${APP_VERSION}`,
         icon: <InfoIcon className="size-4" />,
         keywords: '关于 about version 版本 架构 检查更新 nervd',
         run: () => setAboutOpen(true),

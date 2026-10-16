@@ -26,6 +26,7 @@ import { BlurText } from './components/BlurText';
 import { SpotlightCard } from './components/SpotlightCard';
 import { StarBorder } from './components/StarBorder';
 import { useUi } from '../../src/store/ui';
+import { APP_VERSION } from '../../src/lib/app-info';
 
 interface LandingViewProps {
   onLaunchWorkbench: () => void;
@@ -62,7 +63,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ onLaunchWorkbench }) =
             <div className="flex items-baseline gap-2">
               <span className="font-bold text-lg tracking-tight">nervd</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-mono">
-                v0.1.0 · macOS
+                v{APP_VERSION} · macOS
               </span>
             </div>
           </div>
