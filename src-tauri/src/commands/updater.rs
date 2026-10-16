@@ -81,16 +81,27 @@ async fn fetch_latest_from_redirect(
     let release_notes = "已通过发布重定向探针获取最新版本信息。点击下载按钮获取最新安装包，或访问 Release 页面查阅变更详情。".to_string();
     let html_url = Some(format!("https://github.com/{repo}/releases/tag/{tag}"));
 
-    #[cfg(target_arch = "aarch64")]
-    let arch_keyword = "aarch64";
-    #[cfg(target_arch = "x86_64")]
-    let arch_keyword = "x86_64";
-    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
-    let arch_keyword = "aarch64";
-
+    #[cfg(target_os = "windows")]
     let download_url = Some(format!(
-        "https://github.com/{repo}/releases/download/{tag}/nervd_{latest_version}_{arch_keyword}.dmg"
+        "https://github.com/{repo}/releases/download/{tag}/nervd_{latest_version}_x64-setup.exe"
     ));
+
+    #[cfg(target_os = "macos")]
+    let download_url = {
+        #[cfg(target_arch = "aarch64")]
+        let arch_keyword = "aarch64";
+        #[cfg(target_arch = "x86_64")]
+        let arch_keyword = "x86_64";
+        #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+        let arch_keyword = "aarch64";
+
+        Some(format!(
+            "https://github.com/{repo}/releases/download/{tag}/nervd_{latest_version}_{arch_keyword}.dmg"
+        ))
+    };
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let download_url = None;
 
     Ok(UpdateCheckResult {
         has_update,
@@ -207,36 +218,56 @@ pub async fn check_for_updates(
 
         let mut download_url = None;
         if let Some(assets) = json.get("assets").and_then(Value::as_array) {
-            #[cfg(target_arch = "aarch64")]
-            let arch_keyword = "aarch64";
-            #[cfg(target_arch = "x86_64")]
-            let arch_keyword = "x86_64";
-            #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
-            let arch_keyword = "dmg";
-
-            for asset in assets {
-                if let Some(name) = asset.get("name").and_then(Value::as_str) {
-                    if (name.ends_with(".dmg") || name.ends_with(".tar.gz"))
-                        && name.contains(arch_keyword)
-                    {
-                        download_url = asset
-                            .get("browser_download_url")
-                            .and_then(Value::as_str)
-                            .map(|s| s.to_string());
-                        break;
+            #[cfg(target_os = "windows")]
+            {
+                for asset in assets {
+                    if let Some(name) = asset.get("name").and_then(Value::as_str) {
+                        if name.ends_with("-setup.exe") || name.ends_with(".exe") || name.ends_with(".msi") {
+                            download_url = asset
+                                .get("browser_download_url")
+                                .and_then(Value::as_str)
+                                .map(|s| s.to_string());
+                            if name.ends_with("-setup.exe") {
+                                break;
+                            }
+                        }
                     }
                 }
             }
 
-            if download_url.is_none() {
+            #[cfg(target_os = "macos")]
+            {
+                #[cfg(target_arch = "aarch64")]
+                let arch_keyword = "aarch64";
+                #[cfg(target_arch = "x86_64")]
+                let arch_keyword = "x86_64";
+                #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+                let arch_keyword = "dmg";
+
                 for asset in assets {
                     if let Some(name) = asset.get("name").and_then(Value::as_str) {
-                        if name.ends_with(".dmg") {
+                        if (name.ends_with(".dmg") || name.ends_with(".tar.gz"))
+                            && name.contains(arch_keyword)
+                        {
                             download_url = asset
                                 .get("browser_download_url")
                                 .and_then(Value::as_str)
                                 .map(|s| s.to_string());
                             break;
+                        }
+                    }
+                }
+
+                if download_url.is_none() {
+                    for asset in assets {
+                        if let Some(name) = asset.get("name").and_then(Value::as_str) {
+                            if name.ends_with(".dmg") {
+                                download_url = asset
+                                    .get("browser_download_url")
+                                    .and_then(Value::as_str)
+                                    .map(|s| s.to_string());
+                                break;
+                            }
                         }
                     }
                 }
@@ -276,7 +307,13 @@ pub async fn check_for_updates(
             let platform_key = "darwin-aarch64";
             #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
             let platform_key = "darwin-x86_64";
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+            let platform_key = "windows-x86_64";
+            #[cfg(not(any(
+                all(target_os = "macos", target_arch = "aarch64"),
+                all(target_os = "macos", target_arch = "x86_64"),
+                all(target_os = "windows", target_arch = "x86_64"),
+            )))]
             let platform_key = "darwin-universal";
 
             if let Some(p) = platforms.get(platform_key).and_then(Value::as_object) {

@@ -4,11 +4,11 @@
 
 # nervd
 
-**以云效需求为核心维度的一站式 CI/CD 桌面工作台（macOS 原生）**
+**以云效需求为核心维度的一站式 CI/CD 桌面工作台（macOS / Windows 原生）**
 
 [![CI Status](https://github.com/AZenking/nervd/actions/workflows/ci.yml/badge.svg)](https://github.com/AZenking/nervd/actions/workflows/ci.yml)
 [![GitHub Pages](https://img.shields.io/badge/Demo-GitHub%20Pages-5e6ad2?logo=github)](https://azenking.github.io/nervd/)
-[![macOS](https://img.shields.io/badge/Platform-macOS%20(Apple%20Silicon%20%7C%20Intel)-black?logo=apple)](https://github.com/AZenking/nervd/releases)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-5e6ad2?logo=apple)](https://github.com/AZenking/nervd/releases)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.0-24C8D8?logo=tauri&logoColor=white)](https://tauri.app)
 [![React 19](https://img.shields.io/badge/React-19.1-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -113,16 +113,19 @@ nervd 的交互体验深度对齐 Linear 标准操作心智，确保双手无需
 
 ## 🛠️ 快速上手
 
-### 方式一：下载 macOS 预编译应用（推荐）
-从 [Releases 发布页面](https://github.com/AZenking/nervd/releases) 下载最新版本的 `.dmg` 安装包，拖拽至 `Applications` 文件夹即可直接运行（支持 Apple Silicon 与 Intel 芯片）。
+### 方式一：下载桌面端预编译应用（推荐）
+从 [Releases 发布页面](https://github.com/AZenking/nervd/releases) 下载适合您操作系统的最新安装包：
 
-> [!TIP]
-> **macOS 安全提示（“已损坏，无法打开” 或 “无法验证开发者”）**：
-> 由于未购买 Apple 商业证书签名公证，首次打开若被 Gatekeeper 拦截，请在终端（Terminal）执行以下命令清除隔离属性：
-> ```bash
-> xattr -cr /Applications/nervd.app
-> ```
-> 执行后即可直接双击正常启动。
+- **macOS**：下载 `.dmg` 安装包，拖拽至 `Applications` 文件夹即可直接运行（支持 Apple Silicon 与 Intel 芯片）。
+  > [!TIP]
+  > **macOS 安全提示（“已损坏，无法打开” 或 “无法验证开发者”）**：
+  > 由于未购买 Apple 商业证书签名公证，首次打开若被 Gatekeeper 拦截，请在终端（Terminal）执行以下命令清除隔离属性：
+  > ```bash
+  > xattr -cr /Applications/nervd.app
+  > ```
+  > 执行后即可直接双击正常启动。
+
+- **Windows**：下载 `nervd_*_x64-setup.exe`（NSIS 便携安装程序）或 `.msi` 企业安装包，双击按向导完成安装。
 
 ### 方式二：在线免安装体验
 直接打开 [nervd 在线工作台](https://azenking.github.io/nervd/)，体验由静态 Mock 驱动的完整工作流。

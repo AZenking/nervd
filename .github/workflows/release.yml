@@ -18,7 +18,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-dmg:
+  build-macos:
     name: Build macOS DMG (${{ matrix.arch }})
     strategy:
       fail-fast: false
@@ -89,16 +89,100 @@ jobs:
           path: dist-assets/*
           retention-days: 7
 
+  build-windows:
+    name: Build Windows (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Rust with target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri Windows (${{ matrix.target }})
+        run: pnpm tauri build --target ${{ matrix.target }}
+
+      - name: Package Release Assets
+        id: package
+        shell: bash
+        run: |
+          mkdir -p dist-assets
+          VERSION=$(node -e "console.log(require('./src-tauri/tauri.conf.json').version)")
+          
+          # 提取 NSIS (.exe) 安装程序
+          EXE_FILE=$(find src-tauri/target -name "*.exe" -path "*/bundle/nsis/*" 2>/dev/null | head -n 1)
+          if [ -f "$EXE_FILE" ]; then
+            TARGET_EXE="nervd_${VERSION}_${{ matrix.arch }}-setup.exe"
+            cp "$EXE_FILE" "dist-assets/${TARGET_EXE}"
+            cd dist-assets
+            shasum -a 256 "${TARGET_EXE}" > "${TARGET_EXE}.sha256"
+            cd ..
+            echo "Created Windows EXE: ${TARGET_EXE}"
+          fi
+
+          # 提取 WiX (.msi) 安装包
+          MSI_FILE=$(find src-tauri/target -name "*.msi" -path "*/bundle/msi/*" 2>/dev/null | head -n 1)
+          if [ -f "$MSI_FILE" ]; then
+            TARGET_MSI="nervd_${VERSION}_${{ matrix.arch }}.msi"
+            cp "$MSI_FILE" "dist-assets/${TARGET_MSI}"
+            cd dist-assets
+            shasum -a 256 "${TARGET_MSI}" > "${TARGET_MSI}.sha256"
+            cd ..
+            echo "Created Windows MSI: ${TARGET_MSI}"
+          fi
+
+          if [ ! -f "dist-assets/nervd_${VERSION}_${{ matrix.arch }}-setup.exe" ] && [ ! -f "dist-assets/nervd_${VERSION}_${{ matrix.arch }}.msi" ]; then
+            echo "Error: No Windows installer (.exe or .msi) found" >&2
+            exit 1
+          fi
+
+          ls -la dist-assets/
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nervd-windows-${{ matrix.arch }}
+          path: dist-assets/*
+          retention-days: 7
+
   publish-release:
     name: Publish GitHub Release
-    needs: build-dmg
+    needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download all DMG artifacts
+      - name: Download all release artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-binaries
