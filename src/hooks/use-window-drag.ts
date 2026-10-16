@@ -24,35 +24,25 @@ const INTERACTIVE_SELECTOR = [
   '[data-no-drag]',
 ].join(',');
 
-/** 检查点击位置是否属于四周安全边距或已标记的拖拽区域 */
+/** 检查点击位置是否属于顶部安全拖拽区域或已标记的拖拽区域 */
 function isDraggableElement(target: HTMLElement, e: MouseEvent): boolean {
   // 1. 优先放行任何可交互元素及其子元素
   if (target.closest(INTERACTIVE_SELECTOR)) {
     return false;
   }
 
-  // 2. 明确标记为 tauri 拖拽区域（包含页头空隙、顶部 32px 占位等）
+  // 2. 明确标记为 tauri 拖拽区域（如页头空隙、侧栏顶部 32px 交通灯占位等）
   if (target.closest('[data-tauri-drag-region]')) {
     return true;
   }
 
-  // 3. 点击落在应用外层 8px 安全外边距边界（四周边缘）
-  const margin = 8;
-  if (
-    e.clientX <= margin ||
-    e.clientX >= window.innerWidth - margin ||
-    e.clientY <= margin ||
-    e.clientY >= window.innerHeight - margin
-  ) {
+  // 3. 点击落在应用最顶部 8px 边缘（macOS 无边框沉浸式窗口的顶部微缝）
+  if (e.clientY <= 8) {
     return true;
   }
 
-  // 4. 点击落在侧边栏外围包装层、间距层或容器缝隙
-  if (
-    target.getAttribute('data-slot') === 'sidebar-wrapper' ||
-    target.closest('[data-slot="sidebar-gap"]') ||
-    target.getAttribute('data-slot') === 'sidebar-container'
-  ) {
+  // 4. 点击落在侧边栏顶部最外层包装画布缝隙
+  if (target.getAttribute('data-slot') === 'sidebar-wrapper' && e.clientY <= 36) {
     return true;
   }
 

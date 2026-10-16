@@ -85,7 +85,7 @@ function ToastDescription({
   return (
     <ToastPrimitive.Description
       data-slot="toast-description"
-      className={cn("text-[13px] text-white/60", className)}
+      className={cn("text-[13px] text-white/60 whitespace-pre-line break-words", className)}
       {...props}
     />
   )
