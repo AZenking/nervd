@@ -3,3 +3,48 @@
 @import "../src/styles/theme.css";
 @source "../src/**/*.{ts,tsx}";
 @source "../*.tsx";
+@source "./landing/**/*.{ts,tsx}";
+@source "./**/*.{ts,tsx}";
+
+@keyframes shine {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes star-movement-bottom {
+  0% {
+    transform: translate(0%, 0%);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-100%, 0%);
+    opacity: 0.2;
+  }
+}
+
+@keyframes star-movement-top {
+  0% {
+    transform: translate(0%, 0%);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(100%, 0%);
+    opacity: 0.2;
+  }
+}
+
+.animate-shine {
+  animation: shine 5s linear infinite;
+}
+
+.animate-star-movement-bottom {
+  animation: star-movement-bottom 6s linear infinite alternate;
+}
+
+.animate-star-movement-top {
+  animation: star-movement-top 6s linear infinite alternate;
+}
