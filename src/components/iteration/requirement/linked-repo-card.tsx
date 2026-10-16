@@ -22,6 +22,7 @@ import { CiSummaryButton } from '@/components/ci-summary-button';
 import { BranchDivergenceCheck } from '../BranchDivergenceCheck';
 import { JenkinsBuildDialog } from '../JenkinsBuildDialog';
 import { RepositoryCiDetails } from '../RepositoryCiDetails';
+import { CreateMrDialog } from './create-mr-dialog';
 import {
   mergeRequestBranch,
   mergeRequestRows,
@@ -86,6 +87,7 @@ export function LinkedRepoCard({
   const [developerBranchState, setDeveloperBranchState] = useState<IterationBaselineCheck['state']>('loading');
   const [defaultBaseState, setDefaultBaseState] = useState<IterationBaselineCheck['state']>('loading');
   const [createdMergeRequestKey, setCreatedMergeRequestKey] = useState('');
+  const [createMrOpen, setCreateMrOpen] = useState(false);
   const mergeRequestKey = `${repo.id}:${developerBranch}->${operationBaseBranch}`;
   // 编号匹配到的其他分支超出 2 个截断，避免卡片过长
   const extraMatchedBranches = matchedBranches.filter((branch) => branch !== developerBranch);
@@ -472,7 +474,9 @@ export function LinkedRepoCard({
                 variant="outline"
                 disabled={Boolean(mergeRequestDisabledReason)}
                 disabledReason={mergeRequestDisabledReason}
-                onAction={createMergeRequest}
+                onAction={async () => {
+                  setCreateMrOpen(true);
+                }}
               />
             )}
           </div>
@@ -527,6 +531,21 @@ export function LinkedRepoCard({
       </div>
 
       <RepositoryCiDetails repo={repo} open={ciDetailsOpen} onOpenChange={setCiDetailsOpen} />
+
+      <CreateMrDialog
+        open={createMrOpen}
+        onOpenChange={setCreateMrOpen}
+        repoId={repo.id}
+        repoName={repo.pathWithNamespace || repo.name}
+        identifier={identifier}
+        subject={subject}
+        sourceBranch={developerBranch}
+        targetBranch={operationBaseBranch}
+        onSuccess={() => {
+          setCreatedMergeRequestKey(mergeRequestKey);
+          void loadTrace();
+        }}
+      />
     </div>
   );
 }

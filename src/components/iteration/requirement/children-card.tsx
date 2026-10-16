@@ -1,8 +1,11 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import {
-  BugIcon, CheckIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, ShieldCheckIcon, UserIcon,
+  BugIcon, CheckIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, ShieldCheckIcon, SparklesIcon, UserIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
+import { getAiSettings, aiBreakdownRequirement } from '@/lib/ai-api';
+import type { AiSettingsView } from '@/types/ai';
+import { AiBreakdownDialog } from './ai-breakdown-dialog';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { WorkitemChild, WorkitemTypeOption } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -148,6 +151,9 @@ export interface ChildrenCardProps {
   error?: string | null;
   debug?: string | null;
   parentWorkitemId: string;
+  parentIdentifier?: string;
+  parentSubject?: string;
+  parentDescription?: string;
   parentAssigneeId?: string;
   parentAssigneeName?: string;
   candidateAssignees?: AssigneeOption[];
@@ -168,6 +174,9 @@ export function ChildrenCard({
   error,
   debug,
   parentWorkitemId,
+  parentIdentifier,
+  parentSubject,
+  parentDescription,
   parentAssigneeId,
   parentAssigneeName,
   candidateAssignees,
@@ -194,6 +203,110 @@ export function ChildrenCard({
   const [submitting, setSubmitting] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState<AssigneeOption | null>(null);
   const [selectedSeverity, setSelectedSeverity] = useState<string>('一般');
+
+  // AI 智能拆解相关状态
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiDirectLoading, setAiDirectLoading] = useState(false);
+  const [aiSettingsCache, setAiSettingsCache] = useState<AiSettingsView | null>(null);
+
+  const handleAiBreakdown = async () => {
+    if (!allowWriteOps) {
+      toast.add({
+        title: '当前处于只读模式',
+        description: 'AI 拆解创建子任务需在「设置 → 安全」中开启写操作。',
+        type: 'warning',
+        actionProps: {
+          children: '前往设置',
+          onClick: () => openSettings('security'),
+        },
+      });
+      return;
+    }
+
+    let currentAi = aiSettingsCache;
+    try {
+      currentAi = await getAiSettings();
+      setAiSettingsCache(currentAi);
+    } catch {
+      // ignore
+    }
+
+    if (!currentAi?.hasApiKey) {
+      toast.add({
+        title: '未配置 AI API Key',
+        description: '请先在「设置 → AI 助手」中配置大模型密钥。',
+        type: 'warning',
+        actionProps: {
+          children: '前往配置',
+          onClick: () => openSettings('ai'),
+        },
+      });
+      return;
+    }
+
+    // 预拉取工作项类型
+    let availableTypes = types;
+    if (availableTypes.length === 0) {
+      try {
+        availableTypes = await api.listWorkitemTypes(isBug ? 'Bug' : 'Task');
+        setTypes(availableTypes);
+      } catch {
+        // ignore
+      }
+    }
+
+    // 模式 A：弹窗二次确认
+    if (currentAi.breakdownMode === 'review') {
+      setAiDialogOpen(true);
+      return;
+    }
+
+    // 模式 B：一键直达生成
+    setAiDirectLoading(true);
+    try {
+      const taskType = availableTypes.find((t) => /任务|Task/i.test(t.name)) || availableTypes[0];
+      const targetTypeId = taskType?.id ?? '';
+
+      const tags = currentAi.defaultBreakdownTags.length > 0
+        ? currentAi.defaultBreakdownTags
+        : ['前端', '后端', '自测'];
+
+      const generated = await aiBreakdownRequirement(
+        parentSubject || title,
+        parentDescription || '',
+        tags,
+      );
+
+      if (generated.length === 0) {
+        toast.add({ title: 'AI 未能生成有效子任务条目', type: 'warning' });
+        return;
+      }
+
+      for (const item of generated) {
+        await api.createWorkitemChild(parentWorkitemId, {
+          subject: `【${item.tag}】${item.subject.trim()}`,
+          workitemTypeId: targetTypeId,
+          assignedTo: parentAssigneeId,
+        });
+      }
+
+      await loadChildren(parentWorkitemId);
+      toast.add({
+        title: 'AI 一键拆解完成',
+        description: `已自动为 ${parentIdentifier || '当前需求'} 批量创建 ${generated.length} 个子任务`,
+        type: 'success',
+      });
+    } catch (err) {
+      errorLog('ai-direct-breakdown', err);
+      toast.add({
+        title: 'AI 一键拆解失败',
+        description: humanizeError(err),
+        type: 'error',
+      });
+    } finally {
+      setAiDirectLoading(false);
+    }
+  };
 
   const startAdding = async () => {
     if (!allowWriteOps) {
@@ -474,10 +587,29 @@ export function ChildrenCard({
         count={countBadge}
         hint={description}
         action={(
-          <Button variant="ghost" size="sm" onClick={startAdding}>
-            <PlusIcon data-icon="inline-start" />
-            新建{title}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {!isBug && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={aiDirectLoading}
+                onClick={() => void handleAiBreakdown()}
+                className="text-primary hover:text-primary hover:bg-primary/10"
+                title="根据需求描述一键智能拆解前端、后端与自测子任务"
+              >
+                {aiDirectLoading ? (
+                  <Spinner className="size-3.5 mr-1" />
+                ) : (
+                  <SparklesIcon className="size-3.5 mr-1 text-primary" />
+                )}
+                {aiDirectLoading ? 'AI 拆解生成中…' : 'AI 智能拆解'}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={startAdding}>
+              <PlusIcon data-icon="inline-start" />
+              新建{title}
+            </Button>
+          </div>
         )}
       />
 
@@ -597,6 +729,25 @@ export function ChildrenCard({
       )}
       {items.length > 0 && footnote && (
         <p className="text-xs text-muted-foreground">{footnote}</p>
+      )}
+
+      {!isBug && (
+        <AiBreakdownDialog
+          open={aiDialogOpen}
+          onOpenChange={setAiDialogOpen}
+          parentWorkitemId={parentWorkitemId}
+          parentIdentifier={parentIdentifier || ''}
+          parentSubject={parentSubject || title}
+          parentDescription={parentDescription}
+          parentAssigneeId={parentAssigneeId}
+          parentAssigneeName={parentAssigneeName}
+          candidateAssignees={candidateAssignees}
+          defaultTags={aiSettingsCache?.defaultBreakdownTags}
+          workitemTypes={types}
+          onCreated={async () => {
+            await loadChildren(parentWorkitemId);
+          }}
+        />
       )}
     </div>
   );

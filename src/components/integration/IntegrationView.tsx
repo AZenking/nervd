@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowDownIcon, ArrowUpIcon, FolderIcon, GitBranchIcon, RefreshCwIcon, SearchIcon,
+  ArrowDownIcon, ArrowUpIcon, FolderIcon, GitBranchIcon, RefreshCwIcon, SearchIcon, SparklesIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
@@ -18,6 +18,7 @@ import { SearchableSelect } from '../searchable-select';
 import { STICKY_PAGE_HEADER_CLASS } from '../page-header';
 import { EmptyHint } from '../empty-hint';
 import { WorkitemPeekDrawer } from '../workitem-peek-drawer';
+import { AiReleaseNotesDialog } from './ai-release-notes-dialog';
 
 /**
  * 集成分支视图（纯查看，零写操作）：
@@ -55,6 +56,16 @@ interface BranchRowState {
   keys: string[];
 }
 
+interface ComparisonCacheEntry {
+  baseSha: string;
+  branchSha: string;
+  ahead: number;
+  behind: number;
+}
+
+/** 分支比对结果缓存（按 repoId:base:branch 缓存，SHA 未变时跳过重复网络调用） */
+const comparisonCache = new Map<string, ComparisonCacheEntry>();
+
 /** 日期统一取 YYYY-MM-DD */const dayOf = (value?: string): string => (value ? value.slice(0, 10) : '—');
 
 export function IntegrationView() {
@@ -87,6 +98,7 @@ export function IntegrationView() {
   const [errorMessage, setErrorMessage] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [drawerWorkitemId, setDrawerWorkitemId] = useState<string | null>(null);
+  const [selectedReleaseBranch, setSelectedReleaseBranch] = useState<BranchRowState | null>(null);
 
   // 仓库选项就绪后选中第一个
   useEffect(() => {
@@ -105,7 +117,11 @@ export function IntegrationView() {
     void (async () => {
       try {
         const raw = await api.listBranches(repoId, undefined, 1, 100);
-        const matched = parseBranchList(raw)
+        const allBranches = parseBranchList(raw);
+        const baseBranch = allBranches.find((b) => b.name === debounced.base);
+        const baseSha = baseBranch?.commit?.id ?? baseBranch?.commit?.message ?? 'unknown_base';
+
+        const matched = allBranches
           .filter((branch) => matchPatterns(branch.name, debounced.patterns))
           .slice(0, MAX_BRANCHES_PER_REPO);
         const loaded = await Promise.all(matched.map(async (branch: BranchInfo): Promise<BranchRowState> => {
@@ -122,13 +138,29 @@ export function IntegrationView() {
             row.behind = 0;
             return row;
           }
+
+          const branchSha = branch.commit?.id ?? branch.commit?.message ?? 'unknown_branch';
+          const cacheKey = `${repoId}:${debounced.base}:${branch.name}`;
+          const cached = comparisonCache.get(cacheKey);
+
+          // Head-SHA 差异缓存命中：Commit SHA 与 Base SHA 均未变化时复用结果
+          if (cached && cached.baseSha === baseSha && cached.branchSha === branchSha) {
+            row.ahead = cached.ahead;
+            row.behind = cached.behind;
+            return row;
+          }
+
           try {
             const [aheadDiff, behindDiff] = await Promise.all([
               api.compareBranches(repoId, debounced.base, branch.name),
               api.compareBranches(repoId, branch.name, debounced.base),
             ]);
-            row.ahead = comparisonCommits(aheadDiff).length;
-            row.behind = comparisonCommits(behindDiff).length;
+            const ahead = comparisonCommits(aheadDiff).length;
+            const behind = comparisonCommits(behindDiff).length;
+            row.ahead = ahead;
+            row.behind = behind;
+            if (comparisonCache.size > 500) comparisonCache.clear();
+            comparisonCache.set(cacheKey, { baseSha, branchSha, ahead, behind });
           } catch {
             // 比较失败保持 null，行内以「—」呈现（不阻塞其他分支）
           }
@@ -338,6 +370,18 @@ export function IntegrationView() {
                     <span className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
                       {dayOf(row.committedDate)}
                     </span>
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-1">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        className="h-6 text-[11px] px-1.5 text-primary hover:text-primary hover:bg-primary/10"
+                        title="AI 生成此分支的发版交付报告 (Release Notes)"
+                        onClick={() => setSelectedReleaseBranch(row)}
+                      >
+                        <SparklesIcon className="size-3 mr-1 text-primary" />
+                        交付报告
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
@@ -362,6 +406,21 @@ export function IntegrationView() {
         workitemId={drawerWorkitemId}
         onClose={() => setDrawerWorkitemId(null)}
       />
+
+      {/* AI 发版交付报告 (Release Notes) 弹窗 */}
+      {selectedReleaseBranch && repoId && (
+        <AiReleaseNotesDialog
+          open={Boolean(selectedReleaseBranch)}
+          onOpenChange={(v) => {
+            if (!v) setSelectedReleaseBranch(null);
+          }}
+          repoId={repoId}
+          repoName={repoName}
+          branchName={selectedReleaseBranch.name}
+          baseBranch={debounced.base}
+          workitemKeys={selectedReleaseBranch.keys}
+        />
+      )}
     </div>
   );
 }

@@ -1,12 +1,15 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, ClockIcon, CopyIcon, DatabaseIcon,
-  ExternalLinkIcon, FolderIcon, InboxIcon, LayersIcon, MousePointerClickIcon, PlusIcon, RefreshCwIcon, UserIcon, XIcon,
+  ExternalLinkIcon, FolderIcon, GitBranchIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MousePointerClickIcon, PlusIcon, RefreshCwIcon, SparklesIcon, UserIcon, XIcon,
 } from 'lucide-react';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
 import { errorLog, humanizeError } from '@/lib/error-format';
+import { aiRecommendRepositories } from '@/lib/ai-api';
+import type { AiRepoRecommendation } from '@/types/ai';
 import type { WorkitemChild } from '@/lib/api';
+import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
@@ -16,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SearchableSelect, type SearchableSelectOption } from '../searchable-select';
 import { PageHeader, STICKY_PAGE_HEADER_CLASS } from '../page-header';
 import { AppBreadcrumb } from '../nav/app-breadcrumb';
@@ -54,9 +58,22 @@ export function RequirementDetails({
 }: RequirementDetailsProps = {}) {
   const {
     selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
-    iterations, trace, traceLoading, loadTrace,
-    saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast,
+    iterations, trace, traceLoading,
+    saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast, reloadCurrentDetail,
   } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefreshDetail = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await reloadCurrentDetail();
+      setToast({ text: '工作项已更新至最新状态', kind: 'ok' });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const { openWorkitem, chain } = useUi();
   const currentCrumb = chain[chain.length - 1];
   const parentCrumb = chain.length > 1 ? chain[0] : null;
@@ -86,6 +103,8 @@ export function RequirementDetails({
     || (parent ? 'Task' : 'Req');
 
   const isRequirement = category === 'Req';
+  const subtasks = isRequirement ? children.filter((c) => c.category !== 'Bug') : [];
+  const defects = isRequirement ? children.filter((c) => c.category === 'Bug') : [];
 
   const statusName = (typeof wi.status === 'string' && wi.status)
     || (wi.status && typeof wi.status === 'object' && typeof (wi.status as any).name === 'string' ? (wi.status as any).name : '')
@@ -114,6 +133,22 @@ export function RequirementDetails({
     || cur?.spaceName
     || '';
 
+  const spaceId = (wi.space && typeof wi.space === 'object' && typeof (wi.space as any).id === 'string' ? (wi.space as any).id : '')
+    || (wi.space && typeof wi.space === 'object' && typeof (wi.space as any).identifier === 'string' ? (wi.space as any).identifier : '')
+    || (typeof wi.spaceId === 'string' && wi.spaceId)
+    || (typeof wi.projectId === 'string' && wi.projectId)
+    || settings?.defaultSpaceIdentifier
+    || '';
+
+  const handleOpenInYunxiao = () => {
+    void openWorkitemInYunxiao({
+      workitemId: selectedId,
+      spaceIdentifier: spaceId,
+      category,
+      organizationId: settings?.organizationId,
+    });
+  };
+
   const updatedAt = (typeof wi.gmtModified === 'string' && wi.gmtModified)
     || (typeof wi.updatedAt === 'string' && wi.updatedAt)
     || childFromStore?.gmtModified
@@ -130,6 +165,9 @@ export function RequirementDetails({
   const [showAddRepo, setShowAddRepo] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
 
+  const [recommendingRepos, setRecommendingRepos] = useState(false);
+  const [recommendedRepos, setRecommendedRepos] = useState<AiRepoRecommendation[]>([]);
+
   // 子工作项/缺陷详情侧滑抽屉（Linear Peek 机制）：免刷新浏览，保留父需求完整上下文与列表焦点
   const [drawerChild, setDrawerChild] = useState<WorkitemChild | null>(null);
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
@@ -137,6 +175,7 @@ export function RequirementDetails({
   useEffect(() => {
     setDrawerChild(null);
     setActiveChildId(null);
+    setRecommendedRepos([]);
   }, [selectedId]);
 
   const copyIdentifier = () => {
@@ -289,6 +328,59 @@ export function RequirementDetails({
     })();
   };
 
+  const handleRecommendRepos = async () => {
+    if (recommendingRepos) return;
+    setRecommendingRepos(true);
+    try {
+      const unlinked = repositories.filter((r) => !effectiveRepoIds.includes(r.id));
+      const res = await aiRecommendRepositories({
+        subject,
+        description: typeof wi.description === 'string' ? wi.description : typeof wi.content === 'string' ? wi.content : '',
+        availableRepos: unlinked.map((r) => ({
+          id: r.id,
+          name: r.pathWithNamespace || r.name,
+          description: (r as any).description,
+        })),
+      });
+      setRecommendedRepos(res);
+      setShowAddRepo(true);
+      if (res.length === 0) {
+        setToast({ text: '未找到明显匹配的代码仓库，请手动选择关联', kind: 'info' });
+      } else {
+        setToast({ text: `AI 为您推荐了 ${res.length} 个相关代码仓库`, kind: 'ok' });
+      }
+    } catch (err) {
+      setToast({ text: `AI 推荐仓库失败：${humanizeError(err)}`, kind: 'fail' });
+    } finally {
+      setRecommendingRepos(false);
+    }
+  };
+
+  const handleQuickLinkRepo = async (repoId: number) => {
+    if (!selectedId || effectiveRepoIds.includes(repoId)) return;
+    const repo = repositories.find((r) => r.id === repoId);
+    if (!repo) return;
+    setSavingRepos(true);
+    let repoLinked = false;
+    try {
+      await saveWorkitemRepos(selectedId, [...effectiveRepoIds, repo.id]);
+      repoLinked = true;
+      const tId = fusedTemplates[0]?.id;
+      if (iterationId && tId) {
+        await saveWorkitemRepoBranchTemplate(selectedId, repo.id, tId);
+      }
+      setToast({ text: `已成功关联仓库 ${repo.pathWithNamespace || repo.name}`, kind: 'ok' });
+      setRecommendedRepos((prev) => prev.filter((r) => r.repoId !== repoId));
+    } catch (error) {
+      setToast({
+        text: (repoLinked ? '仓库已关联，但分支模板保存失败' : '云效仓库关联保存失败') + '：' + humanizeError(error),
+        kind: 'fail',
+      });
+    } finally {
+      setSavingRepos(false);
+    }
+  };
+
   const saveRepoTemplate = async (repoId: number, templateId: string | null) => {
     if (!selectedId) return;
     try {
@@ -353,10 +445,20 @@ export function RequirementDetails({
             <Button
               variant="ghost"
               size="icon-xs"
-              onClick={() => void loadTrace()}
-              title="刷新追溯"
+              onClick={() => void handleRefreshDetail()}
+              title="刷新当前工作项（含讨论、子任务与追溯）"
+              aria-label="刷新工作项"
             >
-              <RefreshCwIcon className={cn('size-3.5', traceLoading && 'animate-spin')} />
+              <RefreshCwIcon className={cn('size-3.5', (refreshing || traceLoading) && 'animate-spin')} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={handleOpenInYunxiao}
+              title="在云效中打开"
+              aria-label="在云效中打开"
+            >
+              <ExternalLinkIcon className="size-3.5" />
             </Button>
             {onOpenWorkbench && (
               <Button
@@ -364,8 +466,9 @@ export function RequirementDetails({
                 size="icon-xs"
                 onClick={onOpenWorkbench}
                 title="在工作台全屏打开"
+                aria-label="在工作台全屏打开"
               >
-                <ExternalLinkIcon className="size-3.5" />
+                <Maximize2Icon className="size-3.5" />
               </Button>
             )}
             {onClose && (
@@ -374,6 +477,7 @@ export function RequirementDetails({
                 size="icon-xs"
                 onClick={onClose}
                 title="关闭分栏 (Esc)"
+                aria-label="关闭分栏 (Esc)"
               >
                 <XIcon className="size-3.5" />
               </Button>
@@ -408,9 +512,22 @@ export function RequirementDetails({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => void loadTrace()}
+                onClick={handleOpenInYunxiao}
+                className="gap-1.5"
+                title="在云效中打开"
               >
-                刷新追溯
+                <ExternalLinkIcon className="size-3.5" />
+                <span>在云效中打开</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleRefreshDetail()}
+                className="gap-1.5"
+                title="刷新当前工作项（含讨论、子任务与追溯）"
+              >
+                <RefreshCwIcon className={cn('size-3.5', (refreshing || traceLoading) && 'animate-spin')} />
+                <span>刷新详情</span>
               </Button>
             </div>
           )}
@@ -550,7 +667,7 @@ export function RequirementDetails({
           <section className="flex flex-col gap-3">
             <SectionHeader title="描述" hint="来自云效的图文描述与内联附件" />
             <div className="text-sm leading-relaxed text-foreground/90">
-              <RichDescription raw={wi.description ?? wi.content} />
+              <RichDescription raw={wi.description ?? wi.content} workitemId={selectedId ?? undefined} />
             </div>
           </section>
 
@@ -582,6 +699,25 @@ export function RequirementDetails({
                     </Button>
                   )}
                   <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={recommendingRepos}
+                    onClick={() => void handleRecommendRepos()}
+                    className="h-8 text-xs text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    {recommendingRepos ? (
+                      <>
+                        <Loader2Icon className="size-3.5 mr-1 animate-spin" />
+                        AI 推荐中…
+                      </>
+                    ) : (
+                      <>
+                        <SparklesIcon className="size-3.5 mr-1" />
+                        AI 推荐仓库
+                      </>
+                    )}
+                  </Button>
+                  <Button
                     variant={showAddRepo ? 'secondary' : 'outline'}
                     size="sm"
                     onClick={() => setShowAddRepo((v) => !v)}
@@ -595,7 +731,76 @@ export function RequirementDetails({
 
             {/* 按需展开的添加仓库表单 */}
             {showAddRepo && (
-              <div className="rounded-lg border border-border/70 bg-muted/20 p-3.5">
+              <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-3.5">
+                {/* AI 推荐结果展示 */}
+                {recommendedRepos.length > 0 && (
+                  <div className="flex flex-col gap-2 pb-3 border-b border-border/60">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-primary flex items-center gap-1.5">
+                        <SparklesIcon className="size-3.5" />
+                        AI 智能推荐的相关代码仓库：
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setRecommendedRepos([])}
+                        className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        清空推荐
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {recommendedRepos.map((rec) => {
+                        const targetRepo = repositories.find((r) => r.id === rec.repoId);
+                        const repoName = targetRepo?.name
+                          || (rec.repoName.includes('/') ? rec.repoName.split('/').pop() : rec.repoName)
+                          || '未知仓库';
+                        const repoPath = targetRepo?.pathWithNamespace || rec.repoName;
+
+                        return (
+                          <div
+                            key={rec.repoId}
+                            className="flex items-start justify-between gap-3 rounded-md border border-primary/25 bg-background p-2.5 transition-colors hover:border-primary/50 shadow-2xs"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <GitBranchIcon className="size-3.5 shrink-0 text-primary" />
+                                <span className="font-semibold text-xs text-foreground tracking-tight truncate" title={repoName}>
+                                  {repoName}
+                                </span>
+                              </div>
+                              {repoPath && repoPath !== repoName && (
+                                <Tooltip>
+                                  <TooltipTrigger
+                                    render={
+                                      <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground cursor-help" />
+                                    }
+                                  >
+                                    {repoPath}
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-md break-all font-mono text-[11px]">
+                                    {repoPath}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                              <p className="mt-1.5 text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                                {rec.reason}
+                              </p>
+                            </div>
+                            <Button
+                              size="xs"
+                              disabled={savingRepos}
+                              onClick={() => void handleQuickLinkRepo(rec.repoId)}
+                              className="shrink-0 text-xs mt-0.5"
+                            >
+                              关联
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
                   <Field>
                     <FieldLabel>添加云效仓库</FieldLabel>
@@ -717,8 +922,6 @@ export function RequirementDetails({
 
           {/* 子工作项与缺陷 (Linear Sub-issues 风格) */}
           {isRequirement && (() => {
-            const subtasks = children.filter((c) => c.category !== 'Bug');
-            const defects = children.filter((c) => c.category === 'Bug');
             const openChild = (child: WorkitemChild) => {
               setActiveChildId(child.workitemId);
               setDrawerChild(child);
@@ -770,6 +973,9 @@ export function RequirementDetails({
                   error={childrenError}
                   debug={childrenDebug}
                   parentWorkitemId={selectedId ?? ''}
+                  parentIdentifier={identifier}
+                  parentSubject={subject}
+                  parentDescription={typeof wi.description === 'string' ? wi.description : typeof wi.content === 'string' ? wi.content : undefined}
                   parentAssigneeId={parentAssigneeId}
                   parentAssigneeName={assignedToName}
                   candidateAssignees={candidateAssignees}
@@ -784,6 +990,9 @@ export function RequirementDetails({
                   error={childrenError}
                   debug={childrenDebug}
                   parentWorkitemId={selectedId ?? ''}
+                  parentIdentifier={identifier}
+                  parentSubject={subject}
+                  parentDescription={typeof wi.description === 'string' ? wi.description : typeof wi.content === 'string' ? wi.content : undefined}
                   parentAssigneeId={parentAssigneeId}
                   parentAssigneeName={assignedToName}
                   candidateAssignees={candidateAssignees}
@@ -794,8 +1003,17 @@ export function RequirementDetails({
             );
           })()}
 
-          {/* Activity / 评论讨论（1:1 对齐 Linear Activity 时间轴） */}
-          <RequirementActivity comments={comments} />
+          {/* Activity / 评论讨论（1:1 对齐 Linear Activity 时间轴与 AI 赋能） */}
+          <RequirementActivity
+            comments={comments}
+            workitemId={selectedId ?? undefined}
+            identifier={identifier}
+            subject={subject}
+            subtaskStats={{
+              total: subtasks.length,
+              done: subtasks.filter((s) => s.status === '已完成' || s.status === '已解决' || s.status === '已关闭').length,
+            }}
+          />
         </div>
 
         {/* 右侧边栏：Linear 式属性栏（全屏/非 embedded 模式下展示） */}
