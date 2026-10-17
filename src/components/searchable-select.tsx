@@ -118,8 +118,11 @@ export function SearchableSelect<V extends string | number | null>({
         </span>
       </ComboboxTrigger>
       <ComboboxContent
-        className={popupClassName}
-        style={{ minWidth: 200 }}
+        className={cn(
+          'min-w-[max(var(--anchor-width),300px)] max-w-[min(var(--available-width),560px)]',
+          popupClassName,
+        )}
+        style={{ minWidth: 'max(var(--anchor-width, 0px), 300px)' }}
       >
         <ComboboxInput placeholder={searchPlaceholder} showTrigger={false} />
         <ComboboxList>
@@ -128,6 +131,7 @@ export function SearchableSelect<V extends string | number | null>({
               key={String(item.value)}
               value={item.value}
               disabled={item.disabled}
+              title={item.label}
             >
               {item.label}
             </ComboboxItem>
