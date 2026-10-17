@@ -11,20 +11,37 @@ export interface RichDescriptionProps {
   raw: unknown;
   workitemId?: string;
   className?: string;
+  isEditing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
+  onSaved?: (newHtml: string) => void;
 }
 
 /**
  * 需求描述区：
  * - 结合 Tiptap 渲染高质量排版（标题、段落、列表、代码块、引用）
  * - 附件图片内联直显（走 Rust PAT 鉴权代理）
- * - 支持 Linear 风格行内原地编辑（受控于写操作门控，⌘+Enter 快速保存）
+ * - 支持 Linear 风格行内原地编辑（受控于写操作门控，⌘+Enter 快速保存，乐观更新无大刷）
  */
-export function RichDescription({ raw, workitemId, className }: RichDescriptionProps) {
-  const { settings, setToast, select, selectedId } = useApp();
+export function RichDescription({
+  raw,
+  workitemId,
+  className,
+  isEditing: isEditingProp,
+  onEditingChange,
+  onSaved,
+}: RichDescriptionProps) {
+  const { settings, setToast, updateWorkitemDescriptionOptimistic } = useApp();
   const allowWrite = settings?.allowWriteOps ?? false;
 
   const initialHtml = useMemo(() => extractRichHtml(raw), [raw]);
-  const [isEditing, setIsEditing] = useState(false);
+  const [internalEditing, setInternalEditing] = useState(false);
+  const isEditing = isEditingProp !== undefined ? isEditingProp : internalEditing;
+
+  const setIsEditing = (val: boolean) => {
+    setInternalEditing(val);
+    onEditingChange?.(val);
+  };
+
   const [draftHtml, setDraftHtml] = useState(initialHtml);
   const [saving, setSaving] = useState(false);
 
@@ -33,6 +50,13 @@ export function RichDescription({ raw, workitemId, className }: RichDescriptionP
     setDraftHtml(initialHtml);
     setIsEditing(false);
   }, [initialHtml, workitemId]);
+
+  // 当外部 isEditing 变为 true 时同步当前最新 initialHtml
+  useEffect(() => {
+    if (isEditing) {
+      setDraftHtml(initialHtml);
+    }
+  }, [isEditing, initialHtml]);
 
   // 附件图片代理加载（devops 鉴权）
   const images = useMemo(() => extractRichImageUrls(raw), [raw]);
@@ -85,18 +109,12 @@ export function RichDescription({ raw, workitemId, className }: RichDescriptionP
     }
     setSaving(true);
     try {
-      await api.updateWorkitem(workitemId, {
-        description: draftHtml,
-        formatType: 'RICHTEXT',
-      });
-      setToast({ text: '需求描述已保存', kind: 'ok' });
-      setIsEditing(false);
-      // 刷新详情
-      if (selectedId === workitemId) {
-        void select(workitemId);
+      const ok = await updateWorkitemDescriptionOptimistic(workitemId, draftHtml);
+      if (ok) {
+        setToast({ text: '需求描述已保存', kind: 'ok' });
+        setIsEditing(false);
+        onSaved?.(draftHtml);
       }
-    } catch (e) {
-      setToast({ text: `保存失败：${String(e)}`, kind: 'fail' });
     } finally {
       setSaving(false);
     }
@@ -151,37 +169,64 @@ export function RichDescription({ raw, workitemId, className }: RichDescriptionP
         </div>
       ) : (
         <div className="relative">
-          {workitemId && allowWrite && (
-            <div className="absolute right-0 -top-7 opacity-0 group-hover/desc:opacity-100 transition-opacity">
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={handleStartEdit}
-                className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                title="编辑描述"
-              >
-                <PencilIcon className="size-3 mr-1" />
-                编辑
-              </Button>
-            </div>
-          )}
           {initialHtml ? (
-            <RichEditor
-              content={initialHtml}
-              editable={false}
-              className="cursor-default"
-            />
-          ) : (
-            <div
-              className={cn(
-                'text-sm text-muted-foreground/70 py-2',
-                workitemId && allowWrite && 'cursor-pointer hover:text-foreground/80',
+            <div className="group/desc relative">
+              {workitemId && allowWrite && isEditingProp === undefined && (
+                <div className="absolute right-0 top-0 flex items-center gap-1 opacity-60 group-hover/desc:opacity-100 transition-opacity">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={handleStartEdit}
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground bg-background/80 backdrop-blur-xs border border-border/60 shadow-2xs"
+                    title="编辑描述 (双击正文亦可快速编辑)"
+                  >
+                    <PencilIcon className="size-3 mr-1" />
+                    编辑
+                  </Button>
+                </div>
               )}
-              onClick={workitemId && allowWrite ? handleStartEdit : undefined}
-            >
-              {workitemId && allowWrite ? '点击此处添加详细需求描述…' : '（无描述）'}
+              <div
+                className={cn(
+                  'rounded-md transition-colors p-1.5 -m-1.5',
+                  workitemId && allowWrite && 'hover:bg-muted/15 cursor-text',
+                )}
+                onDoubleClick={workitemId && allowWrite ? handleStartEdit : undefined}
+                title={workitemId && allowWrite ? '双击快速编辑描述' : undefined}
+              >
+                <RichEditor
+                  content={initialHtml}
+                  editable={false}
+                  className="cursor-default"
+                />
+              </div>
             </div>
+          ) : (
+            workitemId && allowWrite ? (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={handleStartEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleStartEdit();
+                  }
+                }}
+                className="flex items-center gap-3 rounded-lg border border-dashed border-border/80 bg-muted/10 p-3.5 text-sm text-muted-foreground/80 hover:border-primary/50 hover:bg-muted/20 hover:text-foreground transition-all cursor-pointer group/placeholder focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                title="点击添加需求描述"
+              >
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground group-hover/placeholder:bg-primary/10 group-hover/placeholder:text-primary transition-colors">
+                  <PencilIcon className="size-3.5" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-medium text-foreground/90 leading-tight">添加需求描述…</span>
+                  <span className="text-xs text-muted-foreground/70 truncate">支持 Markdown 快捷输入、列表、代码块与排版</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground/50 italic py-1">（无描述）</div>
+            )
           )}
 
           {images.filter((img) => resolved[img.url]).length > 0 && (

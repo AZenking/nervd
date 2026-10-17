@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, ClockIcon, CopyIcon, DatabaseIcon,
-  ExternalLinkIcon, FolderIcon, GitBranchIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MousePointerClickIcon, PlusIcon, RefreshCwIcon, SparklesIcon, UserIcon, XIcon,
+  ExternalLinkIcon, FolderIcon, GitBranchIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, SparklesIcon, UserIcon, XIcon,
 } from 'lucide-react';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
@@ -61,7 +61,13 @@ export function RequirementDetails({
     iterations, trace, traceLoading,
     saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast, reloadCurrentDetail,
   } = useApp();
+  const allowWrite = settings?.allowWriteOps ?? false;
   const [refreshing, setRefreshing] = useState(false);
+  const [isEditingDesc, setIsEditingDesc] = useState(false);
+
+  useEffect(() => {
+    setIsEditingDesc(false);
+  }, [selectedId]);
 
   const handleRefreshDetail = async () => {
     if (refreshing) return;
@@ -665,9 +671,32 @@ export function RequirementDetails({
 
           {/* 需求描述 (Linear 风格无边框融入画板) */}
           <section className="flex flex-col gap-3">
-            <SectionHeader title="描述" hint="来自云效的图文描述与内联附件" />
+            <SectionHeader
+              title="描述"
+              hint="来自云效的图文描述与内联附件"
+              action={
+                selectedId && allowWrite && !isEditingDesc ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => setIsEditingDesc(true)}
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    title="编辑描述"
+                  >
+                    <PencilIcon className="size-3 mr-1" />
+                    编辑
+                  </Button>
+                ) : null
+              }
+            />
             <div className="text-sm leading-relaxed text-foreground/90">
-              <RichDescription raw={wi.description ?? wi.content} workitemId={selectedId ?? undefined} />
+              <RichDescription
+                raw={wi.description ?? wi.content}
+                workitemId={selectedId ?? undefined}
+                isEditing={isEditingDesc}
+                onEditingChange={setIsEditingDesc}
+              />
             </div>
           </section>
 

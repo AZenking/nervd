@@ -118,6 +118,7 @@ interface AppStore {
   setToast(t: Toast | null): void;
   saveAll(s: Settings, pat?: string): Promise<void>;
   updateWorkitemStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): Promise<boolean>;
+  updateWorkitemDescriptionOptimistic(workitemId: string, newDescription: string): Promise<boolean>;
   updateChildStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): void;
   reloadComments(id?: string): Promise<void>;
   markRepoCiActive(durationMs?: number): void;
@@ -782,6 +783,63 @@ export const useApp = create<AppStore>((set, get) => ({
       // 3. 接口报错回滚
       set({ items: prevItems, detail: prevDetail, children: prevChildren });
       get().setToast({ text: `状态流转失败: ${String(err)}`, kind: 'fail' });
+      return false;
+    }
+  },
+
+  updateWorkitemDescriptionOptimistic: async (workitemId: string, newDescription: string): Promise<boolean> => {
+    const prevItems = get().items;
+    const prevDetail = get().detail;
+    const prevChildren = get().children;
+
+    // 1. 乐观即时更新本地 UI (<50ms)，保持原 detail 其它属性完好，避免触发骨架屏大刷新
+    if (prevDetail) {
+      const wi = (prevDetail.workitem ?? prevDetail) as Record<string, unknown>;
+      const isTarget =
+        prevDetail.workitemId === workitemId ||
+        prevDetail.id === workitemId ||
+        wi.workitemId === workitemId ||
+        wi.id === workitemId;
+
+      const nextDetail = isTarget
+        ? {
+            ...prevDetail,
+            description: newDescription,
+            content: newDescription,
+            ...(prevDetail.workitem
+              ? {
+                  workitem: {
+                    ...(prevDetail.workitem as Record<string, unknown>),
+                    description: newDescription,
+                    content: newDescription,
+                  },
+                }
+              : {}),
+          }
+        : prevDetail;
+
+      set({
+        detail: nextDetail,
+        items: prevItems.map((it) =>
+          it.workitemId === workitemId ? { ...it, description: newDescription } : it,
+        ),
+        children: prevChildren.map((c) =>
+          c.workitemId === workitemId ? { ...c, description: newDescription } : c,
+        ),
+      });
+    }
+
+    // 2. 后台异步调用 API
+    try {
+      await api.updateWorkitem(workitemId, {
+        description: newDescription,
+        formatType: 'RICHTEXT',
+      });
+      return true;
+    } catch (err) {
+      // 3. 接口报错回滚
+      set({ items: prevItems, detail: prevDetail, children: prevChildren });
+      get().setToast({ text: `描述保存失败: ${String(err)}`, kind: 'fail' });
       return false;
     }
   },

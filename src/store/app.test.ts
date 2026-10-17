@@ -81,3 +81,72 @@ describe('updateWorkitemStatusOptimistic', () => {
     expect(useApp.getState().toast?.text).toContain('无法找到目标状态「已完成」');
   });
 });
+
+describe('updateWorkitemDescriptionOptimistic', () => {
+  it('成功路径：detail、items、children 乐观更新新描述，调用 API，且不发生全量 detail 重置', async () => {
+    vi.mocked(api.updateWorkitem).mockResolvedValue({ success: true } as never);
+
+    useApp.setState({
+      detail: {
+        workitemId: 'wi-1',
+        description: '<p>旧描述</p>',
+        workitem: {
+          workitemId: 'wi-1',
+          description: '<p>旧描述</p>',
+        },
+      },
+      items: [row({ identifier: 'REQ-2001', workitemId: 'wi-1', status: '开发中' })],
+      children: [
+        {
+          workitemId: 'wi-child-1',
+          identifier: 'TASK-1',
+          subject: '子任务',
+          status: '待办',
+          category: 'Task',
+        } as never,
+      ],
+      loadingDetail: false,
+    });
+
+    const ok = await useApp.getState().updateWorkitemDescriptionOptimistic('wi-1', '<p>新更新的描述</p>');
+
+    expect(ok).toBe(true);
+    const state = useApp.getState();
+    const detail = state.detail as Record<string, any>;
+    expect(detail?.description).toBe('<p>新更新的描述</p>');
+    expect(detail?.workitem?.description).toBe('<p>新更新的描述</p>');
+    expect(state.loadingDetail).toBe(false); // 绝不触发 loadingDetail 大刷新
+    expect(api.updateWorkitem).toHaveBeenCalledWith('wi-1', {
+      description: '<p>新更新的描述</p>',
+      formatType: 'RICHTEXT',
+    });
+  });
+
+  it('失败路径：API 报错时回滚原描述并发出 fail Toast', async () => {
+    vi.mocked(api.updateWorkitem).mockRejectedValue(new Error('网络超时 504'));
+
+    const initialDetail = {
+      workitemId: 'wi-1',
+      description: '<p>原描述</p>',
+      workitem: {
+        workitemId: 'wi-1',
+        description: '<p>原描述</p>',
+      },
+    };
+
+    useApp.setState({
+      detail: initialDetail,
+      items: [row({ identifier: 'REQ-2001', workitemId: 'wi-1' })],
+      toast: null,
+    });
+
+    const ok = await useApp.getState().updateWorkitemDescriptionOptimistic('wi-1', '<p>尝试保存的新描述</p>');
+
+    expect(ok).toBe(false);
+    const state = useApp.getState();
+    const detail = state.detail as Record<string, any>;
+    expect(detail?.description).toBe('<p>原描述</p>');
+    expect(state.toast?.kind).toBe('fail');
+    expect(state.toast?.text).toContain('描述保存失败');
+  });
+});
