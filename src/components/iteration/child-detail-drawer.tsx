@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRightIcon,
   BugIcon,
@@ -16,7 +16,7 @@ import type { WorkitemChild } from '@/lib/api';
 import * as api from '@/lib/api';
 import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { CATEGORY_LABELS, type Category } from '@/types';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SearchableAssigneePopover } from './requirement/assignee-popover';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Descriptions, type DescriptionsItem } from '@/components/ui/descriptions';
@@ -51,9 +51,11 @@ export interface ChildDetailDrawerProps {
     identifier: string;
     subject?: string;
   } | null;
+  candidateAssignees?: { id: string; name: string; role?: string }[];
   onClose: () => void;
   onOpenInWorkbench: (child: WorkitemChild) => void;
   onStatusChange?: (childId: string, newStatus: string) => void;
+  onAssigneeChange?: (childId: string, newAssignee: string) => void;
 }
 
 /**
@@ -66,13 +68,17 @@ export interface ChildDetailDrawerProps {
 export function ChildDetailDrawer({
   child,
   parentWorkitem,
+  candidateAssignees,
   onClose,
   onOpenInWorkbench,
   onStatusChange,
+  onAssigneeChange,
 }: ChildDetailDrawerProps) {
   const open = child != null;
   const loadChildren = useApp((s) => s.loadChildren);
   const settings = useApp((s) => s.settings);
+  const itemsInStore = useApp((s) => s.items);
+  const currentUser = useApp((s) => s.currentUser);
 
   const [rawDetail, setRawDetail] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -103,6 +109,9 @@ export function ChildDetailDrawer({
   const [statusId, setStatusId] = useState<string>(child?.statusId ?? '');
   const [statusOpen, setStatusOpen] = useState(false);
 
+  // 负责人切换状态
+  const [assignedToName, setAssignedToName] = useState<string>(child?.assignedTo ?? '');
+
   const {
     statuses,
     loadingStatuses,
@@ -131,11 +140,13 @@ export function ChildDetailDrawer({
       setRawDetail(null);
       setStatusName('');
       setStatusId('');
+      setAssignedToName('');
       return;
     }
 
     setStatusName(child.status || '');
     setStatusId(child.statusId || '');
+    setAssignedToName(child.assignedTo || '');
 
     let alive = true;
     setLoading(true);
@@ -148,6 +159,9 @@ export function ChildDetailDrawer({
         setRawDetail(wi);
         if (typeof wi.status === 'string' && wi.status) setStatusName(wi.status);
         if (typeof wi.statusId === 'string' && wi.statusId) setStatusId(wi.statusId);
+        const remoteAssignee = (typeof wi.assignedTo === 'string' && wi.assignedTo)
+          || (wi.assignedTo && typeof wi.assignedTo === 'object' && typeof (wi.assignedTo as any).name === 'string' ? (wi.assignedTo as any).name : '');
+        if (remoteAssignee) setAssignedToName(remoteAssignee);
       })
       .catch((e) => {
         errorLog('child-drawer-detail', e);
@@ -160,13 +174,31 @@ export function ChildDetailDrawer({
     return () => { alive = false; };
   }, [child?.workitemId]);
 
+  // 候选处理人汇总
+  const assigneeOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; role?: string }>();
+    if (candidateAssignees) {
+      for (const c of candidateAssignees) {
+        if (c.name && !map.has(c.name)) map.set(c.name, c);
+      }
+    }
+    if (currentUser?.id && currentUser?.name && !map.has(currentUser.name)) {
+      map.set(currentUser.name, { id: currentUser.id, name: currentUser.name, role: '我' });
+    }
+    for (const it of itemsInStore) {
+      if (it.assignedTo && it.assignedTo !== '—' && !map.has(it.assignedTo)) {
+        map.set(it.assignedTo, { id: it.assignedToId || it.assignedTo, name: it.assignedTo, role: '成员' });
+      }
+    }
+    return Array.from(map.values());
+  }, [candidateAssignees, currentUser, itemsInStore]);
+
   const wi = rawDetail ?? {};
   const isBug = child?.category === 'Bug';
   const categoryLabel = child?.category && child.category in CATEGORY_LABELS
     ? CATEGORY_LABELS[child.category as Category]
     : isBug ? '缺陷' : '子任务';
 
-  const assignedTo = (typeof wi.assignedTo === 'string' && wi.assignedTo) || child?.assignedTo || '';
   const gmtModified = (typeof wi.gmtModified === 'string' && wi.gmtModified)
     || (typeof wi.updatedAt === 'string' && wi.updatedAt)
     || child?.gmtModified
@@ -239,6 +271,26 @@ export function ChildDetailDrawer({
     </DropdownMenu>
   );
 
+  const assigneeDropdown = (
+    <SearchableAssigneePopover
+      assignedToName={assignedToName}
+      candidateAssignees={assigneeOptions}
+      workitemId={child?.workitemId}
+      onSelect={async (candidate) => {
+        setAssignedToName(candidate.name);
+        if (child) {
+          onAssigneeChange?.(child.workitemId, candidate.name);
+        }
+        if (parentWorkitem?.workitemId) {
+          void loadChildren(parentWorkitem.workitemId);
+        }
+      }}
+      variant="button"
+      checkWriteOps
+      align="start"
+    />
+  );
+
   const attributeItems: DescriptionsItem[] = [
     {
       key: 'status',
@@ -258,14 +310,7 @@ export function ChildDetailDrawer({
           <span>处理人</span>
         </span>
       ),
-      children: assignedTo ? (
-        <div className="flex items-center gap-1.5">
-          <Avatar className="size-4">
-            <AvatarFallback className="text-[9px]">{assignedTo.charAt(0) || '—'}</AvatarFallback>
-          </Avatar>
-          <span className="font-medium text-foreground">{assignedTo}</span>
-        </div>
-      ) : <span className="text-muted-foreground">未分配</span>,
+      children: assigneeDropdown,
     },
     {
       key: 'category',

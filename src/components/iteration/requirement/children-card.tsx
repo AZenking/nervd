@@ -1,6 +1,6 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import {
-  BugIcon, CheckIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, ShieldCheckIcon, SparklesIcon, UserIcon,
+  BugIcon, CheckIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, SearchIcon, ShieldCheckIcon, SparklesIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { getAiSettings, aiBreakdownRequirement } from '@/lib/ai-api';
@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { useWorkitemWorkflowStatuses, type WorkflowStatusItem } from '@/hooks/use-workitem-workflow-statuses';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +25,7 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { EmptyHint } from '@/components/empty-hint';
 import { SectionHeader } from '@/components/section-header';
 import { StatusIcon } from '@/components/status-icon';
+import { SearchableAssigneePopover, type AssigneeOption } from './assignee-popover';
 
 /** 行首快速状态切换下拉（免弹窗极速流转，即时回显 + 乐观更新） */
 export function InlineStatusDropdown({
@@ -38,11 +38,16 @@ export function InlineStatusDropdown({
   const { loadChildren, updateChildStatusOptimistic } = useApp();
   const [open, setOpen] = useState(false);
   const [localStatus, setLocalStatus] = useState({ id: task.statusId, name: task.status });
+  const [statusSearch, setStatusSearch] = useState('');
 
   // 同步外部 task 状态变化
   useEffect(() => {
     setLocalStatus({ id: task.statusId, name: task.status });
   }, [task.statusId, task.status]);
+
+  useEffect(() => {
+    if (open) setStatusSearch('');
+  }, [open]);
 
   const { statuses, loadingStatuses, updatingStatus, fetchStatuses, changeStatus } =
     useWorkitemWorkflowStatuses({
@@ -56,6 +61,12 @@ export function InlineStatusDropdown({
         }, 1500);
       },
     });
+
+  const filteredStatuses = useMemo(() => {
+    const q = statusSearch.trim().toLowerCase();
+    if (!q) return statuses;
+    return statuses.filter((s) => s.name.toLowerCase().includes(q));
+  }, [statuses, statusSearch]);
 
   const handleSelectStatus = async (s: WorkflowStatusItem) => {
     // 立即乐观变更本地回显与 store 状态（<1ms 极速响应）
@@ -102,6 +113,22 @@ export function InlineStatusDropdown({
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-36">
+        {statuses.length >= 5 && (
+          <div className="p-1 border-b border-border/50">
+            <div className="relative">
+              <SearchIcon className="absolute left-2 top-2 size-3 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                placeholder="搜索状态…"
+                value={statusSearch}
+                onChange={(e) => setStatusSearch(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="h-6 w-full rounded border border-border/60 bg-muted/40 pl-6 pr-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-ring"
+              />
+            </div>
+          </div>
+        )}
         {loadingStatuses && (
           <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
             <Spinner className="size-3" />
@@ -113,7 +140,12 @@ export function InlineStatusDropdown({
             暂无可流转状态
           </div>
         )}
-        {!loadingStatuses && statuses.map((s) => {
+        {!loadingStatuses && statuses.length > 0 && filteredStatuses.length === 0 && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            未找到匹配状态
+          </div>
+        )}
+        {!loadingStatuses && filteredStatuses.map((s) => {
           const isCurrent = s.id === localStatus.id || s.name === localStatus.name;
           return (
             <DropdownMenuItem
@@ -137,10 +169,24 @@ export function InlineStatusDropdown({
   );
 }
 
-export interface AssigneeOption {
-  id: string;
-  name: string;
-  role?: string;
+/** 行内处理人切换下拉（免弹窗极速分配，支持实时搜索与全键盘导航，即时回显 + 乐观更新） */
+export function InlineAssigneeDropdown({
+  task,
+  candidateAssignees,
+}: {
+  task: WorkitemChild;
+  candidateAssignees?: AssigneeOption[];
+}) {
+  return (
+    <SearchableAssigneePopover
+      assignedToName={task.assignedTo}
+      candidateAssignees={candidateAssignees}
+      workitemId={task.workitemId}
+      variant="row"
+      checkWriteOps
+      align="end"
+    />
+  );
 }
 
 export interface ChildrenCardProps {
@@ -184,7 +230,7 @@ export function ChildrenCard({
   onSelect,
   footnote,
 }: ChildrenCardProps) {
-  const { settings, setToast, loadChildren } = useApp();
+  const { settings, setToast, loadChildren, addOptimisticChild } = useApp();
   const openSettings = useUi((s) => s.openSettings);
   const allowWriteOps = settings?.allowWriteOps ?? false;
 
@@ -282,15 +328,25 @@ export function ChildrenCard({
         return;
       }
 
+      const createdChildren: WorkitemChild[] = [];
       for (const item of generated) {
-        await api.createWorkitemChild(parentWorkitemId, {
+        const created = await api.createWorkitemChild(parentWorkitemId, {
           subject: `【${item.tag}】${item.subject.trim()}`,
           workitemTypeId: targetTypeId,
           assignedTo: parentAssigneeId,
+          category: 'Task',
         });
+        const completeChild: WorkitemChild = {
+          ...created,
+          category: created.category || 'Task',
+          assignedTo: created.assignedTo || parentAssigneeName || '',
+          status: created.status || '待办',
+        };
+        createdChildren.push(completeChild);
       }
 
-      await loadChildren(parentWorkitemId);
+      addOptimisticChild(parentWorkitemId, createdChildren);
+      void loadChildren(parentWorkitemId);
       toast.add({
         title: 'AI 一键拆解完成',
         description: `已自动为 ${parentIdentifier || '当前需求'} 批量创建 ${generated.length} 个子任务`,
@@ -372,11 +428,19 @@ export function ChildrenCard({
         workitemTypeId: typeId || (types[0]?.id ?? ''),
         assignedTo: selectedAssignee?.id || parentAssigneeId,
         severity: isBug ? selectedSeverity : undefined,
+        category: isBug ? 'Bug' : 'Task',
       });
-      await loadChildren(parentWorkitemId);
-      setToast({ text: `${title}「${created.identifier || trimmed}」已创建`, kind: 'ok' });
+      const completeChild: WorkitemChild = {
+        ...created,
+        category: created.category || (isBug ? 'Bug' : 'Task'),
+        assignedTo: created.assignedTo || selectedAssignee?.name || parentAssigneeName || '',
+        status: created.status || '待办',
+      };
+      addOptimisticChild(parentWorkitemId, completeChild);
+      setToast({ text: `${title}「${completeChild.identifier || trimmed}」已创建`, kind: 'ok' });
       setNewSubject('');
       setIsAdding(false);
+      void loadChildren(parentWorkitemId);
     } catch (cause) {
       errorLog('inline-subtask-create', cause);
       setToast({ text: `${title}创建失败：${humanizeError(cause)}`, kind: 'fail' });
@@ -505,46 +569,16 @@ export function ChildrenCard({
         </DropdownMenu>
       )}
 
-      {/* 指定人选择器 */}
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <button
-              type="button"
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded border border-border/60 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-none max-w-44"
-              title="选择指定处理人"
-            />
-          }
-        >
-          <UserIcon className="size-3 text-muted-foreground shrink-0" />
-          <span className="truncate">{selectedAssignee?.name || parentAssigneeName || '指定人'}</span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-48 max-h-64 overflow-y-auto">
-          {(!candidateAssignees || candidateAssignees.length === 0) && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">
-              {parentAssigneeName ? `默认指派给：${parentAssigneeName}` : '未找到候选成员'}
-            </div>
-          )}
-          {candidateAssignees?.map((a) => {
-            const isSel = selectedAssignee?.id === a.id || selectedAssignee?.name === a.name;
-            return (
-              <DropdownMenuItem
-                key={a.id || a.name}
-                className={cn('text-xs cursor-pointer flex items-center justify-between', isSel && 'font-medium text-primary')}
-                onClick={() => setSelectedAssignee(a)}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Avatar className="size-4 shrink-0">
-                    <AvatarFallback className="text-[9px]">{a.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <span className="truncate">{a.name}</span>
-                </div>
-                {a.role && <span className="text-[10px] text-muted-foreground ml-1.5 shrink-0">{a.role}</span>}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* 指定人选择器（支持搜索与键盘快捷导航） */}
+      <SearchableAssigneePopover
+        assignedToName={selectedAssignee?.name || parentAssigneeName || '指定人'}
+        candidateAssignees={candidateAssignees}
+        onSelect={(a) => setSelectedAssignee(a)}
+        variant="button"
+        checkWriteOps={false}
+        placeholder="指定人"
+        align="start"
+      />
 
       <Input
         value={newSubject}
@@ -656,15 +690,8 @@ export function ChildrenCard({
                   {task.subject || task.identifier}
                 </span>
 
-                {/* 处理人 */}
-                {task.assignedTo && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Avatar className="size-4">
-                      <AvatarFallback className="text-[9px]">{task.assignedTo.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <span className="hidden sm:inline">{task.assignedTo}</span>
-                  </div>
-                )}
+                {/* 处理人下拉切换 */}
+                <InlineAssigneeDropdown task={task} candidateAssignees={candidateAssignees} />
 
                 {/* 悬停快捷动作条 */}
                 <div className="flex items-center gap-1">

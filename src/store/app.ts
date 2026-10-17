@@ -119,7 +119,9 @@ interface AppStore {
   saveAll(s: Settings, pat?: string): Promise<void>;
   updateWorkitemStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): Promise<boolean>;
   updateWorkitemDescriptionOptimistic(workitemId: string, newDescription: string): Promise<boolean>;
+  updateWorkitemAssigneeOptimistic(workitemId: string, newAssigneeId: string, newAssigneeName: string): Promise<boolean>;
   updateChildStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): void;
+  addOptimisticChild(parentWorkitemId: string, childOrChildren: WorkitemChild | WorkitemChild[]): void;
   reloadComments(id?: string): Promise<void>;
   markRepoCiActive(durationMs?: number): void;
   refreshAllRepoCi(): Promise<void>;
@@ -132,6 +134,48 @@ const pipelineRunRequests = new Map<number, number>();
 const repoCiRequests = new Map<number, number>();
 const childrenRequests = new Map<string, number>();
 const optimisticChildStatuses = new Map<string, { status: string; statusId?: string; updatedAt: number }>();
+const optimisticCreatedChildren = new Map<string, { parentId: string; item: WorkitemChild; createdAt: number }>();
+
+function mergeChildrenWithOptimistic(
+  workitemId: string,
+  serverItems: WorkitemChild[],
+): WorkitemChild[] {
+  const now = Date.now();
+  // 1. 保留乐观状态变更（15秒内）
+  const mergedServerItems = serverItems.map((item) => {
+    const opt = optimisticChildStatuses.get(item.workitemId);
+    if (opt && now - opt.updatedAt < 15000) {
+      return { ...item, status: opt.status, statusId: opt.statusId ?? item.statusId };
+    }
+    return item;
+  });
+
+  const existingIds = new Set(mergedServerItems.map((c) => c.workitemId));
+  const pendingOptimistic: WorkitemChild[] = [];
+
+  // 2. 检查最近创建的乐观子项（30秒内），防 ES 索引延迟覆盖
+  for (const [childId, record] of optimisticCreatedChildren.entries()) {
+    if (now - record.createdAt > 30000) {
+      optimisticCreatedChildren.delete(childId);
+    } else if (record.parentId === workitemId) {
+      if (existingIds.has(childId)) {
+        // ES 已经收录，清除临时乐观记录
+        optimisticCreatedChildren.delete(childId);
+      } else {
+        // ES 尚未收录，保留在列表前端并结合可能发生的乐观状态
+        const opt = optimisticChildStatuses.get(childId);
+        if (opt && now - opt.updatedAt < 15000) {
+          pendingOptimistic.push({ ...record.item, status: opt.status, statusId: opt.statusId ?? record.item.statusId });
+        } else {
+          pendingOptimistic.push(record.item);
+        }
+      }
+    }
+  }
+
+  return [...pendingOptimistic, ...mergedServerItems];
+}
+
 let pipelineRunRequestSequence = 0;
 const nextPipelineRunRequest = (pipelineId: number) => {
   const requestId = ++pipelineRunRequestSequence;
@@ -361,19 +405,24 @@ export const useApp = create<AppStore>((set, get) => ({
     try {
       const result = await api.listWorkitemChildren(workitemId);
       if (childrenRequests.get(workitemId) !== requestId || get().selectedId !== workitemId) return;
-      const now = Date.now();
-      const mergedItems = result.items.map((item) => {
-        const opt = optimisticChildStatuses.get(item.workitemId);
-        // 如果 10 秒内有乐观状态变更，优先保留乐观状态，防御 ES 搜索索引延迟导致返回旧状态
-        if (opt && now - opt.updatedAt < 10000) {
-          return { ...item, status: opt.status, statusId: opt.statusId ?? item.statusId };
-        }
-        return item;
-      });
-      set({ children: mergedItems, childrenError: null, childrenDebug: result.rawSample ?? null });
+      const finalItems = mergeChildrenWithOptimistic(workitemId, result.items);
+      set({ children: finalItems, childrenError: null, childrenDebug: result.rawSample ?? null });
+
+      // 如果依然有未被 ES 索引收录的乐观子项，在后台安排一次延迟对齐重试（2 秒后）
+      const hasUnindexed = Array.from(optimisticCreatedChildren.values()).some(
+        (r) => r.parentId === workitemId && Date.now() - r.createdAt < 30000,
+      );
+      if (hasUnindexed) {
+        setTimeout(() => {
+          if (childrenRequests.get(workitemId) === requestId && get().selectedId === workitemId) {
+            void get().loadChildren(workitemId);
+          }
+        }, 2000);
+      }
     } catch (error) {
       if (childrenRequests.get(workitemId) !== requestId || get().selectedId !== workitemId) return;
-      set({ children: [], childrenError: String(error), childrenDebug: null });
+      const fallbackItems = mergeChildrenWithOptimistic(workitemId, []);
+      set({ children: fallbackItems, childrenError: String(error), childrenDebug: null });
     }
   },
 
@@ -406,10 +455,11 @@ export const useApp = create<AppStore>((set, get) => ({
       if (!isCurrent()) return;
 
       const comments = arr(commentsRaw);
+      const finalChildren = mergeChildrenWithOptimistic(id, childrenRes.items);
       set({
         detail,
         comments,
-        children: childrenRes.items,
+        children: finalChildren,
         childrenError: childrenRes.error,
         childrenDebug: childrenRes.debug,
         detailFetchedAt: Date.now(),
@@ -722,6 +772,11 @@ export const useApp = create<AppStore>((set, get) => ({
 
   updateChildStatusOptimistic: (workitemId: string, newStatus: string, statusId?: string) => {
     optimisticChildStatuses.set(workitemId, { status: newStatus, statusId, updatedAt: Date.now() });
+    const createdRecord = optimisticCreatedChildren.get(workitemId);
+    if (createdRecord) {
+      createdRecord.item.status = newStatus;
+      if (statusId) createdRecord.item.statusId = statusId;
+    }
     set({
       children: get().children.map((c) =>
         c.workitemId === workitemId
@@ -729,6 +784,26 @@ export const useApp = create<AppStore>((set, get) => ({
           : c,
       ),
     });
+  },
+
+  addOptimisticChild: (parentWorkitemId: string, childOrChildren: WorkitemChild | WorkitemChild[]) => {
+    const childrenList = Array.isArray(childOrChildren) ? childOrChildren : [childOrChildren];
+    const now = Date.now();
+    for (const c of childrenList) {
+      optimisticCreatedChildren.set(c.workitemId, {
+        parentId: parentWorkitemId,
+        item: c,
+        createdAt: now,
+      });
+    }
+    if (get().selectedId === parentWorkitemId) {
+      const currentChildren = get().children;
+      const currentIds = new Set(currentChildren.map((c) => c.workitemId));
+      const toAdd = childrenList.filter((c) => !currentIds.has(c.workitemId));
+      if (toAdd.length > 0) {
+        set({ children: [...toAdd, ...currentChildren] });
+      }
+    }
   },
 
   updateWorkitemStatusOptimistic: async (workitemId: string, newStatus: string, statusId?: string): Promise<boolean> => {
@@ -844,6 +919,92 @@ export const useApp = create<AppStore>((set, get) => ({
     }
   },
 
+  updateWorkitemAssigneeOptimistic: async (
+    workitemId: string,
+    newAssigneeId: string,
+    newAssigneeName: string,
+  ): Promise<boolean> => {
+    const prevItems = get().items;
+    const prevDetail = get().detail;
+    const prevChildren = get().children;
+    const targetItem = prevItems.find((it) => it.workitemId === workitemId);
+    const targetChild = prevChildren.find((c) => c.workitemId === workitemId);
+    const oldAssignee = targetItem?.assignedTo ?? targetChild?.assignedTo;
+    if (oldAssignee === newAssigneeName) return true;
+
+    // 1. 同步更新乐观创建记录（如果在最近创建列表中）
+    const optCreated = optimisticCreatedChildren.get(workitemId);
+    if (optCreated) {
+      optCreated.item.assignedTo = newAssigneeName;
+    }
+
+    // 2. 乐观即时更新本地 UI (<50ms)
+    let nextDetail = prevDetail;
+    if (prevDetail) {
+      const wi = (prevDetail.workitem ?? prevDetail) as Record<string, unknown>;
+      const isTarget =
+        prevDetail.workitemId === workitemId ||
+        prevDetail.id === workitemId ||
+        wi.workitemId === workitemId ||
+        wi.id === workitemId;
+
+      if (isTarget) {
+        const nextAssignedTo =
+          typeof prevDetail.assignedTo === 'object' && prevDetail.assignedTo !== null
+            ? { ...(prevDetail.assignedTo as Record<string, unknown>), id: newAssigneeId, name: newAssigneeName }
+            : newAssigneeName;
+
+        const nextWiAssignedTo =
+          wi && typeof wi.assignedTo === 'object' && wi.assignedTo !== null
+            ? { ...(wi.assignedTo as Record<string, unknown>), id: newAssigneeId, name: newAssigneeName }
+            : newAssigneeName;
+
+        nextDetail = {
+          ...prevDetail,
+          assignedTo: nextAssignedTo,
+          ...(prevDetail.workitem
+            ? {
+                workitem: {
+                  ...(prevDetail.workitem as Record<string, unknown>),
+                  assignedTo: nextWiAssignedTo,
+                },
+              }
+            : {}),
+        };
+      }
+    }
+
+    set({
+      items: prevItems.map((it) =>
+        it.workitemId === workitemId
+          ? { ...it, assignedTo: newAssigneeName, assignedToId: newAssigneeId }
+          : it,
+      ),
+      children: prevChildren.map((c) =>
+        c.workitemId === workitemId
+          ? { ...c, assignedTo: newAssigneeName }
+          : c,
+      ),
+      detail: nextDetail,
+    });
+
+    // 3. 后台异步调用 API
+    try {
+      await api.updateWorkitem(workitemId, { assignedTo: newAssigneeId });
+      const identifier = targetItem?.identifier || targetChild?.identifier || '工作项';
+      get().setToast({ text: `${identifier} 负责人已变更为「${newAssigneeName}」`, kind: 'ok' });
+      return true;
+    } catch (err) {
+      // 4. 报错回滚
+      if (optCreated) {
+        optCreated.item.assignedTo = oldAssignee;
+      }
+      set({ items: prevItems, detail: prevDetail, children: prevChildren });
+      get().setToast({ text: `负责人修改失败: ${String(err)}`, kind: 'fail' });
+      return false;
+    }
+  },
+
   markRepoCiActive(durationMs = 90_000) {
     const until = Date.now() + durationMs;
     set((s) => ({ ciActiveUntil: Math.max(s.ciActiveUntil, until) }));
@@ -877,10 +1038,11 @@ export const useApp = create<AppStore>((set, get) => ({
       ]);
       if (!isCurrent()) return;
       const comments = arr(commentsRaw);
+      const finalChildren = mergeChildrenWithOptimistic(id, childrenRes.items);
       set({
         detail,
         comments,
-        children: childrenRes.items,
+        children: finalChildren,
         childrenError: childrenRes.error,
         childrenDebug: childrenRes.debug,
         detailFetchedAt: Date.now(),

@@ -121,7 +121,7 @@ export function RequirementDetailsSkeleton({ embedded }: { embedded?: boolean })
               </div>
             </section>
 
-            {/* Activity */}
+            {/* 动态 */}
             <section className="flex flex-col gap-3">
               <Skeleton className="h-4 w-16 rounded" />
               <div className="flex items-start gap-3 pl-3">

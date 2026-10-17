@@ -121,7 +121,7 @@ export async function getWorkitemWorkflowStatuses(workitemId: string): Promise<W
 }
 export async function updateWorkitem(
   workitemId: string,
-  update: { subject?: string; statusId?: string; description?: string; formatType?: string },
+  update: { subject?: string; statusId?: string; description?: string; formatType?: string; assignedTo?: string },
 ): Promise<unknown> {
   return invoke('update_workitem', { workitemId, ...update });
 }
@@ -151,7 +151,7 @@ export async function listWorkitemTypes(category: string): Promise<WorkitemTypeO
 /** 在需求下创建子工作项（写操作）：parentId 挂到父项，返回与子项列表同形态的行 */
 export async function createWorkitemChild(
   parentWorkitemId: string,
-  p: { subject: string; workitemTypeId: string; assignedTo?: string; severity?: string },
+  p: { subject: string; workitemTypeId: string; assignedTo?: string; severity?: string; category?: string },
 ): Promise<WorkitemChild> {
   return invoke('create_workitem_child', { parentWorkitemId, ...p });
 }

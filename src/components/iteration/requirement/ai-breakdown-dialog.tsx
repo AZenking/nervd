@@ -4,7 +4,8 @@ import {
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { aiBreakdownRequirement } from '@/lib/ai-api';
-import type { WorkitemTypeOption } from '@/lib/api';
+import type { WorkitemChild, WorkitemTypeOption } from '@/lib/api';
+import { useApp } from '@/store/app';
 import type { AiBreakdownItem } from '@/types/ai';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -60,6 +61,7 @@ export function AiBreakdownDialog({
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const addOptimisticChild = useApp((s) => s.addOptimisticChild);
 
   const fallbackAssignee = {
     id: parentAssigneeId || '',
@@ -164,18 +166,29 @@ export function AiBreakdownDialog({
     const typeId = taskType?.id ?? '';
 
     let successCount = 0;
+    const createdChildren: WorkitemChild[] = [];
     try {
       for (let i = 0; i < toCreate.length; i++) {
         const item = toCreate[i];
         setProgress({ current: i + 1, total: toCreate.length });
-        await api.createWorkitemChild(parentWorkitemId, {
+        const created = await api.createWorkitemChild(parentWorkitemId, {
           subject: `【${item.tag}】${item.subject.trim()}`,
           workitemTypeId: typeId,
           assignedTo: item.assigneeId || parentAssigneeId,
+          category: 'Task',
         });
+        const completeChild: WorkitemChild = {
+          ...created,
+          category: created.category || 'Task',
+          status: created.status || '待办',
+        };
+        createdChildren.push(completeChild);
         successCount++;
       }
 
+      if (createdChildren.length > 0) {
+        addOptimisticChild(parentWorkitemId, createdChildren);
+      }
       await onCreated();
       toast.add({
         title: '批量创建完成',
@@ -184,6 +197,9 @@ export function AiBreakdownDialog({
       });
       onOpenChange(false);
     } catch (err) {
+      if (createdChildren.length > 0) {
+        addOptimisticChild(parentWorkitemId, createdChildren);
+      }
       toast.add({
         title: '批量创建部分失败',
         description: `已创建 ${successCount}/${toCreate.length} 个：${String(err)}`,

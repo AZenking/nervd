@@ -2,7 +2,6 @@ import {
   CalendarIcon, ClockIcon, DatabaseIcon, FolderIcon, GitBranchIcon, LayersIcon, UserIcon, CheckIcon,
 } from 'lucide-react';
 import { CATEGORY_LABELS, type Category } from '@/types';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Descriptions } from '@/components/ui/descriptions';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -11,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { StatusIcon } from '@/components/status-icon';
+import { SearchableAssigneePopover } from './assignee-popover';
 import { STATUS_OPTIONS } from './types';
 
 /** 原地快速流转详情状态 Popover */
@@ -64,10 +64,35 @@ export function DetailStatusPopover({
   );
 }
 
+/** 原地快速流转详情负责人 Popover（支持搜索与键盘快捷导航） */
+export function DetailAssigneePopover({
+  assignedToName,
+  workitemId,
+  candidateAssignees,
+  variant = 'cell',
+}: {
+  assignedToName: string;
+  workitemId?: string | null;
+  candidateAssignees?: { id: string; name: string; role?: string }[];
+  variant?: 'badge' | 'cell';
+}) {
+  return (
+    <SearchableAssigneePopover
+      assignedToName={assignedToName}
+      workitemId={workitemId}
+      candidateAssignees={candidateAssignees}
+      variant={variant}
+      checkWriteOps
+      align="start"
+    />
+  );
+}
+
 export interface RequirementPropertiesProps {
   statusName: string;
   selectedId: string | null;
   assignedToName: string;
+  candidateAssignees?: { id: string; name: string; role?: string }[];
   category: string;
   parent?: { workitemId: string; identifier: string; subject?: string } | null;
   spaceName: string;
@@ -85,6 +110,7 @@ export function RequirementProperties({
   statusName,
   selectedId,
   assignedToName,
+  candidateAssignees,
   category,
   parent,
   spaceName,
@@ -129,14 +155,14 @@ export function RequirementProperties({
                   <span>处理人</span>
                 </span>
               ),
-              children: assignedToName ? (
-                <div className="flex items-center gap-1.5">
-                  <Avatar className="size-4">
-                    <AvatarFallback className="text-[9px]">{assignedToName.charAt(0) || '—'}</AvatarFallback>
-                  </Avatar>
-                  <span className="truncate">{assignedToName}</span>
-                </div>
-              ) : <span className="text-muted-foreground">未分配</span>,
+              children: (
+                <DetailAssigneePopover
+                  assignedToName={assignedToName}
+                  workitemId={selectedId}
+                  candidateAssignees={candidateAssignees}
+                  variant="cell"
+                />
+              ),
             },
             {
               key: 'category',

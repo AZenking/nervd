@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/lib/api', () => ({
   getWorkitemWorkflowStatuses: vi.fn(),
   updateWorkitem: vi.fn(),
+  listWorkitemChildren: vi.fn(),
 }));
 
 import * as api from '@/lib/api';
@@ -150,3 +151,120 @@ describe('updateWorkitemDescriptionOptimistic', () => {
     expect(state.toast?.text).toContain('描述保存失败');
   });
 });
+
+describe('addOptimisticChild and loadChildren optimistic merge', () => {
+  it('创建子任务后立即乐观呈现，且即便远端受 ES 延迟索引返回空列表，也不会被覆盖丢弃', async () => {
+    useApp.setState({
+      selectedId: 'wi-req-1',
+      children: [],
+    });
+
+    const newChild = {
+      workitemId: 'wi-sub-1',
+      identifier: 'TASK-101',
+      subject: '新建子任务',
+      category: 'Task',
+      status: '待办',
+    };
+
+    // 1. 立即乐观插入
+    useApp.getState().addOptimisticChild('wi-req-1', newChild);
+    expect(useApp.getState().children).toHaveLength(1);
+    expect(useApp.getState().children[0].identifier).toBe('TASK-101');
+
+    // 2. 模拟随后立即调用的 loadChildren：云效 ES 尚未索引，返回空列表
+    vi.mocked(api.listWorkitemChildren).mockResolvedValue({ items: [] } as never);
+    await useApp.getState().loadChildren('wi-req-1');
+
+    // 3. 验证乐观子项依然得以保留，没有因 ES 延迟而被冲刷置空
+    expect(useApp.getState().children).toHaveLength(1);
+    expect(useApp.getState().children[0].identifier).toBe('TASK-101');
+
+    // 4. 当 ES 索引赶上并返回该数据时，能正常合并
+    vi.mocked(api.listWorkitemChildren).mockResolvedValue({
+      items: [{ ...newChild, status: '开发中' }],
+    } as never);
+    await useApp.getState().loadChildren('wi-req-1');
+    expect(useApp.getState().children).toHaveLength(1);
+    expect(useApp.getState().children[0].status).toBe('开发中');
+  });
+});
+
+describe('updateWorkitemAssigneeOptimistic', () => {
+  it('成功路径：detail、items、children 乐观更新新负责人，调用 API，并给出 ok Toast', async () => {
+    vi.mocked(api.updateWorkitem).mockResolvedValue({ success: true } as never);
+
+    useApp.setState({
+      detail: {
+        workitemId: 'wi-1',
+        assignedTo: { id: 'user-old', name: '旧负责人' },
+        workitem: {
+          workitemId: 'wi-1',
+          assignedTo: { id: 'user-old', name: '旧负责人' },
+        },
+      },
+      items: [row({ identifier: 'REQ-2001', workitemId: 'wi-1', assignedTo: '旧负责人', assignedToId: 'user-old' })],
+      children: [
+        {
+          workitemId: 'wi-1',
+          identifier: 'TASK-1',
+          subject: '子任务',
+          assignedTo: '旧负责人',
+        } as never,
+      ],
+      toast: null,
+    });
+
+    const ok = await useApp.getState().updateWorkitemAssigneeOptimistic('wi-1', 'user-new', '新负责人');
+
+    expect(ok).toBe(true);
+    const state = useApp.getState();
+    const detail = state.detail as Record<string, any>;
+    expect(detail?.assignedTo).toEqual({ id: 'user-new', name: '新负责人' });
+    expect(detail?.workitem?.assignedTo).toEqual({ id: 'user-new', name: '新负责人' });
+    expect(state.items[0].assignedTo).toBe('新负责人');
+    expect(state.items[0].assignedToId).toBe('user-new');
+    expect(state.children[0].assignedTo).toBe('新负责人');
+    expect(api.updateWorkitem).toHaveBeenCalledWith('wi-1', { assignedTo: 'user-new' });
+    expect(state.toast?.kind).toBe('ok');
+    expect(state.toast?.text).toContain('新负责人');
+  });
+
+  it('失败路径：API 报错时回滚原负责人并发出 fail Toast', async () => {
+    vi.mocked(api.updateWorkitem).mockRejectedValue(new Error('云效 403 权限不足'));
+
+    useApp.setState({
+      detail: {
+        workitemId: 'wi-1',
+        assignedTo: '旧负责人',
+        workitem: {
+          workitemId: 'wi-1',
+          assignedTo: '旧负责人',
+        },
+      },
+      items: [row({ identifier: 'REQ-2001', workitemId: 'wi-1', assignedTo: '旧负责人', assignedToId: 'user-old' })],
+      children: [
+        {
+          workitemId: 'wi-1',
+          identifier: 'TASK-1',
+          subject: '子任务',
+          assignedTo: '旧负责人',
+        } as never,
+      ],
+      toast: null,
+    });
+
+    const ok = await useApp.getState().updateWorkitemAssigneeOptimistic('wi-1', 'user-new', '新负责人');
+
+    expect(ok).toBe(false);
+    const state = useApp.getState();
+    const detail = state.detail as Record<string, any>;
+    expect(detail?.assignedTo).toBe('旧负责人');
+    expect(state.items[0].assignedTo).toBe('旧负责人');
+    expect(state.items[0].assignedToId).toBe('user-old');
+    expect(state.children[0].assignedTo).toBe('旧负责人');
+    expect(state.toast?.kind).toBe('fail');
+    expect(state.toast?.text).toContain('负责人修改失败');
+  });
+});
+

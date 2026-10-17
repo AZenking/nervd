@@ -154,13 +154,21 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
             if s(w, "parentId") != workitem_id {
                 continue;
             }
+            let ident = {
+                let a = s(w, "identifier");
+                if !a.is_empty() { a } else { s(w, "serialNumber") }
+            };
+            let status_name = {
+                let n = nested_s(w, "status", "name");
+                if !n.is_empty() { n } else { nested_s(w, "status", "displayName") }
+            };
             children.push(json!({
                 "workitemId": s(w, "id"),
-                "identifier": s(w, "serialNumber"),
+                "identifier": ident,
                 "subject": s(w, "subject"),
                 "category": s(w, "categoryId"),
                 "statusId": nested_s(w, "status", "id"),
-                "status": nested_s(w, "status", "name"),
+                "status": status_name,
                 "assignedTo": nested_s(w, "assignedTo", "name"),
                 "gmtModified": i64_of(w, "gmtModified").map(chrono_ms_to_local).unwrap_or_default(),
             }));
@@ -241,6 +249,7 @@ pub async fn update_workitem(
     status_id: Option<String>,
     description: Option<String>,
     format_type: Option<String>,
+    assigned_to: Option<String>,
 ) -> Result<Value, String> {
     ensure_write(&state)?;
     let workitem_id = workitem_id.trim();
@@ -266,6 +275,12 @@ pub async fn update_workitem(
         body.insert("description".into(), json!(description));
         let ft = format_type.unwrap_or_else(|| "RICHTEXT".to_string());
         body.insert("formatType".into(), json!(ft));
+    }
+    if let Some(assigned_to) = assigned_to {
+        let assigned_to = assigned_to.trim();
+        if !assigned_to.is_empty() {
+            body.insert("assignedTo".into(), json!(assigned_to));
+        }
     }
     if body.is_empty() {
         return Err("没有需要保存的工作项修改".into());
@@ -563,6 +578,7 @@ pub async fn create_workitem_child(
     workitem_type_id: String,
     assigned_to: Option<String>,
     severity: Option<String>,
+    category: Option<String>,
 ) -> Result<Value, String> {
     ensure_write(&state)?;
     let parent_workitem_id = parent_workitem_id.trim().to_string();
@@ -706,19 +722,61 @@ pub async fn create_workitem_child(
         .filter(|w| !s(w, "id").is_empty())
         .or_else(|| resp.get("data").filter(|w| !s(w, "id").is_empty()))
         .unwrap_or(&resp);
-    let status_name = {
-        let n = nested_s(row, "status", "name");
-        if n.is_empty() { nested_s(row, "status", "displayName") } else { n }
+
+    let identifier = {
+        let a = s(row, "identifier");
+        if !a.is_empty() { a } else { s(row, "serialNumber") }
     };
+
+    let inferred_category = category
+        .filter(|c| !c.trim().is_empty())
+        .or_else(|| if severity.is_some() { Some("Bug".to_string()) } else { None })
+        .unwrap_or_else(|| {
+            let mut c = s(row, "categoryId");
+            if c.is_empty() { c = s(row, "category"); }
+            if c.is_empty() { c = nested_s(row, "workitemType", "category"); }
+            if c.is_empty() { c = nested_s(row, "workitemType", "categoryId"); }
+            if c.is_empty() { c = "Task".to_string(); }
+            c
+        });
+
+    let mut status_name = nested_s(row, "status", "name");
+    if status_name.is_empty() { status_name = nested_s(row, "status", "displayName"); }
+    if status_name.is_empty() { status_name = s(row, "statusName"); }
+    if status_name.is_empty() { status_name = "待办".to_string(); }
+
+    let mut status_id = nested_s(row, "status", "id");
+    if status_id.is_empty() { status_id = s(row, "statusId"); }
+
+    let mut assigned_to_name = nested_s(row, "assignedTo", "name");
+    if assigned_to_name.is_empty() { assigned_to_name = nested_s(row, "assignedTo", "realName"); }
+    if assigned_to_name.is_empty() { assigned_to_name = s(row, "assignedToName"); }
+    if assigned_to_name.is_empty() && !assignee_id.is_empty() && assignee_id == extract_user_id(detail.get("assignedTo")) {
+        assigned_to_name = nested_s(detail, "assignedTo", "name");
+    }
+
+    let mut subject_val = s(row, "subject");
+    if subject_val.is_empty() { subject_val = subject.clone(); }
+
+    let workitem_id_val = {
+        let id = s(row, "id");
+        if !id.is_empty() { id } else { s(row, "workitemId") }
+    };
+
+    let gmt_modified = i64_of(row, "gmtModified")
+        .or_else(|| i64_of(row, "gmtCreate"))
+        .map(chrono_ms_to_local)
+        .unwrap_or_default();
+
     Ok(json!({
-        "workitemId": s(row, "id"),
-        "identifier": s(row, "serialNumber"),
-        "subject": s(row, "subject"),
-        "category": s(row, "categoryId"),
-        "statusId": nested_s(row, "status", "id"),
+        "workitemId": workitem_id_val,
+        "identifier": identifier,
+        "subject": subject_val,
+        "category": inferred_category,
+        "statusId": status_id,
         "status": status_name,
-        "assignedTo": nested_s(row, "assignedTo", "name"),
-        "gmtModified": i64_of(row, "gmtModified").map(chrono_ms_to_local).unwrap_or_default(),
+        "assignedTo": assigned_to_name,
+        "gmtModified": gmt_modified,
     }))
 }
 

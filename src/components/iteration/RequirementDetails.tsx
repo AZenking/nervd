@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, ClockIcon, CopyIcon, DatabaseIcon,
   ExternalLinkIcon, FolderIcon, GitBranchIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, SparklesIcon, UserIcon, XIcon,
@@ -14,7 +14,6 @@ import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { CATEGORY_LABELS, type Category } from '@/types';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -38,7 +37,7 @@ import {
 import { RequirementDetailsSkeleton } from './requirement/requirement-skeleton';
 import { ChildrenCard } from './requirement/children-card';
 import { LinkedRepoCard } from './requirement/linked-repo-card';
-import { DetailStatusPopover, RequirementProperties } from './requirement/requirement-properties';
+import { DetailAssigneePopover, DetailStatusPopover, RequirementProperties } from './requirement/requirement-properties';
 import { RequirementActivity } from './requirement/requirement-activity';
 
 export { RequirementDetailsSkeleton };
@@ -58,7 +57,7 @@ export function RequirementDetails({
 }: RequirementDetailsProps = {}) {
   const {
     selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
-    iterations, trace, traceLoading,
+    iterations, trace, traceLoading, currentUser,
     saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast, reloadCurrentDetail,
   } = useApp();
   const allowWrite = settings?.allowWriteOps ?? false;
@@ -133,6 +132,50 @@ export function RequirementDetails({
       ? (typeof (wi.creator as any).identifier === 'string' ? (wi.creator as any).identifier
         : typeof (wi.creator as any).id === 'string' ? (wi.creator as any).id : undefined)
       : (typeof wi.creator === 'string' && wi.creator ? wi.creator : undefined));
+
+  // 汇总候选处理人：当前登录用户、父需求负责人、创建人、参与人、已有子项负责人及当前迭代成员
+  const candidateAssignees = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; role?: string }>();
+    if (currentUser?.id && currentUser?.name) {
+      map.set(currentUser.id, { id: currentUser.id, name: currentUser.name, role: '当前用户' });
+    }
+    if (parentAssigneeId && assignedToName) {
+      map.set(parentAssigneeId, { id: parentAssigneeId, name: assignedToName, role: '需求负责人' });
+    }
+    const creator = (wi.creator ?? {}) as Record<string, unknown>;
+    const creatorId = typeof creator.id === 'string' ? creator.id
+      : typeof creator.identifier === 'string' ? creator.identifier : undefined;
+    const creatorName = typeof creator.name === 'string' ? creator.name
+      : typeof creator.displayName === 'string' ? creator.displayName : undefined;
+    if (creatorId && creatorName && !map.has(creatorId)) {
+      map.set(creatorId, { id: creatorId, name: creatorName, role: '创建人' });
+    }
+    if (Array.isArray(wi.participants)) {
+      for (const p of wi.participants as Record<string, unknown>[]) {
+        const pid = typeof p.id === 'string' ? p.id : typeof p.identifier === 'string' ? p.identifier : '';
+        const pname = typeof p.name === 'string' ? p.name : typeof p.displayName === 'string' ? p.displayName : '';
+        if (pid && pname && !map.has(pid)) {
+          map.set(pid, { id: pid, name: pname, role: '参与人' });
+        }
+      }
+    }
+    for (const c of children) {
+      if (c.assignedTo && !map.has(c.assignedTo)) {
+        map.set(c.assignedTo, { id: c.assignedTo, name: c.assignedTo, role: '成员' });
+      }
+    }
+    for (const it of items) {
+      const id = it.assignedToId || it.assignedTo;
+      const name = it.assignedTo || it.assignedToId;
+      if (id && name && !map.has(id)) {
+        map.set(id, { id, name, role: '项目成员' });
+      }
+      if (it.creatorId && it.creator && !map.has(it.creatorId)) {
+        map.set(it.creatorId, { id: it.creatorId, name: it.creator, role: '项目成员' });
+      }
+    }
+    return Array.from(map.values());
+  }, [currentUser, parentAssigneeId, assignedToName, wi, children, items]);
 
   const spaceName = (typeof wi.spaceName === 'string' && wi.spaceName)
     || (wi.space && typeof wi.space === 'object' && typeof (wi.space as any).name === 'string' ? (wi.space as any).name : '')
@@ -552,16 +595,12 @@ export function RequirementDetails({
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
             <UserIcon className="size-3.5 text-muted-foreground" />
-            {assignedToName ? (
-              <span className="flex items-center gap-1 text-foreground">
-                <Avatar className="size-4">
-                  <AvatarFallback className="text-[9px]">{assignedToName.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <span>{assignedToName}</span>
-              </span>
-            ) : (
-              <span className="text-muted-foreground">未分配</span>
-            )}
+            <DetailAssigneePopover
+              assignedToName={assignedToName}
+              workitemId={selectedId}
+              candidateAssignees={candidateAssignees}
+              variant="cell"
+            />
           </div>
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
@@ -956,42 +995,6 @@ export function RequirementDetails({
               setDrawerChild(child);
             };
 
-            // 汇总候选处理人：父需求负责人、创建人、参与人、已有子项负责人及当前迭代成员
-            const candidateAssignees = (() => {
-              const map = new Map<string, { id: string; name: string; role?: string }>();
-              if (parentAssigneeId && assignedToName) {
-                map.set(parentAssigneeId, { id: parentAssigneeId, name: assignedToName, role: '需求负责人' });
-              }
-              const creator = (wi.creator ?? {}) as Record<string, unknown>;
-              const creatorId = typeof creator.id === 'string' ? creator.id
-                : typeof creator.identifier === 'string' ? creator.identifier : undefined;
-              const creatorName = typeof creator.name === 'string' ? creator.name
-                : typeof creator.displayName === 'string' ? creator.displayName : undefined;
-              if (creatorId && creatorName && !map.has(creatorId)) {
-                map.set(creatorId, { id: creatorId, name: creatorName, role: '创建人' });
-              }
-              if (Array.isArray(wi.participants)) {
-                for (const p of wi.participants as Record<string, unknown>[]) {
-                  const pid = typeof p.id === 'string' ? p.id : typeof p.identifier === 'string' ? p.identifier : '';
-                  const pname = typeof p.name === 'string' ? p.name : typeof p.displayName === 'string' ? p.displayName : '';
-                  if (pid && pname && !map.has(pid)) {
-                    map.set(pid, { id: pid, name: pname, role: '参与人' });
-                  }
-                }
-              }
-              for (const c of children) {
-                if (c.assignedTo && !map.has(c.assignedTo)) {
-                  map.set(c.assignedTo, { id: c.assignedTo, name: c.assignedTo, role: '成员' });
-                }
-              }
-              for (const it of items) {
-                if (it.assignedTo && !map.has(it.assignedTo)) {
-                  map.set(it.assignedTo, { id: it.assignedTo, name: it.assignedTo, role: '成员' });
-                }
-              }
-              return Array.from(map.values());
-            })();
-
             return (
               <div className="flex flex-col gap-6">
                 <ChildrenCard
@@ -1051,6 +1054,7 @@ export function RequirementDetails({
             statusName={statusName}
             selectedId={selectedId}
             assignedToName={assignedToName}
+            candidateAssignees={candidateAssignees}
             category={category}
             parent={parent}
             spaceName={spaceName}
@@ -1068,6 +1072,7 @@ export function RequirementDetails({
       <ChildDetailDrawer
         child={drawerChild}
         parentWorkitem={selectedId && identifier ? { workitemId: selectedId, identifier, subject } : null}
+        candidateAssignees={candidateAssignees}
         onClose={() => setDrawerChild(null)}
         onOpenInWorkbench={(child) => {
           setDrawerChild(null);

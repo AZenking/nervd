@@ -181,7 +181,7 @@ export function RequirementActivity({
   return (
     <section className={cn('flex flex-col gap-4', className)}>
       <div className="flex items-center justify-between">
-        <SectionHeader title="Activity" count={commentItems.length || undefined} hint="评论与讨论记录" />
+        <SectionHeader title="动态" count={commentItems.length || undefined} hint="评论与讨论记录" />
         {commentItems.length > 0 && (
           <Button
             size="xs"
