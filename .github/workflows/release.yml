@@ -67,13 +67,25 @@ jobs:
         run: |
           mkdir -p dist-assets
           VERSION=$(node -e "console.log(require('./src-tauri/tauri.conf.json').version)")
+
+          calc_sha256() {
+            local file="$1"
+            if command -v shasum >/dev/null 2>&1; then
+              shasum -a 256 "$file" > "${file}.sha256"
+            elif command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$file" > "${file}.sha256"
+            else
+              node -e "const fs=require('fs'),crypto=require('crypto');const buf=fs.readFileSync(process.argv[1]);const hash=crypto.createHash('sha256').update(buf).digest('hex');process.stdout.write(hash + '  ' + process.argv[1] + '\n');" "$file" > "${file}.sha256"
+            fi
+          }
+
           # 提取当前 target 对应的 dmg 产物
           DMG_FILE=$(find src-tauri/target -name "*.dmg" -path "*/bundle/dmg/*" | head -n 1)
           if [ -f "$DMG_FILE" ]; then
             TARGET_NAME="nervd_${VERSION}_${{ matrix.arch }}.dmg"
             cp "$DMG_FILE" "dist-assets/${TARGET_NAME}"
             cd dist-assets
-            shasum -a 256 "${TARGET_NAME}" > "${TARGET_NAME}.sha256"
+            calc_sha256 "${TARGET_NAME}"
             cd ..
             echo "Created DMG: ${TARGET_NAME}"
           else
@@ -136,6 +148,17 @@ jobs:
         run: |
           mkdir -p dist-assets
           VERSION=$(node -e "console.log(require('./src-tauri/tauri.conf.json').version)")
+
+          calc_sha256() {
+            local file="$1"
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$file" > "${file}.sha256"
+            elif command -v shasum >/dev/null 2>&1; then
+              shasum -a 256 "$file" > "${file}.sha256"
+            else
+              node -e "const fs=require('fs'),crypto=require('crypto');const buf=fs.readFileSync(process.argv[1]);const hash=crypto.createHash('sha256').update(buf).digest('hex');process.stdout.write(hash + '  ' + process.argv[1] + '\n');" "$file" > "${file}.sha256"
+            fi
+          }
           
           # 提取 NSIS (.exe) 安装程序
           EXE_FILE=$(find src-tauri/target -name "*.exe" -path "*/bundle/nsis/*" 2>/dev/null | head -n 1)
@@ -143,7 +166,7 @@ jobs:
             TARGET_EXE="nervd_${VERSION}_${{ matrix.arch }}-setup.exe"
             cp "$EXE_FILE" "dist-assets/${TARGET_EXE}"
             cd dist-assets
-            shasum -a 256 "${TARGET_EXE}" > "${TARGET_EXE}.sha256"
+            calc_sha256 "${TARGET_EXE}"
             cd ..
             echo "Created Windows EXE: ${TARGET_EXE}"
           fi
@@ -154,7 +177,7 @@ jobs:
             TARGET_MSI="nervd_${VERSION}_${{ matrix.arch }}.msi"
             cp "$MSI_FILE" "dist-assets/${TARGET_MSI}"
             cd dist-assets
-            shasum -a 256 "${TARGET_MSI}" > "${TARGET_MSI}.sha256"
+            calc_sha256 "${TARGET_MSI}"
             cd ..
             echo "Created Windows MSI: ${TARGET_MSI}"
           fi
