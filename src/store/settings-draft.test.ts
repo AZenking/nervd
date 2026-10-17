@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Settings, SettingsView } from '@/types';
 
 vi.mock('@/lib/api', () => ({
@@ -11,7 +11,13 @@ vi.mock('@/lib/api', () => ({
 
 import * as api from '@/lib/api';
 import { useApp } from './app';
-import { useSettingsDraft, validateSettings } from './settings-draft';
+import {
+  useSettingsDraft,
+  validateSettings,
+  canonicalJson,
+  sameSettings,
+  normalize,
+} from './settings-draft';
 
 const BASE_SETTINGS: Settings = {
   organizationId: 'org-1',
@@ -105,5 +111,121 @@ describe('useSettingsDraft save', () => {
     expect(callOrder).toEqual(['saveJenkinsToken', 'saveSettings']);
     expect(useApp.getState().settings?.jenkinsConnections[0].hasToken).toBe(true);
     expect(useSettingsDraft.getState().jenkinsTokens).toEqual({});
+  });
+});
+
+describe('sameSettings & canonicalJson', () => {
+  it('对象键顺序不同时仍应识别为相同设置', () => {
+    const a: Settings = {
+      organizationId: 'org-1',
+      defaultSpaceIdentifier: 'space-1',
+      linkPattern: 'REQ-(\\d+)',
+      watchedRepos: [1, 2],
+      allowWriteOps: false,
+      workitemRepos: { '10': [1, 2] },
+      branchRuleTemplates: [],
+      workitemRepoBranchTemplates: {},
+      jenkinsConnections: [],
+      repoCiBindings: { '1': { provider: 'flow', pipelineId: 10, pipelineName: 'test' } },
+    };
+
+    // 颠倒键顺序
+    const b: Settings = {
+      repoCiBindings: { '1': { pipelineName: 'test', provider: 'flow', pipelineId: 10 } },
+      jenkinsConnections: [],
+      workitemRepoBranchTemplates: {},
+      branchRuleTemplates: [],
+      workitemRepos: { '10': [1, 2] },
+      allowWriteOps: false,
+      watchedRepos: [1, 2],
+      linkPattern: 'REQ-(\\d+)',
+      defaultSpaceIdentifier: 'space-1',
+      organizationId: 'org-1',
+    };
+
+    expect(canonicalJson(a)).toBe(canonicalJson(b));
+    expect(sameSettings(a, b)).toBe(true);
+  });
+
+  it('字段值不同时应识别为不同', () => {
+    const a = { ...BASE_SETTINGS, organizationId: 'org-1' };
+    const b = { ...BASE_SETTINGS, organizationId: 'org-2' };
+    expect(sameSettings(a, b)).toBe(false);
+  });
+
+  it('normalize 提取 SettingsView 后应与同等 Settings 匹配', () => {
+    const view: SettingsView = {
+      ...BASE_SETTINGS,
+      hasPat: true,
+      jenkinsConnections: [
+        { id: 'j-1', name: 'Jenkins', baseUrl: 'https://ci.example.com', username: 'u', hasToken: true },
+      ],
+    };
+    const normalized = normalize(view);
+    const expected: Settings = {
+      ...BASE_SETTINGS,
+      jenkinsConnections: [
+        { id: 'j-1', name: 'Jenkins', baseUrl: 'https://ci.example.com', username: 'u' },
+      ],
+    };
+    expect(sameSettings(normalized, expected)).toBe(true);
+  });
+});
+
+describe('useSettingsDraft _applyBaseline', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('保存后应用 baseline：若与草稿一致，状态应为 saved 且不重复排期自动保存（避免死循环）', () => {
+    const scheduleSpy = vi.spyOn(useSettingsDraft.getState(), 'scheduleAutoSave');
+
+    useSettingsDraft.setState({
+      draft: { ...BASE_SETTINGS },
+      baseline: { ...BASE_SETTINGS },
+      autoSaveStatus: 'saving',
+    });
+
+    // 模拟后端返回包含 hasPat/hasToken 且属性乱序的 SettingsView
+    const savedView: SettingsView = {
+      ...BASE_SETTINGS,
+      hasPat: true,
+      jenkinsConnections: [],
+    };
+
+    useSettingsDraft.getState()._applyBaseline(savedView);
+
+    const state = useSettingsDraft.getState();
+    expect(state.autoSaveStatus).toBe('saved');
+    expect(scheduleSpy).not.toHaveBeenCalled();
+    expect(state.draft).toEqual(normalize(savedView));
+
+    scheduleSpy.mockRestore();
+  });
+
+  it('保存后应用 baseline：若草稿在保存期间有新输入，应触发重新排期', () => {
+    const scheduleSpy = vi.spyOn(useSettingsDraft.getState(), 'scheduleAutoSave');
+
+    useSettingsDraft.setState({
+      draft: { ...BASE_SETTINGS, linkPattern: 'NEW-PATTERN' },
+      baseline: { ...BASE_SETTINGS },
+      autoSaveStatus: 'saving',
+    });
+
+    const savedView: SettingsView = {
+      ...BASE_SETTINGS,
+      hasPat: true,
+      jenkinsConnections: [],
+    };
+
+    useSettingsDraft.getState()._applyBaseline(savedView);
+
+    expect(scheduleSpy).toHaveBeenCalledTimes(1);
+
+    scheduleSpy.mockRestore();
   });
 });

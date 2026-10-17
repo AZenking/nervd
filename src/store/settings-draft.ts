@@ -7,13 +7,25 @@ import type { JenkinsConnection, RepoCiBinding, Settings, SettingsView } from '.
 // 模块初始化期无交叉引用，ESM 下安全。
 import { useApp } from './app';
 
-/** 与已保存 settings 可比对的形态（剥离视图字段） */
-const normalize = (s: SettingsView | null | undefined): Settings | null => {
+/** 与已保存 settings 可比对的形态（剥离视图字段，保证属性顺序一致） */
+export const normalize = (s: SettingsView | null | undefined): Settings | null => {
   if (!s) return null;
-  const { hasPat: _hasPat, jenkinsConnections, ...rest } = s;
   return {
-    ...rest,
-    jenkinsConnections: jenkinsConnections.map(({ hasToken: _hasToken, ...connection }) => connection),
+    organizationId: s.organizationId || '',
+    defaultSpaceIdentifier: s.defaultSpaceIdentifier || '',
+    linkPattern: s.linkPattern || '',
+    watchedRepos: s.watchedRepos ?? [],
+    allowWriteOps: Boolean(s.allowWriteOps),
+    workitemRepos: s.workitemRepos ?? {},
+    branchRuleTemplates: s.branchRuleTemplates ?? [],
+    workitemRepoBranchTemplates: s.workitemRepoBranchTemplates ?? {},
+    jenkinsConnections: (s.jenkinsConnections ?? []).map(({ hasToken: _hasToken, ...connection }) => ({
+      id: connection.id,
+      name: connection.name,
+      baseUrl: connection.baseUrl,
+      username: connection.username,
+    })),
+    repoCiBindings: s.repoCiBindings ?? {},
   };
 };
 
@@ -30,8 +42,22 @@ const EMPTY_SETTINGS: Settings = {
   repoCiBindings: {},
 };
 
-const sameSettings = (a: Settings | null, b: Settings | null) =>
-  a === b || (a != null && b != null && JSON.stringify(a) === JSON.stringify(b));
+export function canonicalJson(obj: unknown): string {
+  if (obj === null || typeof obj !== 'object') {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return '[' + obj.map(canonicalJson).join(',') + ']';
+  }
+  const sortedKeys = Object.keys(obj as Record<string, unknown>).sort();
+  const pairs = sortedKeys.map(
+    (k) => JSON.stringify(k) + ':' + canonicalJson((obj as Record<string, unknown>)[k]),
+  );
+  return '{' + pairs.join(',') + '}';
+}
+
+export const sameSettings = (a: Settings | null, b: Settings | null) =>
+  a === b || (a != null && b != null && canonicalJson(a) === canonicalJson(b));
 
 /** 保存前校验：返回字段级错误（键：字段名 / 自定义键） */
 export function validateSettings(s: Settings): Record<string, string> {
@@ -157,7 +183,7 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
     if (!sameSettings(get().draft, next)) {
       get().scheduleAutoSave();
     } else {
-      set({ autoSaveStatus: 'saved' });
+      set({ autoSaveStatus: 'saved', draft: next });
     }
   },
 

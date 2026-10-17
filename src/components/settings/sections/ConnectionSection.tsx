@@ -31,7 +31,10 @@ export function ConnectionSection() {
   const loadProjects = async () => {
     try {
       // 若草稿中有未持久化的 PAT 或组织 ID 改动，先刷入保存，确保后端以最新凭据请求接口
-      if (draft.pat.trim() || draft.draft?.organizationId !== settings?.organizationId) {
+      const orgChanged = Boolean(
+        draft.draft && draft.baseline && draft.draft.organizationId !== draft.baseline.organizationId,
+      );
+      if (draft.pat.trim() || orgChanged) {
         await draft.flushAutoSave();
       }
       const list = await api.listProjects();
