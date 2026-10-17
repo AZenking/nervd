@@ -15,6 +15,7 @@ import { useUi } from '@/store/ui';
 import { toast } from '@/components/ui/toast';
 import * as api from '@/lib/api';
 import { aiSummarizeComments, aiGenerateCommentDraft } from '@/lib/ai-api';
+import { markdownToHtml } from '@/lib/richtext';
 import type { AiCommentSummary } from '@/types/ai';
 
 export interface RequirementActivityProps {
@@ -124,7 +125,7 @@ export function RequirementActivity({
         subtaskStats,
         draftText: commentDraft.replace(/<[^>]*>/g, '').trim(),
       });
-      setCommentDraft(generated);
+      setCommentDraft(markdownToHtml(generated));
       toast.add({ title: '已生成评论草稿', type: 'success' });
     } catch (err) {
       toast.add({
@@ -280,8 +281,8 @@ export function RequirementActivity({
                 ?? c.creator
                 ?? '—',
             );
-            const content = String(c.content ?? '');
-            const isHtml = content.includes('<') && content.includes('>');
+            const rawContent = String(c.content ?? '');
+            const richHtml = markdownToHtml(rawContent);
 
             return (
               <article key={i} className="relative flex items-start gap-3">
@@ -298,11 +299,7 @@ export function RequirementActivity({
                     </span>
                   </div>
                   <div className="mt-1 text-sm leading-relaxed text-foreground/85">
-                    {isHtml ? (
-                      <RichEditor content={content} editable={false} className="cursor-default" />
-                    ) : (
-                      <div className="whitespace-pre-wrap break-words">{content}</div>
-                    )}
+                    <RichEditor content={richHtml} editable={false} className="cursor-default" />
                   </div>
                 </div>
               </article>

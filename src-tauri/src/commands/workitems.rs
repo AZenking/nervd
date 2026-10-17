@@ -429,6 +429,126 @@ fn resolve_user_id(name_or_id: &str, detail: &Value) -> String {
     trimmed.to_string()
 }
 
+/// 从工作项字段配置中智能匹配最符合的选项 ID，防止非法中文字符串直接发往云效导致 400 校验报错。
+pub(crate) fn match_field_option(
+    field: &Value,
+    target_val: Option<&str>,
+    is_severity: bool,
+) -> Option<String> {
+    let options = field.get("options")
+        .or_else(|| field.get("items"))
+        .or_else(|| field.get("values"))
+        .or_else(|| field.get("fieldOptions"))
+        .and_then(Value::as_array);
+
+    let opts = match options {
+        Some(arr) if !arr.is_empty() => arr,
+        _ => {
+            return field.get("defaultValue")
+                .and_then(|v| {
+                    if let Some(s) = v.as_str() { Some(s.to_string()) }
+                    else if let Some(id) = v.get("id").or_else(|| v.get("identifier")).or_else(|| v.get("value")).and_then(|x| x.as_str()) {
+                        Some(id.to_string())
+                    } else { None }
+                })
+                .or_else(|| target_val.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
+        }
+    };
+
+    let parse_opt = |opt: &Value| -> (String, String) {
+        if let Some(s) = opt.as_str() {
+            return (s.to_string(), s.to_string());
+        }
+        let mut id = s(opt, "id");
+        if id.is_empty() { id = s(opt, "value"); }
+        if id.is_empty() { id = s(opt, "identifier"); }
+        if id.is_empty() { id = s(opt, "code"); }
+
+        let mut name = s(opt, "displayValue");
+        if name.is_empty() { name = s(opt, "displayName"); }
+        if name.is_empty() { name = s(opt, "name"); }
+        if name.is_empty() { name = s(opt, "label"); }
+        if name.is_empty() { name = s(opt, "valueEn"); }
+        if name.is_empty() { name = id.clone(); }
+        (id, name)
+    };
+
+    // 1. 若显式指定 target_val，优先按 ID、名称、语义别名匹配
+    if let Some(target) = target_val.map(str::trim).filter(|s| !s.is_empty()) {
+        for opt in opts {
+            let (opt_id, opt_name) = parse_opt(opt);
+            if opt_id.is_empty() { continue; }
+            if opt_id == target || opt_name == target {
+                return Some(opt_id);
+            }
+            if opt_name.contains(target) || target.contains(&opt_name) {
+                return Some(opt_id);
+            }
+            if is_severity {
+                let lower_target = target.to_ascii_lowercase();
+                let lower_name = opt_name.to_ascii_lowercase();
+                let lower_id = opt_id.to_ascii_lowercase();
+
+                let is_slight = target == "轻微" || lower_target.contains("slight") || lower_target.contains("low") || lower_target.contains("trivial");
+                if is_slight && (opt_name.contains("轻微") || lower_name.contains("slight") || lower_name.contains("low") || lower_name.contains("trivial") || lower_id.contains("minor") || lower_id.contains("slight") || lower_id.contains("low")) {
+                    return Some(opt_id);
+                }
+
+                let is_normal = target == "一般" || lower_target.contains("normal") || lower_target.contains("medium");
+                if is_normal && (opt_name.contains("一般") || lower_name.contains("normal") || lower_name.contains("medium") || lower_id.contains("normal")) {
+                    return Some(opt_id);
+                }
+
+                let is_critical = target == "严重" || lower_target.contains("critical") || lower_target.contains("major") || lower_target.contains("high");
+                if is_critical && (opt_name.contains("严重") || lower_name.contains("critical") || lower_name.contains("major") || lower_name.contains("high") || lower_id.contains("critical") || lower_id.contains("major")) {
+                    return Some(opt_id);
+                }
+
+                let is_fatal = target == "致命" || lower_target.contains("fatal") || lower_target.contains("blocker");
+                if is_fatal && (opt_name.contains("致命") || lower_name.contains("fatal") || lower_name.contains("blocker") || lower_id.contains("fatal") || lower_id.contains("blocker")) {
+                    return Some(opt_id);
+                }
+            }
+        }
+    }
+
+    // 2. 尝试从 defaultValue / defaultOption 取
+    if let Some(def) = field.get("defaultValue").and_then(|v| {
+        if let Some(s) = v.as_str() { Some(s.to_string()) }
+        else if let Some(id) = v.get("id").or_else(|| v.get("identifier")).or_else(|| v.get("value")).and_then(|x| x.as_str()) {
+            Some(id.to_string())
+        } else { None }
+    }) {
+        if !def.is_empty() {
+            for opt in opts {
+                let (opt_id, opt_name) = parse_opt(opt);
+                if opt_id == def || opt_name == def {
+                    return Some(opt_id);
+                }
+            }
+            return Some(def);
+        }
+    }
+
+    // 3. 尝试找「一般 / Normal」作为通用兜底
+    for opt in opts {
+        let (opt_id, opt_name) = parse_opt(opt);
+        if !opt_id.is_empty() && (opt_name.contains("一般") || opt_name.to_ascii_lowercase().contains("normal")) {
+            return Some(opt_id);
+        }
+    }
+
+    // 4. 兜底取首个有效选项 ID
+    for opt in opts {
+        let (opt_id, _) = parse_opt(opt);
+        if !opt_id.is_empty() {
+            return Some(opt_id);
+        }
+    }
+
+    None
+}
+
 /// 在需求下创建子工作项（**写操作**）：
 /// oapi/v1 POST workitems，body { spaceId, subject, workitemTypeId, parentId, sprint?, assignedTo, severity? }
 /// （端点与 body 字段依据 alibabacloud-devops-mcp-server@0.3.64 createWorkItemFunc 逆向，
@@ -548,63 +668,8 @@ pub async fn create_workitem_child(
                 || is_severity;
 
             if is_severity || is_required {
-                let options = f.get("options")
-                    .or_else(|| f.get("items"))
-                    .or_else(|| f.get("values"))
-                    .and_then(Value::as_array);
-
-                let mut chosen_val: Option<String> = None;
-
-                if is_severity {
-                    // 若调用方显式传入了 severity（如 "一般" / "致命" 或 optionId），优先按名称或标识匹配
-                    if let Some(target_sev) = severity.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-                        if let Some(opts) = options {
-                            for opt in opts {
-                                let opt_id = s2(opt, "identifier", "id");
-                                let opt_name = s2(opt, "name", "displayName");
-                                if opt_id == target_sev || opt_name == target_sev {
-                                    chosen_val = Some(opt_id);
-                                    break;
-                                }
-                            }
-                        }
-                        if chosen_val.is_none() {
-                            chosen_val = Some(target_sev.to_string());
-                        }
-                    }
-                }
-
-                // 若未指定或未匹配，尝试从 defaultValue / defaultOption 取
-                if chosen_val.is_none() {
-                    if let Some(def) = f.get("defaultValue").and_then(|v| {
-                        if let Some(s) = v.as_str() { Some(s.to_string()) }
-                        else if let Some(id) = v.get("id").or_else(|| v.get("identifier")).and_then(|x| x.as_str()) { Some(id.to_string()) }
-                        else { None }
-                    }) {
-                        if !def.is_empty() {
-                            chosen_val = Some(def);
-                        }
-                    }
-                }
-
-                // 若仍未获取，从 options 列表中找「一般/Normal」或第一项备选
-                if chosen_val.is_none() {
-                    if let Some(opts) = options {
-                        let normal_opt = opts.iter().find(|o| {
-                            let n = s2(o, "name", "displayName");
-                            n.contains("一般") || n.eq_ignore_ascii_case("normal")
-                        });
-                        let picked = normal_opt.or_else(|| opts.first());
-                        if let Some(p) = picked {
-                            let opt_id = s2(p, "identifier", "id");
-                            if !opt_id.is_empty() {
-                                chosen_val = Some(opt_id);
-                            }
-                        }
-                    }
-                }
-
-                if let Some(val) = chosen_val {
+                let target_input = if is_severity { severity.as_deref() } else { None };
+                if let Some(val) = match_field_option(f, target_input, is_severity) {
                     body[ident.clone()] = json!(val);
                     if is_severity {
                         body["severity"] = json!(val);
@@ -615,6 +680,15 @@ pub async fn create_workitem_child(
                         let mut cfv = serde_json::Map::new();
                         cfv.insert(ident.clone(), json!(val));
                         body["customFieldValues"] = Value::Object(cfv);
+                    }
+                    let entry = json!({
+                        "fieldIdentifier": ident.clone(),
+                        "value": val
+                    });
+                    if let Some(fvl) = body.get_mut("fieldValueList").and_then(Value::as_array_mut) {
+                        fvl.push(entry);
+                    } else {
+                        body["fieldValueList"] = json!([entry]);
                     }
                 }
             }
@@ -747,4 +821,59 @@ pub async fn proxy_workitem_file(state: State<'_, AppState>, url: String) -> Res
         return Err(format!("PROXY 拒绝: 附件超过 5MB（{} 字节）", bytes.len()));
     }
     Ok(format!("data:{mime};base64,{}", base64_encode(&bytes)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_match_field_option_with_yunxiao_display_value() {
+        // 云效标准返回：displayValue 为中文，value/id 为 option ID
+        let field = json!({
+            "id": "severity_field_id",
+            "name": "严重程度",
+            "options": [
+                { "id": "sev_fatal", "value": "fatal_val", "displayValue": "致命" },
+                { "id": "sev_critical", "value": "critical_val", "displayValue": "严重" },
+                { "id": "sev_normal", "value": "normal_val", "displayValue": "一般" },
+                { "id": "sev_minor", "value": "minor_val", "displayValue": "轻微" }
+            ]
+        });
+
+        // 用户选择「轻微」应精准匹配到 "sev_minor"
+        let matched = match_field_option(&field, Some("轻微"), true);
+        assert_eq!(matched, Some("sev_minor".to_string()));
+
+        // 用户选择「一般」
+        let matched = match_field_option(&field, Some("一般"), true);
+        assert_eq!(matched, Some("sev_normal".to_string()));
+
+        // 英文别名匹配 "slight"
+        let matched = match_field_option(&field, Some("slight"), true);
+        assert_eq!(matched, Some("sev_minor".to_string()));
+    }
+
+    #[test]
+    fn test_match_field_option_fallback_when_target_missing() {
+        let field = json!({
+            "id": "severity_field_id",
+            "name": "严重程度",
+            "options": [
+                { "value": "opt_1", "displayValue": "P1-紧急" },
+                { "value": "opt_2", "displayValue": "P2-一般" },
+                { "value": "opt_3", "displayValue": "P3-提示" }
+            ]
+        });
+
+        // 匹配包含「一般」的项
+        let matched = match_field_option(&field, Some("一般"), true);
+        assert_eq!(matched, Some("opt_2".to_string()));
+
+        // 未知值不强行塞入非法中文，回退兜底有效选项
+        let matched = match_field_option(&field, Some("完全不存在的级别"), true);
+        // 应回退到包含「一般」的 opt_2 或首项
+        assert_eq!(matched, Some("opt_2".to_string()));
+    }
 }

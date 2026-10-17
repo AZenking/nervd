@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import { markdownToHtml } from '@/lib/richtext';
 import {
   BoldIcon,
   ItalicIcon,
@@ -48,6 +49,8 @@ export function RichEditor({
   onSubmit,
   onCancel,
 }: RichEditorProps) {
+  const normalizedContent = useMemo(() => markdownToHtml(content), [content]);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -65,7 +68,7 @@ export function RichEditor({
         emptyEditorClass: 'is-editor-empty',
       }),
     ],
-    content,
+    content: normalizedContent,
     editable,
     autofocus,
     editorProps: {
@@ -111,10 +114,10 @@ export function RichEditor({
   useEffect(() => {
     if (!editor) return;
     const currentHtml = editor.getHTML();
-    if (content !== currentHtml && !editor.isFocused) {
-      editor.commands.setContent(content || '', { emitUpdate: false });
+    if (normalizedContent !== currentHtml && !editor.isFocused) {
+      editor.commands.setContent(normalizedContent || '', { emitUpdate: false });
     }
-  }, [content, editor]);
+  }, [normalizedContent, editor]);
 
   // 同步可编辑态
   useEffect(() => {

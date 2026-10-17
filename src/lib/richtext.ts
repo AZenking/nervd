@@ -182,6 +182,177 @@ export function extractRichImageUrls(raw: unknown): RichImage[] {
   return out.filter((img) => (seen.has(img.url) ? false : (seen.add(img.url), true)));
 }
 
+/**
+ * 将 Markdown 格式文本转换为标准 HTML（供 Tiptap 和富文本展示组件渲染）
+ * 若传入文本已是结构化 HTML，直接返回原内容。
+ */
+export function markdownToHtml(md: string): string {
+  if (!md) return '';
+  const trimmed = md.trim();
+  // 已是 HTML 格式则直接透传
+  if (
+    (trimmed.startsWith('<') && trimmed.endsWith('>')) ||
+    /<\/(p|div|span|h[1-6]|ul|ol|li|strong|em|code|pre|blockquote|table)>/i.test(trimmed)
+  ) {
+    return trimmed;
+  }
+
+  // 1. 保护代码块 ```...```
+  const codeBlocks: string[] = [];
+  const text = md.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/gi, (_, _lang, code) => {
+    const idx = codeBlocks.length;
+    const escaped = code.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    codeBlocks.push(`<pre><code>${escaped}</code></pre>`);
+    return `\u0000CODEBLOCK_${idx}\u0000`;
+  });
+
+  const lines = text.split('\n');
+  const htmlParts: string[] = [];
+  let inList: 'ul' | 'ol' | null = null;
+  let inQuote = false;
+  let quoteLines: string[] = [];
+  let paragraphLines: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraphLines.length) {
+      const pText = paragraphLines.map(parseInline).join('<br/>');
+      htmlParts.push(`<p>${pText}</p>`);
+      paragraphLines = [];
+    }
+  };
+
+  const flushList = () => {
+    if (inList) {
+      htmlParts.push(`</${inList}>`);
+      inList = null;
+    }
+  };
+
+  const flushQuote = () => {
+    if (inQuote) {
+      const qText = quoteLines.map(parseInline).join('<br/>');
+      htmlParts.push(`<blockquote><p>${qText}</p></blockquote>`);
+      inQuote = false;
+      quoteLines = [];
+    }
+  };
+
+  const flushAll = () => {
+    flushParagraph();
+    flushList();
+    flushQuote();
+  };
+
+  function parseInline(str: string): string {
+    // 1. 行内代码 `...`
+    const codes: string[] = [];
+    let s = str.replace(/`([^`]+)`/g, (_, code) => {
+      const idx = codes.length;
+      codes.push(`<code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>`);
+      return `\u0000INLINECODE_${idx}\u0000`;
+    });
+
+    // 2. 粗体 & 斜体 & 删除线
+    s = s.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    s = s.replace(/_([^_]+)_/g, '<em>$1</em>');
+    s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+
+    // 3. 链接
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    // 4. 还原行内代码
+    s = s.replace(/\u0000INLINECODE_(\d+)\u0000/g, (_, idx) => codes[Number(idx)]);
+
+    return s;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushAll();
+      continue;
+    }
+
+    // 代码块占位行
+    if (line.startsWith('\u0000CODEBLOCK_')) {
+      flushAll();
+      htmlParts.push(line);
+      continue;
+    }
+
+    // 分割线
+    if (/^(?:---|\*\*\*|___)$/.test(line)) {
+      flushAll();
+      htmlParts.push('<hr/>');
+      continue;
+    }
+
+    // 标题 (#, ##, ###, ####)
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushAll();
+      const level = Math.min(headingMatch[1].length, 3);
+      htmlParts.push(`<h${level}>${parseInline(headingMatch[2])}</h${level}>`);
+      continue;
+    }
+
+    // 引用 (> )
+    if (line.startsWith('>')) {
+      flushParagraph();
+      flushList();
+      inQuote = true;
+      quoteLines.push(line.replace(/^>\s*/, ''));
+      continue;
+    } else if (inQuote) {
+      flushQuote();
+    }
+
+    // 无序列表 (- 或 *)
+    const ulMatch = line.match(/^[-*]\s+(.*)$/);
+    if (ulMatch) {
+      flushParagraph();
+      flushQuote();
+      if (inList !== 'ul') {
+        flushList();
+        inList = 'ul';
+        htmlParts.push('<ul>');
+      }
+      htmlParts.push(`<li>${parseInline(ulMatch[1])}</li>`);
+      continue;
+    }
+
+    // 有序列表 (1. , 2. )
+    const olMatch = line.match(/^\d+\.\s+(.*)$/);
+    if (olMatch) {
+      flushParagraph();
+      flushQuote();
+      if (inList !== 'ol') {
+        flushList();
+        inList = 'ol';
+        htmlParts.push('<ol>');
+      }
+      htmlParts.push(`<li>${parseInline(olMatch[1])}</li>`);
+      continue;
+    }
+
+    // 普通文本段落行
+    flushList();
+    flushQuote();
+    paragraphLines.push(line);
+  }
+
+  flushAll();
+
+  let result = htmlParts.join('');
+  result = result.replace(/\u0000CODEBLOCK_(\d+)\u0000/g, (_, idx) => codeBlocks[Number(idx)]);
+  return result;
+}
+
 /** 描述字段（unknown）→ HTML 字符串（用于富文本编辑器渲染与回填） */
 export function extractRichHtml(raw: unknown): string {
   const doc = resolveRichDoc(raw);
@@ -189,22 +360,11 @@ export function extractRichHtml(raw: unknown): string {
     return doc.htmlValue;
   }
   if (typeof raw === 'string') {
-    const s = raw.trim();
-    if (!s) return '';
-    if (s.startsWith('<') && s.endsWith('>')) {
-      return s;
-    }
-    return s
-      .split(/\n\s*\n/)
-      .map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
-      .join('');
+    return markdownToHtml(raw);
   }
   const plain = richTextToPlain(raw);
   if (plain) {
-    return plain
-      .split(/\n\s*\n/)
-      .map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
-      .join('');
+    return markdownToHtml(plain);
   }
   return '';
 }
