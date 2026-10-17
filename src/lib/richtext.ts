@@ -21,6 +21,22 @@ export function imagePlaceholderLine(name: string): string {
   return `📎 ${name}（需在云效查看）`;
 }
 
+/**
+ * 过滤云效服务端（尤其是评论接口）不支持的 Emoji、4 字节 UTF-8 字符及特殊控制字符
+ * 避免触发云效服务端拦截："400: 评论失败，请检查是否存在特殊符号或者表情符号"
+ */
+export function sanitizeForYunxiao(text: string): string {
+  if (!text) return '';
+  return text
+    // 移除大部分 Unicode Emoji 范围（包含增补表情、几何图形、变体选择器等）
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}]/gu, '')
+    // 移除零宽字符和特定不可见控制字符
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    // 连续多余空格收缩为单空格
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 /** JsonML 节点：["tag", {attrs?}, ...children]，child 为 string 或嵌套节点 */
 function walkJsonML(node: unknown, out: string[]): void {
   if (typeof node === 'string') {

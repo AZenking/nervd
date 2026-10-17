@@ -315,8 +315,9 @@ export async function aiGenerateCommentDraft(params: {
   const systemPrompt = `你是一个高效敏捷研发团队的技术负责人。
 任务：${scenarioDesc}
 要求：
-1. 直接输出格式良好的富文本 Markdown（使用有序/无序列表、加粗重点、emoji 强调）。
-2. 言简意赅，语气专业高效，严禁包含任何前缀闲聊（如“好的，这是为您生成的…”）。
+1. 输出规范结构化的富文本 Markdown（使用有序/无序列表、加粗重点）。
+2. 【严格禁止使用任何 Emoji 表情符号】（如 🚀、📋、🧪、💡、🙋 等），因为云效服务端底层数据库不支持 Emoji 会直接触发 400 校验拦截报错。必须用纯文本或数字/符号替代。
+3. 言简意赅，语气专业高效，严禁包含任何前缀闲聊（如“好的，这是为您生成的…”）。
 ${customRule ? `\n\n团队自定义评论规范：\n${customRule}` : ''}`;
 
   const userPrompt = `需求：${params.identifier} ${params.subject}

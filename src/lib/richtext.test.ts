@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { markdownToHtml, extractRichHtml } from './richtext';
+import { markdownToHtml, extractRichHtml, sanitizeForYunxiao } from './richtext';
 
 describe('markdownToHtml', () => {
   it('handles empty or blank string', () => {
@@ -72,5 +72,22 @@ describe('extractRichHtml', () => {
   it('returns htmlValue if present in object', () => {
     const doc = { htmlValue: '<p>富文本内容</p>' };
     expect(extractRichHtml(doc)).toBe('<p>富文本内容</p>');
+  });
+});
+
+describe('sanitizeForYunxiao', () => {
+  it('strips unicode emojis and zero-width characters', () => {
+    const input = '### 🚀 研发进度同步\n- **状态**：正常 ✅\n如有阻塞请升级 🙋‍♂️';
+    const cleaned = sanitizeForYunxiao(input);
+    expect(cleaned).not.toContain('🚀');
+    expect(cleaned).not.toContain('✅');
+    expect(cleaned).not.toContain('🙋‍♂️');
+    expect(cleaned).toContain('### 研发进度同步');
+    expect(cleaned).toContain('- **状态**：正常');
+    expect(cleaned).toContain('如有阻塞请升级');
+  });
+
+  it('handles empty input', () => {
+    expect(sanitizeForYunxiao('')).toBe('');
   });
 });

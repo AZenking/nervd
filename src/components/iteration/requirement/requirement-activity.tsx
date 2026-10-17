@@ -15,7 +15,7 @@ import { useUi } from '@/store/ui';
 import { toast } from '@/components/ui/toast';
 import * as api from '@/lib/api';
 import { aiSummarizeComments, aiGenerateCommentDraft } from '@/lib/ai-api';
-import { markdownToHtml } from '@/lib/richtext';
+import { markdownToHtml, sanitizeForYunxiao } from '@/lib/richtext';
 import type { AiCommentSummary } from '@/types/ai';
 
 export interface RequirementActivityProps {
@@ -125,7 +125,9 @@ export function RequirementActivity({
         subtaskStats,
         draftText: commentDraft.replace(/<[^>]*>/g, '').trim(),
       });
-      setCommentDraft(markdownToHtml(generated));
+      // 云效服务端底层不支持 Emoji 字符，生成后即时清洗
+      const cleanDraft = sanitizeForYunxiao(generated);
+      setCommentDraft(markdownToHtml(cleanDraft));
       toast.add({ title: '已生成评论草稿', type: 'success' });
     } catch (err) {
       toast.add({
@@ -159,7 +161,13 @@ export function RequirementActivity({
     }
     setSubmitting(true);
     try {
-      await api.createWorkitemComment(workitemId, commentDraft, 'RICHTEXT');
+      // 提交前过滤 Emoji 和特殊控制字符，防止云效 400 校验拦截
+      const cleanComment = sanitizeForYunxiao(commentDraft);
+      if (!cleanComment.replace(/<[^>]*>/g, '').trim()) {
+        toast.add({ title: '评论内容不能全为特殊字符或表情', type: 'warning' });
+        return;
+      }
+      await api.createWorkitemComment(workitemId, cleanComment, 'RICHTEXT');
       toast.add({ title: '评论已发布', type: 'success' });
       setCommentDraft('');
       await reloadComments(workitemId);
