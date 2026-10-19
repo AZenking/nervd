@@ -799,7 +799,7 @@ export function RequirementDetails({
 
             {/* 按需展开的添加仓库表单 */}
             {showAddRepo && (
-              <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-3.5">
+              <div className="@container flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-3.5">
                 {/* AI 推荐结果展示 */}
                 {recommendedRepos.length > 0 && (
                   <div className="flex flex-col gap-2 pb-3 border-b border-border/60">
@@ -816,7 +816,7 @@ export function RequirementDetails({
                         清空推荐
                       </button>
                     </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className={cn('grid gap-2', embedded ? 'grid-cols-1' : 'grid-cols-1 @lg:grid-cols-2')}>
                       {recommendedRepos.map((rec) => {
                         const targetRepo = repositories.find((r) => r.id === rec.repoId);
                         const repoName = targetRepo?.name
@@ -869,8 +869,17 @@ export function RequirementDetails({
                   </div>
                 )}
 
-                <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                  <Field>
+                <div
+                  className={cn(
+                    'grid gap-3',
+                    embedded
+                      ? 'grid-cols-1'
+                      : isRequirement && iterationId
+                        ? 'grid-cols-1 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] @2xl:items-end'
+                        : 'grid-cols-1 @lg:grid-cols-[minmax(0,1fr)_auto] @lg:items-end',
+                  )}
+                >
+                  <Field className="min-w-0">
                     <FieldLabel>添加云效仓库</FieldLabel>
                     <SearchableSelect
                       value={linkDraft || null}
@@ -882,7 +891,7 @@ export function RequirementDetails({
                     />
                   </Field>
                   {isRequirement && iterationId && (
-                    <Field>
+                    <Field className="min-w-0">
                       <FieldLabel>应用分支模板</FieldLabel>
                       <SearchableSelect
                         value={linkDraftTemplateId || '__none'}
@@ -903,8 +912,14 @@ export function RequirementDetails({
                       )}
                     </Field>
                   )}
-                  <div className="flex items-end">
-                    <Button onClick={linkRepository} disabled={!linkDraft || savingRepos}>确认关联</Button>
+                  <div className={cn('flex items-end', embedded && 'pt-1')}>
+                    <Button
+                      onClick={linkRepository}
+                      disabled={!linkDraft || savingRepos}
+                      className={cn('shrink-0', embedded ? 'w-full' : 'w-full @2xl:w-auto')}
+                    >
+                      确认关联
+                    </Button>
                   </div>
                 </div>
               </div>
