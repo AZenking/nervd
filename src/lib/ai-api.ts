@@ -215,7 +215,7 @@ export async function aiGenerateMergeRequest(params: {
 严格返回如下 JSON 格式，不要输出其他文字：
 {
   "title": "feat(REQ-123): 简要描述",
-  "description": "### 🎯 需求背景\\n...\\n\\n### 🛠 核心变更\\n- ...\\n\\n### 🧪 自测验证\\n- [ ] ...\\n\\n### ⚠️ 风险与注意事项\\n无"
+  "description": "### 需求背景\\n...\\n\\n### 核心变更\\n- ...\\n\\n### 自测验证\\n- [ ] ...\\n\\n### 风险与注意事项\\n无"
 }${customRule ? `\n\n团队自定义 MR 规范：\n${customRule}` : ''}`;
 
   const userPrompt = `需求编号：${params.identifier}
@@ -316,7 +316,7 @@ export async function aiGenerateCommentDraft(params: {
 任务：${scenarioDesc}
 要求：
 1. 输出规范结构化的富文本 Markdown（使用有序/无序列表、加粗重点）。
-2. 【严格禁止使用任何 Emoji 表情符号】（如 🚀、📋、🧪、💡、🙋 等），因为云效服务端底层数据库不支持 Emoji 会直接触发 400 校验拦截报错。必须用纯文本或数字/符号替代。
+2. 【严格禁止使用任何 Emoji 表情符号】（严禁使用任何表情图标），因为云效服务端底层数据库不支持 Emoji 会直接触发 400 校验拦截报错。必须用纯文本或数字/符号替代。
 3. 言简意赅，语气专业高效，严禁包含任何前缀闲聊（如“好的，这是为您生成的…”）。
 ${customRule ? `\n\n团队自定义评论规范：\n${customRule}` : ''}`;
 
@@ -400,11 +400,11 @@ export async function aiGenerateReleaseNotes(params: {
   const systemPrompt = `你是一个软件工程交付总监。
 请根据集成分支与其领先提交、关联云效需求，撰写一份清晰、专业、排版优美的 Markdown 格式发版交付报告（Release Notes）。
 报告结构包含：
-- 📦 版本与交付概览（分支名、基准分支、交付日期）
-- 🚀 新增功能与业务特性（Features）
-- 🐛 缺陷与问题修复（Bug Fixes）
-- 🔧 架构调优与基础设施（Improvements）
-- 📋 关联需求编号与提交清单
+- 版本与交付概览（分支名、基准分支、交付日期）
+- 新增功能与业务特性（Features）
+- 缺陷与问题修复（Bug Fixes）
+- 架构调优与基础设施（Improvements）
+- 关联需求编号与提交清单
 直接输出 Markdown 内容，无需包裹最外层 \`\`\`markdown。`;
 
   const userPrompt = `集成分支：${params.branchName}

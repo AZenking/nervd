@@ -52,9 +52,9 @@ function DirtyGuardDialog() {
     <AlertDialog open={pendingView != null} onOpenChange={(open) => { if (!open) setPendingView(null); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>设置有未保存的修改</AlertDialogTitle>
+          <AlertDialogTitle>设置存在未修正的错误</AlertDialogTitle>
           <AlertDialogDescription>
-            离开设置页前，可选择保存修改、放弃修改，或留在当前页面继续编辑。
+            当前设置存在格式错误或未填项，无法自动保存。离开设置页前，可选择放弃修改，或留在当前页面继续修正。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

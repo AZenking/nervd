@@ -18,7 +18,7 @@ export interface RichImage {
 
 /** img 占位行：纯文本渲染与组件过滤共用同一格式 */
 export function imagePlaceholderLine(name: string): string {
-  return `📎 ${name}（需在云效查看）`;
+  return `[图片] ${name}（需在云效查看）`;
 }
 
 /**
@@ -104,7 +104,7 @@ function htmlAttr(tag: string, attr: string): string {
 /** 无 jsonML 时的兜底：剥 HTML 标签取文本 */
 function fromHtml(html: string): string {
   return html
-    .replace(/<img[^>]*>/gi, '\n📎 图片（需在云效查看）\n')
+    .replace(/<img[^>]*>/gi, '\n[图片]（需在云效查看）\n')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
     .replace(/<[^>]+>/g, '')

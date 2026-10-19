@@ -17,7 +17,7 @@ requirements:
   - id: req-run-link
     text: 追溯结果 runs 不再恒空——按工作项关联分支匹配流水线运行；缺陷/任务视图新增「关联运行」段（原全量流水线列表保留）
   - id: req-attachment-image
-    text: 云效富文本附件图片在详情页内联直显（Rust 带 PAT 代理 + host 白名单 + 大小上限；鉴权不可用时稳定降级为 📎 占位）
+    text: 云效富文本附件图片在详情页内联直显（Rust 带 PAT 代理 + host 白名单 + 大小上限；鉴权不可用时稳定降级为 [图片] 占位）
 constraints:
   - kind: maxDurationMs
     value: 1200000
@@ -67,7 +67,7 @@ tasks:
     dependsOn: [task-run-link]
     goal: |
       【富文本附件图片直显】只允许改动：src-tauri/src/commands/workitems.rs、src-tauri/src/lib.rs、src/lib/api.ts、src/lib/richtext.ts、src/components/WorkitemDetail.tsx。
-      现状：src/lib/richtext.ts 已把云效 {htmlValue, jsonMLValue} 描述解析为纯文本，img 节点输出「📎 name（需在云效查看）」占位；附件 URL 形如 https://devops.aliyun.com/projex/api/workitem/file/url?fileIdentifier=...，需云效登录态；YunxiaoClient 携带 PAT（openapi-rdc 面，见 yunxiao.rs）。
+      现状：src/lib/richtext.ts 已把云效 {htmlValue, jsonMLValue} 描述解析为纯文本，img 节点输出「[图片] name（需在云效查看）」占位；附件 URL 形如 https://devops.aliyun.com/projex/api/workitem/file/url?fileIdentifier=...，需云效登录态；YunxiaoClient 携带 PAT（openapi-rdc 面，见 yunxiao.rs）。
       要求：
       1) commands/workitems.rs 新增 #[tauri::command] proxy_workitem_file(url: String)：
          - SSRF 防护：仅允许 host 为 devops.aliyun.com 或 *.aliyuncs.com（含子域），其余一律 Err 拒绝；
@@ -75,7 +75,7 @@ tasks:
          - 若云效对该域名不接受 PAT 鉴权（401/403），返回 Err 即可——不得为绕过鉴权引入任何不安全做法；
       2) lib.rs 注册 proxy_workitem_file。
       3) api.ts 增加 proxyWorkitemFile(url)。richtext.ts 新增导出 extractRichImageUrls(raw): {name: string; url: string}[]（复用现有 jsonML/html 遍历，img 节点取 name 与 src）。
-      4) WorkitemDetail.tsx 描述区升级：结构不变（纯文本 + 图片），对 extractRichImageUrls 的结果并发调 proxyWorkitemFile，成功者以 <img src={dataUrl}> 内联渲染（max-h-64、直角边框 border-border、贴主题），失败或未返回者保留现有 📎 占位行；加载不阻塞文本渲染。
+      4) WorkitemDetail.tsx 描述区升级：结构不变（纯文本 + 图片），对 extractRichImageUrls 的结果并发调 proxyWorkitemFile，成功者以 <img src={dataUrl}> 内联渲染（max-h-64、直角边框 border-border、贴主题），失败或未返回者保留现有 [图片] 占位行；加载不阻塞文本渲染。
       5) 禁止修改 src/types.ts；禁止 git commit / stash / reset。
       验证：cargo check（src-tauri）、pnpm exec tsc --noEmit、pnpm exec vite build 全部零错误。
       完成判据（勿额外加码）：命令含 host 白名单、5MB 上限、image/* 校验且已注册；详情页图片内联渲染、失败稳定降级占位；未越界改文件；三个验证命令退出码 0。
@@ -94,4 +94,4 @@ acceptance:
     then: 出现「关联运行」段且仅含与该工作项分支相关的运行
   - given: 打开带截图的需求详情（PAT 对附件域名有效时）
     when: 描述渲染完成
-    then: 截图内联显示；鉴权无效时显示 📎 占位且无报错弹窗
+    then: 截图内联显示；鉴权无效时显示 [图片] 占位且无报错弹窗

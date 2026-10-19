@@ -167,6 +167,9 @@ export function RepoCiBindingsCard() {
     const key = `repo-${repoId}`;
     setCiResults((r) => ({ ...r, [key]: 'Job 查询中…' }));
     try {
+      if (useSettingsDraft.getState().isDirty()) {
+        await flushAutoSave();
+      }
       const job = await api.getJenkinsJob(binding.connectionId, binding.jobFullName);
       setCiResults((r) => ({ ...r, [key]: `Job 有效：${job.fullName}${job.color ? ` · ${job.color}` : ''}` }));
     } catch (e) {
@@ -285,22 +288,5 @@ export function RepoCiBindingsCard() {
         </div>
       )}
     </SettingsGroup>
-  );
-}
-
-/** 共享保存栏：设置页统一的 sticky 底栏，带未保存徽章 */
-export function SettingsSaveBar({ children }: { children?: React.ReactNode }) {
-  const { save, saving } = useSettingsDraft();
-  const dirty = useSettingsDraft((s) => s.isDirty());
-  return (
-    <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-border/60 bg-background/90 backdrop-blur-sm py-3 mt-4">
-      {children}
-      <div className="ml-auto flex items-center gap-2.5">
-        {dirty && <Badge variant="secondary">有未保存修改</Badge>}
-        <Button disabled={saving} onClick={() => void save()}>
-          {saving ? '保存中…' : '保存'}
-        </Button>
-      </div>
-    </div>
   );
 }

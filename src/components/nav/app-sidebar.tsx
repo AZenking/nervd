@@ -26,7 +26,8 @@ import { useUi } from '@/store/ui';
 import { useAppUpdate } from '@/hooks/use-app-update';
 import { APP_VERSION } from '@/lib/app-info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { SETTINGS_SECTIONS } from '../settings/sections';
+import { useSettingsDraft } from '@/store/settings-draft';
+import { SETTINGS_SECTIONS, getSectionErrorCount } from '../settings/sections';
 
 /**
  * nervd 侧栏（Linear 解剖）：工作区行 + 搜索行 + 主导航 + 迭代分组 + 设置入口；
@@ -35,6 +36,7 @@ import { SETTINGS_SECTIONS } from '../settings/sections';
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { view, settingsSection, setSettingsSection, setView, openSettings, setAboutOpen } = useUi();
   const { settings } = useApp();
+  const fieldErrors = useSettingsDraft((s) => s.fieldErrors);
   const { hasUpdate, updateInfo, isUpdating } = useAppUpdate();
   const latestVersion = updateInfo?.latestVersion;
   const inSettings = view === 'full-settings';
@@ -188,18 +190,27 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
           {/* 设置分区列表 */}
           <SidebarMenu>
-            {SETTINGS_SECTIONS.map((section) => (
-              <SidebarMenuItem key={section.value}>
-                <SidebarMenuButton
-                  tooltip={section.label}
-                  isActive={settingsSection === section.value}
-                  onClick={() => setSettingsSection(section.value)}
-                >
-                  <section.icon />
-                  <span>{section.label}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {SETTINGS_SECTIONS.map((section) => {
+              const errorCount = getSectionErrorCount(section.value, fieldErrors);
+              return (
+                <SidebarMenuItem key={section.value}>
+                  <SidebarMenuButton
+                    tooltip={section.label}
+                    isActive={settingsSection === section.value}
+                    onClick={() => setSettingsSection(section.value)}
+                  >
+                    <section.icon />
+                    <span className="flex-1">{section.label}</span>
+                    {errorCount > 0 && (
+                      <span
+                        className="size-1.5 rounded-full bg-destructive shrink-0"
+                        title={`${section.label}有待修正项`}
+                      />
+                    )}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
           </SidebarMenu>
         </SidebarContent>
       ) : (

@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-fail() { echo "❌ $1" >&2; exit 1; }
+fail() { echo "[ERROR] $1" >&2; exit 1; }
 
 echo "== 1/5 TypeScript 类型检查 =="
 pnpm exec tsc --noEmit || fail "tsc 报错"
@@ -43,4 +43,4 @@ if [ "${1:-}" = "--full" ]; then
   pnpm tauri build || fail "tauri build 报错"
 fi
 
-echo "✅ 全部通过"
+echo "全部通过"

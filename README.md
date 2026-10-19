@@ -16,7 +16,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 <p align="center">
-  <a href="https://azenking.github.io/nervd/">🌟 在线交互演示 (GitHub Pages)</a> •
+  <a href="https://azenking.github.io/nervd/">在线交互演示 (GitHub Pages)</a> •
   <a href="#核心功能">核心功能</a> •
   <a href="#全键盘交互">键盘操作</a> •
   <a href="#快速上手">快速上手</a> •
@@ -28,7 +28,7 @@
 
 ---
 
-## 📖 它解决什么
+## 它解决什么
 
 在企业级敏捷研发中，阿里云效的 **Projex（需求项）**、**Codeup（代码仓库）**、**Flow（流水线）** 三大核心模块数据长期割裂：
 - 排查“某个需求当前代码合入到了哪里、构建通过没有、阻塞在哪个环节”，需要在浏览器多标签页之间**反复横跳**。
@@ -45,18 +45,18 @@
 
 ---
 
-## 🚀 在线体验 (Live Demo)
+## 在线体验 (Live Demo)
 
 无需下载安装，直接在浏览器中访问基于 [React Bits](https://reactbits.dev/) 动效组件打造的产品介绍页面与全功能在线 Mock 演示：
 
-👉 **[立即访问 nervd 在线工作台 (https://azenking.github.io/nervd/)](https://azenking.github.io/nervd/)**
+**[立即访问 nervd 在线工作台 (https://azenking.github.io/nervd/)](https://azenking.github.io/nervd/)**
 
 - **产品介绍落地页**：体验基于 Canvas 粒子网络、金属扫光与解密动效呈现的设计全景。
 - **全功能模拟工作台**：点击“开启在线工作台”，随时体验 Master-Detail 双栏联动、全键盘快捷键、分支拓扑图谱与状态原地流转。
 
 ---
 
-## ✨ 核心特性
+## 核心特性
 
 ### 1. 迭代工作台 (Iteration View)
 - **状态生命周期语义分组**：列表严格遵循 `运行中 (Amber) → 失败 (Red) → 空闲/待办 (Slate) → 成功/已完成 (Emerald)` 生命周期排序，组头支持一键折叠与数量统计徽标。
@@ -88,7 +88,7 @@
 
 ---
 
-## ⌨️ 全键盘交互指南 (Keyboard-First)
+## 全键盘交互指南 (Keyboard-First)
 
 nervd 的交互体验深度对齐 Linear 标准操作心智，确保双手无需离开键盘：
 
@@ -111,7 +111,7 @@ nervd 的交互体验深度对齐 Linear 标准操作心智，确保双手无需
 
 ---
 
-## 🛠️ 快速上手
+## 快速上手
 
 ### 方式一：下载桌面端预编译应用（推荐）
 从 [Releases 发布页面](https://github.com/AZenking/nervd/releases) 下载适合您操作系统的最新安装包：
@@ -157,7 +157,7 @@ pnpm tauri build
 
 ---
 
-## ⚙️ 系统配置指南
+## 系统配置指南
 
 首次启动 nervd 后，前往 **系统设置 (Settings)** 填入连接凭据：
 
@@ -177,7 +177,7 @@ pnpm tauri build
 
 ---
 
-## 🏛️ 技术架构
+## 技术架构
 
 nervd 采用典型的 Tauri 2 双层架构：前端轻量响应，后端 Rust 负责安全与高速 I/O。
 
@@ -215,7 +215,7 @@ nervd/
 
 ---
 
-## 🛡️ 质量门禁与验证
+## 质量门禁与验证
 
 项目提供严密的本地与 CI 终验机制。提交任何代码前须保证验证脚本全部通过：
 
@@ -232,6 +232,6 @@ export PATH=/opt/homebrew/bin:$PATH && ./scripts/verify.sh
 
 ---
 
-## 📄 开源协议
+## 开源协议
 
 本项目采用 [MIT License](LICENSE) 开源协议。

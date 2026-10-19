@@ -97,9 +97,9 @@ export function RequirementActivity({
     const text = [
       `【讨论纪要 TL;DR】${identifier} ${subject}`,
       summary.rawSummary ? `\n概括：${summary.rawSummary}` : '',
-      summary.consensus?.length ? `\n🎯 核心共识：\n${summary.consensus.map((c) => `- ${c}`).join('\n')}` : '',
-      summary.blockers?.length ? `\n⚠️ 阻塞卡点：\n${summary.blockers.map((b) => `- ${b}`).join('\n')}` : '',
-      summary.actionItems?.length ? `\n📋 待办事项：\n${summary.actionItems.map((a) => `- ${a}`).join('\n')}` : '',
+      summary.consensus?.length ? `\n核心共识：\n${summary.consensus.map((c) => `- ${c}`).join('\n')}` : '',
+      summary.blockers?.length ? `\n阻塞卡点：\n${summary.blockers.map((b) => `- ${b}`).join('\n')}` : '',
+      summary.actionItems?.length ? `\n待办事项：\n${summary.actionItems.map((a) => `- ${a}`).join('\n')}` : '',
     ].filter(Boolean).join('\n');
 
     try {
@@ -240,7 +240,7 @@ export function RequirementActivity({
               {summary.consensus && summary.consensus.length > 0 && (
                 <div>
                   <div className="font-semibold text-xs text-foreground flex items-center gap-1 mb-1">
-                    🎯 核心共识
+                    核心共识
                   </div>
                   <ul className="list-disc list-inside space-y-0.5 text-muted-foreground pl-1">
                     {summary.consensus.map((c, idx) => (
@@ -252,7 +252,7 @@ export function RequirementActivity({
               {summary.blockers && summary.blockers.length > 0 && (
                 <div>
                   <div className="font-semibold text-xs text-destructive flex items-center gap-1 mb-1">
-                    ⚠️ 阻塞卡点
+                    阻塞卡点
                   </div>
                   <ul className="list-disc list-inside space-y-0.5 text-muted-foreground pl-1">
                     {summary.blockers.map((b, idx) => (
@@ -264,7 +264,7 @@ export function RequirementActivity({
               {summary.actionItems && summary.actionItems.length > 0 && (
                 <div>
                   <div className="font-semibold text-xs text-foreground flex items-center gap-1 mb-1">
-                    📋 待跟进事项
+                    待跟进事项
                   </div>
                   <ul className="list-disc list-inside space-y-0.5 text-muted-foreground pl-1">
                     {summary.actionItems.map((a, idx) => (

@@ -13,8 +13,8 @@ describe('markdownToHtml', () => {
   });
 
   it('converts headers to h1-h3 tags', () => {
-    const md = '### 🚀 研发进度同步';
-    expect(markdownToHtml(md)).toBe('<h3>🚀 研发进度同步</h3>');
+    const md = '### 研发进度同步';
+    expect(markdownToHtml(md)).toBe('<h3>研发进度同步</h3>');
 
     const mdH1 = '# 标题一';
     expect(markdownToHtml(mdH1)).toBe('<h1>标题一</h1>');
@@ -22,14 +22,14 @@ describe('markdownToHtml', () => {
 
   it('converts bullet lists and bold inline text', () => {
     const md = [
-      '### 🚀 研发进度同步',
+      '### 研发进度同步',
       '- **开发状态**：已完成核心功能开发',
       '- **分支**：`feature/login`',
       '- **CI 流水线**：运行成功',
     ].join('\n');
 
     const result = markdownToHtml(md);
-    expect(result).toContain('<h3>🚀 研发进度同步</h3>');
+    expect(result).toContain('<h3>研发进度同步</h3>');
     expect(result).toContain('<ul>');
     expect(result).toContain('<li><strong>开发状态</strong>：已完成核心功能开发</li>');
     expect(result).toContain('<li><strong>分支</strong>：<code>feature/login</code></li>');
@@ -77,11 +77,14 @@ describe('extractRichHtml', () => {
 
 describe('sanitizeForYunxiao', () => {
   it('strips unicode emojis and zero-width characters', () => {
-    const input = '### 🚀 研发进度同步\n- **状态**：正常 ✅\n如有阻塞请升级 🙋‍♂️';
+    const rocket = '\u{1F680}';
+    const check = '\u{2705}';
+    const person = '\u{1F64B}\u200D\u2642\uFE0F';
+    const input = `### ${rocket} 研发进度同步\n- **状态**：正常 ${check}\n如有阻塞请升级 ${person}`;
     const cleaned = sanitizeForYunxiao(input);
-    expect(cleaned).not.toContain('🚀');
-    expect(cleaned).not.toContain('✅');
-    expect(cleaned).not.toContain('🙋‍♂️');
+    expect(cleaned).not.toContain(rocket);
+    expect(cleaned).not.toContain(check);
+    expect(cleaned).not.toContain(person);
     expect(cleaned).toContain('### 研发进度同步');
     expect(cleaned).toContain('- **状态**：正常');
     expect(cleaned).toContain('如有阻塞请升级');

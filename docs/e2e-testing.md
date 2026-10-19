@@ -3,7 +3,7 @@
 > 目标读者：为 nervd 编写功能测试用例 / E2E 测试的工程师与 Agent。
 > 本文回答两个问题：**① 按功能怎么拆测试用例；② 在这个 Tauri 项目里 E2E 怎么落地。**
 
-## ✅ 实施状态（2026-10-16）
+## 实施状态（2026-10-16）
 
 本文方案已落地为可运行基建：
 
@@ -392,11 +392,11 @@ macOS 下 `browserName: 'safari'`，Linux `'wry'`，Windows 走 Edge Chromium �
 
 | 步骤 | 内容 | 状态 |
 |---|---|---|
-| 0 | 解锁 `package.json`，新增 devDeps `@playwright/test`、`vitest`、`jsdom` | ✅ 已完成（待 commit 基线化） |
-| 1 | 补关键交互点 `data-testid`；`preview/api-mock.ts` 升级 `gate` 协议 | ✅ 已完成 |
-| 2 | 建 `e2e/` 目录 + config + fixtures + 首批 P0 用例（§4 表） | ✅ 13 条全绿 |
-| 3 | Vitest 层：`src/lib` 纯函数 + `src/store/app` 乐观逻辑 | ✅ 13 条全绿 |
-| 4 | 门禁：`scripts/verify.sh` 追加 vitest；独立 `scripts/test.sh` 承载 e2e | ✅ 已完成 |
+| 0 | 解锁 `package.json`，新增 devDeps `@playwright/test`、`vitest`、`jsdom` | 已完成（待 commit 基线化） |
+| 1 | 补关键交互点 `data-testid`；`preview/api-mock.ts` 升级 `gate` 协议 | 已完成 |
+| 2 | 建 `e2e/` 目录 + config + fixtures + 首批 P0 用例（§4 表） | 13 条全绿 |
+| 3 | Vitest 层：`src/lib` 纯函数 + `src/store/app` 乐观逻辑 | 13 条全绿 |
+| 4 | 门禁：`scripts/verify.sh` 追加 vitest；独立 `scripts/test.sh` 承载 e2e | 已完成 |
 
 **DoD**：P0 用例全绿进 PR 门禁；每条用例标题携带规约 ID（如 `GL-003`）保证可回溯；新功能合入必须附带对应用例，否则门禁不放行。
 

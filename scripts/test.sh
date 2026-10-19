@@ -11,13 +11,13 @@ MODE="${1:-all}"
 
 run_unit() {
   echo "== 单元测试 (vitest) =="
-  pnpm exec vitest run || { echo "❌ vitest 失败" >&2; exit 1; }
+  pnpm exec vitest run || { echo "[ERROR] vitest 失败" >&2; exit 1; }
 }
 
 run_e2e() {
   echo "== E2E (playwright @ preview mock 模式) =="
   # 浏览器位于工作区 .playwright-browsers/（首次执行前先: pnpm test:e2e:browsers）
-  pnpm exec playwright test || { echo "❌ playwright 失败" >&2; exit 1; }
+  pnpm exec playwright test || { echo "[ERROR] playwright 失败" >&2; exit 1; }
 }
 
 case "$MODE" in
@@ -27,4 +27,4 @@ case "$MODE" in
   *) echo "用法: $0 [--unit|--e2e]" >&2; exit 1 ;;
 esac
 
-echo "✅ 测试全部通过"
+echo "测试全部通过"

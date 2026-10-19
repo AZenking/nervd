@@ -4,11 +4,17 @@ import {
   GitBranchIcon,
   RefreshCwIcon,
   Settings2Icon,
+  SparklesIcon,
   WorkflowIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
+import {
+  getCachedJenkinsJobs,
+  getCachedJenkinsJobParameters,
+  hasCachedJobs,
+} from '@/lib/jenkins-cache';
 import { useApp } from '@/store/app';
-import { isBranchParameterName, isEnvironmentParameterName } from '@/lib/ci';
+import { isBranchParameterName, isEnvironmentParameterName, sortJenkinsJobsWithRecommendation } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WriteOpButton, WriteOpGatedTrigger } from '@/components/WriteOpButton';
-import { SearchableSelect } from '../searchable-select';
+import { SearchableSelect, type SearchableSelectOption } from '../searchable-select';
 
 function branchNames(value: unknown): string[] {
   const collect = (input: unknown): string[] => {
@@ -61,6 +67,7 @@ interface ParameterFieldProps {
   isEnv: boolean;
   branchOptions: string[];
   branchesLoading: boolean;
+  defaultBranch?: string;
   onChange: (value: string) => void;
 }
 
@@ -71,6 +78,7 @@ function ParameterField({
   isEnv,
   branchOptions,
   branchesLoading,
+  defaultBranch,
   onChange,
 }: ParameterFieldProps) {
   const hasChoices = Boolean(parameter.choices && parameter.choices.length > 0);
@@ -142,7 +150,14 @@ function ParameterField({
                     className="font-mono text-xs cursor-pointer flex items-center justify-between gap-2"
                   >
                     <span className="truncate">{b}</span>
-                    {b === value && <span className="text-[10px] text-primary shrink-0 font-sans">当前</span>}
+                    <div className="flex items-center gap-1 shrink-0 font-sans">
+                      {b === defaultBranch && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-500/10 px-1 py-0.2 rounded">
+                          推荐
+                        </span>
+                      )}
+                      {b === value && <span className="text-[10px] text-primary">当前</span>}
+                    </div>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -220,7 +235,7 @@ export function JenkinsBuildDialog({
   const openDialog = () => {
     const initialConnectionId = savedBinding?.connectionId || connections[0]?.id || '';
     setConnectionId(initialConnectionId);
-    setJobs([]);
+    // 不强制清空 jobs，有缓存时保留以便秒开
     setJobFullName(savedBinding?.jobFullName ?? '');
     setParameters([]);
     setParameterValues(savedBinding?.parameters ?? {});
@@ -235,17 +250,38 @@ export function JenkinsBuildDialog({
   useEffect(() => {
     if (!open || !connectionId) return;
     let active = true;
-    setJobsLoading(true);
+    const isManualRefresh = jobsRefresh > 0;
+
+    // 若无缓存或为手动点击刷新，显示 loading；有缓存时直接秒开
+    if (!hasCachedJobs(connectionId) || isManualRefresh) {
+      setJobsLoading(true);
+    }
     setError('');
-    void api.listJenkinsJobs(connectionId)
-      .then((items) => {
+
+    const applyJobs = (items: JenkinsJobSummary[]) => {
+      const next = [...items];
+      if (
+        savedBinding?.connectionId === connectionId &&
+        !next.some((job) => job.fullName === savedBinding.jobFullName)
+      ) {
+        next.unshift({
+          name: savedBinding.jobFullName.split('/').pop() || savedBinding.jobFullName,
+          fullName: savedBinding.jobFullName,
+        });
+      }
+      setJobs(next);
+    };
+
+    void getCachedJenkinsJobs(connectionId, {
+      force: isManualRefresh,
+      onStaleUpdate: (freshJobs) => {
         if (!active) return;
-        const next = [...items];
-        if (savedBinding?.connectionId === connectionId
-          && !next.some((job) => job.fullName === savedBinding.jobFullName)) {
-          next.unshift({ name: savedBinding.jobFullName.split('/').pop() || savedBinding.jobFullName, fullName: savedBinding.jobFullName });
-        }
-        setJobs(next);
+        applyJobs(freshJobs);
+      },
+    })
+      .then(({ jobs: items }) => {
+        if (!active) return;
+        applyJobs(items);
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -253,6 +289,7 @@ export function JenkinsBuildDialog({
         setError(`读取 Jenkins Job 失败：${humanizeError(cause, '未能获取 Job 列表，请稍后重试')}`);
       })
       .finally(() => { if (active) setJobsLoading(false); });
+
     setBranchesLoading(true);
     void api.listBranches(repoId)
       .then((result) => { if (active) setBranches(branchNames(result)); })
@@ -269,7 +306,9 @@ export function JenkinsBuildDialog({
     let active = true;
     setParametersLoading(true);
     setError('');
-    void api.getJenkinsJobParameters(connectionId, jobFullName)
+    void getCachedJenkinsJobParameters(connectionId, jobFullName, {
+      force: jobsRefresh > 0,
+    })
       .then((definitions) => {
         if (!active) return;
         const isCurrentJobSaved = savedBinding?.connectionId === connectionId && savedBinding.jobFullName === jobFullName;
@@ -351,6 +390,49 @@ export function JenkinsBuildDialog({
     }
     return [...options];
   }, [defaultBranch, branches, parameters, branchParameter]);
+
+  const savedJobFullName = savedBinding?.connectionId === connectionId ? savedBinding.jobFullName : undefined;
+
+  const jobOptions = useMemo<SearchableSelectOption<string>[]>(() => {
+    const placeholderOption: SearchableSelectOption<string> = {
+      label: jobsLoading ? '正在读取 Jenkins Jobs…' : '选择 Jenkins Job',
+      value: '__none',
+    };
+
+    if (!jobs.length) {
+      return [placeholderOption];
+    }
+
+    const scoredJobs = sortJenkinsJobsWithRecommendation(jobs, repoName, savedJobFullName);
+
+    return [
+      placeholderOption,
+      ...scoredJobs.map((item) => {
+        let badge: React.ReactNode = undefined;
+        if (item.isSaved) {
+          badge = (
+            <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary border border-primary/20 font-sans">
+              已绑定
+            </span>
+          );
+        } else if (item.isRecommended) {
+          badge = (
+            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-sans">
+              <SparklesIcon className="size-2.5" />
+              推荐
+            </span>
+          );
+        }
+
+        return {
+          label: item.fullName,
+          value: item.fullName,
+          badge,
+          className: 'font-mono text-xs',
+        };
+      }),
+    ];
+  }, [jobs, jobsLoading, repoName, savedJobFullName]);
 
   const buildDisabledReason = !connectionId
     ? '请选择已保存 Token 的 Jenkins 实例'
@@ -461,10 +543,7 @@ export function JenkinsBuildDialog({
                   setBranchParameter('');
                 }}
                 disabled={jobsLoading}
-                items={[
-                  { label: jobsLoading ? '正在读取 Jenkins Jobs…' : '选择 Jenkins Job', value: '__none' },
-                  ...jobs.map((job) => ({ label: job.fullName, value: job.fullName })),
-                ]}
+                items={jobOptions}
               />
             </Field>
 
@@ -497,6 +576,7 @@ export function JenkinsBuildDialog({
                         isEnv={parameter.name === environmentParameter}
                         branchOptions={allBranchOptions}
                         branchesLoading={branchesLoading}
+                        defaultBranch={defaultBranch}
                         onChange={(val) => updateParameter(parameter.name, val)}
                       />
                     ))}

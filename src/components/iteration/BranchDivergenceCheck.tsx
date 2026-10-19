@@ -9,11 +9,18 @@ import { errorLog, humanizeError } from '@/lib/error-format';
 import { parseFileDiffs, type FileDiffItem } from './requirement/diff-utils';
 import { CodeDiffDrawer } from './requirement/code-diff-drawer';
 
-type BaselineState = 'loading' | 'exists' | 'missing' | 'error' | undefined;
-type CheckState =
+export type BaselineState = 'loading' | 'exists' | 'missing' | 'error' | undefined;
+export type BranchCheckState =
   | { status: 'idle' | 'loading' }
   | { status: 'ready'; developmentOnly: number; baselineOnly: number }
   | { status: 'error'; message: string };
+
+export interface UseBranchDivergenceResult {
+  check: BranchCheckState;
+  diffs: FileDiffItem[];
+  refreshKey: number;
+  refetch: () => void;
+}
 
 /** 解析云效 compare 返回（多层包裹防御）为提交列表；BranchStateDiagram 复用同一口径 */
 export function comparisonCommits(value: unknown): unknown[] {
@@ -39,27 +46,20 @@ export function comparisonDiffs(value: unknown): unknown[] {
   return [];
 }
 
-export function BranchDivergenceCheck({
-  repoId,
-  developmentBranch,
-  baselineBranch,
-  baselineState,
-  onRetryBaseline,
-}: {
-  repoId: number;
-  developmentBranch: string;
-  baselineBranch?: string;
-  baselineState: BaselineState;
-  onRetryBaseline: () => void;
-}) {
-  const [check, setCheck] = useState<CheckState>({ status: 'idle' });
+/** 统一获取开发分支与迭代基准分支的落差及差异详情 */
+export function useBranchDivergence(
+  repoId: number,
+  developmentBranch: string,
+  baselineBranch?: string,
+  baselineState?: BaselineState,
+): UseBranchDivergenceResult {
+  const [check, setCheck] = useState<BranchCheckState>({ status: 'idle' });
   const [diffs, setDiffs] = useState<FileDiffItem[]>([]);
-  const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const baseline = baselineBranch?.trim() ?? '';
 
   useEffect(() => {
-    if (!baseline || baselineState !== 'exists') {
+    if (!baseline || baselineState !== 'exists' || !developmentBranch) {
       setCheck({ status: 'idle' });
       setDiffs([]);
       return;
@@ -99,6 +99,36 @@ export function BranchDivergenceCheck({
 
     return () => { active = false; };
   }, [repoId, developmentBranch, baseline, baselineState, refreshKey]);
+
+  return {
+    check,
+    diffs,
+    refreshKey,
+    refetch: () => setRefreshKey((k) => k + 1),
+  };
+}
+
+export function BranchDivergenceCheck({
+  repoId,
+  developmentBranch,
+  baselineBranch,
+  baselineState,
+  onRetryBaseline,
+}: {
+  repoId: number;
+  developmentBranch: string;
+  baselineBranch?: string;
+  baselineState: BaselineState;
+  onRetryBaseline: () => void;
+}) {
+  const { check, diffs, refetch } = useBranchDivergence(
+    repoId,
+    developmentBranch,
+    baselineBranch,
+    baselineState,
+  );
+  const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
+  const baseline = baselineBranch?.trim() ?? '';
 
   if (!baseline) {
     return <span className="text-xs text-muted-foreground">先选择分支模板</span>;
@@ -177,7 +207,7 @@ export function BranchDivergenceCheck({
         <button
           type="button"
           disabled={check.status === 'loading'}
-          onClick={() => setRefreshKey((value) => value + 1)}
+          onClick={refetch}
           className="text-muted-foreground hover:text-foreground disabled:opacity-40 p-1 rounded transition-colors cursor-pointer"
           title={`重新检查 ${developmentBranch} 与 ${baseline} 的落差`}
         >

@@ -56,6 +56,10 @@ export function ConnectionSection() {
   const test = async () => {
     setTestResult('测试中…');
     try {
+      // 若草稿中有未持久化的改动，先刷入保存，确保后端以最新凭据测试连接
+      if (draft.isDirty()) {
+        await draft.flushAutoSave();
+      }
       const orgs = await api.checkConnection();
       setTestResult(
         orgs.length

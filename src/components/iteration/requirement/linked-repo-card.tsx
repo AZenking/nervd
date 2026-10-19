@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import {
-  CheckIcon, ChevronDownIcon, GitBranchIcon, GitForkIcon, GitPullRequestIcon, MoreHorizontalIcon,
+  ArrowRightIcon,
+  CheckCircle2Icon,
+  CheckIcon,
+  ChevronDownIcon,
+  FileCodeIcon,
+  GitBranchIcon,
+  GitForkIcon,
+  GitPullRequestIcon,
+  MoreHorizontalIcon,
+  RefreshCwIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { findRemoteBranch } from '@/lib/iteration-branches';
@@ -19,12 +28,13 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { WriteOpButton } from '@/components/WriteOpButton';
 import { CiSummaryButton } from '@/components/ci-summary-button';
-import { BranchDivergenceCheck } from '../BranchDivergenceCheck';
+import { BranchDivergenceCheck, useBranchDivergence } from '../BranchDivergenceCheck';
 import { JenkinsBuildDialog } from '../JenkinsBuildDialog';
 import { RepositoryCiDetails } from '../RepositoryCiDetails';
 import { CreateMrDialog } from './create-mr-dialog';
 import { MrInlineItem } from './mr-inline-item';
 import { IterationDevDivergence } from './iteration-dev-divergence';
+import { CodeDiffDrawer } from './code-diff-drawer';
 import { cn } from '@/lib/utils';
 import {
   mergeRequestBranch,
@@ -93,7 +103,18 @@ export function LinkedRepoCard({
   const [createMrOpen, setCreateMrOpen] = useState(false);
   const [expandedMrId, setExpandedMrId] = useState<number | null>(null);
   const [showAllMrs, setShowAllMrs] = useState(false);
+  const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
+  const [quickMrSubmitting, setQuickMrSubmitting] = useState(false);
+  const [mergingActiveMr, setMergingActiveMr] = useState(false);
   const mergeRequestKey = `${repo.id}:${developerBranch}->${operationBaseBranch}`;
+
+  const divergence = useBranchDivergence(
+    repo.id,
+    developerBranch,
+    operationBaseBranch,
+    baselineState,
+  );
+
   // 编号匹配到的其他分支超出 2 个截断，避免卡片过长
   const extraMatchedBranches = matchedBranches.filter((branch) => branch !== developerBranch);
   const shownMatchedBranches = extraMatchedBranches.slice(0, 2);
@@ -125,8 +146,16 @@ export function LinkedRepoCard({
     return () => { active = false; };
   }, [repo.id, iterationId]);
 
+  // 统一排序 MR 列表：优先匹配本需求开发分支的，其次按 localId 倒序
+  const sortedMergeRequests = [...mergeRequests].sort((a, b) => {
+    const aMatch = developerBranch && a.sourceBranch === developerBranch ? 1 : 0;
+    const bMatch = developerBranch && b.sourceBranch === developerBranch ? 1 : 0;
+    if (aMatch !== bMatch) return bMatch - aMatch;
+    return b.localId - a.localId;
+  });
+
   // 匹配本需求分支与目标基准分支的活跃中（未合入、未关闭）MR
-  const matchedActiveMr = mergeRequests.find((request) => {
+  const matchedActiveMr = sortedMergeRequests.find((request) => {
     const st = request.state?.toLowerCase();
     const isInactive = st === 'merged' || st === 'closed';
     if (isInactive) return false;
@@ -135,17 +164,38 @@ export function LinkedRepoCard({
       (developerBranch && request.sourceBranch === developerBranch)
     );
   });
-  const mergeRequestExists = Boolean(matchedActiveMr) || createdMergeRequestKey === mergeRequestKey;
+  const hasActiveMr = Boolean(matchedActiveMr);
+  const mergeRequestExists = hasActiveMr || createdMergeRequestKey === mergeRequestKey;
 
-  // 统一排序 MR 列表：优先匹配本需求开发分支的，其次按 localId 倒序
-  const sortedMergeRequests = [...mergeRequests].sort((a, b) => {
-    const aMatch = developerBranch && a.sourceBranch === developerBranch ? 1 : 0;
-    const bMatch = developerBranch && b.sourceBranch === developerBranch ? 1 : 0;
-    if (aMatch !== bMatch) return bMatch - aMatch;
-    return b.localId - a.localId;
+  // 区分活跃 MR 与历史已合入/关闭的 MR
+  const activeMrs = sortedMergeRequests.filter((m) => {
+    const st = m.state?.toLowerCase();
+    return st !== 'merged' && st !== 'closed';
   });
-  const displayedMergeRequests = showAllMrs ? sortedMergeRequests : sortedMergeRequests.slice(0, 2);
-  const hasMoreMergeRequests = sortedMergeRequests.length > 2;
+  const historyMrs = sortedMergeRequests.filter((m) => {
+    const st = m.state?.toLowerCase();
+    return st === 'merged' || st === 'closed';
+  });
+
+  const devOnly = divergence.check.status === 'ready' ? divergence.check.developmentOnly : 0;
+  const baselineOnly = divergence.check.status === 'ready' ? divergence.check.baselineOnly : 0;
+  const isCheckReady = divergence.check.status === 'ready';
+  const isBranchAligned = isCheckReady && devOnly === 0 && baselineOnly === 0;
+
+  // 是否已有待合入代码 (开发分支存在、开发独有提交 > 0 且无活跃 MR)
+  const hasPendingCommits = isCheckReady && devOnly > 0 && !hasActiveMr && developerBranchState === 'exists';
+
+  // 是否已经全部合入（开发独有 0，且有历史 MR 或分支已对齐）
+  const isAllMerged =
+    developerBranchState === 'exists' &&
+    !hasActiveMr &&
+    ((isCheckReady && devOnly === 0 && (historyMrs.length > 0 || isBranchAligned)) ||
+      (!hasActiveMr && historyMrs.length > 0 && devOnly === 0));
+
+  // 智能推荐构建分支：当已全部合入时，推荐构建合入目标基准分支；否则以开发分支为准
+  const recommendedBuildBranch = isAllMerged
+    ? (operationBaseBranch || developerBranch)
+    : (matchedBranches[0] || developerBranch || operationBaseBranch);
 
   const branchDisabledReason = placeholderIteration
     ? '占位迭代不支持创建云效分支'
@@ -227,6 +277,7 @@ export function LinkedRepoCard({
       setDeveloperBranchState('exists');
       setToast({ text: `需求分支已创建：${developerBranch}`, kind: 'ok' });
       onRetryBaseline();
+      divergence.refetch();
       void loadTrace();
     } catch (error) {
       errorLog('workitem-action', error); setToast({ text: humanizeError(error), kind: 'fail' });
@@ -234,6 +285,7 @@ export function LinkedRepoCard({
   };
 
   const createMergeRequest = async () => {
+    setQuickMrSubmitting(true);
     try {
       if (!identifier || !developerBranch || !operationBaseBranch) throw new Error('MR 参数不完整');
       if (placeholderIteration) throw new Error('占位迭代不支持创建 MR');
@@ -256,6 +308,7 @@ export function LinkedRepoCard({
       if (existing) {
         setCreatedMergeRequestKey(mergeRequestKey);
         setToast({ text: `此需求分支的 MR 已存在：${developerBranch} → ${operationBaseBranch}`, kind: 'info' });
+        divergence.refetch();
         void loadTrace();
         return;
       }
@@ -269,16 +322,34 @@ export function LinkedRepoCard({
       });
       setCreatedMergeRequestKey(mergeRequestKey);
       setToast({ text: `MR 已创建：${developerBranch} → ${operationBaseBranch}`, kind: 'ok' });
+      divergence.refetch();
       void loadTrace();
     } catch (error) {
       errorLog('workitem-action', error); setToast({ text: humanizeError(error), kind: 'fail' });
+    } finally {
+      setQuickMrSubmitting(false);
+    }
+  };
+
+  const handleMergeActiveMr = async (mr: MrSummary) => {
+    setMergingActiveMr(true);
+    try {
+      await api.mergeMergeRequest(repo.id, mr.localId);
+      setToast({ text: `MR !${mr.localId} 已成功合入 ${mr.targetBranch}`, kind: 'ok' });
+      divergence.refetch();
+      void loadTrace();
+    } catch (err) {
+      errorLog('merge-mr', err);
+      setToast({ text: `合并失败：${humanizeError(err)}`, kind: 'fail' });
+    } finally {
+      setMergingActiveMr(false);
     }
   };
 
   return (
-    <div className="rounded-xl border border-border/70 bg-card/60 p-4 transition-all hover:border-border hover:shadow-xs">
-      {/* 头部：仓库标识与全路径 + CI 状态与触发操作（状态与操作就近闭环，避免折行） */}
-      <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-3">
+    <div className="rounded-xl border border-border/70 bg-card/60 p-4 transition-all hover:border-border hover:shadow-xs flex flex-col gap-3.5">
+      {/* 头部：仓库标识与全路径 + 模板选择（收敛成行内选择器） + CI 状态与触发操作 + 更多 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/60 text-foreground">
             <GitBranchIcon className="size-4 text-primary" />
@@ -295,93 +366,13 @@ export function LinkedRepoCard({
           </div>
         </div>
 
-        {/* 右侧：CI 运行状态胶囊 + 紧挨着的流水线触发按钮 + 更多操作 */}
+        {/* 右侧：模板配置 + CI 运行状态胶囊 + 更多操作 */}
         <div className="flex shrink-0 items-center gap-2">
-          <CiSummaryButton
-            status={ciStatusText(snapshot?.status, entry)}
-            runCount={snapshot?.runs.length ?? 0}
-            error={entry?.error}
-            tooltip="点击查看 CI Job、构建分支和环境详情"
-            onOpen={() => setCiDetailsOpen(true)}
-          />
-          {isFlowBound ? (
-            <WriteOpButton
-              label="触发流水线"
-              title={`触发流水线 ${ciBinding.pipelineName}`}
-              variant="default"
-              onAction={() => triggerRepoCiWithFeedback(repo.id, repo.name)}
-            />
-          ) : (
-            <JenkinsBuildDialog
-              repoId={repo.id}
-              repoName={repo.name}
-              defaultBranch={matchedBranches[0] || developerBranch}
-            />
-          )}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" aria-label="更多操作" />}
-            >
-              <MoreHorizontalIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {developerBranch && (
-                <WriteOpButton
-                  asMenuItem
-                  label="创建分支"
-                  title={`创建需求分支 ${developerBranch}`}
-                  disabled={Boolean(branchDisabledReason)}
-                  disabledReason={branchDisabledReason}
-                  onAction={createDeveloperBranch}
-                />
-              )}
-              <WriteOpButton
-                asMenuItem
-                label="创建 MR"
-                title={developerBranch && operationBaseBranch
-                  ? `创建 MR：${developerBranch} → ${operationBaseBranch}`
-                  : '创建 MR'}
-                disabled={Boolean(mergeRequestDisabledReason)}
-                disabledReason={mergeRequestDisabledReason}
-                onAction={createMergeRequest}
-              />
-              {sortedMergeRequests.length > 0 && !showAllMrs && (
-                <DropdownMenuItem
-                  onClick={() => setShowAllMrs(true)}
-                >
-                  展开全部合并请求 ({sortedMergeRequests.length})
-                </DropdownMenuItem>
-              )}
-              {onUnlinkRepo && (
-                <DropdownMenuItem
-                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                  onClick={() => onUnlinkRepo(repo.id)}
-                >
-                  取消关联此仓库
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      {/* 主体：研发分支与 MR 工作流（模板设置 -> 分支管理 -> MR 合并） */}
-      <div className="grid gap-3.5 pt-3.5 grid-cols-1 xl:grid-cols-[260px_1fr]">
-        {/* 左区块：分支模板 */}
-        <div className="flex flex-col justify-between gap-3 rounded-lg border border-border/40 bg-muted/20 p-3">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">分支模板</span>
-              {hasValidRule && (
-                <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                  规则就绪
-                </span>
-              )}
-            </div>
-            {templateEnabled ? (
+          {templateEnabled && (
+            <div className="flex items-center gap-1.5 border-r border-border/40 pr-2 mr-0.5">
+              <span className="text-[11px] text-muted-foreground">分支模板:</span>
               <SearchableSelect
-                className="text-xs"
+                className="text-xs h-7 w-44"
                 value={templateId || '__none'}
                 onValueChange={(value) => onTemplateChange(value && value !== '__none' ? value : null)}
                 items={[
@@ -403,234 +394,430 @@ export function LinkedRepoCard({
                     : []),
                 ]}
               />
-            ) : (
-              <span className="text-xs text-muted-foreground">—</span>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2 border-t border-border/30 pt-2 text-[11px] text-muted-foreground">
-            <div className="flex items-center justify-between gap-1.5">
-              <span className="shrink-0">基准分支</span>
-              {operationBaseBranch ? (
-                <div className="flex items-center gap-1 min-w-0">
-                  <Tooltip>
-                    <TooltipTrigger render={<code className="truncate rounded bg-background/60 px-1.5 py-0.5 font-mono text-foreground/90 max-w-40" />}>
-                      {operationBaseBranch}
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-96 break-all font-mono text-xs">{operationBaseBranch}</TooltipContent>
-                  </Tooltip>
-                  <CopyButton text={operationBaseBranch} label="复制基准分支名" />
-                </div>
-              ) : (
-                <span className="text-muted-foreground">—</span>
+              {hasValidRule && (
+                <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                  规则就绪
+                </span>
               )}
             </div>
+          )}
 
-            {templateSourceBranch && (
-              <div className="flex items-center justify-between gap-1.5">
-                <span className="shrink-0">来源分支</span>
-                <code className="truncate font-mono text-foreground/80 max-w-40" title={templateSourceBranch}>
-                  {templateSourceBranch}
-                </code>
-              </div>
-            )}
+          <CiSummaryButton
+            status={ciStatusText(snapshot?.status, entry)}
+            runCount={snapshot?.runs.length ?? 0}
+            error={entry?.error}
+            tooltip="点击查看 CI Job、构建分支和环境详情"
+            onOpen={() => setCiDetailsOpen(true)}
+          />
 
-            {/* 迭代基准与 dev/主干的实时差异监控 */}
-            {templateEnabled && baselineState === 'exists' && (
-              <div className="border-t border-border/20 pt-1.5">
-                <IterationDevDivergence
-                  repoId={repo.id}
-                  baselineBranch={baselineBranch}
-                  sourceBranch={templateSourceBranch}
-                  baselineState={baselineState}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" aria-label="更多操作" />}
+            >
+              <MoreHorizontalIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {developerBranch && (
+                <WriteOpButton
+                  asMenuItem
+                  label="创建分支"
+                  title={`创建需求分支 ${developerBranch}`}
+                  disabled={Boolean(branchDisabledReason)}
+                  disabledReason={branchDisabledReason}
+                  onAction={createDeveloperBranch}
                 />
-              </div>
-            )}
-          </div>
+              )}
+              <WriteOpButton
+                asMenuItem
+                label="自定义 MR 标题与描述…"
+                title={developerBranch && operationBaseBranch
+                  ? `自定义创建 MR：${developerBranch} → ${operationBaseBranch}`
+                  : '创建 MR'}
+                disabled={Boolean(mergeRequestDisabledReason)}
+                disabledReason={mergeRequestDisabledReason}
+                onAction={async () => {
+                  setCreateMrOpen(true);
+                }}
+              />
+              <DropdownMenuItem onClick={() => divergence.refetch()}>
+                <RefreshCwIcon className="size-3.5 mr-2" />
+                重新检查分支落差
+              </DropdownMenuItem>
+              {sortedMergeRequests.length > 0 && !showAllMrs && (
+                <DropdownMenuItem
+                  onClick={() => setShowAllMrs(true)}
+                >
+                  展开全部合并请求 ({sortedMergeRequests.length})
+                </DropdownMenuItem>
+              )}
+              {onUnlinkRepo && (
+                <DropdownMenuItem
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  onClick={() => onUnlinkRepo(repo.id)}
+                >
+                  取消关联此仓库
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+      </div>
 
-        {/* 右区块：需求分支与 MR 流水线（就地闭环操作，min-w-0 防止内容溢出） */}
-        <div className="flex flex-col gap-2.5 min-w-0">
-          {/* 行 1：需求分支 */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border/40 bg-muted/20 px-3.5 py-2.5">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-foreground shrink-0">
-                <GitBranchIcon className="size-3.5 text-muted-foreground" />
-                <span>需求分支</span>
-              </div>
-              {developerBranch ? (
-                <div className="flex items-center gap-1">
-                  <Tooltip>
-                    <TooltipTrigger render={<code className="max-w-64 truncate rounded bg-muted/80 px-2 py-0.5 font-mono text-xs font-semibold text-foreground" />}>
-                      {developerBranch}
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-96 break-all">{developerBranch}</TooltipContent>
-                  </Tooltip>
-                  <CopyButton text={developerBranch} label="复制分支名" />
-                </div>
-              ) : (
-                <span className="text-xs text-muted-foreground">未配置需求分支</span>
-              )}
+      {/* 模块 1：可视化分支拓扑链（水平贯通，完整分支名，绝无省略号截断） */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border/40 bg-muted/15 px-3 py-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1 font-medium text-muted-foreground shrink-0 text-[11px]">
+            <GitBranchIcon className="size-3.5 text-primary" />
+            <span>分支拓扑:</span>
+          </div>
 
-              {/* 分支状态标签 */}
-              {developerBranchState === 'loading' && (
-                <Skeleton className="h-5 w-14 rounded" />
-              )}
-              {developerBranchState === 'exists' && (
-                <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                  <CheckIcon className="size-3" />已存在
-                </span>
-              )}
-              {developerBranchState === 'error' && (
-                <span className="text-xs text-destructive">分支查询失败</span>
-              )}
-              {developerBranchState === 'missing' && branchDisabledReason && (
-                <span className="text-xs text-amber-600 dark:text-amber-400">
-                  {branchDisabledReason}
-                </span>
-              )}
-            </div>
-
-            {/* 操作位：直接紧挨着需求分支！如果未创建且允许，直接创建 */}
+          {/* 需求分支 */}
+          <div className="flex items-center gap-1">
+            {developerBranch ? (
+              <>
+                <code className="rounded bg-muted/80 px-2 py-0.5 font-mono text-xs font-semibold text-foreground">
+                  {developerBranch}
+                </code>
+                <CopyButton text={developerBranch} label="复制需求分支名" />
+              </>
+            ) : (
+              <span className="text-muted-foreground font-mono">未配置需求分支</span>
+            )}
+            {developerBranchState === 'loading' && <Skeleton className="h-4 w-12 rounded" />}
+            {developerBranchState === 'exists' && (
+              <span className="inline-flex items-center gap-0.5 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                <CheckIcon className="size-2.5" />已存在
+              </span>
+            )}
             {developerBranchState === 'missing' && !branchDisabledReason && (
               <WriteOpButton
                 label="创建分支"
                 title={`创建需求分支 ${developerBranch}`}
-                variant="default"
                 onAction={createDeveloperBranch}
               />
             )}
           </div>
 
-          {/* 行 2：合并请求（紧凑 List 形式，最多展示 2 条，点击内联就地展开检视与合入） */}
-          <div className="flex flex-col gap-2 rounded-lg border border-border/40 bg-muted/20 p-3 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                <GitPullRequestIcon className="size-3.5 text-muted-foreground" />
-                <span>合并请求</span>
-                {sortedMergeRequests.length > 0 && (
-                  <span className="rounded-full bg-muted/80 px-1.5 py-0.2 font-mono text-[10px] text-muted-foreground">
-                    {sortedMergeRequests.length}
-                  </span>
-                )}
-              </div>
+          <ArrowRightIcon className="size-3 text-muted-foreground/60 shrink-0" />
 
-              {/* 操作位：若有需求分支且未发起针对当前基准分支的 MR，提供创建按钮 */}
-              {developerBranchState === 'exists' && !mergeRequestExists && (
-                <WriteOpButton
-                  label="创建 MR"
-                  title={`创建 MR：${developerBranch} → ${operationBaseBranch}`}
-                  variant="outline"
-                  disabled={Boolean(mergeRequestDisabledReason)}
-                  disabledReason={mergeRequestDisabledReason}
-                  onAction={async () => {
-                    setCreateMrOpen(true);
-                  }}
-                />
-              )}
-            </div>
-
-            {/* List 列表主体 */}
-            {sortedMergeRequests.length === 0 ? (
-              <div className="py-1 text-xs text-muted-foreground">
-                {developerBranchState === 'exists' ? (
-                  <span>暂无关联的合并请求，可点击右上角创建</span>
-                ) : (
-                  <span>目标：<code className="font-mono text-foreground/80">{operationBaseBranch || '—'}</code>（需先创建需求分支）</span>
-                )}
-              </div>
+          {/* 迭代基准分支（全名展示，无截断） */}
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-muted-foreground">基准:</span>
+            {operationBaseBranch ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger render={<code className="rounded bg-background/80 px-2 py-0.5 font-mono text-xs font-semibold text-primary/90" />}>
+                    {operationBaseBranch}
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-96 break-all font-mono text-xs">{operationBaseBranch}</TooltipContent>
+                </Tooltip>
+                <CopyButton text={operationBaseBranch} label="复制基准分支名" />
+              </>
             ) : (
-              <div className="flex flex-col gap-1.5 min-w-0">
-                {displayedMergeRequests.map((mr) => (
-                  <MrInlineItem
-                    key={mr.localId}
-                    mr={mr}
-                    repoId={repo.id}
-                    repoPathWithNamespace={repo.pathWithNamespace}
-                    isExpanded={expandedMrId === mr.localId}
-                    onToggle={() =>
-                      setExpandedMrId((prev) => (prev === mr.localId ? null : mr.localId))
-                    }
-                    onRefresh={() => void loadTrace()}
-                    onCreateMr={() => setCreateMrOpen(true)}
-                  />
-                ))}
-
-                {/* 超过 2 个时提供“展开/收起” */}
-                {hasMoreMergeRequests && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllMrs((prev) => !prev)}
-                    className="flex items-center justify-center gap-1 py-1 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
-                  >
-                    <span>
-                      {showAllMrs
-                        ? '收起其他合并请求'
-                        : `展开其余 ${sortedMergeRequests.length - 2} 个合并请求`}
-                    </span>
-                    <ChevronDownIcon
-                      className={cn(
-                        'size-3.5 transition-transform duration-200',
-                        showAllMrs && 'rotate-180',
-                      )}
-                    />
-                  </button>
-                )}
-              </div>
+              <span className="text-muted-foreground font-mono">—</span>
+            )}
+            {baselineState === 'loading' && <Skeleton className="h-4 w-12 rounded" />}
+            {baselineState === 'error' && (
+              <Button type="button" variant="ghost" size="xs" className="h-5 px-1 text-[10px] text-destructive" onClick={onRetryBaseline}>
+                基准查询失败 重试
+              </Button>
             )}
           </div>
 
-          {/* 分支分叉检测（若已存在分支） */}
-          {templateEnabled && developerBranchState === 'exists' && (
-            <div className="px-1">
-              <BranchDivergenceCheck
-                repoId={repo.id}
-                developmentBranch={developerBranch}
-                baselineBranch={baselineBranch}
-                baselineState={baselineState}
-                onRetryBaseline={onRetryBaseline}
+          {/* 来源分支 */}
+          {templateSourceBranch && (
+            <>
+              <ArrowRightIcon className="size-3 text-muted-foreground/60 shrink-0" />
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] text-muted-foreground">来源:</span>
+                <code className="font-mono text-foreground/80 text-xs" title={templateSourceBranch}>
+                  {templateSourceBranch}
+                </code>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* 迭代基准与主干的实时差异监控 (IterationDevDivergence) */}
+        {templateEnabled && baselineState === 'exists' && (
+          <div className="shrink-0">
+            <IterationDevDivergence
+              repoId={repo.id}
+              baselineBranch={baselineBranch}
+              sourceBranch={templateSourceBranch}
+              baselineState={baselineState}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 模块 2：核心交付状态与主推荐行动条（Delivery Action Banner） */}
+      <div
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3.5 py-3 transition-colors',
+          hasActiveMr
+            ? 'border-primary/40 bg-primary/5'
+            : hasPendingCommits
+              ? 'border-amber-500/40 bg-amber-500/5'
+              : isAllMerged
+                ? 'border-emerald-500/30 bg-emerald-500/5'
+                : 'border-border/50 bg-muted/20',
+        )}
+      >
+        {/* 左侧：结论前置与落差状态 */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {hasActiveMr ? (
+            <GitPullRequestIcon className="size-4 text-primary shrink-0 animate-pulse" />
+          ) : hasPendingCommits ? (
+            <GitPullRequestIcon className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          ) : isAllMerged ? (
+            <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          ) : (
+            <GitBranchIcon className="size-4 text-muted-foreground shrink-0" />
+          )}
+
+          <div className="flex flex-col min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-foreground text-xs">
+                {developerBranchState === 'missing'
+                  ? '需求分支尚未在线上创建'
+                  : matchedActiveMr
+                    ? `MR !${matchedActiveMr.localId} 开放审核中`
+                    : hasPendingCommits
+                      ? `开发分支有 ${devOnly} 个待合入提交`
+                      : isAllMerged
+                        ? '代码已全部合入迭代基准'
+                        : '两分支代码已同步'}
+              </span>
+
+              {/* 落差补充说明标签 */}
+              {isCheckReady && (
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  (开发独有 {devOnly} · 迭代独有 {baselineOnly})
+                </span>
+              )}
+            </div>
+
+            <span className="text-[11px] text-muted-foreground truncate">
+              {developerBranchState === 'missing'
+                ? `需先创建分支 ${developerBranch} 后方可进行代码开发与合并`
+                : matchedActiveMr
+                  ? `${matchedActiveMr.title} (${matchedActiveMr.sourceBranch} → ${matchedActiveMr.targetBranch})`
+                  : hasPendingCommits
+                    ? `已推送到 ${developerBranch}，可直接一键发起合并请求合入基准`
+                    : isAllMerged
+                      ? baselineOnly > 0
+                        ? `迭代分支领先 ${baselineOnly} 个提交，若后续继续开发建议反向同步`
+                        : '当前需求分支与迭代基准分支完全对齐，可直接运行构建验证'
+                      : '无待提交代码，分支状态健康'}
+            </span>
+          </div>
+        </div>
+
+        {/* 右侧：状态机决定的当前“主行动推荐” + 辅助操作 */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* 查看差异按钮（当存在差异时可直接就地调起差异抽屉） */}
+          {divergence.diffs.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs gap-1"
+              onClick={() => setDiffDrawerOpen(true)}
+              title="在本地抽屉中查看代码变动"
+            >
+              <FileCodeIcon className="size-3 text-primary" />
+              <span>差异 ({divergence.diffs.length})</span>
+            </Button>
+          )}
+
+          {/* 状态 1：需求分支缺失 -> 推荐创建分支 */}
+          {developerBranchState === 'missing' && !branchDisabledReason && (
+            <WriteOpButton
+              label="创建需求分支"
+              title={`创建需求分支 ${developerBranch}`}
+              variant="default"
+              onAction={createDeveloperBranch}
+            />
+          )}
+
+          {/* 状态 2：有活跃 MR -> 推荐一键合入 */}
+          {matchedActiveMr && (
+            <WriteOpButton
+              label={mergingActiveMr ? '合入中…' : `确认合入 MR !${matchedActiveMr.localId}`}
+              title={`将 ${matchedActiveMr.sourceBranch} 合入 ${matchedActiveMr.targetBranch}`}
+              variant="default"
+              confirm="dialog"
+              confirmLabel="确认合入"
+              disabled={mergingActiveMr}
+              onAction={() => handleMergeActiveMr(matchedActiveMr)}
+            />
+          )}
+
+          {/* 状态 3：有待合入代码 -> 推荐一键发起合并（0 弹窗极速流转） */}
+          {hasPendingCommits && (
+            <div className="flex items-center gap-1">
+              <WriteOpButton
+                label={quickMrSubmitting ? '创建中…' : '一键发起合并'}
+                title={`创建 MR：${developerBranch} → ${operationBaseBranch}`}
+                variant="default"
+                disabled={Boolean(mergeRequestDisabledReason) || quickMrSubmitting}
+                disabledReason={mergeRequestDisabledReason}
+                onAction={createMergeRequest}
               />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                className="size-7"
+                title="编辑详细 MR 标题与说明并创建…"
+                onClick={() => setCreateMrOpen(true)}
+              >
+                <MoreHorizontalIcon className="size-3.5" />
+              </Button>
             </div>
           )}
 
-          {/* 其他匹配到的分支（追溯结果） */}
-          {(loadingBranches || shownMatchedBranches.length > 0) && (
-            <div className="flex flex-col gap-1.5 rounded-lg border border-border/30 bg-muted/10 p-2.5 text-xs">
-              <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                <GitForkIcon className="size-3.5" />
-                <span>其他关联分支（追溯）：</span>
-              </div>
-              {loadingBranches ? (
-                <Skeleton className="h-5 w-28 rounded" />
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {shownMatchedBranches.map((branch) => (
-                    <div key={`${branch}:${baselineBranch ?? ''}`} className="flex flex-wrap items-center gap-2">
-                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{branch}</code>
-                      <CopyButton text={branch} label="复制分支名" />
-                      {templateEnabled && (
-                        <BranchDivergenceCheck
-                          repoId={repo.id}
-                          developmentBranch={branch}
-                          baselineBranch={baselineBranch}
-                          baselineState={baselineState}
-                          onRetryBaseline={onRetryBaseline}
-                        />
-                      )}
-                    </div>
-                  ))}
-                  {hiddenMatchedBranchCount > 0 && (
-                    <span className="text-xs text-muted-foreground">…还有 {hiddenMatchedBranchCount} 个匹配分支</span>
-                  )}
-                </div>
-              )}
-            </div>
+          {/* 状态 4：已全部合入（用户截图场景） -> 顺畅衔接推荐【触发构建验证】 */}
+          {isAllMerged && (
+            isFlowBound ? (
+              <WriteOpButton
+                label="触发流水线验证"
+                title={`触发流水线 ${ciBinding.pipelineName}`}
+                variant="default"
+                onAction={() => triggerRepoCiWithFeedback(repo.id, repo.name)}
+              />
+            ) : (
+              <JenkinsBuildDialog
+                repoId={repo.id}
+                repoName={repo.name}
+                defaultBranch={recommendedBuildBranch}
+                buttonLabel="触发 Jenkins 构建"
+                buttonVariant="default"
+              />
+            )
           )}
         </div>
       </div>
 
+      {/* 模块 3：活跃 MR 详情展示（若有开放中的 MR，直接就地检视） */}
+      {activeMrs.length > 0 && (
+        <div className="flex flex-col gap-1.5 min-w-0">
+          <div className="flex items-center justify-between text-xs font-medium text-foreground px-0.5">
+            <span className="flex items-center gap-1.5">
+              <GitPullRequestIcon className="size-3.5 text-primary" />
+              <span>进行中的合并请求 ({activeMrs.length})</span>
+            </span>
+          </div>
+          {activeMrs.map((mr) => (
+            <MrInlineItem
+              key={mr.localId}
+              mr={mr}
+              repoId={repo.id}
+              repoPathWithNamespace={repo.pathWithNamespace}
+              isExpanded={expandedMrId === mr.localId || expandedMrId === null}
+              onToggle={() =>
+                setExpandedMrId((prev) => (prev === mr.localId ? -1 : mr.localId))
+              }
+              onRefresh={() => {
+                divergence.refetch();
+                void loadTrace();
+              }}
+              onCreateMr={() => setCreateMrOpen(true)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 模块 4：历史 MR 归档条（已合并/已关闭 MR 默认收拢成单行，消除视觉噪音） */}
+      {historyMrs.length > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-border/30 bg-muted/10 px-3 py-2 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CheckIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>已合入历史记录 ({historyMrs.length}):</span>
+              <span className="font-mono text-[11px] text-foreground/80">
+                {historyMrs.map((m) => `!${m.localId}`).join(' · ')}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAllMrs((prev) => !prev)}
+              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none"
+            >
+              <span>{showAllMrs ? '收起历史详情' : '展开详情'}</span>
+              <ChevronDownIcon
+                className={cn(
+                  'size-3.5 transition-transform duration-200',
+                  showAllMrs && 'rotate-180',
+                )}
+              />
+            </button>
+          </div>
+
+          {/* 展开时才呈现具体的历史 MR 条目 */}
+          {showAllMrs && (
+            <div className="flex flex-col gap-1.5 pt-2 border-t border-border/20">
+              {historyMrs.map((mr) => (
+                <MrInlineItem
+                  key={mr.localId}
+                  mr={mr}
+                  repoId={repo.id}
+                  repoPathWithNamespace={repo.pathWithNamespace}
+                  isExpanded={expandedMrId === mr.localId}
+                  onToggle={() =>
+                    setExpandedMrId((prev) => (prev === mr.localId ? null : mr.localId))
+                  }
+                  onRefresh={() => {
+                    divergence.refetch();
+                    void loadTrace();
+                  }}
+                  onCreateMr={() => setCreateMrOpen(true)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 模块 5：其他关联分支追溯（若有） */}
+      {(loadingBranches || shownMatchedBranches.length > 0) && (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-border/30 bg-muted/10 p-2.5 text-xs">
+          <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
+            <GitForkIcon className="size-3.5" />
+            <span>其他关联分支（追溯）：</span>
+          </div>
+          {loadingBranches ? (
+            <Skeleton className="h-5 w-28 rounded" />
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {shownMatchedBranches.map((branch) => (
+                <div key={`${branch}:${baselineBranch ?? ''}`} className="flex flex-wrap items-center gap-2">
+                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{branch}</code>
+                  <CopyButton text={branch} label="复制分支名" />
+                  {templateEnabled && (
+                    <BranchDivergenceCheck
+                      repoId={repo.id}
+                      developmentBranch={branch}
+                      baselineBranch={baselineBranch}
+                      baselineState={baselineState}
+                      onRetryBaseline={onRetryBaseline}
+                    />
+                  )}
+                </div>
+              ))}
+              {hiddenMatchedBranchCount > 0 && (
+                <span className="text-xs text-muted-foreground">…还有 {hiddenMatchedBranchCount} 个匹配分支</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 仓库 CI 运行详情抽屉 */}
       <RepositoryCiDetails repo={repo} open={ciDetailsOpen} onOpenChange={setCiDetailsOpen} />
 
+      {/* 创建 MR 自定义表单对话框 */}
       <CreateMrDialog
         open={createMrOpen}
         onOpenChange={setCreateMrOpen}
@@ -642,8 +829,19 @@ export function LinkedRepoCard({
         targetBranch={operationBaseBranch}
         onSuccess={() => {
           setCreatedMergeRequestKey(mergeRequestKey);
+          divergence.refetch();
           void loadTrace();
         }}
+      />
+
+      {/* 本地代码分支差异抽屉 */}
+      <CodeDiffDrawer
+        open={diffDrawerOpen}
+        onOpenChange={setDiffDrawerOpen}
+        title="分支落差对比"
+        sourceBranch={developerBranch}
+        targetBranch={operationBaseBranch}
+        diffs={divergence.diffs}
       />
     </div>
   );

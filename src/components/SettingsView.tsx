@@ -5,7 +5,7 @@ import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type SettingsSection } from '../store/ui';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { SETTINGS_SECTIONS } from './settings/sections';
+import { SETTINGS_SECTIONS, getSectionErrorCount } from './settings/sections';
 import { PageHeader, STICKY_PAGE_HEADER_CLASS } from './page-header';
 import { SettingsAutoSaveStatus } from './settings/SettingsAutoSaveStatus';
 import { cn } from '@/lib/utils';
@@ -39,6 +39,7 @@ export function SettingsView({
   const setSettingsSection = useUi((state) => state.setSettingsSection);
   const theme = useUi((state) => state.theme);
   const toggleTheme = useUi((state) => state.toggleTheme);
+  const fieldErrors = useSettingsDraft((state) => state.fieldErrors);
 
   // 挂载时拉取最新已保存凭据状态（例如 Keychain 中的 Token 状态）
   useEffect(() => {
@@ -49,6 +50,22 @@ export function SettingsView({
   useEffect(() => {
     useSettingsDraft.getState().beginEdit(settings);
   }, [settings]);
+
+  // 窗口失焦（切到其他 App）或窗口即将关闭时，若草稿存在有效未保存修改，立即静默冲刷持久化
+  useEffect(() => {
+    const handleBlurOrUnload = () => {
+      const draft = useSettingsDraft.getState();
+      if (draft.isDirty() && !draft.hasBlockingErrors()) {
+        void draft.flushAutoSave();
+      }
+    };
+    window.addEventListener('blur', handleBlurOrUnload);
+    window.addEventListener('beforeunload', handleBlurOrUnload);
+    return () => {
+      window.removeEventListener('blur', handleBlurOrUnload);
+      window.removeEventListener('beforeunload', handleBlurOrUnload);
+    };
+  }, []);
 
   // 已配置令牌时自动拉取仓库 / 流水线，下拉与勾选直接可用
   useEffect(() => {
@@ -227,16 +244,27 @@ export function SettingsView({
           >
             {/* Linear 式竖向菜单：无边框底色，激活项 accent 底 */}
             <TabsList className="h-fit w-full shrink-0 flex-col items-stretch gap-0.5 rounded-none border-0 bg-transparent p-0 sm:w-48">
-              {SETTINGS_SECTIONS.map((section) => (
-                <TabsTrigger
-                  key={section.value}
-                  value={section.value}
-                  className="h-8 justify-start rounded-md px-2.5 text-[13px] font-medium text-muted-foreground shadow-none data-active:bg-accent data-active:text-foreground"
-                >
-                  <section.icon />
-                  {section.label}
-                </TabsTrigger>
-              ))}
+              {SETTINGS_SECTIONS.map((section) => {
+                const errorCount = getSectionErrorCount(section.value, fieldErrors);
+                return (
+                  <TabsTrigger
+                    key={section.value}
+                    value={section.value}
+                    className="h-8 justify-between rounded-md px-2.5 text-[13px] font-medium text-muted-foreground shadow-none data-active:bg-accent data-active:text-foreground"
+                  >
+                    <span className="flex items-center gap-2">
+                      <section.icon />
+                      {section.label}
+                    </span>
+                    {errorCount > 0 && (
+                      <span
+                        className="size-1.5 rounded-full bg-destructive shrink-0"
+                        title={`${section.label}有待修正项`}
+                      />
+                    )}
+                  </TabsTrigger>
+                );
+              })}
             </TabsList>
 
             <div className="flex min-w-0 flex-1 flex-col gap-6">

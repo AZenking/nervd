@@ -158,13 +158,19 @@ interface UiStore {
   toggleTheme(event?: { clientX: number; clientY: number } | null): void;
 }
 
-/** 离开设置视图且草稿有未保存修改 → 拦截，交给 Shell 的确认弹窗（UX A1） */
+/** 离开设置视图且草稿有未保存修改：无校验错误则静默保存放行，有阻断错误则弹窗确认 */
 function guardSettingsDraft(current: WorkspaceView, next: WorkspaceView | 'back'): boolean {
   if (!isSettingsView(current)) return false;
   const draft = useSettingsDraft.getState();
   if (!draft.isDirty()) return false;
-  draft.setPendingView(next);
-  return true;
+  // 若存在阻断保存的校验错误：无法静默保存，拦截并交给 Shell 的确认弹窗
+  if (draft.hasBlockingErrors()) {
+    draft.setPendingView(next);
+    return true;
+  }
+  // 若无校验错误：静默异步持久化并直接放行，提供现代全自动保存的无感体验
+  void draft.flushAutoSave();
+  return false;
 }
 
 export const useUi = create<UiStore>((set, get) => {

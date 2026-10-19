@@ -51,3 +51,20 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
     icon: InfoIcon,
   },
 ];
+
+/** 计算某分区下当前的未修正错误数量，用于在 Tab 或菜单项展示醒目红点 */
+export function getSectionErrorCount(
+  section: SettingsSection,
+  fieldErrors: Record<string, string>,
+): number {
+  if (section === 'connection') {
+    return fieldErrors['space'] ? 1 : 0;
+  }
+  if (section === 'ci') {
+    return Object.keys(fieldErrors).filter(
+      (k) => k.startsWith('jenkins-') || k.startsWith('repo-'),
+    ).length;
+  }
+  return 0;
+}
+

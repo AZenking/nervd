@@ -15,16 +15,16 @@ cd "$(dirname "$0")/.."
 
 export PATH=/opt/homebrew/bin:$PATH
 
-fail() { echo "❌ $1" >&2; exit 1; }
-info() { echo "👉 $1"; }
-ok()   { echo "✅ $1"; }
+fail() { echo "[ERROR] $1" >&2; exit 1; }
+info() { echo "--> $1"; }
+ok()   { echo "[OK] $1"; }
 
 # 1. 提取当前版本号
 APP_VERSION=$(node -e "console.log(require('./src-tauri/tauri.conf.json').version)")
 ARCH=$(uname -m)
 
 echo "=================================================="
-echo "  🚀 nervd 客户端本地发版打包 (v${APP_VERSION} - ${ARCH})"
+echo "  nervd 客户端本地发版打包 (v${APP_VERSION} - ${ARCH})"
 echo "=================================================="
 
 # 2. 预先门禁校验
@@ -59,21 +59,21 @@ fi
 # 5. 输出 GitHub Releases 发布指引
 echo ""
 echo "=================================================="
-echo "  🎉 编译完成！可直接发布到 GitHub Releases"
+echo "  编译完成！可直接发布到 GitHub Releases"
 echo "=================================================="
 echo ""
-echo "📦 产物目录: $(pwd)/dist-release"
+echo "产物目录: $(pwd)/dist-release"
 echo "   - 安装镜像: nervd_${APP_VERSION}_${ARCH}.dmg (${DMG_SIZE})"
 echo "   - 校验文件: nervd_${APP_VERSION}_${ARCH}.dmg.sha256"
 echo ""
-echo "📌 发布步骤:"
+echo "发布步骤:"
 echo "   1. 浏览器打开 GitHub 仓库发版页面:"
 echo "      https://github.com/AZenking/nervd/releases/new"
 echo "   2. Tag 填写: v${APP_VERSION}，标题填写: nervd v${APP_VERSION}"
 echo "   3. 将 dist-release/ 下的文件拖拽上传至 Attach binaries"
 echo "   4. 点击 'Publish release' 即可完成发布！"
 echo ""
-echo "💡 提示（同事首次打开若遇 Gatekeeper 拦截）:"
+echo "提示（同事首次打开若遇 Gatekeeper 拦截）:"
 echo "   在终端中运行以下命令即可一键解除隔离:"
 echo "   xattr -cr /Applications/nervd.app"
 echo "=================================================="

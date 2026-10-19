@@ -228,4 +228,57 @@ describe('useSettingsDraft _applyBaseline', () => {
 
     scheduleSpy.mockRestore();
   });
+
+  it('保存后应用 baseline：若保存期间用户输入了新 PAT，新 PAT 应被保护不被冲掉且排期保存', () => {
+    const scheduleSpy = vi.spyOn(useSettingsDraft.getState(), 'scheduleAutoSave');
+
+    // 假设在发起保存时提交了快照 pat: 'initial-pat'
+    const snapshot = {
+      pat: 'initial-pat',
+      jenkinsTokens: {},
+      draft: { ...BASE_SETTINGS },
+    };
+
+    // 但在网络等待期间，用户接着输入了 'initial-pat-updated'
+    useSettingsDraft.setState({
+      draft: { ...BASE_SETTINGS },
+      baseline: { ...BASE_SETTINGS },
+      pat: 'initial-pat-updated',
+      autoSaveStatus: 'saving',
+    });
+
+    const savedView: SettingsView = {
+      ...BASE_SETTINGS,
+      hasPat: true,
+      jenkinsConnections: [],
+    };
+
+    useSettingsDraft.getState()._applyBaseline(savedView, snapshot);
+
+    const state = useSettingsDraft.getState();
+    // 用户正在输入的新 pat 必须被保留！
+    expect(state.pat).toBe('initial-pat-updated');
+    // 因为还有新输入，必须自动重新排期保存
+    expect(scheduleSpy).toHaveBeenCalled();
+
+    scheduleSpy.mockRestore();
+  });
+
+  it('hasBlockingErrors 应准确识别阻断保存的错误', () => {
+    // 正常有效设置
+    useSettingsDraft.setState({
+      draft: { ...BASE_SETTINGS },
+    });
+    expect(useSettingsDraft.getState().hasBlockingErrors()).toBe(false);
+
+    // 包含不合规的 Jenkins 实例
+    useSettingsDraft.setState({
+      draft: {
+        ...BASE_SETTINGS,
+        jenkinsConnections: [{ id: 'j-err', name: '', baseUrl: '', username: '' }],
+      },
+    });
+    expect(useSettingsDraft.getState().hasBlockingErrors()).toBe(true);
+  });
 });
+

@@ -1,6 +1,6 @@
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
-import type { CiRunSummary, RepoCiBinding } from '@/types';
+import type { CiRunSummary, JenkinsJobSummary, RepoCiBinding } from '@/types';
 
 /**
  * CI 领域共享逻辑：提供方文案、状态兜底、Jenkins 参数推断、触发反馈链路。
@@ -74,3 +74,73 @@ export async function triggerRepoCiWithFeedback(
     setToast({ text: opts?.failText ?? `触发 ${repoName} 流水线失败：${String(e)}`, kind: 'fail' });
   }
 }
+
+export interface ScoredJenkinsJob {
+  name: string;
+  fullName: string;
+  isSaved: boolean;
+  isRecommended: boolean;
+  score: number;
+}
+
+/**
+ * Jenkins Job 推荐与置顶排序算法：
+ * 1. 优先度 100（最高）：当前仓库已绑定的 Job
+ * 2. 优先度 80：包含当前仓库完整名称（如 foton-mobile-view-sst-fed-isd 包含 mobile-view）
+ * 3. 优先度 70：归一化去标点匹配（忽略 - / _ / . 等标点）
+ * 4. 优先度 60：仓库分词全命中（如 mobile-view 的 tokens ['mobile', 'view'] 均在 job 中）
+ * 5. 普通 Job（score = 0）：按字母顺序自然排序置后
+ */
+export function sortJenkinsJobsWithRecommendation(
+  jobs: JenkinsJobSummary[],
+  repoName: string,
+  savedJobFullName?: string,
+): ScoredJenkinsJob[] {
+  const cleanRepo = (repoName.split('/').pop() || repoName).trim().toLowerCase();
+  const normRepo = cleanRepo.replace(/[-_.]/g, '');
+  const repoTokens = cleanRepo.split(/[-_.]/).filter((t) => t.length >= 2);
+
+  const scored: ScoredJenkinsJob[] = jobs.map((job) => {
+    const isSaved = Boolean(savedJobFullName && job.fullName === savedJobFullName);
+    if (isSaved) {
+      return {
+        name: job.name,
+        fullName: job.fullName,
+        isSaved: true,
+        isRecommended: true,
+        score: 100,
+      };
+    }
+
+    const lowerJob = job.fullName.toLowerCase();
+    let isRecommended = false;
+    let score = 0;
+
+    if (cleanRepo && lowerJob.includes(cleanRepo)) {
+      isRecommended = true;
+      score = 80;
+    } else if (normRepo.length >= 3 && lowerJob.replace(/[-_.]/g, '').includes(normRepo)) {
+      isRecommended = true;
+      score = 70;
+    } else if (repoTokens.length >= 2 && repoTokens.every((token) => lowerJob.includes(token))) {
+      isRecommended = true;
+      score = 60;
+    }
+
+    return {
+      name: job.name,
+      fullName: job.fullName,
+      isSaved: false,
+      isRecommended,
+      score,
+    };
+  });
+
+  return scored.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    return a.fullName.localeCompare(b.fullName);
+  });
+}
+

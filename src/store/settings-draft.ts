@@ -88,6 +88,8 @@ export function validateSettings(s: Settings): Record<string, string> {
 export type AutoSaveStatus = 'saved' | 'saving' | 'error' | 'unsaved';
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let saveInFlightPromise: Promise<boolean> | null = null;
+let pendingSaveRerun = false;
 
 const clearDebounce = () => {
   if (debounceTimer) {
@@ -107,16 +109,27 @@ interface SettingsDraftStore {
   saving: boolean;
   autoSaveStatus: AutoSaveStatus;
   fieldErrors: Record<string, string>;
+  /** 最近一次成功保存的时间戳 */
+  lastSavedAt: number | null;
   /** dirty 时被导航守卫拦截的目标视图（由 ui store 写入，Shell 弹确认） */
   pendingView: string | null;
 
   isDirty(): boolean;
+  /** 检查当前是否存在阻断保存的校验错误 */
+  hasBlockingErrors(): boolean;
   /** 进入任一设置页时调用：无未保存修改则从已保存 settings 重建草稿，有则保留 */
   beginEdit(saved: SettingsView | null): void;
   /** 保存成功后：以已保存 settings 覆盖草稿并清空输入中的令牌 */
   syncFromSaved(saved: SettingsView | null): void;
-  /** 保存成功后：仅更新 baseline 与重排期，不覆盖当前正在输入的草稿 */
-  _applyBaseline(saved: SettingsView | null): void;
+  /** 保存成功后：仅更新 baseline 与重排期，支持快照比对保护用户在保存网络期输入的新 Token */
+  _applyBaseline(
+    saved: SettingsView | null,
+    snapshot?: {
+      pat: string;
+      jenkinsTokens: Record<string, string>;
+      draft: Settings | null;
+    },
+  ): void;
   update(patch: Partial<Settings>, immediateSave?: boolean): void;
   setPat(pat: string): void;
   setJenkinsToken(id: string, token: string): void;
@@ -129,6 +142,7 @@ interface SettingsDraftStore {
   scheduleAutoSave(delayMs?: number): void;
   flushAutoSave(): Promise<boolean>;
   save(options?: { silent?: boolean }): Promise<boolean>;
+  retrySave(): Promise<boolean>;
   discard(): void;
 }
 
@@ -140,6 +154,7 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
   saving: false,
   autoSaveStatus: 'saved',
   fieldErrors: {},
+  lastSavedAt: null,
   pendingView: null,
 
   isDirty() {
@@ -147,6 +162,13 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
     if (!draft) return false;
     if (pat.trim() || Object.values(jenkinsTokens).some((t) => t.trim())) return true;
     return !sameSettings(draft, baseline);
+  },
+
+  hasBlockingErrors() {
+    const { draft } = get();
+    if (!draft) return false;
+    const errors = validateSettings(draft);
+    return Object.keys(errors).length > 0;
   },
 
   beginEdit(saved) {
@@ -167,20 +189,47 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
       fieldErrors: {},
       pendingView: null,
       autoSaveStatus: 'saved',
+      lastSavedAt: Date.now(),
     });
   },
 
-  _applyBaseline(saved) {
+  _applyBaseline(saved, snapshot) {
     const next = normalize(saved) ?? { ...EMPTY_SETTINGS };
+    const current = get();
+
+    // 增量清理 PAT：只有当前 pat 和快照一致时才清空；若保存期间有新输入，保留用户输入
+    const nextPat = snapshot && current.pat !== snapshot.pat ? current.pat : '';
+
+    // 增量清理 Jenkins Tokens：只有当前 token 和快照一致时才清理；若保存期间用户编辑了，保留新值
+    const nextJenkinsTokens = { ...current.jenkinsTokens };
+    if (snapshot) {
+      for (const [id, tokenVal] of Object.entries(snapshot.jenkinsTokens)) {
+        if (nextJenkinsTokens[id] === tokenVal) {
+          delete nextJenkinsTokens[id];
+        }
+      }
+    } else {
+      for (const id of Object.keys(nextJenkinsTokens)) {
+        delete nextJenkinsTokens[id];
+      }
+    }
+
     set({
       baseline: next,
-      pat: '',
-      jenkinsTokens: {},
+      pat: nextPat,
+      jenkinsTokens: nextJenkinsTokens,
       fieldErrors: {},
       pendingView: null,
+      lastSavedAt: Date.now(),
     });
+
     // 若 draft 与新 baseline 仍有差异（保存期间用户继续输入），重新排期自动保存
-    if (!sameSettings(get().draft, next)) {
+    const hasMoreChanges =
+      !sameSettings(get().draft, next) ||
+      Boolean(nextPat.trim()) ||
+      Object.values(nextJenkinsTokens).some((t) => t.trim());
+
+    if (hasMoreChanges) {
       get().scheduleAutoSave();
     } else {
       set({ autoSaveStatus: 'saved', draft: next });
@@ -282,8 +331,19 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
   },
   setPendingView(view) { set({ pendingView: view }); },
 
-  async save(options?: { silent?: boolean }) {
+  async retrySave() {
+    return await get().save({ silent: false });
+  },
+
+  async save(options?: { silent?: boolean }): Promise<boolean> {
     clearDebounce();
+
+    // 并发互斥与排队队列：若有请求正处于保存中，将排期标记打上，并在前序请求结束后重跑
+    if (saveInFlightPromise) {
+      pendingSaveRerun = true;
+      return await saveInFlightPromise;
+    }
+
     const { draft } = get();
     if (!draft) return false;
     const errors = validateSettings(draft);
@@ -294,33 +354,53 @@ export const useSettingsDraft = create<SettingsDraftStore>((set, get) => ({
       }
       return false;
     }
-    set({ saving: true, autoSaveStatus: 'saving' });
-    try {
-      const app = useApp.getState();
-      const oldIds = (app.settings?.jenkinsConnections ?? []).map((c) => c.id);
-      for (const connection of draft.jenkinsConnections) {
-        const token = get().jenkinsTokens[connection.id]?.trim();
-        if (token) await api.saveJenkinsToken(connection.id, token);
+
+    // 捕获本次提交时的快照，用于解决网络往返期间新输入的增量清理
+    const snapshotPat = get().pat;
+    const snapshotJenkinsTokens = { ...get().jenkinsTokens };
+    const snapshotDraft = get().draft;
+
+    const performSave = async (): Promise<boolean> => {
+      set({ saving: true, autoSaveStatus: 'saving' });
+      try {
+        const app = useApp.getState();
+        const oldIds = (app.settings?.jenkinsConnections ?? []).map((c) => c.id);
+        for (const connection of draft.jenkinsConnections) {
+          const token = snapshotJenkinsTokens[connection.id]?.trim();
+          if (token) await api.saveJenkinsToken(connection.id, token);
+        }
+        await app.saveAll(draft, snapshotPat.trim() || undefined);
+        const currentIds = new Set(draft.jenkinsConnections.map((c) => c.id));
+        for (const id of oldIds) {
+          if (!currentIds.has(id)) await api.deleteJenkinsToken(id);
+        }
+        get()._applyBaseline(useApp.getState().settings, {
+          pat: snapshotPat,
+          jenkinsTokens: snapshotJenkinsTokens,
+          draft: snapshotDraft,
+        });
+        if (!options?.silent) {
+          useApp.getState().setToast({ text: '设置已保存', kind: 'ok' });
+        }
+        return true;
+      } catch (e) {
+        set({ autoSaveStatus: 'error' });
+        if (!options?.silent) {
+          useApp.getState().setToast({ text: `保存失败：${String(e)}`, kind: 'fail' });
+        }
+        return false;
+      } finally {
+        set({ saving: false });
+        saveInFlightPromise = null;
+        if (pendingSaveRerun) {
+          pendingSaveRerun = false;
+          void get().save({ silent: true });
+        }
       }
-      await app.saveAll(draft, get().pat.trim() || undefined);
-      const currentIds = new Set(draft.jenkinsConnections.map((c) => c.id));
-      for (const id of oldIds) {
-        if (!currentIds.has(id)) await api.deleteJenkinsToken(id);
-      }
-      get()._applyBaseline(useApp.getState().settings);
-      if (!options?.silent) {
-        useApp.getState().setToast({ text: '设置已保存', kind: 'ok' });
-      }
-      return true;
-    } catch (e) {
-      set({ autoSaveStatus: 'error' });
-      if (!options?.silent) {
-        useApp.getState().setToast({ text: `保存失败：${String(e)}`, kind: 'fail' });
-      }
-      return false;
-    } finally {
-      set({ saving: false });
-    }
+    };
+
+    saveInFlightPromise = performSave();
+    return await saveInFlightPromise;
   },
 
   /** 放弃修改：回到基线（进入设置页时 beginEdit 会再用最新已保存值重建） */

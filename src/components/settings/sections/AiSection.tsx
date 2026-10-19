@@ -285,12 +285,12 @@ export function AiSection() {
               />
               {settings.baseUrl.includes('/messages') && (
                 <p className="text-[11px] text-amber-500/90 dark:text-amber-400/90">
-                  ⚠️ 检测到包含 /messages：nervd 遵循 OpenAI 协议标准，后台已自动转换为 /chat/completions。如果您的服务为 OpenAI 兼容接口，建议直接填写基准路径（如 https://.../v1）。
+                  检测到包含 /messages：nervd 遵循 OpenAI 协议标准，后台已自动转换为 /chat/completions。如果您的服务为 OpenAI 兼容接口，建议直接填写基准路径（如 https://.../v1）。
                 </p>
               )}
               {settings.baseUrl.includes('.f6yc.com') && (
                 <p className="text-[11px] text-muted-foreground/80">
-                  💡 企业内网服务提示：若访问公司内部网关，请确保在办公内网或开启 VPN（如 aTrust），避免被公网单点登录 (SSO / IDaaS) 拦截。
+                  企业内网服务提示：若访问公司内部网关，请确保在办公内网或开启 VPN（如 aTrust），避免被公网单点登录 (SSO / IDaaS) 拦截。
                 </p>
               )}
             </div>
@@ -424,11 +424,11 @@ export function AiSection() {
         <div className="border-t border-border/50 px-4 py-3 bg-muted/15 text-xs text-muted-foreground leading-relaxed">
           {settings.breakdownMode === 'review' ? (
             <p>
-              💡 <strong>弹窗二次确认模式</strong>：点击 AI 拆解后调出复核弹窗，可在确认创建到云效前自由勾选、原地微调子任务标题、选择指派人。
+              <strong>弹窗二次确认模式</strong>：点击 AI 拆解后调出复核弹窗，可在确认创建到云效前自由勾选、原地微调子任务标题、选择指派人。
             </p>
           ) : (
             <p>
-              ⚡️ <strong>一键直达生成模式</strong>：点击 AI 拆解后无需弹窗确认，在后台根据需求描述与默认标签极速生成并直接批量创建至云效。
+              <strong>一键直达生成模式</strong>：点击 AI 拆解后无需弹窗确认，在后台根据需求描述与默认标签极速生成并直接批量创建至云效。
             </p>
           )}
         </div>
