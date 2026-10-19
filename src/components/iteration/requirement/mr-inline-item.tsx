@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -9,6 +9,7 @@ import {
   GitBranchIcon,
   GitCommitIcon,
   GitPullRequestIcon,
+  RefreshCwIcon,
 } from 'lucide-react';
 import type { MrSummary } from '@/types';
 import * as api from '@/lib/api';
@@ -54,8 +55,8 @@ export function MrInlineItem({
   const organizationId = useApp((s) => s.settings?.organizationId);
   const [commits, setCommits] = useState<CommitSummaryItem[]>([]);
   const [diffs, setDiffs] = useState<FileDiffItem[]>([]);
-  const [loadingCommits, setLoadingCommits] = useState(false);
-  const [commitsError, setCommitsError] = useState<string | null>(null);
+  const [loadingDiff, setLoadingDiff] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
   const [inlineDiffOpen, setInlineDiffOpen] = useState(false);
   const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
 
@@ -75,21 +76,25 @@ export function MrInlineItem({
     localId: mr.localId,
   });
 
-  // 展开时按需异步拉取分支落差提交记录 (Commits)
-  useEffect(() => {
+  // 按需异步拉取当前分支落差提交与文件差异
+  const fetchDivergence = useCallback(() => {
     if (!isExpanded) return;
 
+    // 刷新或切换条目时立即清除过期结果
+    setLoadingDiff(true);
+    setDiffError(null);
+    setCommits([]);
+    setDiffs([]);
+
     let cancelled = false;
-    setLoadingCommits(true);
-    setCommitsError(null);
 
     api
       .compareBranches(repoId, mr.targetBranch, mr.sourceBranch)
       .then((res) => {
         if (cancelled) return;
         try {
-          const raw = comparisonCommits(res) as Record<string, unknown>[];
-          const mapped: CommitSummaryItem[] = raw.map((c) => {
+          const rawCommits = comparisonCommits(res) as Record<string, unknown>[];
+          const mapped: CommitSummaryItem[] = rawCommits.map((c) => {
             const sha = String(c.id ?? c.sha ?? '');
             const msg = String(c.message ?? c.title ?? '').trim();
             const author =
@@ -112,22 +117,26 @@ export function MrInlineItem({
           const rawDiffs = comparisonDiffs(res);
           const parsedDiffs = parseFileDiffs(rawDiffs);
           setDiffs(parsedDiffs);
-        } catch {
-          setCommits([]);
-          setDiffs([]);
+        } catch (e) {
+          setDiffError(String(e));
         }
       })
       .catch((err) => {
-        if (!cancelled) setCommitsError(String(err));
+        if (!cancelled) setDiffError(String(err));
       })
       .finally(() => {
-        if (!cancelled) setLoadingCommits(false);
+        if (!cancelled) setLoadingDiff(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isExpanded, repoId, mr.localId, mr.sourceBranch, mr.targetBranch]);
+  }, [isExpanded, repoId, mr.sourceBranch, mr.targetBranch]);
+
+  useEffect(() => {
+    const cleanup = fetchDivergence();
+    return cleanup;
+  }, [fetchDivergence]);
 
   const handleMerge = async () => {
     try {
@@ -148,12 +157,25 @@ export function MrInlineItem({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onToggle();
+    }
+  };
+
   return (
-    <div className="flex flex-col rounded-md border border-border/40 bg-background/50 transition-colors hover:border-border/70 overflow-hidden">
-      {/* 紧凑列表标题行：支持点击展开/折叠，严格防止横向溢出 */}
+    <div
+      id={`mr-item-${mr.localId}`}
+      className="flex flex-col rounded-md border border-border/40 bg-background/50 transition-colors hover:border-border/70 overflow-hidden"
+    >
+      {/* 紧凑列表标题行：支持点击/键盘展开折叠 */}
       <div
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
-        className="flex cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-xs select-none hover:bg-muted/40 transition-colors"
+        onKeyDown={handleKeyDown}
+        className="flex cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-xs select-none hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="font-mono font-bold text-primary shrink-0">
@@ -178,7 +200,7 @@ export function MrInlineItem({
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-              <GitPullRequestIcon className="size-3" />开放中
+              <GitPullRequestIcon className="size-3" />进行中
             </span>
           )}
           <ChevronDownIcon
@@ -190,11 +212,11 @@ export function MrInlineItem({
         </div>
       </div>
 
-      {/* 就地展开的闭环检视面板（无需弹窗与抽屉，直接就地查看与合入） */}
+      {/* 就地展开的闭环检视面板 */}
       {isExpanded && (
         <div className="flex flex-col gap-2.5 border-t border-border/40 bg-muted/20 px-3 py-2.5 text-xs">
-          {/* 分支流向 */}
-          <div className="flex items-center justify-between gap-2 rounded border border-border/30 bg-background/70 px-2 py-1.5 text-[11px] font-mono">
+          {/* 分支流向与基本元数据 */}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/30 bg-background/70 px-2 py-1.5 text-[11px] font-mono">
             <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
               <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
               <span className="truncate text-foreground font-semibold" title={mr.sourceBranch}>
@@ -205,35 +227,74 @@ export function MrInlineItem({
                 {mr.targetBranch}
               </span>
             </div>
-            <CopyButton text={`${mr.sourceBranch} -> ${mr.targetBranch}`} label="复制分支" />
+            <div className="flex items-center gap-2 shrink-0">
+              {mr.author?.name && (
+                <span className="text-muted-foreground text-[10px]">创建人: {mr.author.name}</span>
+              )}
+              <CopyButton text={`${mr.sourceBranch} -> ${mr.targetBranch}`} label="复制分支" />
+            </div>
           </div>
 
-          {/* Commits 提交列表 */}
+          {/* 差异状态区域：区分活跃 MR 与历史 MR */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <div className="flex items-center gap-1 font-medium text-foreground">
                 <GitCommitIcon className="size-3 text-primary" />
                 <span>
-                  {isMerged && commits.length > 0
-                    ? `分支新提交 (${loadingCommits ? '…' : commits.length})`
-                    : `代码变更提交 (${loadingCommits ? '…' : commits.length})`}
+                  {isOpen
+                    ? `当前待合入提交 (${loadingDiff ? '…' : commits.length})`
+                    : `当前分支差异提交 (${loadingDiff ? '…' : commits.length})`}
                 </span>
               </div>
-              {mr.author?.name && <span>创建人：{mr.author.name}</span>}
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground gap-1"
+                disabled={loadingDiff}
+                onClick={fetchDivergence}
+                title="重新比较两分支最新状态"
+              >
+                <RefreshCwIcon className={cn('size-2.5', loadingDiff && 'animate-spin')} />
+                <span>刷新差异</span>
+              </Button>
             </div>
 
-            {loadingCommits ? (
+            {loadingDiff ? (
               <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                 <Spinner className="size-3 text-primary" />
-                <span>读取变更提交中…</span>
+                <span>对比分支最新变动中…</span>
               </div>
-            ) : commitsError ? (
-              <div className="rounded bg-destructive/10 p-2 text-[11px] text-destructive">
-                读取提交失败：{commitsError}
+            ) : diffError ? (
+              <div className="flex items-center justify-between rounded bg-destructive/10 p-2 text-[11px] text-destructive">
+                <span>差异加载失败：{diffError}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  className="h-5 px-1.5 text-[10px]"
+                  onClick={fetchDivergence}
+                >
+                  重试
+                </Button>
               </div>
             ) : commits.length === 0 ? (
               <div className="rounded bg-muted/20 p-2 text-center text-[11px] text-muted-foreground">
-                无差异提交记录（两分支内容已同步）
+                {isOpen ? (
+                  '两分支内容已同步，无待合入提交'
+                ) : (
+                  <span>
+                    两分支当前已对齐。历史完整变更请通过下方
+                    <button
+                      type="button"
+                      onClick={() => void openExternal(mrUrl)}
+                      className="ml-1 text-primary hover:underline cursor-pointer"
+                    >
+                      「云效直达」
+                    </button>
+                    查看。
+                  </span>
+                )}
               </div>
             ) : (
               <div className="flex flex-col divide-y divide-border/30 rounded border border-border/30 bg-background/50 max-h-36 overflow-y-auto">
@@ -265,7 +326,7 @@ export function MrInlineItem({
               <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                 <div className="flex items-center gap-1.5 font-medium text-foreground">
                   <FileDiffIcon className="size-3 text-primary" />
-                  <span>文件改动 ({diffs.length})</span>
+                  <span>当前分支差异文件 ({diffs.length})</span>
                   <span className="font-mono text-[10px]">
                     {totalAdditions > 0 && (
                       <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+{totalAdditions} </span>
@@ -307,7 +368,7 @@ export function MrInlineItem({
             </div>
           )}
 
-          {/* 底部操作条：云效直达 + 本地查看差异 + 就地操作 */}
+          {/* 底部操作条：云效直达 + 本地查看差异 + 就地合入 */}
           <div className="flex items-center justify-between pt-1 border-t border-border/30">
             <div className="flex items-center gap-1.5">
               <Button
@@ -316,7 +377,7 @@ export function MrInlineItem({
                 size="xs"
                 className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5"
                 onClick={() => void openExternal(mrUrl)}
-                title="在云效 Codeup 中查看完整讨论与差异"
+                title="在云效 Codeup 中查看完整讨论、历史评审与原始 Diff"
               >
                 <span>云效直达</span>
                 <ExternalLinkIcon className="size-3" />
@@ -329,10 +390,10 @@ export function MrInlineItem({
                   size="xs"
                   className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5 text-xs"
                   onClick={() => setDiffDrawerOpen(true)}
-                  title="在本地抽屉中完整查看代码变动"
+                  title="在本地抽屉中完整查看当前分支差异"
                 >
                   <FileCodeIcon className="size-3 text-primary" />
-                  <span>查看变更 ({diffs.length})</span>
+                  <span>查看差异 ({diffs.length})</span>
                 </Button>
               )}
             </div>
@@ -340,37 +401,29 @@ export function MrInlineItem({
             <div className="flex items-center gap-2">
               {isOpen && (
                 <WriteOpButton
-                  label="确认合并"
+                  label="确认合入"
                   title={`将 ${mr.sourceBranch} 合入 ${mr.targetBranch}`}
                   variant="default"
                   confirm="dialog"
-                  confirmLabel="确认合并"
+                  confirmLabel="确认合入"
                   onAction={handleMerge}
                 />
               )}
-              {isMerged && (
-                commits.length > 0 ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                      分支有 {commits.length} 条新提交未合入
-                    </span>
-                    {onCreateMr && (
-                      <Button
-                        type="button"
-                        variant="default"
-                        size="xs"
-                        className="h-6 px-2 text-xs"
-                        onClick={onCreateMr}
-                      >
-                        创建新 MR
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                    <CheckIcon className="size-3" />已合入目标基准
+              {!isOpen && isMerged && commits.length > 0 && onCreateMr && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                    分支有 {commits.length} 条新提交未合入
                   </span>
-                )
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="xs"
+                    className="h-6 px-2 text-xs"
+                    onClick={onCreateMr}
+                  >
+                    创建新 MR
+                  </Button>
+                </div>
               )}
             </div>
           </div>
@@ -390,14 +443,14 @@ export function MrInlineItem({
         actionNode={
           isOpen ? (
             <WriteOpButton
-              label="确认合并"
+              label="确认合入"
               title={`将 ${mr.sourceBranch} 合入 ${mr.targetBranch}`}
               variant="default"
               confirm="dialog"
-              confirmLabel="确认合并"
+              confirmLabel="确认合入"
               onAction={handleMerge}
             />
-          ) : isMerged && commits.length > 0 && onCreateMr ? (
+          ) : !isOpen && isMerged && commits.length > 0 && onCreateMr ? (
             <Button
               type="button"
               variant="default"

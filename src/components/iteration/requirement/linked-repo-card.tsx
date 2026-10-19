@@ -9,6 +9,7 @@ import {
   GitForkIcon,
   GitPullRequestIcon,
   MoreHorizontalIcon,
+  PlusIcon,
   RefreshCwIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
@@ -37,8 +38,6 @@ import { IterationDevDivergence } from './iteration-dev-divergence';
 import { CodeDiffDrawer } from './code-diff-drawer';
 import { cn } from '@/lib/utils';
 import {
-  mergeRequestBranch,
-  mergeRequestRows,
   type IterationBaselineCheck,
   type ResolvedRepoBranchRule,
 } from './types';
@@ -58,7 +57,7 @@ export interface LinkedRepoCardProps {
   templates: (BranchRuleTemplate | ScopedBranchRuleTemplate)[];
   templateEnabled: boolean;
   baselineBranch?: string;
-  baselineState: IterationBaselineCheck['state'] | undefined;
+  baselineState?: IterationBaselineCheck['state'];
   onRetryBaseline: () => void;
   onTemplateChange: (templateId: string | null) => void;
   onUnlinkRepo?: (repoId: number) => void;
@@ -91,22 +90,21 @@ export function LinkedRepoCard({
   const snapshot = entry?.snapshot;
   const ciBinding = settings?.repoCiBindings?.[String(repo.id)];
   const isFlowBound = ciBinding?.provider === 'flow';
+  const isJenkinsBound = ciBinding?.provider === 'jenkins';
+
   const developerBranch = branchRule?.workitemBranch.trim() || (identifier ? `feature/${identifier}` : '');
   const operationBaseBranch = iterationId ? baselineBranch?.trim() ?? '' : 'master';
   const templateSourceBranch = branchRule?.sourceBranch.trim() ?? '';
   const hasValidRule = Boolean(
     branchRule?.sourceBranch.trim() && branchRule.baselineBranch.trim() && branchRule.workitemBranch.trim(),
   );
+
   const [developerBranchState, setDeveloperBranchState] = useState<IterationBaselineCheck['state']>('loading');
   const [defaultBaseState, setDefaultBaseState] = useState<IterationBaselineCheck['state']>('loading');
-  const [createdMergeRequestKey, setCreatedMergeRequestKey] = useState('');
   const [createMrOpen, setCreateMrOpen] = useState(false);
   const [expandedMrId, setExpandedMrId] = useState<number | null>(null);
   const [showAllMrs, setShowAllMrs] = useState(false);
   const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
-  const [quickMrSubmitting, setQuickMrSubmitting] = useState(false);
-  const [mergingActiveMr, setMergingActiveMr] = useState(false);
-  const mergeRequestKey = `${repo.id}:${developerBranch}->${operationBaseBranch}`;
 
   const divergence = useBranchDivergence(
     repo.id,
@@ -154,19 +152,6 @@ export function LinkedRepoCard({
     return b.localId - a.localId;
   });
 
-  // 匹配本需求分支与目标基准分支的活跃中（未合入、未关闭）MR
-  const matchedActiveMr = sortedMergeRequests.find((request) => {
-    const st = request.state?.toLowerCase();
-    const isInactive = st === 'merged' || st === 'closed';
-    if (isInactive) return false;
-    return (
-      (developerBranch && request.sourceBranch === developerBranch && operationBaseBranch && request.targetBranch === operationBaseBranch) ||
-      (developerBranch && request.sourceBranch === developerBranch)
-    );
-  });
-  const hasActiveMr = Boolean(matchedActiveMr);
-  const mergeRequestExists = hasActiveMr || createdMergeRequestKey === mergeRequestKey;
-
   // 区分活跃 MR 与历史已合入/关闭的 MR
   const activeMrs = sortedMergeRequests.filter((m) => {
     const st = m.state?.toLowerCase();
@@ -176,6 +161,14 @@ export function LinkedRepoCard({
     const st = m.state?.toLowerCase();
     return st === 'merged' || st === 'closed';
   });
+
+  // 匹配本需求分支与目标基准分支的活跃中 MR（优先级：当前需求分支到迭代基准 > 当前需求分支的 MR > 按编号倒序第一个）
+  const matchedActiveMr = activeMrs.find((request) =>
+    (developerBranch && request.sourceBranch === developerBranch && operationBaseBranch && request.targetBranch === operationBaseBranch)
+    || (developerBranch && request.sourceBranch === developerBranch),
+  );
+  const targetActiveMr = matchedActiveMr || activeMrs[0];
+  const hasActiveMr = Boolean(targetActiveMr);
 
   const devOnly = divergence.check.status === 'ready' ? divergence.check.developmentOnly : 0;
   const baselineOnly = divergence.check.status === 'ready' ? divergence.check.baselineOnly : 0;
@@ -192,10 +185,12 @@ export function LinkedRepoCard({
     ((isCheckReady && devOnly === 0 && (historyMrs.length > 0 || isBranchAligned)) ||
       (!hasActiveMr && historyMrs.length > 0 && devOnly === 0));
 
-  // 智能推荐构建分支：当已全部合入时，推荐构建合入目标基准分支；否则以开发分支为准
+  // 智能推荐构建分支：当已全部合入时，预填目标基准分支；需求分支存在未合入时，预填需求分支；否则预填推荐分支或 master
   const recommendedBuildBranch = isAllMerged
-    ? (operationBaseBranch || developerBranch)
-    : (matchedBranches[0] || developerBranch || operationBaseBranch);
+    ? (operationBaseBranch || developerBranch || 'master')
+    : (developerBranchState === 'exists' && developerBranch
+        ? developerBranch
+        : (operationBaseBranch || developerBranch || 'master'));
 
   const branchDisabledReason = placeholderIteration
     ? '占位迭代不支持创建云效分支'
@@ -217,28 +212,6 @@ export function LinkedRepoCard({
                     ? '正在查询需求分支'
                     : developerBranchState === 'exists'
                       ? '需求分支已存在'
-                      : undefined;
-
-  const mergeRequestDisabledReason = placeholderIteration
-    ? '占位迭代不支持创建 MR'
-    : !identifier
-      ? '工作项编号不可用'
-      : iterationId && !hasValidRule
-        ? '请先为此仓库选择有效的分支模板'
-        : iterationId && baselineState !== 'exists'
-          ? baselineState === 'error' ? '迭代基准查询失败，请重试后再创建' : '请先创建需求分支和迭代基准分支'
-          : !iterationId && defaultBaseState !== 'exists'
-            ? 'master 分支不可用，无法创建 MR'
-            : developerBranchState === 'loading'
-              ? '正在查询需求分支'
-              : developerBranchState === 'error'
-                ? '需求分支查询失败，请刷新详情后重试'
-                : developerBranchState !== 'exists'
-                  ? '请先创建需求分支'
-                  : !traceAvailable
-                    ? '正在查询 MR 状态'
-                    : mergeRequestExists
-                      ? '此需求分支的 MR 已创建'
                       : undefined;
 
   const createDeveloperBranch = async () => {
@@ -280,75 +253,27 @@ export function LinkedRepoCard({
       divergence.refetch();
       void loadTrace();
     } catch (error) {
-      errorLog('workitem-action', error); setToast({ text: humanizeError(error), kind: 'fail' });
+      errorLog('workitem-action', error);
+      setToast({ text: humanizeError(error), kind: 'fail' });
     }
   };
 
-  const createMergeRequest = async () => {
-    setQuickMrSubmitting(true);
-    try {
-      if (!identifier || !developerBranch || !operationBaseBranch) throw new Error('MR 参数不完整');
-      if (placeholderIteration) throw new Error('占位迭代不支持创建 MR');
-      if (iterationId && (!hasValidRule || baselineState !== 'exists')) {
-        throw new Error('请先确认分支模板和迭代基准分支');
+  /** 定位并展开指定 MR 条目，平滑滚动至视口 */
+  const handleViewMr = (mrToView?: MrSummary | { localId: number }) => {
+    const target = mrToView || targetActiveMr;
+    if (!target) return;
+    setExpandedMrId(target.localId);
+    setTimeout(() => {
+      const el = document.getElementById(`mr-item-${target.localId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
-      const [sourceBranch, targetBranch] = await Promise.all([
-        findRemoteBranch(repo.id, developerBranch),
-        findRemoteBranch(repo.id, operationBaseBranch),
-      ]);
-      if (!sourceBranch) throw new Error(`需求分支「${developerBranch}」在线上不存在`);
-      if (!targetBranch) throw new Error(`目标分支「${operationBaseBranch}」在线上不存在`);
-      if (developerBranch === operationBaseBranch) throw new Error('MR 源分支和目标分支不能相同');
-
-      const remoteRequests = mergeRequestRows(await api.listMergeRequests(repo.id));
-      const existing = remoteRequests.some((request) =>
-        mergeRequestBranch(request, 'sourceBranch', 'source_branch') === developerBranch
-        && mergeRequestBranch(request, 'targetBranch', 'target_branch') === operationBaseBranch,
-      );
-      if (existing) {
-        setCreatedMergeRequestKey(mergeRequestKey);
-        setToast({ text: `此需求分支的 MR 已存在：${developerBranch} → ${operationBaseBranch}`, kind: 'info' });
-        divergence.refetch();
-        void loadTrace();
-        return;
-      }
-
-      await api.createMergeRequest({
-        repoId: repo.id,
-        title: `${identifier} ${subject}`.trim(),
-        sourceBranch: developerBranch,
-        targetBranch: operationBaseBranch,
-        description: `关联工作项：${identifier}`,
-      });
-      setCreatedMergeRequestKey(mergeRequestKey);
-      setToast({ text: `MR 已创建：${developerBranch} → ${operationBaseBranch}`, kind: 'ok' });
-      divergence.refetch();
-      void loadTrace();
-    } catch (error) {
-      errorLog('workitem-action', error); setToast({ text: humanizeError(error), kind: 'fail' });
-    } finally {
-      setQuickMrSubmitting(false);
-    }
-  };
-
-  const handleMergeActiveMr = async (mr: MrSummary) => {
-    setMergingActiveMr(true);
-    try {
-      await api.mergeMergeRequest(repo.id, mr.localId);
-      setToast({ text: `MR !${mr.localId} 已成功合入 ${mr.targetBranch}`, kind: 'ok' });
-      divergence.refetch();
-      void loadTrace();
-    } catch (err) {
-      errorLog('merge-mr', err);
-      setToast({ text: `合并失败：${humanizeError(err)}`, kind: 'fail' });
-    } finally {
-      setMergingActiveMr(false);
-    }
+    }, 60);
   };
 
   return (
     <div className="rounded-xl border border-border/70 bg-card/60 p-4 transition-all hover:border-border hover:shadow-xs flex flex-col gap-3.5">
-      {/* 头部：仓库标识与全路径 + 模板选择（收敛成行内选择器） + CI 状态与触发操作 + 更多 */}
+      {/* 头部：仓库标识与全路径 + 模板选择 + MR 入口 (二选一) + 常驻构建入口 + CI 状态与详情 + 更多 */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/60 text-foreground">
@@ -366,13 +291,14 @@ export function LinkedRepoCard({
           </div>
         </div>
 
-        {/* 右侧：模板配置 + CI 运行状态胶囊 + 更多操作 */}
+        {/* 右侧：模板配置 + MR 入口 (查看/创建) + 常驻构建操作 + CI 状态胶囊 + 更多 */}
         <div className="flex shrink-0 items-center gap-2">
+          {/* 模板选择（行内收敛） */}
           {templateEnabled && (
             <div className="flex items-center gap-1.5 border-r border-border/40 pr-2 mr-0.5">
               <span className="text-[11px] text-muted-foreground">分支模板:</span>
               <SearchableSelect
-                className="text-xs h-7 w-44"
+                className="text-xs h-7 w-40"
                 value={templateId || '__none'}
                 onValueChange={(value) => onTemplateChange(value && value !== '__none' ? value : null)}
                 items={[
@@ -402,6 +328,62 @@ export function LinkedRepoCard({
             </div>
           )}
 
+          {/* MR 入口（二选一）：有进行中的 MR 展现「查看 MR」，否则展现「创建 MR」 */}
+          {loadingBranches && !traceAvailable ? (
+            <Skeleton className="h-7 w-20 rounded" />
+          ) : hasActiveMr ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+              onClick={() => handleViewMr(targetActiveMr)}
+              title={`定位并展开进行中的合并请求 !${targetActiveMr?.localId}`}
+            >
+              <GitPullRequestIcon className="size-3.5" />
+              <span>查看 MR{targetActiveMr ? ` (!${targetActiveMr.localId})` : ''}</span>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => setCreateMrOpen(true)}
+              title="创建合并请求 (MR)"
+            >
+              <PlusIcon className="size-3.5" />
+              <span>创建 MR</span>
+            </Button>
+          )}
+
+          {/* 常驻发起构建入口：脱钩“已全部合入”判定，始终常驻可用 */}
+          {isFlowBound && ciBinding ? (
+            <WriteOpButton
+              label="发起构建"
+              title={`触发流水线 ${ciBinding.pipelineName}`}
+              variant="default"
+              onAction={() => triggerRepoCiWithFeedback(repo.id, repo.name)}
+            />
+          ) : isJenkinsBound && ciBinding ? (
+            <JenkinsBuildDialog
+              repoId={repo.id}
+              repoName={repo.name}
+              defaultBranch={recommendedBuildBranch}
+              buttonLabel="发起构建"
+              buttonVariant="default"
+            />
+          ) : (
+            <JenkinsBuildDialog
+              repoId={repo.id}
+              repoName={repo.name}
+              defaultBranch={recommendedBuildBranch}
+              buttonLabel="选择 Job 构建"
+              buttonVariant="outline"
+            />
+          )}
+
+          {/* CI 运行状态与近期构建抽屉入口 */}
           <CiSummaryButton
             status={ciStatusText(snapshot?.status, entry)}
             runCount={snapshot?.runs.length ?? 0}
@@ -410,6 +392,7 @@ export function LinkedRepoCard({
             onOpen={() => setCiDetailsOpen(true)}
           />
 
+          {/* 更多操作下拉菜单 */}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="ghost" size="icon-sm" aria-label="更多操作" />}
@@ -417,37 +400,27 @@ export function LinkedRepoCard({
               <MoreHorizontalIcon />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              {developerBranch && (
+              {developerBranch && developerBranchState === 'missing' && (
                 <WriteOpButton
                   asMenuItem
-                  label="创建分支"
+                  label="创建需求分支"
                   title={`创建需求分支 ${developerBranch}`}
                   disabled={Boolean(branchDisabledReason)}
                   disabledReason={branchDisabledReason}
                   onAction={createDeveloperBranch}
                 />
               )}
-              <WriteOpButton
-                asMenuItem
-                label="自定义 MR 标题与描述…"
-                title={developerBranch && operationBaseBranch
-                  ? `自定义创建 MR：${developerBranch} → ${operationBaseBranch}`
-                  : '创建 MR'}
-                disabled={Boolean(mergeRequestDisabledReason)}
-                disabledReason={mergeRequestDisabledReason}
-                onAction={async () => {
-                  setCreateMrOpen(true);
-                }}
-              />
+              <DropdownMenuItem onClick={() => setCreateMrOpen(true)}>
+                <GitPullRequestIcon className="size-3.5 mr-2" />
+                自定义创建 MR…
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => divergence.refetch()}>
                 <RefreshCwIcon className="size-3.5 mr-2" />
                 重新检查分支落差
               </DropdownMenuItem>
               {sortedMergeRequests.length > 0 && !showAllMrs && (
-                <DropdownMenuItem
-                  onClick={() => setShowAllMrs(true)}
-                >
-                  展开全部合并请求 ({sortedMergeRequests.length})
+                <DropdownMenuItem onClick={() => setShowAllMrs(true)}>
+                  展开全部历史 MR ({sortedMergeRequests.length})
                 </DropdownMenuItem>
               )}
               {onUnlinkRepo && (
@@ -463,7 +436,7 @@ export function LinkedRepoCard({
         </div>
       </div>
 
-      {/* 模块 1：可视化分支拓扑链（水平贯通，完整分支名，绝无省略号截断） */}
+      {/* 模块 1：可视化分支拓扑链（水平贯通，完整分支名，无截断） */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border/40 bg-muted/15 px-3 py-2 text-xs">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <div className="flex items-center gap-1 font-medium text-muted-foreground shrink-0 text-[11px]">
@@ -493,6 +466,7 @@ export function LinkedRepoCard({
               <WriteOpButton
                 label="创建分支"
                 title={`创建需求分支 ${developerBranch}`}
+                variant="outline"
                 onAction={createDeveloperBranch}
               />
             )}
@@ -551,7 +525,7 @@ export function LinkedRepoCard({
         )}
       </div>
 
-      {/* 模块 2：核心交付状态与主推荐行动条（Delivery Action Banner） */}
+      {/* 模块 2：交付进度与状态指引条（仅展示状态结论与指引，移除重复的操作按钮） */}
       <div
         className={cn(
           'flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3.5 py-3 transition-colors',
@@ -564,7 +538,7 @@ export function LinkedRepoCard({
                 : 'border-border/50 bg-muted/20',
         )}
       >
-        {/* 左侧：结论前置与落差状态 */}
+        {/* 左侧：结论前置与落差状态说明 */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {hasActiveMr ? (
             <GitPullRequestIcon className="size-4 text-primary shrink-0 animate-pulse" />
@@ -579,15 +553,17 @@ export function LinkedRepoCard({
           <div className="flex flex-col min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-foreground text-xs">
-                {developerBranchState === 'missing'
-                  ? '需求分支尚未在线上创建'
-                  : matchedActiveMr
-                    ? `MR !${matchedActiveMr.localId} 开放审核中`
-                    : hasPendingCommits
-                      ? `开发分支有 ${devOnly} 个待合入提交`
-                      : isAllMerged
-                        ? '代码已全部合入迭代基准'
-                        : '两分支代码已同步'}
+                {iterationId && !hasValidRule
+                  ? '尚未配置分支模板'
+                  : developerBranchState === 'missing'
+                    ? '需求分支尚未在线上创建'
+                    : matchedActiveMr
+                      ? `MR !${matchedActiveMr.localId} 开放审核中`
+                      : hasPendingCommits
+                        ? `开发分支有 ${devOnly} 个待合入提交`
+                        : isAllMerged
+                          ? '代码已全部合入迭代基准'
+                          : '两分支代码已同步'}
               </span>
 
               {/* 落差补充说明标签 */}
@@ -599,24 +575,25 @@ export function LinkedRepoCard({
             </div>
 
             <span className="text-[11px] text-muted-foreground truncate">
-              {developerBranchState === 'missing'
-                ? `需先创建分支 ${developerBranch} 后方可进行代码开发与合并`
-                : matchedActiveMr
-                  ? `${matchedActiveMr.title} (${matchedActiveMr.sourceBranch} → ${matchedActiveMr.targetBranch})`
-                  : hasPendingCommits
-                    ? `已推送到 ${developerBranch}，可直接一键发起合并请求合入基准`
-                    : isAllMerged
-                      ? baselineOnly > 0
-                        ? `迭代分支领先 ${baselineOnly} 个提交，若后续继续开发建议反向同步`
-                        : '当前需求分支与迭代基准分支完全对齐，可直接运行构建验证'
-                      : '无待提交代码，分支状态健康'}
+              {iterationId && !hasValidRule
+                ? '可在上方「分支模板」中选择规则模板，以自动推导迭代基准与需求分支'
+                : developerBranchState === 'missing'
+                  ? `需先创建分支 ${developerBranch} 后方可进行代码开发与合并`
+                  : matchedActiveMr
+                    ? `${matchedActiveMr.title} (${matchedActiveMr.sourceBranch} → ${matchedActiveMr.targetBranch})；合入操作可在下方 MR 项中展开执行`
+                    : hasPendingCommits
+                      ? `代码已推送到 ${developerBranch}，可通过上方「创建 MR」发起合并请求`
+                      : isAllMerged
+                        ? baselineOnly > 0
+                          ? `迭代分支领先 ${baselineOnly} 个提交，若后续继续开发建议反向同步`
+                          : '当前需求分支与迭代基准分支完全对齐，可运行构建验证'
+                        : '无待提交代码，分支状态健康'}
             </span>
           </div>
         </div>
 
-        {/* 右侧：状态机决定的当前“主行动推荐” + 辅助操作 */}
+        {/* 右侧：差异检视辅助动作（合入与创建操作已收归头部及详情） */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* 查看差异按钮（当存在差异时可直接就地调起差异抽屉） */}
           {divergence.diffs.length > 0 && (
             <Button
               type="button"
@@ -631,7 +608,6 @@ export function LinkedRepoCard({
             </Button>
           )}
 
-          {/* 状态 1：需求分支缺失 -> 推荐创建分支 */}
           {developerBranchState === 'missing' && !branchDisabledReason && (
             <WriteOpButton
               label="创建需求分支"
@@ -640,67 +616,10 @@ export function LinkedRepoCard({
               onAction={createDeveloperBranch}
             />
           )}
-
-          {/* 状态 2：有活跃 MR -> 推荐一键合入 */}
-          {matchedActiveMr && (
-            <WriteOpButton
-              label={mergingActiveMr ? '合入中…' : `确认合入 MR !${matchedActiveMr.localId}`}
-              title={`将 ${matchedActiveMr.sourceBranch} 合入 ${matchedActiveMr.targetBranch}`}
-              variant="default"
-              confirm="dialog"
-              confirmLabel="确认合入"
-              disabled={mergingActiveMr}
-              onAction={() => handleMergeActiveMr(matchedActiveMr)}
-            />
-          )}
-
-          {/* 状态 3：有待合入代码 -> 推荐一键发起合并（0 弹窗极速流转） */}
-          {hasPendingCommits && (
-            <div className="flex items-center gap-1">
-              <WriteOpButton
-                label={quickMrSubmitting ? '创建中…' : '一键发起合并'}
-                title={`创建 MR：${developerBranch} → ${operationBaseBranch}`}
-                variant="default"
-                disabled={Boolean(mergeRequestDisabledReason) || quickMrSubmitting}
-                disabledReason={mergeRequestDisabledReason}
-                onAction={createMergeRequest}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-xs"
-                className="size-7"
-                title="编辑详细 MR 标题与说明并创建…"
-                onClick={() => setCreateMrOpen(true)}
-              >
-                <MoreHorizontalIcon className="size-3.5" />
-              </Button>
-            </div>
-          )}
-
-          {/* 状态 4：已全部合入（用户截图场景） -> 顺畅衔接推荐【触发构建验证】 */}
-          {isAllMerged && (
-            isFlowBound ? (
-              <WriteOpButton
-                label="触发流水线验证"
-                title={`触发流水线 ${ciBinding.pipelineName}`}
-                variant="default"
-                onAction={() => triggerRepoCiWithFeedback(repo.id, repo.name)}
-              />
-            ) : (
-              <JenkinsBuildDialog
-                repoId={repo.id}
-                repoName={repo.name}
-                defaultBranch={recommendedBuildBranch}
-                buttonLabel="触发 Jenkins 构建"
-                buttonVariant="default"
-              />
-            )
-          )}
         </div>
       </div>
 
-      {/* 模块 3：活跃 MR 详情展示（若有开放中的 MR，直接就地检视） */}
+      {/* 模块 3：活跃 MR 详情展示（若有进行中的 MR，就地检视与合入，单仓库单条展开） */}
       {activeMrs.length > 0 && (
         <div className="flex flex-col gap-1.5 min-w-0">
           <div className="flex items-center justify-between text-xs font-medium text-foreground px-0.5">
@@ -715,9 +634,9 @@ export function LinkedRepoCard({
               mr={mr}
               repoId={repo.id}
               repoPathWithNamespace={repo.pathWithNamespace}
-              isExpanded={expandedMrId === mr.localId || expandedMrId === null}
+              isExpanded={expandedMrId === mr.localId}
               onToggle={() =>
-                setExpandedMrId((prev) => (prev === mr.localId ? -1 : mr.localId))
+                setExpandedMrId((prev) => (prev === mr.localId ? null : mr.localId))
               }
               onRefresh={() => {
                 divergence.refetch();
@@ -729,7 +648,7 @@ export function LinkedRepoCard({
         </div>
       )}
 
-      {/* 模块 4：历史 MR 归档条（已合并/已关闭 MR 默认收拢成单行，消除视觉噪音） */}
+      {/* 模块 4：历史 MR 归档条（已合并/已关闭 MR 默认收拢成单行，支持展开单条检视） */}
       {historyMrs.length > 0 && (
         <div className="flex flex-col gap-1.5 rounded-lg border border-border/30 bg-muted/10 px-3 py-2 text-xs">
           <div className="flex items-center justify-between">
@@ -755,7 +674,7 @@ export function LinkedRepoCard({
             </button>
           </div>
 
-          {/* 展开时才呈现具体的历史 MR 条目 */}
+          {/* 展开时才呈现具体的历史 MR 条目（单仓库单条展开） */}
           {showAllMrs && (
             <div className="flex flex-col gap-1.5 pt-2 border-t border-border/20">
               {historyMrs.map((mr) => (
@@ -827,10 +746,16 @@ export function LinkedRepoCard({
         subject={subject}
         sourceBranch={developerBranch}
         targetBranch={operationBaseBranch}
-        onSuccess={() => {
-          setCreatedMergeRequestKey(mergeRequestKey);
+        availableBranches={matchedBranches}
+        onSuccess={(info) => {
           divergence.refetch();
           void loadTrace();
+          if (info?.localId) {
+            handleViewMr({ localId: info.localId });
+          }
+        }}
+        onNavigateToMr={(localId) => {
+          handleViewMr({ localId });
         }}
       />
 
