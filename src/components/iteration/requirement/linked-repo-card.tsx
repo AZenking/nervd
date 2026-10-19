@@ -24,6 +24,7 @@ import { JenkinsBuildDialog } from '../JenkinsBuildDialog';
 import { RepositoryCiDetails } from '../RepositoryCiDetails';
 import { CreateMrDialog } from './create-mr-dialog';
 import { MrInlineItem } from './mr-inline-item';
+import { IterationDevDivergence } from './iteration-dev-divergence';
 import { cn } from '@/lib/utils';
 import {
   mergeRequestBranch,
@@ -407,15 +408,42 @@ export function LinkedRepoCard({
             )}
           </div>
 
-          <div className="flex flex-col gap-1.5 text-[11px] text-muted-foreground border-t border-border/30 pt-2">
-            <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col gap-2 border-t border-border/30 pt-2 text-[11px] text-muted-foreground">
+            <div className="flex items-center justify-between gap-1.5">
               <span className="shrink-0">基准分支</span>
-              <code className="truncate font-mono text-foreground/80" title={operationBaseBranch}>{operationBaseBranch || '—'}</code>
+              {operationBaseBranch ? (
+                <div className="flex items-center gap-1 min-w-0">
+                  <Tooltip>
+                    <TooltipTrigger render={<code className="truncate rounded bg-background/60 px-1.5 py-0.5 font-mono text-foreground/90 max-w-40" />}>
+                      {operationBaseBranch}
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-96 break-all font-mono text-xs">{operationBaseBranch}</TooltipContent>
+                  </Tooltip>
+                  <CopyButton text={operationBaseBranch} label="复制基准分支名" />
+                </div>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
             </div>
+
             {templateSourceBranch && (
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-1.5">
                 <span className="shrink-0">来源分支</span>
-                <code className="truncate font-mono text-foreground/80" title={templateSourceBranch}>{templateSourceBranch}</code>
+                <code className="truncate font-mono text-foreground/80 max-w-40" title={templateSourceBranch}>
+                  {templateSourceBranch}
+                </code>
+              </div>
+            )}
+
+            {/* 迭代基准与 dev/主干的实时差异监控 */}
+            {templateEnabled && baselineState === 'exists' && (
+              <div className="border-t border-border/20 pt-1.5">
+                <IterationDevDivergence
+                  repoId={repo.id}
+                  baselineBranch={baselineBranch}
+                  sourceBranch={templateSourceBranch}
+                  baselineState={baselineState}
+                />
               </div>
             )}
           </div>

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { FileCodeIcon } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { AlertCircleIcon, CheckIcon, FileCodeIcon, GitCompareIcon, RefreshCwIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { parseFileDiffs, type FileDiffItem } from './requirement/diff-utils';
@@ -121,49 +122,68 @@ export function BranchDivergenceCheck({
 
   const ready = check.status === 'ready';
   const aligned = ready && check.developmentOnly === 0 && check.baselineOnly === 0;
-  const summary = check.status === 'error'
-    ? `比较失败：${check.message}`
-    : ready
-      ? aligned
-        ? '两边提交一致'
-        : `开发分支独有 ${check.developmentOnly} 条 · 迭代分支独有 ${check.baselineOnly} 条`
-      : '';
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-6 px-2 text-xs"
-        disabled={check.status === 'loading' || check.status === 'idle'}
-        onClick={() => setRefreshKey((value) => value + 1)}
-        title={`比较 ${developmentBranch} 与 ${baseline}`}
-      >
-        {check.status === 'loading' || check.status === 'idle' ? '自动查询中…' : '重新检查'}
-      </Button>
-      {ready && (
-        <Badge
-          variant="outline"
-          className={aligned ? 'border-sig-ok/40 text-foreground' : 'border-sig-run/50 text-foreground'}
-        >
-          {aligned ? '一致' : '有偏差'}
-        </Badge>
-      )}
-      {!aligned && diffs.length > 0 && (
-        <Button
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/30 bg-muted/15 px-2.5 py-1.5 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+        <div className="flex items-center gap-1 font-medium text-foreground shrink-0">
+          <GitCompareIcon className="size-3 text-muted-foreground" />
+          <span>分支同步:</span>
+        </div>
+
+        {check.status === 'loading' && (
+          <Skeleton className="h-4 w-28 rounded" />
+        )}
+
+        {check.status === 'error' && (
+          <Tooltip>
+            <TooltipTrigger render={<span className="inline-flex items-center gap-1 text-destructive truncate cursor-help" />}>
+              <AlertCircleIcon className="size-3 shrink-0" />比较失败
+            </TooltipTrigger>
+            <TooltipContent>{check.message}</TooltipContent>
+          </Tooltip>
+        )}
+
+        {ready && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {aligned ? (
+              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                <CheckIcon className="size-3" />已同步迭代分支
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                有落差 (开发独有 {check.developmentOnly} · 迭代独有 {check.baselineOnly})
+              </span>
+            )}
+
+            {!aligned && diffs.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="h-5 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                onClick={() => setDiffDrawerOpen(true)}
+                title="在本地抽屉中查看两分支代码差异"
+              >
+                <FileCodeIcon className="size-3 text-primary" />
+                <span>差异 ({diffs.length})</span>
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1 shrink-0">
+        <button
           type="button"
-          variant="ghost"
-          size="xs"
-          className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground gap-1"
-          onClick={() => setDiffDrawerOpen(true)}
-          title="在本地抽屉中查看两分支代码差异"
+          disabled={check.status === 'loading'}
+          onClick={() => setRefreshKey((value) => value + 1)}
+          className="text-muted-foreground hover:text-foreground disabled:opacity-40 p-1 rounded transition-colors cursor-pointer"
+          title={`重新检查 ${developmentBranch} 与 ${baseline} 的落差`}
         >
-          <FileCodeIcon className="size-3 text-primary" />
-          <span>查看差异 ({diffs.length})</span>
-        </Button>
-      )}
-      {summary && <span className="text-xs text-muted-foreground">{summary}</span>}
+          <RefreshCwIcon className={cn('size-3', check.status === 'loading' && 'animate-spin text-primary')} />
+        </button>
+      </div>
 
       {/* 本地代码分支差异抽屉 */}
       <CodeDiffDrawer

@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { getCustomDevBranch, setCustomDevBranch } from '@/lib/dev-branch-settings';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 
 export function TraceSection() {
@@ -46,8 +48,37 @@ export function TraceSection() {
         )}
       />
 
+      <DevBranchSettingRow />
+
       <RepoChecklist />
     </SettingsGroup>
+  );
+}
+
+function DevBranchSettingRow() {
+  const [val, setVal] = useState(() => getCustomDevBranch());
+
+  return (
+    <SettingsRow
+      orientation="horizontal"
+      controlWidth="w-72"
+      label="默认集成主干分支 (dev)"
+      description="用于监控各仓库迭代基准分支向主干/测试环境的合入状态。默认比较 dev 分支，若某仓库无 dev 分支则自动回退至模板源分支（如 master）。"
+      htmlFor="dev-branch-input"
+      control={(
+        <Input
+          id="dev-branch-input"
+          className="font-mono text-xs"
+          placeholder="dev"
+          value={val}
+          onChange={(e) => {
+            const next = e.target.value;
+            setVal(next);
+            setCustomDevBranch(next);
+          }}
+        />
+      )}
+    />
   );
 }
 
