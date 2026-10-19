@@ -44,27 +44,51 @@ export function buildYunxiaoWorkitemUrl({
 }
 
 /**
- * 构造阿里云效 Codeup 合并请求 (Merge Request) Web 直达链接
+ * 构造阿里云效 Codeup 合并请求 (Merge Request / Change Request) Web 直达链接
  */
 export function buildCodeupMergeRequestUrl({
+  webUrl,
   organizationId,
   repoPathWithNamespace,
   repoId,
   localId,
 }: {
+  webUrl?: string | null;
   organizationId?: string | null;
   repoPathWithNamespace?: string | null;
   repoId?: number | null;
   localId: number;
 }): string {
-  const cleanOrg = organizationId?.trim();
-  const cleanPath = repoPathWithNamespace?.trim();
-  if (cleanOrg && cleanPath) {
-    return `https://codeup.aliyun.com/${encodeURIComponent(cleanOrg)}/${cleanPath}/merge_requests/${localId}`;
+  // 1. 若接口或数据源已提供合法的 Web 直达链接，优先使用
+  if (webUrl && typeof webUrl === 'string' && /^https?:\/\//i.test(webUrl.trim())) {
+    return webUrl.trim();
   }
+
+  const cleanOrg = organizationId?.trim().replace(/^\/+|\/+$/g, '') || '';
+  const cleanPath = repoPathWithNamespace?.trim().replace(/^\/+|\/+$/g, '') || '';
+
+  // 2. 存在代码库路径时，规范化路径并拼装 Codeup Web 评审详情路由 (/change/:id)
+  if (cleanPath) {
+    let fullRepoPath = cleanPath;
+    if (cleanOrg) {
+      if (cleanPath === cleanOrg || cleanPath.toLowerCase().startsWith(cleanOrg.toLowerCase() + '/')) {
+        fullRepoPath = cleanPath;
+      } else if (!cleanPath.includes('/')) {
+        fullRepoPath = `${cleanOrg}/${cleanPath}`;
+      }
+    }
+    return `https://codeup.aliyun.com/${fullRepoPath}/change/${localId}`;
+  }
+
+  // 3. 兜底策略：只有组织 ID 与 repoId
   if (cleanOrg && repoId) {
-    return `https://devops.aliyun.com/codeup/organization/${encodeURIComponent(cleanOrg)}/repository/${repoId}/changeRequests/${localId}`;
+    return `https://codeup.aliyun.com/${cleanOrg}/${repoId}/change/${localId}`;
   }
+
+  if (cleanOrg) {
+    return `https://codeup.aliyun.com/${cleanOrg}`;
+  }
+
   return 'https://codeup.aliyun.com';
 }
 

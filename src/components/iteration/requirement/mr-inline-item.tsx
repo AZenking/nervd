@@ -55,6 +55,7 @@ export function MrInlineItem({
   const isOpen = !isMerged && !isClosed;
 
   const mrUrl = buildCodeupMergeRequestUrl({
+    webUrl: (mr as { webUrl?: string }).webUrl,
     organizationId,
     repoPathWithNamespace,
     repoId,

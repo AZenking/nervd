@@ -73,6 +73,11 @@ function mapMergeRequests(value: unknown, identifier: string, pattern: string): 
     const title = asString(pick(request, 'title'));
     if (!title || !matchesWorkitem(identifier, title, pattern)) continue;
 
+    const webUrl =
+      asString(pick(request, 'webUrl')) ||
+      asString(pick(request, 'web_url')) ||
+      asString(pick(request, 'detailUrl'));
+
     mergeRequests.push({
       localId: Number(pick(request, 'localId') ?? pick(request, 'local_id') ?? 0),
       title,
@@ -83,6 +88,7 @@ function mapMergeRequests(value: unknown, identifier: string, pattern: string): 
         asString(pick(request, 'targetBranch')) || asString(pick(request, 'target_branch')),
       author: pick(request, 'author') as MrSummary['author'],
       createdAt: asString(pick(request, 'createdAt')) || asString(pick(request, 'gmtCreate')),
+      ...(webUrl ? { webUrl } : {}),
     });
   }
   return mergeRequests;
