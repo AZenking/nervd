@@ -4,6 +4,8 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ExternalLinkIcon,
+  FileCodeIcon,
+  FileDiffIcon,
   GitBranchIcon,
   GitCommitIcon,
   GitPullRequestIcon,
@@ -11,7 +13,10 @@ import {
 import type { MrSummary } from '@/types';
 import * as api from '@/lib/api';
 import { buildCodeupMergeRequestUrl, openExternal } from '@/lib/yunxiao-link';
-import { comparisonCommits } from '../BranchDivergenceCheck';
+import { comparisonCommits, comparisonDiffs } from '../BranchDivergenceCheck';
+import { parseFileDiffs, type FileDiffItem } from './diff-utils';
+import { CodeDiffViewer } from './code-diff-viewer';
+import { CodeDiffDrawer } from './code-diff-drawer';
 import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Spinner } from '@/components/ui/spinner';
@@ -48,13 +53,19 @@ export function MrInlineItem({
 }: MrInlineItemProps) {
   const organizationId = useApp((s) => s.settings?.organizationId);
   const [commits, setCommits] = useState<CommitSummaryItem[]>([]);
+  const [diffs, setDiffs] = useState<FileDiffItem[]>([]);
   const [loadingCommits, setLoadingCommits] = useState(false);
   const [commitsError, setCommitsError] = useState<string | null>(null);
+  const [inlineDiffOpen, setInlineDiffOpen] = useState(false);
+  const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
 
   const mrState = mr.state?.toLowerCase();
   const isMerged = mrState === 'merged';
   const isClosed = mrState === 'closed';
   const isOpen = !isMerged && !isClosed;
+
+  const totalAdditions = diffs.reduce((acc, f) => acc + f.additions, 0);
+  const totalDeletions = diffs.reduce((acc, f) => acc + f.deletions, 0);
 
   const mrUrl = buildCodeupMergeRequestUrl({
     webUrl: (mr as { webUrl?: string }).webUrl,
@@ -97,8 +108,13 @@ export function MrInlineItem({
             };
           });
           setCommits(mapped);
+
+          const rawDiffs = comparisonDiffs(res);
+          const parsedDiffs = parseFileDiffs(rawDiffs);
+          setDiffs(parsedDiffs);
         } catch {
           setCommits([]);
+          setDiffs([]);
         }
       })
       .catch((err) => {
@@ -243,19 +259,83 @@ export function MrInlineItem({
             )}
           </div>
 
-          {/* 底部操作条：云效直达 + 就地直接合并 */}
+          {/* 文件改动与本地 Diff 预览入口 */}
+          {diffs.length > 0 && (
+            <div className="flex flex-col gap-1.5 pt-1 border-t border-border/20">
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-1.5 font-medium text-foreground">
+                  <FileDiffIcon className="size-3 text-primary" />
+                  <span>文件改动 ({diffs.length})</span>
+                  <span className="font-mono text-[10px]">
+                    {totalAdditions > 0 && (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+{totalAdditions} </span>
+                    )}
+                    {totalDeletions > 0 && (
+                      <span className="text-rose-600 dark:text-rose-400 font-semibold">-{totalDeletions}</span>
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                    onClick={() => setInlineDiffOpen((v) => !v)}
+                  >
+                    {inlineDiffOpen ? '收起改动' : '展开改动'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    className="h-5 px-1.5 text-[10px] gap-1"
+                    onClick={() => setDiffDrawerOpen(true)}
+                  >
+                    <span>抽屉检视</span>
+                    <FileCodeIcon className="size-2.5" />
+                  </Button>
+                </div>
+              </div>
+
+              {inlineDiffOpen && (
+                <div className="mt-1">
+                  <CodeDiffViewer diffs={diffs} maxInitialFiles={5} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 底部操作条：云效直达 + 本地查看差异 + 就地操作 */}
           <div className="flex items-center justify-between pt-1 border-t border-border/30">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5"
-              onClick={() => void openExternal(mrUrl)}
-              title="在云效 Codeup 中查看完整讨论与差异"
-            >
-              <span>云效直达</span>
-              <ExternalLinkIcon className="size-3" />
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5"
+                onClick={() => void openExternal(mrUrl)}
+                title="在云效 Codeup 中查看完整讨论与差异"
+              >
+                <span>云效直达</span>
+                <ExternalLinkIcon className="size-3" />
+              </Button>
+
+              {diffs.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5 text-xs"
+                  onClick={() => setDiffDrawerOpen(true)}
+                  title="在本地抽屉中完整查看代码变动"
+                >
+                  <FileCodeIcon className="size-3 text-primary" />
+                  <span>查看变更 ({diffs.length})</span>
+                </Button>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               {isOpen && (
@@ -270,7 +350,7 @@ export function MrInlineItem({
               )}
               {isMerged && (
                 commits.length > 0 ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
                       分支有 {commits.length} 条新提交未合入
                     </span>
@@ -296,6 +376,43 @@ export function MrInlineItem({
           </div>
         </div>
       )}
+
+      {/* 本地代码变更抽屉 (Linear Peek View) */}
+      <CodeDiffDrawer
+        open={diffDrawerOpen}
+        onOpenChange={setDiffDrawerOpen}
+        title={mr.title}
+        sourceBranch={mr.sourceBranch}
+        targetBranch={mr.targetBranch}
+        diffs={diffs}
+        mrUrl={mrUrl}
+        onOpenExternal={openExternal}
+        actionNode={
+          isOpen ? (
+            <WriteOpButton
+              label="确认合并"
+              title={`将 ${mr.sourceBranch} 合入 ${mr.targetBranch}`}
+              variant="default"
+              confirm="dialog"
+              confirmLabel="确认合并"
+              onAction={handleMerge}
+            />
+          ) : isMerged && commits.length > 0 && onCreateMr ? (
+            <Button
+              type="button"
+              variant="default"
+              size="xs"
+              className="h-7 px-2.5 text-xs"
+              onClick={() => {
+                setDiffDrawerOpen(false);
+                onCreateMr();
+              }}
+            >
+              创建新 MR
+            </Button>
+          ) : null
+        }
+      />
     </div>
   );
 }
