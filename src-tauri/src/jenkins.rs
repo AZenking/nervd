@@ -63,6 +63,20 @@ pub struct JenkinsLogChunk {
     pub has_more: bool,
 }
 
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct JenkinsPipelineStage {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_time_millis: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_millis: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_duration_millis: Option<i64>,
+}
+
 impl JenkinsClient {
     pub fn new(base_url: &str, username: &str, token: &str) -> Result<Self, String> {
         let base_url = Url::parse(base_url.trim().trim_end_matches('/'))
@@ -488,6 +502,63 @@ impl JenkinsClient {
             has_more,
         })
     }
+
+    pub async fn pipeline_stages(
+        &self,
+        full_name: &str,
+        build_number: &str,
+    ) -> Result<Vec<JenkinsPipelineStage>, String> {
+        if build_number.is_empty() || !build_number.bytes().all(|b| b.is_ascii_digit()) {
+            return Err("Jenkins 构建编号无效".into());
+        }
+        let mut segments = Self::job_segments(full_name)?;
+        segments.extend([
+            build_number.to_string(),
+            "wfapi".into(),
+            "describe".into(),
+        ]);
+        let url = self.append_segments(&segments)?;
+        let response = self
+            .http
+            .get(url)
+            .basic_auth(&self.username, Some(&self.token))
+            .send()
+            .await
+            .map_err(|e| format!("请求 Jenkins 步骤信息失败: {e}"))?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(Vec::new());
+        }
+        let response = self.finish(response).await?;
+        let value = response
+            .json::<Value>()
+            .await
+            .map_err(|e| format!("解析 Jenkins 步骤数据失败: {e}"))?;
+        let stages = value
+            .get("stages")
+            .and_then(Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let id = item.get("id").and_then(Value::as_str)?.to_string();
+                        let name = item.get("name").and_then(Value::as_str).unwrap_or("Stage").to_string();
+                        let status = item.get("status").and_then(Value::as_str).unwrap_or("UNKNOWN").to_string();
+                        let start_time_millis = item.get("startTimeMillis").and_then(Value::as_i64);
+                        let duration_millis = item.get("durationMillis").and_then(Value::as_i64);
+                        let pause_duration_millis = item.get("pauseDurationMillis").and_then(Value::as_i64);
+                        Some(JenkinsPipelineStage {
+                            id,
+                            name,
+                            status,
+                            start_time_millis,
+                            duration_millis,
+                            pause_duration_millis,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(stages)
+    }
 }
 
 fn json_value_text(value: &Value) -> Option<String> {
@@ -776,5 +847,36 @@ mod tests {
                 .unwrap_err()
                 .contains("Jenkins 请求失败"));
         });
+    }
+
+    #[test]
+    fn pipeline_stages_parses_wfapi_response_and_handles_404() {
+        let (base_url, server) = mock_server(vec![
+            MockResponse::json(
+                200,
+                r##"{"id":"19","name":"#19","status":"SUCCESS","stages":[{"id":"6","name":"Checkout","status":"SUCCESS","durationMillis":1500},{"id":"7","name":"Build","status":"IN_PROGRESS","durationMillis":24000}]}"##,
+            ),
+            MockResponse::json(404, r#"{"message":"Not found"}"#),
+        ]);
+
+        tauri::async_runtime::block_on(async {
+            let client = JenkinsClient::new(&base_url, "user", "token").unwrap();
+            let stages = client.pipeline_stages("team/mobile/compile", "19").await.unwrap();
+            assert_eq!(stages.len(), 2);
+            assert_eq!(stages[0].name, "Checkout");
+            assert_eq!(stages[0].status, "SUCCESS");
+            assert_eq!(stages[0].duration_millis, Some(1500));
+            assert_eq!(stages[1].name, "Build");
+            assert_eq!(stages[1].status, "IN_PROGRESS");
+
+            // 404 falls back to empty stages without error
+            let empty_stages = client.pipeline_stages("freestyle-job", "1").await.unwrap();
+            assert!(empty_stages.is_empty());
+        });
+
+        let requests = server.join().unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].contains("/job/team/job/mobile/job/compile/19/wfapi/describe"));
+        assert!(requests[1].contains("/job/freestyle-job/1/wfapi/describe"));
     }
 }

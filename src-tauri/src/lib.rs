@@ -213,6 +213,7 @@ pub fn run() {
             commands::trigger_repo_ci,
             commands::get_repo_ci_logs,
             commands::get_repo_ci_log_chunk,
+            commands::get_repo_ci_stages,
             commands::get_ai_settings,
             commands::save_ai_settings,
             commands::save_ai_api_key,

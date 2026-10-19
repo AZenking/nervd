@@ -204,12 +204,28 @@ export async function triggerRepoCi(repoId: number): Promise<unknown> {
 export async function getRepoCiLogs(repoId: number, runId: string): Promise<string> {
   return invoke('get_repo_ci_logs', { repoId, runId });
 }
+export interface CiStageItem {
+  id: string;
+  name: string;
+  status: string;
+  startTimeMillis?: number;
+  durationMillis?: number;
+  pauseDurationMillis?: number;
+}
+
 export async function getRepoCiLogChunk(
   repoId: number,
   runId: string,
   startOffset: number,
 ): Promise<JenkinsLogChunk> {
   return invoke('get_repo_ci_log_chunk', { repoId, runId, startOffset });
+}
+
+export async function getRepoCiStages(
+  repoId: number,
+  runId: string,
+): Promise<CiStageItem[]> {
+  return invoke('get_repo_ci_stages', { repoId, runId });
 }
 
 export async function listBranches(

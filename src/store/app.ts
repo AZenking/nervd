@@ -36,6 +36,8 @@ interface LogViewState {
   text: string;
   repoId?: number;
   runId?: string;
+  stages?: api.CiStageItem[];
+  loadingStages?: boolean;
   nextOffset?: number;
   hasMore?: boolean;
   loading?: boolean;
@@ -583,6 +585,15 @@ export const useApp = create<AppStore>((set, get) => ({
   async openRepoCiLogs(repoId, runId, title) {
     const requestId = ++requests.logs;
     const binding = get().settings?.repoCiBindings?.[String(repoId)];
+
+    // 异步加载构建主体步骤（不阻塞控制台日志主流程）
+    void api.getRepoCiStages(repoId, runId).then((stages) => {
+      const cur = get().logView;
+      if (cur && cur.repoId === repoId && cur.runId === runId && stages.length > 0) {
+        set({ logView: { ...cur, stages } });
+      }
+    }).catch(() => {});
+
     if (binding?.provider === 'jenkins') {
       set({ logView: { title, text: '', repoId, runId, nextOffset: 0, hasMore: true } });
       await get().refreshRepoCiLogs();
@@ -619,6 +630,16 @@ export const useApp = create<AppStore>((set, get) => ({
           loading: false,
         },
       });
+
+      // 当构建结束或初次未命中步骤时，尝试刷新步骤状态
+      if (!chunk.hasMore || !latest.stages?.length) {
+        void api.getRepoCiStages(current.repoId, current.runId).then((stages) => {
+          const cur = get().logView;
+          if (cur && cur.repoId === current.repoId && cur.runId === current.runId && stages.length > 0) {
+            set({ logView: { ...cur, stages } });
+          }
+        }).catch(() => {});
+      }
     } catch (e) {
       if (requestId !== requests.logs) return;
       const latest = get().logView;

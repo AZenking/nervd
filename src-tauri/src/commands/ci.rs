@@ -349,6 +349,74 @@ pub async fn get_repo_ci_log_chunk(
         .await
 }
 
+#[tauri::command]
+pub async fn get_repo_ci_stages(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    run_id: String,
+) -> Result<Vec<crate::jenkins::JenkinsPipelineStage>, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    match repo_binding(&settings, repo_id)? {
+        RepoCiBinding::Jenkins {
+            connection_id,
+            job_full_name,
+            ..
+        } => {
+            let client = jenkins_client(&settings, &connection_id)?;
+            client.pipeline_stages(&job_full_name, &run_id).await
+        }
+        RepoCiBinding::Flow { pipeline_id, .. } => {
+            let run_number = run_id
+                .parse::<i64>()
+                .map_err(|_| "云效运行编号无效".to_string())?;
+            let client = client_of(&state)?;
+            let org = org_of(&state)?;
+            let detail = client
+                .get(
+                    &format!("/oapi/v1/flow/organizations/{org}/pipelines/{pipeline_id}/runs/{run_number}"),
+                    &[],
+                )
+                .await
+                .map_err(|e| format!("读取云效运行详情失败: {e}"))?;
+
+            let mut stages = Vec::new();
+            let raw_stages = detail
+                .get("stages")
+                .or_else(|| detail.get("pipelineRun").and_then(|r| r.get("stages")))
+                .and_then(Value::as_array);
+
+            if let Some(list) = raw_stages {
+                for item in list {
+                    let id = item
+                        .get("id")
+                        .or_else(|| item.get("stageId"))
+                        .and_then(|v| v.as_str().map(String::from).or_else(|| v.as_i64().map(|n| n.to_string())))
+                        .unwrap_or_default();
+                    let name = item
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or("Stage")
+                        .to_string();
+                    let status = item
+                        .get("status")
+                        .and_then(Value::as_str)
+                        .unwrap_or("UNKNOWN")
+                        .to_string();
+                    stages.push(crate::jenkins::JenkinsPipelineStage {
+                        id,
+                        name,
+                        status,
+                        start_time_millis: None,
+                        duration_millis: None,
+                        pause_duration_millis: None,
+                    });
+                }
+            }
+            Ok(stages)
+        }
+    }
+}
+
 pub fn jenkins_terminal(status: &str) -> bool {
     matches!(status, "SUCCESS" | "FAIL" | "CANCELED" | "OTHER")
 }

@@ -146,6 +146,7 @@ src-tauri/src/
 | `trigger_repo_ci` | `repoId: i64` | `Value` | **写操作**；按仓库当前 CI 绑定触发；Jenkins 使用本机记住的参数 |
 | `get_repo_ci_logs` | `repoId: i64, runId: String` | `String` | 读取当前绑定 Job 的指定构建日志 |
 | `get_repo_ci_log_chunk` | `repoId: i64, runId: String, startOffset: u64` | `{text, nextOffset, hasMore}` | 增量读取 Jenkins 构建日志；依据 progressiveText 的偏移与是否仍有新内容持续追读 |
+| `get_repo_ci_stages` | `repoId: i64, runId: String` | `Vec<JenkinsPipelineStage>` | 查询流水线构建主体步骤（Jenkins Stage View `wfapi/describe` 或云效运行阶段）；支持步骤名、状态与耗时 |
 
 **写操作门控**：`settings.allowWriteOps == false` 时，写操作命令直接返回
 `Err("WRITE_DISABLED: 请在设置中开启写操作（需要写权限的个人令牌）")`。前端依此
