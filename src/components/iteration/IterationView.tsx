@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import {
   useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters, buildWorkitemFilterOptions,
 } from '@/store/ui';
@@ -24,6 +25,7 @@ import { CATEGORY_LABELS, type Category } from '@/types';
 import { SearchableSelect } from '../searchable-select';
 import { STICKY_PAGE_HEADER_CLASS } from '../page-header';
 import { EmptyHint } from '../empty-hint';
+import { OverflowTooltip } from '../overflow-tooltip';
 import { statusMeta } from '../StatusBadge';
 import { StatusIcon, STATUS_TONE_ORDER } from '../status-icon';
 import { useClipboard } from '@/hooks/use-clipboard';
@@ -125,7 +127,26 @@ export function IterationView() {
     iterations: realIterations, loadingIterations, loadIterations,
     settings,
     currentUser, workitemHighlight,
-  } = useApp();
+    revalidateList, revalidatingList,
+  } = useApp(
+    useShallow((s) => ({
+      items: s.items,
+      repositories: s.repositories,
+      category: s.category,
+      setCategory: s.setCategory,
+      loadingList: s.loadingList,
+      loadList: s.loadList,
+      nextToken: s.nextToken,
+      iterations: s.iterations,
+      loadingIterations: s.loadingIterations,
+      loadIterations: s.loadIterations,
+      settings: s.settings,
+      currentUser: s.currentUser,
+      workitemHighlight: s.workitemHighlight,
+      revalidateList: s.revalidateList,
+      revalidatingList: s.revalidatingList,
+    })),
+  );
 
   // CI 轮询：覆盖所有已绑定仓库（Flow + Jenkins），与仓库表/CI 详情同一数据源
   const { refreshCi } = useCiPolling({ repositories });
@@ -490,7 +511,10 @@ export function IterationView() {
                         ) : null}
 
                         {/* 标题 */}
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground/90">{item.subject}</span>
+                        <OverflowTooltip
+                          text={item.subject}
+                          className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground/90"
+                        />
 
                         {/* 右侧信息 */}
                         <span className="ml-auto flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
@@ -676,13 +700,14 @@ export function IterationView() {
                   variant="ghost"
                   size="icon-xs"
                   aria-label="刷新"
+                  disabled={loadingList || revalidatingList}
                   onClick={() => {
-                    void loadList(false);
+                    void (items.length ? revalidateList() : loadList(false));
                     void loadIterations();
                     refreshCi();
                   }}
                 >
-                  <RefreshCwIcon className="size-3.5" />
+                  <RefreshCwIcon className={cn('size-3.5', (loadingList || revalidatingList) && 'animate-spin')} />
                 </Button>
               </div>
             </div>
@@ -813,14 +838,15 @@ export function IterationView() {
               variant="ghost"
               size="icon-sm"
               aria-label="刷新"
+              disabled={loadingList || revalidatingList}
               onClick={() => {
-                // 手动刷新覆盖本页全部数据源：工作项 + 迭代 + 各仓库 CI
-                void loadList(false);
+                // 手动刷新覆盖本页全部数据源：工作项 + 迭代 + 各仓库 CI（双缓冲平滑更新，杜绝列表坍塌与闪烁）
+                void (items.length ? revalidateList() : loadList(false));
                 void loadIterations();
                 refreshCi();
               }}
             >
-              <RefreshCwIcon />
+              <RefreshCwIcon className={cn('size-4', (loadingList || revalidatingList) && 'animate-spin')} />
             </Button>
           </div>
         </div>

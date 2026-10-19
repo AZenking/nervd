@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  CheckIcon, GitBranchIcon, GitForkIcon, GitPullRequestIcon, MoreHorizontalIcon,
+  CheckIcon, ChevronDownIcon, GitBranchIcon, GitForkIcon, GitPullRequestIcon, MoreHorizontalIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { findRemoteBranch } from '@/lib/iteration-branches';
@@ -23,6 +23,8 @@ import { BranchDivergenceCheck } from '../BranchDivergenceCheck';
 import { JenkinsBuildDialog } from '../JenkinsBuildDialog';
 import { RepositoryCiDetails } from '../RepositoryCiDetails';
 import { CreateMrDialog } from './create-mr-dialog';
+import { MrInlineItem } from './mr-inline-item';
+import { cn } from '@/lib/utils';
 import {
   mergeRequestBranch,
   mergeRequestRows,
@@ -88,6 +90,8 @@ export function LinkedRepoCard({
   const [defaultBaseState, setDefaultBaseState] = useState<IterationBaselineCheck['state']>('loading');
   const [createdMergeRequestKey, setCreatedMergeRequestKey] = useState('');
   const [createMrOpen, setCreateMrOpen] = useState(false);
+  const [expandedMrId, setExpandedMrId] = useState<number | null>(null);
+  const [showAllMrs, setShowAllMrs] = useState(false);
   const mergeRequestKey = `${repo.id}:${developerBranch}->${operationBaseBranch}`;
   // 编号匹配到的其他分支超出 2 个截断，避免卡片过长
   const extraMatchedBranches = matchedBranches.filter((branch) => branch !== developerBranch);
@@ -120,9 +124,22 @@ export function LinkedRepoCard({
     return () => { active = false; };
   }, [repo.id, iterationId]);
 
-  const mergeRequestExists = createdMergeRequestKey === mergeRequestKey || mergeRequests.some((request) =>
-    request.sourceBranch === developerBranch && request.targetBranch === operationBaseBranch,
+  // 匹配本需求分支与目标基准分支的当前 MR
+  const matchedMr = mergeRequests.find((request) =>
+    (developerBranch && request.sourceBranch === developerBranch && operationBaseBranch && request.targetBranch === operationBaseBranch) ||
+    (developerBranch && request.sourceBranch === developerBranch),
   );
+  const mergeRequestExists = Boolean(matchedMr) || createdMergeRequestKey === mergeRequestKey;
+
+  // 统一排序 MR 列表：优先匹配本需求开发分支的，其次按 localId 倒序
+  const sortedMergeRequests = [...mergeRequests].sort((a, b) => {
+    const aMatch = developerBranch && a.sourceBranch === developerBranch ? 1 : 0;
+    const bMatch = developerBranch && b.sourceBranch === developerBranch ? 1 : 0;
+    if (aMatch !== bMatch) return bMatch - aMatch;
+    return b.localId - a.localId;
+  });
+  const displayedMergeRequests = showAllMrs ? sortedMergeRequests : sortedMergeRequests.slice(0, 2);
+  const hasMoreMergeRequests = sortedMergeRequests.length > 2;
 
   const branchDisabledReason = placeholderIteration
     ? '占位迭代不支持创建云效分支'
@@ -323,6 +340,13 @@ export function LinkedRepoCard({
                 disabledReason={mergeRequestDisabledReason}
                 onAction={createMergeRequest}
               />
+              {sortedMergeRequests.length > 0 && !showAllMrs && (
+                <DropdownMenuItem
+                  onClick={() => setShowAllMrs(true)}
+                >
+                  展开全部合并请求 ({sortedMergeRequests.length})
+                </DropdownMenuItem>
+              )}
               {onUnlinkRepo && (
                 <DropdownMenuItem
                   className="text-destructive focus:bg-destructive/10 focus:text-destructive"
@@ -392,8 +416,8 @@ export function LinkedRepoCard({
           </div>
         </div>
 
-        {/* 右区块：需求分支与 MR 流水线（就地闭环操作） */}
-        <div className="flex flex-col gap-2.5">
+        {/* 右区块：需求分支与 MR 流水线（就地闭环操作，min-w-0 防止内容溢出） */}
+        <div className="flex flex-col gap-2.5 min-w-0">
           {/* 行 1：需求分支 */}
           <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border/40 bg-muted/20 px-3.5 py-2.5">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -445,39 +469,80 @@ export function LinkedRepoCard({
             )}
           </div>
 
-          {/* 行 2：合并请求 MR */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border/40 bg-muted/20 px-3.5 py-2.5">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-foreground shrink-0">
+          {/* 行 2：合并请求（紧凑 List 形式，最多展示 2 条，点击内联就地展开检视与合入） */}
+          <div className="flex flex-col gap-2 rounded-lg border border-border/40 bg-muted/20 p-3 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
                 <GitPullRequestIcon className="size-3.5 text-muted-foreground" />
                 <span>合并请求</span>
+                {sortedMergeRequests.length > 0 && (
+                  <span className="rounded-full bg-muted/80 px-1.5 py-0.2 font-mono text-[10px] text-muted-foreground">
+                    {sortedMergeRequests.length}
+                  </span>
+                )}
               </div>
-              <span className="text-xs text-muted-foreground">
-                目标：<code className="font-mono text-foreground/80">{operationBaseBranch || '—'}</code>
-              </span>
 
-              {/* MR 状态标签 */}
-              {mergeRequestExists ? (
-                <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                  <CheckIcon className="size-3" />MR 已创建
-                </span>
-              ) : developerBranchState !== 'exists' ? (
-                <span className="text-xs text-muted-foreground">（需先创建需求分支）</span>
-              ) : null}
+              {/* 操作位：若有需求分支且未发起针对当前基准分支的 MR，提供创建按钮 */}
+              {developerBranchState === 'exists' && !mergeRequestExists && (
+                <WriteOpButton
+                  label="创建 MR"
+                  title={`创建 MR：${developerBranch} → ${operationBaseBranch}`}
+                  variant="outline"
+                  disabled={Boolean(mergeRequestDisabledReason)}
+                  disabledReason={mergeRequestDisabledReason}
+                  onAction={async () => {
+                    setCreateMrOpen(true);
+                  }}
+                />
+              )}
             </div>
 
-            {/* 操作位：直接紧挨着 MR！如果已建分支但未提 MR，直接点创建 MR */}
-            {developerBranchState === 'exists' && !mergeRequestExists && (
-              <WriteOpButton
-                label="创建 MR"
-                title={`创建 MR：${developerBranch} → ${operationBaseBranch}`}
-                variant="outline"
-                disabled={Boolean(mergeRequestDisabledReason)}
-                disabledReason={mergeRequestDisabledReason}
-                onAction={async () => {
-                  setCreateMrOpen(true);
-                }}
-              />
+            {/* List 列表主体 */}
+            {sortedMergeRequests.length === 0 ? (
+              <div className="py-1 text-xs text-muted-foreground">
+                {developerBranchState === 'exists' ? (
+                  <span>暂无关联的合并请求，可点击右上角创建</span>
+                ) : (
+                  <span>目标：<code className="font-mono text-foreground/80">{operationBaseBranch || '—'}</code>（需先创建需求分支）</span>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5 min-w-0">
+                {displayedMergeRequests.map((mr) => (
+                  <MrInlineItem
+                    key={mr.localId}
+                    mr={mr}
+                    repoId={repo.id}
+                    repoPathWithNamespace={repo.pathWithNamespace}
+                    isExpanded={expandedMrId === mr.localId}
+                    onToggle={() =>
+                      setExpandedMrId((prev) => (prev === mr.localId ? null : mr.localId))
+                    }
+                    onRefresh={() => void loadTrace()}
+                  />
+                ))}
+
+                {/* 超过 2 个时提供“展开/收起” */}
+                {hasMoreMergeRequests && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllMrs((prev) => !prev)}
+                    className="flex items-center justify-center gap-1 py-1 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  >
+                    <span>
+                      {showAllMrs
+                        ? '收起其他合并请求'
+                        : `展开其余 ${sortedMergeRequests.length - 2} 个合并请求`}
+                    </span>
+                    <ChevronDownIcon
+                      className={cn(
+                        'size-3.5 transition-transform duration-200',
+                        showAllMrs && 'rotate-180',
+                      )}
+                    />
+                  </button>
+                )}
+              </div>
             )}
           </div>
 

@@ -53,6 +53,7 @@ interface AppStore {
   items: WorkitemRow[];
   nextToken: string | null;
   loadingList: boolean;
+  revalidatingList: boolean;
 
   /** 云效迭代列表（sprints OpenAPI）；空 = 不可用，UI 回退 PLACEHOLDER_ITERATIONS */
   iterations: IterationSummary[];
@@ -101,6 +102,7 @@ interface AppStore {
   setWorkitemHighlight(patch: Partial<WorkitemHighlightSettings>): void;
   setCategory(c: Category): Promise<void>;
   loadList(next?: boolean): Promise<void>;
+  revalidateList(): Promise<void>;
   loadIterations(): Promise<void>;
   select(id: string): Promise<void>;
   loadTrace(): Promise<void>;
@@ -109,7 +111,7 @@ interface AppStore {
   saveWorkitemRepoBranchTemplate(workitemId: string, repoId: number, templateId: string | null): Promise<void>;
   saveRepoCiBinding(repoId: number, binding: RepoCiBinding | null): Promise<void>;
   loadChildren(workitemId: string): Promise<void>;
-  loadRepoCi(repoId: number): Promise<void>;
+  loadRepoCi(repoId: number, alreadyLoading?: boolean): Promise<void>;
   saveWorkitemRepos(workitemId: string, repoIds: number[] | null): Promise<void>;
   openRepoCiLogs(repoId: number, runId: string, title: string): Promise<void>;
   refreshRepoCiLogs(): Promise<void>;
@@ -178,6 +180,36 @@ function mergeChildrenWithOptimistic(
   return [...pendingOptimistic, ...mergedServerItems];
 }
 
+/**
+ * 列表行平滑更新（双缓冲 / Keep Previous Data）：
+ * 1. 匹配已有项目（workitemId 或 identifier 相同）：保留其在原数组中的位置，就地更新字段；
+ * 2. 匹配新增项目：追加至头部；
+ * 3. 原有已补拉的后续页数据完整保留，避免破坏性截断导致列表反复坍塌与瀑布式多轮重拉。
+ */
+function mergeWorkitemRows(existing: WorkitemRow[], incoming: WorkitemRow[]): WorkitemRow[] {
+  if (!existing.length) return incoming;
+  const existingMap = new Map<string, number>();
+  existing.forEach((it, index) => {
+    const key = it.workitemId || it.identifier;
+    if (key) existingMap.set(key, index);
+  });
+
+  const nextItems = [...existing];
+  const newItems: WorkitemRow[] = [];
+
+  for (const item of incoming) {
+    const key = item.workitemId || item.identifier;
+    if (key && existingMap.has(key)) {
+      const idx = existingMap.get(key)!;
+      nextItems[idx] = { ...nextItems[idx], ...item };
+    } else {
+      newItems.push(item);
+    }
+  }
+
+  return newItems.length > 0 ? [...newItems, ...nextItems] : nextItems;
+}
+
 let pipelineRunRequestSequence = 0;
 const nextPipelineRunRequest = (pipelineId: number) => {
   const requestId = ++pipelineRunRequestSequence;
@@ -194,6 +226,7 @@ export const useApp = create<AppStore>((set, get) => ({
   items: [],
   nextToken: null,
   loadingList: false,
+  revalidatingList: false,
 
   iterations: [],
   loadingIterations: false,
@@ -345,11 +378,24 @@ export const useApp = create<AppStore>((set, get) => ({
         ...it,
         assignedTo: it.assignedTo || '—',
       }));
-      set((st) => ({
-        items: next ? [...st.items, ...mapped] : mapped,
-        nextToken: page.nextToken,
-        listFetchedAt: Date.now(),
-      }));
+      set((st) => {
+        if (next) {
+          return {
+            items: [...st.items, ...mapped],
+            nextToken: page.nextToken,
+            listFetchedAt: Date.now(),
+          };
+        }
+        // 当不是追加下一页时：
+        // 若当前已有数据，采用平滑合并（保留已加载的多页数据，防止 filtered 坍塌和多轮瀑布补拉）
+        // 若当前无数据（如首次加载或切换类别后），直接写入第 1 页
+        const items = st.items.length ? mergeWorkitemRows(st.items, mapped) : mapped;
+        return {
+          items,
+          nextToken: st.items.length ? (st.nextToken ?? page.nextToken) : page.nextToken,
+          listFetchedAt: Date.now(),
+        };
+      });
     } catch (e) {
       if (isCurrent()) get().setToast({ text: `列表加载失败：${String(e)}`, kind: 'fail' });
     } finally {
@@ -357,11 +403,67 @@ export const useApp = create<AppStore>((set, get) => ({
     }
   },
 
+  async revalidateList() {
+    const requestId = ++requests.list;
+    const { settings, category } = get();
+    const spaceIdentifier = settings?.defaultSpaceIdentifier;
+    if (!spaceIdentifier) {
+      set({ revalidatingList: false });
+      return;
+    }
+
+    const isCurrent = () =>
+      requestId === requests.list &&
+      get().category === category &&
+      get().settings?.defaultSpaceIdentifier === spaceIdentifier;
+
+    set({ revalidatingList: true });
+    try {
+      const page = await api.listWorkitems({
+        category,
+        spaceIdentifier,
+      });
+      if (!isCurrent()) return;
+
+      const mapped: WorkitemRow[] = page.items.map((it) => ({
+        ...it,
+        assignedTo: it.assignedTo || '—',
+      }));
+      set((st) => {
+        const items = st.items.length ? mergeWorkitemRows(st.items, mapped) : mapped;
+        return {
+          items,
+          nextToken: st.items.length ? (st.nextToken ?? page.nextToken) : page.nextToken,
+          listFetchedAt: Date.now(),
+        };
+      });
+    } catch (e) {
+      errorLog('app.revalidateList', e);
+    } finally {
+      if (isCurrent()) set({ revalidatingList: false });
+    }
+  },
+
   async loadIterations() {
     set({ loadingIterations: true });
     try {
       const iterations = await api.listIterations();
-      set({ iterations, loadingIterations: false, iterationsFetchedAt: Date.now() });
+      const prev = get().iterations;
+      const isSame =
+        prev.length === iterations.length &&
+        prev.every(
+          (it, i) =>
+            it.id === iterations[i].id &&
+            it.name === iterations[i].name &&
+            it.state === iterations[i].state &&
+            it.startDate === iterations[i].startDate &&
+            it.endDate === iterations[i].endDate,
+        );
+      set({
+        ...(isSame ? {} : { iterations }),
+        loadingIterations: false,
+        iterationsFetchedAt: Date.now(),
+      });
       // 真实列表到达后校正选中迭代：占位默认值或已失效的 key 回落到「进行中」迭代
       // （只在展示中的迭代里选：归档等不可见迭代不作为回落目标；直接改 key，不切视图——避免把停留在设置页的用户拽回迭代页）
       const key = useUi.getState().iterationKey;
@@ -539,7 +641,7 @@ export const useApp = create<AppStore>((set, get) => ({
     }
   },
 
-  async loadRepoCi(repoId) {
+  async loadRepoCi(repoId, alreadyLoading = false) {
     const requestId = (repoCiRequests.get(repoId) ?? 0) + 1;
     repoCiRequests.set(repoId, requestId);
     const binding = get().settings?.repoCiBindings?.[String(repoId)];
@@ -552,12 +654,14 @@ export const useApp = create<AppStore>((set, get) => ({
       }));
       return;
     }
-    set((state) => ({
-      repoCiByRepo: {
-        ...state.repoCiByRepo,
-        [repoId]: { loading: true, snapshot: state.repoCiByRepo[repoId]?.snapshot ?? null },
-      },
-    }));
+    if (!alreadyLoading) {
+      set((state) => ({
+        repoCiByRepo: {
+          ...state.repoCiByRepo,
+          [repoId]: { loading: true, snapshot: state.repoCiByRepo[repoId]?.snapshot ?? null },
+        },
+      }));
+    }
     try {
       const snapshot = await api.getRepoCiSnapshot(repoId, 5);
       if (repoCiRequests.get(repoId) !== requestId) return;
@@ -1040,7 +1144,14 @@ export const useApp = create<AppStore>((set, get) => ({
         targetIds.push(repo.id);
       }
     }
-    await Promise.all(targetIds.map((id) => loadRepoCi(id)));
+    if (!targetIds.length) return;
+    // 批量标记 loading，杜绝逐条 set 导致 store 多次发射通知引起视图连环重渲染
+    const nextRepoCi = { ...repoCiByRepo };
+    for (const id of targetIds) {
+      nextRepoCi[id] = { loading: true, snapshot: repoCiByRepo[id]?.snapshot ?? null };
+    }
+    set({ repoCiByRepo: nextRepoCi });
+    await Promise.all(targetIds.map((id) => loadRepoCi(id, true)));
   },
 
   async reloadCurrentDetail() {
@@ -1078,13 +1189,13 @@ export const useApp = create<AppStore>((set, get) => ({
     const {
       booting, connection, settings,
       listFetchedAt, iterationsFetchedAt, detailFetchedAt,
-      loadingList, loadingIterations, selectedId,
+      loadingList, revalidatingList, loadingIterations, selectedId,
     } = get();
     if (booting || connection !== 'ok' || !settings?.organizationId || !settings?.defaultSpaceIdentifier) return;
     const now = Date.now();
     const tasks: Promise<void>[] = [];
-    if (!loadingList && (!listFetchedAt || now - listFetchedAt > maxAgeMs)) {
-      tasks.push(get().loadList(false));
+    if (!loadingList && !revalidatingList && (!listFetchedAt || now - listFetchedAt > maxAgeMs)) {
+      tasks.push(get().revalidateList());
     }
     if (!loadingIterations && (!iterationsFetchedAt || now - iterationsFetchedAt > maxAgeMs)) {
       tasks.push(get().loadIterations());

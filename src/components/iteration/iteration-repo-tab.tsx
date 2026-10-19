@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { EmptyHint } from '@/components/empty-hint';
 import { StatusBadge } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
@@ -312,16 +313,17 @@ export function IterationRepoCard({
                   key={item.workitemId}
                   type="button"
                   onClick={() => onOpenDetail?.(item)}
-                  title={`${item.identifier} · ${item.subject} (${item.status})`}
                   className="group/item inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-xs text-foreground/90 transition-colors hover:border-primary/50 hover:bg-muted/80 cursor-pointer"
                 >
                   <StatusIcon status={item.status} className="size-3 shrink-0" />
                   <span className="font-mono text-[11px] font-medium text-muted-foreground group-hover/item:text-foreground">
                     {item.identifier}
                   </span>
-                  <span className="max-w-36 truncate text-[11px] text-foreground/80">
-                    {item.subject}
-                  </span>
+                  <OverflowTooltip
+                    text={item.subject}
+                    tooltip={`${item.identifier} · ${item.subject} (${item.status})`}
+                    className="max-w-36 truncate text-[11px] text-foreground/80"
+                  />
                   <ChevronRightIcon className="size-3 text-muted-foreground/40 transition-transform group-hover/item:translate-x-0.5 group-hover/item:text-foreground" />
                 </button>
               ))}

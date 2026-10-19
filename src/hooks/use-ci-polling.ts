@@ -66,6 +66,12 @@ export function useGlobalCiScheduler(options?: { enabled?: boolean }) {
 
     const onVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
+        const lastRefreshed = useApp.getState().ciRefreshedAt;
+        const cooldown = isCiStateActive() ? ACTIVE_CI_INTERVAL_MS : 20_000;
+        if (lastRefreshed && Date.now() - lastRefreshed < cooldown) {
+          scheduleNext();
+          return;
+        }
         void refreshAllRepoCi().finally(() => {
           scheduleNext();
         });

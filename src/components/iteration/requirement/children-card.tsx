@@ -23,6 +23,7 @@ import { toast } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CopyButton } from '@/components/ui/copy-button';
 import { EmptyHint } from '@/components/empty-hint';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SectionHeader } from '@/components/section-header';
 import { StatusIcon } from '@/components/status-icon';
 import { SearchableAssigneePopover, type AssigneeOption } from './assignee-popover';
@@ -680,15 +681,13 @@ export function ChildrenCard({
                 </div>
 
                 {/* 标题：已完成项微弱化 */}
-                <span
+                <OverflowTooltip
+                  text={task.subject || task.identifier}
                   className={cn(
                     'min-w-0 flex-1 truncate text-sm font-medium',
                     isCompleted ? 'text-muted-foreground/75' : 'text-foreground/90',
                   )}
-                  title={task.subject || task.identifier}
-                >
-                  {task.subject || task.identifier}
-                </span>
+                />
 
                 {/* 处理人下拉切换 */}
                 <InlineAssigneeDropdown task={task} candidateAssignees={candidateAssignees} />

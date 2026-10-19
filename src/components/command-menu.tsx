@@ -62,6 +62,7 @@ export function CommandMenu() {
   const items = useApp((s) => s.items);
   const realIterations = useApp((s) => s.iterations);
   const loadList = useApp((s) => s.loadList);
+  const revalidateList = useApp((s) => s.revalidateList);
   const loadIterations = useApp((s) => s.loadIterations);
 
   const [query, setQuery] = useState('');
@@ -170,7 +171,7 @@ export function CommandMenu() {
         icon: <RefreshCwIcon className="size-4" />,
         keywords: '刷新 refresh reload 重新加载',
         run: () => {
-          void loadList(false);
+          void (items.length ? revalidateList() : loadList(false));
           void loadIterations();
         },
       },
@@ -198,7 +199,7 @@ export function CommandMenu() {
       ...workitemEntries,
       ...actions.filter(hit),
     ];
-  }, [q, view, realIterations, items, setView, openSettings, setIteration, openWorkitem, loadList, loadIterations, theme, toggleTheme]);
+  }, [q, view, realIterations, items, setView, openSettings, setIteration, openWorkitem, loadList, revalidateList, loadIterations, theme, toggleTheme]);
 
   // 非空组（保持 GROUP_ORDER 顺序）+ 扁平序（键盘 active 索引按扁平序计）
   const groups = useMemo<{ group: CommandGroup; entries: CommandEntry[] }[]>(

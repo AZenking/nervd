@@ -44,6 +44,31 @@ export function buildYunxiaoWorkitemUrl({
 }
 
 /**
+ * 构造阿里云效 Codeup 合并请求 (Merge Request) Web 直达链接
+ */
+export function buildCodeupMergeRequestUrl({
+  organizationId,
+  repoPathWithNamespace,
+  repoId,
+  localId,
+}: {
+  organizationId?: string | null;
+  repoPathWithNamespace?: string | null;
+  repoId?: number | null;
+  localId: number;
+}): string {
+  const cleanOrg = organizationId?.trim();
+  const cleanPath = repoPathWithNamespace?.trim();
+  if (cleanOrg && cleanPath) {
+    return `https://codeup.aliyun.com/${encodeURIComponent(cleanOrg)}/${cleanPath}/merge_requests/${localId}`;
+  }
+  if (cleanOrg && repoId) {
+    return `https://devops.aliyun.com/codeup/organization/${encodeURIComponent(cleanOrg)}/repository/${repoId}/changeRequests/${localId}`;
+  }
+  return 'https://codeup.aliyun.com';
+}
+
+/**
  * 在系统默认浏览器中打开外部链接
  * 优先经 Tauri plugin-opener 打开系统浏览器；降级/浏览器预览模式下使用 window.open
  */

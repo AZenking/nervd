@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { useUi } from '../store/ui';
 import type { RunStatus } from '../types';
 import { CATEGORY_LABELS } from '../types';
@@ -15,6 +16,7 @@ import { PipelineCard } from './PipelineCard';
 import { RepoCiCard } from './RepoCiCard';
 import { StatusBadge, connectionStatus } from './StatusBadge';
 import { StatusIcon } from './status-icon';
+import { OverflowTooltip } from './overflow-tooltip';
 import { WorkitemPeekDrawer } from './workitem-peek-drawer';
 
 /** 运行状态归一：与 StatusBadge 同一套语义分组 */
@@ -34,7 +36,23 @@ export function OverviewView() {
     settings, connection, category, items, pipelines, runsByPipeline,
     repositories, repoCiByRepo, loadList, loadPipelines, loadRepoCi,
     loadingList, loadingPipelines,
-  } = useApp();
+  } = useApp(
+    useShallow((s) => ({
+      settings: s.settings,
+      connection: s.connection,
+      category: s.category,
+      items: s.items,
+      pipelines: s.pipelines,
+      runsByPipeline: s.runsByPipeline,
+      repositories: s.repositories,
+      repoCiByRepo: s.repoCiByRepo,
+      loadList: s.loadList,
+      loadPipelines: s.loadPipelines,
+      loadRepoCi: s.loadRepoCi,
+      loadingList: s.loadingList,
+      loadingPipelines: s.loadingPipelines,
+    })),
+  );
   const openWorkitem = useUi((s) => s.openWorkitem);
   const openSettings = useUi((s) => s.openSettings);
   const watched = settings?.watchedRepos ?? [];
@@ -321,7 +339,7 @@ export function OverviewView() {
                   >
                     <StatusIcon status={it.status} className="size-3.5 shrink-0" />
                     <span className="shrink-0 font-mono text-muted-foreground">{it.identifier}</span>
-                    <span className="min-w-0 flex-1 truncate text-foreground">{it.subject}</span>
+                    <OverflowTooltip text={it.subject} className="min-w-0 flex-1 truncate text-foreground" />
                     <span className="shrink-0 text-muted-foreground">{it.updatedAt?.slice(0, 10) ?? ''}</span>
                   </Button>
                 ))

@@ -42,6 +42,7 @@ import { useApp } from '@/store/app';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 import { StatusIcon } from '../status-icon';
+import { OverflowTooltip } from '../overflow-tooltip';
 import { RichDescription } from './rich-description';
 
 export interface ChildDetailDrawerProps {
@@ -336,9 +337,13 @@ export function ChildDetailDrawer({
         </span>
       ),
       children: (
-        <span className="truncate font-mono text-xs text-muted-foreground" title={parentWorkitem.subject}>
+        <OverflowTooltip
+          text={parentWorkitem.subject}
+          tooltip={`${parentWorkitem.identifier} · ${parentWorkitem.subject}`}
+          className="truncate font-mono text-xs text-muted-foreground"
+        >
           {parentWorkitem.identifier} {parentWorkitem.subject ? `· ${parentWorkitem.subject}` : ''}
-        </span>
+        </OverflowTooltip>
       ),
     }] : []),
     {

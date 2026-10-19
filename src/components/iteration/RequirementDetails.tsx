@@ -23,6 +23,7 @@ import { SearchableSelect, type SearchableSelectOption } from '../searchable-sel
 import { PageHeader, STICKY_PAGE_HEADER_CLASS } from '../page-header';
 import { AppBreadcrumb } from '../nav/app-breadcrumb';
 import { EmptyHint } from '../empty-hint';
+import { OverflowTooltip } from '../overflow-tooltip';
 import type { BranchSyncRepo } from './BranchStateDiagram';
 import { RichDescription } from './rich-description';
 import { ChildDetailDrawer } from './child-detail-drawer';
@@ -486,9 +487,11 @@ export function RequirementDetails({
                 {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
               </button>
             )}
-            <h2 className="min-w-0 truncate text-base font-semibold text-foreground select-text cursor-text">
-              {subject}
-            </h2>
+            <OverflowTooltip
+              as="h2"
+              text={subject}
+              className="min-w-0 truncate text-base font-semibold text-foreground select-text cursor-text"
+            />
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <Button
@@ -539,9 +542,10 @@ export function RequirementDetails({
           title={(
             <span className="flex min-w-0 items-center gap-2.5">
               <StatusIcon status={statusName} className="size-4 shrink-0" />
-              <span className="min-w-0 truncate text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
-                {subject}
-              </span>
+              <OverflowTooltip
+                text={subject}
+                className="min-w-0 truncate text-xl sm:text-2xl font-semibold tracking-tight text-foreground"
+              />
             </span>
           )}
           titleBadge={identifier ? (
@@ -688,7 +692,7 @@ export function RequirementDetails({
                   className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline cursor-pointer truncate"
                 >
                   <span className="font-mono text-xs shrink-0">{parent.identifier}</span>
-                  <span className="truncate">{parent.subject}</span>
+                  <OverflowTooltip text={parent.subject} className="truncate max-w-xs" />
                 </button>
               </div>
               <Button

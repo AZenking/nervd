@@ -9,6 +9,7 @@ import { extractWorkItemKeys } from '@/lib/link';
 import { comparisonCommits } from '../iteration/BranchDivergenceCheck';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import type { BranchInfo } from '@/types';
 import { useDebounce } from '@/hooks/use-debounce';
 import { Button } from '@/components/ui/button';
@@ -69,7 +70,13 @@ const comparisonCache = new Map<string, ComparisonCacheEntry>();
 /** 日期统一取 YYYY-MM-DD */const dayOf = (value?: string): string => (value ? value.slice(0, 10) : '—');
 
 export function IntegrationView() {
-  const { repositories, settings, items } = useApp();
+  const { repositories, settings, items } = useApp(
+    useShallow((s) => ({
+      repositories: s.repositories,
+      settings: s.settings,
+      items: s.items,
+    })),
+  );
   const linkPattern = settings?.linkPattern || '(?:REQ|BUG|TASK)[-_]?(\\d+)';
 
   // 可选仓库：优先设置中的默认云效仓库，未配置时回退全部已加载仓库

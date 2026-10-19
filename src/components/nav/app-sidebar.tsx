@@ -13,13 +13,19 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import {
+  ArrowDownToLineIcon,
   ArrowLeftIcon,
   GitBranchIcon,
   LayoutDashboardIcon,
+  Loader2Icon,
   SearchIcon,
+  SparklesIcon,
 } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
+import { useAppUpdate } from '@/hooks/use-app-update';
+import { APP_VERSION } from '@/lib/app-info';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SETTINGS_SECTIONS } from '../settings/sections';
 
 /**
@@ -29,6 +35,8 @@ import { SETTINGS_SECTIONS } from '../settings/sections';
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { view, settingsSection, setSettingsSection, setView, openSettings, setAboutOpen } = useUi();
   const { settings } = useApp();
+  const { hasUpdate, updateInfo, isUpdating } = useAppUpdate();
+  const latestVersion = updateInfo?.latestVersion;
   const inSettings = view === 'full-settings';
 
   return (
@@ -38,26 +46,93 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* macOS 沉浸式窗口：红绿灯安全留白避让与可拖拽区（Linear 桌面端标准） */}
         <div data-tauri-drag-region className="h-8 w-full shrink-0 select-none" />
         <div className="flex items-center justify-between gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-2">
-          <button
-            type="button"
-            onClick={() => setAboutOpen(true)}
-            title="关于 nervd"
-            className="group flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-sidebar-accent/50"
-          >
-            <div className="flex aspect-square size-6 shrink-0 items-center justify-center rounded-[6px] bg-sidebar-primary text-sidebar-primary-foreground shadow-xs transition-transform group-hover:scale-105">
-              <img
-                src="/nervd-logo.png"
-                alt="nervd logo"
-                aria-hidden="true"
-                className="size-full rounded-[6px] object-cover"
-              />
-            </div>
-            <span className="truncate text-[13px] font-semibold tracking-tight text-foreground group-data-[collapsible=icon]:hidden">
-              nervd
-            </span>
-          </button>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 group-data-[collapsible=icon]:flex-col">
+            <button
+              type="button"
+              onClick={() => setAboutOpen(true)}
+              title={hasUpdate ? `发现新版本 v${latestVersion} · 点击查看更新` : `关于 nervd (v${APP_VERSION})`}
+              className="group flex cursor-pointer items-center gap-2 rounded-md p-1 text-left transition-colors hover:bg-sidebar-accent/50"
+            >
+              <div className="relative flex aspect-square size-6 shrink-0 items-center justify-center rounded-[6px] bg-sidebar-primary text-sidebar-primary-foreground shadow-xs transition-transform group-hover:scale-105">
+                <img
+                  src="/nervd-logo.png"
+                  alt="nervd logo"
+                  aria-hidden="true"
+                  className="size-full rounded-[6px] object-cover"
+                />
+                {/* 侧栏折叠时若有新版本，在 Logo 角标处展示小圆点 */}
+                {hasUpdate && (
+                  <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary ring-2 ring-sidebar hidden group-data-[collapsible=icon]:block animate-pulse" />
+                )}
+              </div>
+              <span className="truncate text-[13px] font-semibold tracking-tight text-foreground group-data-[collapsible=icon]:hidden">
+                nervd
+              </span>
+            </button>
 
-          <div className="flex items-center gap-1">
+            {/* 展开态下的版本号 / 更新下载按钮 */}
+            <div className="group-data-[collapsible=icon]:hidden flex items-center shrink-0">
+              {hasUpdate ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={() => setAboutOpen(true)}
+                        aria-label={`发现新版本 v${latestVersion}，点击更新`}
+                        className="group/btn flex cursor-pointer items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-primary shadow-xs transition-all hover:bg-primary/20 hover:border-primary/60 active:scale-95"
+                      />
+                    }
+                  >
+                    {isUpdating ? (
+                      <Loader2Icon className="size-3 animate-spin shrink-0 text-primary" />
+                    ) : (
+                      <ArrowDownToLineIcon className="size-3 shrink-0 text-primary animate-bounce duration-1000" />
+                    )}
+                    <span className="font-mono text-[10.5px] font-medium leading-none">
+                      v{latestVersion}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    align="start"
+                    sideOffset={6}
+                    className="max-w-xs flex flex-col gap-1 rounded-lg border border-border/80 bg-popover p-2.5 text-popover-foreground shadow-xl"
+                  >
+                    <div className="flex items-center gap-1.5 font-semibold text-xs text-primary">
+                      <SparklesIcon className="size-3.5 shrink-0 text-amber-500" />
+                      <span>发现最新版本 v{latestVersion}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+                      {updateInfo?.releaseName || updateInfo?.releaseNotes || '检测到全新版本，点击打开更新面板进行安装。'}
+                    </p>
+                    <div className="mt-0.5 flex items-center gap-1 text-[10px] font-medium text-primary">
+                      <span>点击触发更新弹窗 →</span>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={() => setAboutOpen(true)}
+                        className="cursor-pointer select-none rounded border border-border/40 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/75 tracking-tight transition-colors hover:bg-muted hover:text-foreground"
+                      />
+                    }
+                  >
+                    v{APP_VERSION}
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="start" sideOffset={6}>
+                    nervd v{APP_VERSION} · 点击查看详情
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
             {/* 读写策略指示：只读时展示微标，点击直达安全设置；可写时展示状态小绿点 */}
             <div className="group-data-[collapsible=icon]:hidden">
               {settings != null && !settings.allowWriteOps ? (

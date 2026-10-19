@@ -6,6 +6,7 @@ vi.mock('@/lib/api', () => ({
   getWorkitemWorkflowStatuses: vi.fn(),
   updateWorkitem: vi.fn(),
   listWorkitemChildren: vi.fn(),
+  listWorkitems: vi.fn(),
 }));
 
 import * as api from '@/lib/api';
@@ -265,6 +266,87 @@ describe('updateWorkitemAssigneeOptimistic', () => {
     expect(state.children[0].assignedTo).toBe('旧负责人');
     expect(state.toast?.kind).toBe('fail');
     expect(state.toast?.text).toContain('负责人修改失败');
+  });
+});
+
+describe('revalidateList & loadList 双缓冲平滑刷新（防列表坍塌与闪烁）', () => {
+  it('loadList: 在已有数据场景下执行非 next 刷新时，采用平滑合并而不是破坏性截断', async () => {
+    useApp.setState({
+      settings: { defaultSpaceIdentifier: 'test-space' } as any,
+      items: [
+        row({ identifier: 'REQ-1', workitemId: 'wi-1', subject: '需求1', status: '开发中' }),
+        row({ identifier: 'REQ-2', workitemId: 'wi-2', subject: '需求2 (第2页已补拉)', status: '待办' }),
+      ],
+      nextToken: 'token-page-3',
+    });
+
+    // 模拟远端返回第一页：wi-1 状态更新为「已完成」
+    vi.mocked(api.listWorkitems).mockResolvedValue({
+      items: [
+        {
+          identifier: 'REQ-1',
+          workitemId: 'wi-1',
+          subject: '需求1',
+          status: '已完成',
+          category: 'Req',
+        },
+      ],
+      nextToken: 'token-page-2',
+    });
+
+    await useApp.getState().loadList(false);
+
+    const state = useApp.getState();
+    // wi-1 原地更新为「已完成」
+    expect(state.items[0].status).toBe('已完成');
+    // wi-2 (第2页数据) 依然完好保留，没有被截断丢弃！
+    expect(state.items).toHaveLength(2);
+    expect(state.items[1].workitemId).toBe('wi-2');
+    // 保留了现有已推进的 nextToken
+    expect(state.nextToken).toBe('token-page-3');
+  });
+
+  it('revalidateList: 静默后台平滑重验，更新已有项、插入新增项，且不设置 loadingList', async () => {
+    useApp.setState({
+      settings: { defaultSpaceIdentifier: 'test-space' } as any,
+      items: [
+        row({ identifier: 'REQ-1', workitemId: 'wi-1', subject: '需求1', status: '开发中' }),
+      ],
+      loadingList: false,
+      revalidatingList: false,
+    });
+
+    vi.mocked(api.listWorkitems).mockResolvedValue({
+      items: [
+        {
+          identifier: 'REQ-NEW',
+          workitemId: 'wi-new',
+          subject: '最新创建的需求',
+          status: '待办',
+          category: 'Req',
+        },
+        {
+          identifier: 'REQ-1',
+          workitemId: 'wi-1',
+          subject: '需求1',
+          status: '已解决',
+          category: 'Req',
+        },
+      ],
+      nextToken: 'token-page-2',
+    });
+
+    await useApp.getState().revalidateList();
+
+    const state = useApp.getState();
+    expect(state.loadingList).toBe(false);
+    expect(state.revalidatingList).toBe(false);
+    expect(state.items).toHaveLength(2);
+    // 新增项插入头部
+    expect(state.items[0].workitemId).toBe('wi-new');
+    // 既有项原地更新字段
+    expect(state.items[1].workitemId).toBe('wi-1');
+    expect(state.items[1].status).toBe('已解决');
   });
 });
 
