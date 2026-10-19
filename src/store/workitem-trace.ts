@@ -74,9 +74,10 @@ function mapMergeRequests(value: unknown, identifier: string, pattern: string): 
     if (!title || !matchesWorkitem(identifier, title, pattern)) continue;
 
     const webUrl =
+      asString(pick(request, 'detailUrl')) ||
+      asString(pick(request, 'detail_url')) ||
       asString(pick(request, 'webUrl')) ||
-      asString(pick(request, 'web_url')) ||
-      asString(pick(request, 'detailUrl'));
+      asString(pick(request, 'web_url'));
 
     mergeRequests.push({
       localId: Number(pick(request, 'localId') ?? pick(request, 'local_id') ?? 0),

@@ -61,7 +61,12 @@ export function buildCodeupMergeRequestUrl({
 }): string {
   // 1. 若接口或数据源已提供合法的 Web 直达链接，优先使用
   if (webUrl && typeof webUrl === 'string' && /^https?:\/\//i.test(webUrl.trim())) {
-    return webUrl.trim();
+    const trimmed = webUrl.trim();
+    if (trimmed.includes('/change/')) {
+      return trimmed;
+    }
+    // 若传入的是仓库级别根链接（如 codeup.aliyun.com/org/repo），自动补全 /change/:id 路由
+    return `${trimmed.replace(/\/+$/, '')}/change/${localId}`;
   }
 
   const cleanOrg = organizationId?.trim().replace(/^\/+|\/+$/g, '') || '';

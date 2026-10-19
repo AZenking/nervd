@@ -124,12 +124,17 @@ export function LinkedRepoCard({
     return () => { active = false; };
   }, [repo.id, iterationId]);
 
-  // 匹配本需求分支与目标基准分支的当前 MR
-  const matchedMr = mergeRequests.find((request) =>
-    (developerBranch && request.sourceBranch === developerBranch && operationBaseBranch && request.targetBranch === operationBaseBranch) ||
-    (developerBranch && request.sourceBranch === developerBranch),
-  );
-  const mergeRequestExists = Boolean(matchedMr) || createdMergeRequestKey === mergeRequestKey;
+  // 匹配本需求分支与目标基准分支的活跃中（未合入、未关闭）MR
+  const matchedActiveMr = mergeRequests.find((request) => {
+    const st = request.state?.toLowerCase();
+    const isInactive = st === 'merged' || st === 'closed';
+    if (isInactive) return false;
+    return (
+      (developerBranch && request.sourceBranch === developerBranch && operationBaseBranch && request.targetBranch === operationBaseBranch) ||
+      (developerBranch && request.sourceBranch === developerBranch)
+    );
+  });
+  const mergeRequestExists = Boolean(matchedActiveMr) || createdMergeRequestKey === mergeRequestKey;
 
   // 统一排序 MR 列表：优先匹配本需求开发分支的，其次按 localId 倒序
   const sortedMergeRequests = [...mergeRequests].sort((a, b) => {
@@ -519,6 +524,7 @@ export function LinkedRepoCard({
                       setExpandedMrId((prev) => (prev === mr.localId ? null : mr.localId))
                     }
                     onRefresh={() => void loadTrace()}
+                    onCreateMr={() => setCreateMrOpen(true)}
                   />
                 ))}
 

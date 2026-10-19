@@ -27,6 +27,7 @@ export interface MrInlineItemProps {
   isExpanded: boolean;
   onToggle: () => void;
   onRefresh: () => void;
+  onCreateMr?: () => void;
 }
 
 interface CommitSummaryItem {
@@ -43,6 +44,7 @@ export function MrInlineItem({
   isExpanded,
   onToggle,
   onRefresh,
+  onCreateMr,
 }: MrInlineItemProps) {
   const organizationId = useApp((s) => s.settings?.organizationId);
   const [commits, setCommits] = useState<CommitSummaryItem[]>([]);
@@ -195,7 +197,11 @@ export function MrInlineItem({
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <div className="flex items-center gap-1 font-medium text-foreground">
                 <GitCommitIcon className="size-3 text-primary" />
-                <span>代码变更提交 ({loadingCommits ? '…' : commits.length})</span>
+                <span>
+                  {isMerged && commits.length > 0
+                    ? `分支新提交 (${loadingCommits ? '…' : commits.length})`
+                    : `代码变更提交 (${loadingCommits ? '…' : commits.length})`}
+                </span>
               </div>
               {mr.author?.name && <span>创建人：{mr.author.name}</span>}
             </div>
@@ -263,9 +269,28 @@ export function MrInlineItem({
                 />
               )}
               {isMerged && (
-                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                  <CheckIcon className="size-3" />已合入目标基准
-                </span>
+                commits.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                      分支有 {commits.length} 条新提交未合入
+                    </span>
+                    {onCreateMr && (
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="xs"
+                        className="h-6 px-2 text-xs"
+                        onClick={onCreateMr}
+                      >
+                        创建新 MR
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    <CheckIcon className="size-3" />已合入目标基准
+                  </span>
+                )
               )}
             </div>
           </div>

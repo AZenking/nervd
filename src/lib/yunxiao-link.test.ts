@@ -59,6 +59,14 @@ describe('buildCodeupMergeRequestUrl', () => {
     });
     expect(url).toBe('https://codeup.aliyun.com/60de7a6852743a5162b5f957/101/change/1');
   });
+
+  it('若 webUrl 传入的是仓库根路径，自动补全 /change/:id', () => {
+    const url = buildCodeupMergeRequestUrl({
+      webUrl: 'https://codeup.aliyun.com/f6car/F6-saas-independence/foton-workspace/foton-fed/mobile-view',
+      localId: 481,
+    });
+    expect(url).toBe('https://codeup.aliyun.com/f6car/F6-saas-independence/foton-workspace/foton-fed/mobile-view/change/481');
+  });
 });
 
 describe('buildYunxiaoWorkitemUrl', () => {
