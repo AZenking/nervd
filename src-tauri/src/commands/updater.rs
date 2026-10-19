@@ -336,6 +336,245 @@ pub async fn check_for_updates(
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProgressPayload {
+    pub percent: f64,
+    pub transferred_bytes: u64,
+    pub total_bytes: u64,
+    pub speed_bytes_per_sec: u64,
+    pub status: String,
+    pub message: Option<String>,
+}
+
+#[tauri::command]
+pub async fn download_and_install_update(
+    app: AppHandle,
+    download_url: String,
+) -> Result<bool, String> {
+    use std::io::Write;
+    use std::time::Instant;
+    use tauri::Emitter;
+
+    let url = download_url.trim();
+    if url.is_empty() || !url.starts_with("https://") {
+        return Err("下载地址无效".to_string());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(600))
+        .build()
+        .map_err(|e| format!("创建下载客户端失败: {e}"))?;
+
+    let mut res = client
+        .get(url)
+        .header("User-Agent", "nervd-updater")
+        .send()
+        .await
+        .map_err(|e| format!("发起更新下载请求失败: {e}"))?;
+
+    if !res.status().is_success() {
+        return Err(format!("更新服务响应异常 ({})", res.status()));
+    }
+
+    let total_bytes = res.content_length().unwrap_or(0);
+    let temp_dir = std::env::temp_dir();
+
+    #[cfg(target_os = "macos")]
+    let installer_path = temp_dir.join("nervd_update.dmg");
+    #[cfg(target_os = "windows")]
+    let installer_path = temp_dir.join("nervd_update_setup.exe");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let installer_path = temp_dir.join("nervd_update.bin");
+
+    let mut file = std::fs::File::create(&installer_path)
+        .map_err(|e| format!("创建更新临时文件失败: {e}"))?;
+
+    let start_time = Instant::now();
+    let mut last_emit = Instant::now();
+    let mut transferred: u64 = 0;
+
+    let _ = app.emit(
+        "update-progress",
+        UpdateProgressPayload {
+            percent: 0.0,
+            transferred_bytes: 0,
+            total_bytes,
+            speed_bytes_per_sec: 0,
+            status: "downloading".to_string(),
+            message: Some("正在连接更新服务器…".to_string()),
+        },
+    );
+
+    while let Some(chunk) = res
+        .chunk()
+        .await
+        .map_err(|e| format!("下载安装包数据流失败: {e}"))?
+    {
+        file.write_all(&chunk)
+            .map_err(|e| format!("写入更新文件失败: {e}"))?;
+        transferred += chunk.len() as u64;
+
+        if last_emit.elapsed() >= Duration::from_millis(150)
+            || (total_bytes > 0 && transferred >= total_bytes)
+        {
+            let elapsed_sec = start_time.elapsed().as_secs_f64();
+            let speed = if elapsed_sec > 0.0 {
+                (transferred as f64 / elapsed_sec) as u64
+            } else {
+                0
+            };
+            let percent = if total_bytes > 0 {
+                ((transferred as f64 / total_bytes as f64) * 100.0).clamp(0.0, 100.0)
+            } else {
+                0.0
+            };
+            let _ = app.emit(
+                "update-progress",
+                UpdateProgressPayload {
+                    percent,
+                    transferred_bytes: transferred,
+                    total_bytes,
+                    speed_bytes_per_sec: speed,
+                    status: "downloading".to_string(),
+                    message: None,
+                },
+            );
+            last_emit = Instant::now();
+        }
+    }
+
+    file.flush()
+        .map_err(|e| format!("保存更新文件失败: {e}"))?;
+
+    let _ = app.emit(
+        "update-progress",
+        UpdateProgressPayload {
+            percent: 100.0,
+            transferred_bytes: transferred,
+            total_bytes,
+            speed_bytes_per_sec: 0,
+            status: "installing".to_string(),
+            message: Some("下载完成，正在安装更新…".to_string()),
+        },
+    );
+
+    #[cfg(target_os = "macos")]
+    {
+        // 自动剥除已下载 DMG 上的隔离扩展属性（com.apple.quarantine）
+        if let Some(dmg_str) = installer_path.to_str() {
+            let _ = std::process::Command::new("xattr")
+                .args(["-cr", dmg_str])
+                .status();
+        }
+
+        // 尝试自动挂载 DMG 并直接更新 /Applications/nervd.app
+        let mount_output = std::process::Command::new("hdiutil")
+            .args(["attach", "-nobrowse", "-readonly"])
+            .arg(&installer_path)
+            .output();
+
+        let mut replaced = false;
+        if let Ok(output) = mount_output {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let mut mount_point = None;
+            for line in stdout.lines() {
+                if let Some(idx) = line.find("/Volumes/") {
+                    mount_point = Some(line[idx..].trim().to_string());
+                }
+            }
+
+            if let Some(vol) = mount_point {
+                let app_src = format!("{}/nervd.app", vol);
+                if std::path::Path::new(&app_src).exists() {
+                    // 自动替换并在应用重启前执行 xattr -cr，彻底解除 macOS 隔离阻拦
+                    let replace_script = format!(
+                        "sleep 1; rm -rf /Applications/nervd.app; cp -R \"{app_src}\" /Applications/; xattr -cr /Applications/nervd.app; hdiutil detach \"{vol}\" -force; open /Applications/nervd.app"
+                    );
+                    if let Ok(_child) = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(&replace_script)
+                        .spawn()
+                    {
+                        replaced = true;
+                    }
+                }
+            }
+        }
+
+        if replaced {
+            let _ = app.emit(
+                "update-progress",
+                UpdateProgressPayload {
+                    percent: 100.0,
+                    transferred_bytes: transferred,
+                    total_bytes,
+                    speed_bytes_per_sec: 0,
+                    status: "done".to_string(),
+                    message: Some("安装完成，应用正在重启…".to_string()),
+                },
+            );
+            tokio::time::sleep(Duration::from_millis(600)).await;
+            app.exit(0);
+            Ok(true)
+        } else {
+            // 权限受限或挂载失败时，调用 open 弹出 DMG 挂载盘引导用户覆盖
+            let _ = std::process::Command::new("open")
+                .arg(&installer_path)
+                .spawn();
+            let _ = app.emit(
+                "update-progress",
+                UpdateProgressPayload {
+                    percent: 100.0,
+                    transferred_bytes: transferred,
+                    total_bytes,
+                    speed_bytes_per_sec: 0,
+                    status: "done".to_string(),
+                    message: Some("已打开安装包，请将 nervd 拖入「应用程序」完成更新".to_string()),
+                },
+            );
+            Ok(true)
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new(&installer_path)
+            .arg("/SILENT")
+            .spawn();
+        let _ = app.emit(
+            "update-progress",
+            UpdateProgressPayload {
+                percent: 100.0,
+                transferred_bytes: transferred,
+                total_bytes,
+                speed_bytes_per_sec: 0,
+                status: "done".to_string(),
+                message: Some("安装程序已启动，应用即将退出并重启…".to_string()),
+            },
+        );
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        app.exit(0);
+        Ok(true)
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = app.emit(
+            "update-progress",
+            UpdateProgressPayload {
+                percent: 100.0,
+                transferred_bytes: transferred,
+                total_bytes,
+                speed_bytes_per_sec: 0,
+                status: "done".to_string(),
+                message: Some(format!("安装包已保存至: {}", installer_path.display())),
+            },
+        );
+        Ok(true)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

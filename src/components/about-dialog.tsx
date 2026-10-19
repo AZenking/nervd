@@ -2,9 +2,9 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
   CheckCircle2Icon,
   CopyIcon,
-  DownloadIcon,
   ExternalLinkIcon,
   KeyRoundIcon,
+  Loader2Icon,
   RefreshCwIcon,
   SettingsIcon,
   ShieldAlertIcon,
@@ -29,6 +29,13 @@ import {
 } from '@/lib/app-info';
 import { openExternal } from '@/lib/yunxiao-link';
 
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+}
+
 /**
  * 关于 nervd 独立弹窗（Deep Linear 风格设计）：
  * - Base UI Dialog 受控于 useUi.aboutOpen；
@@ -42,7 +49,19 @@ export function AboutDialog() {
   const openSettings = useUi((s) => s.openSettings);
   const settings = useApp((s) => s.settings);
 
-  const { status, hasUpdate, isChecking, updateInfo, checkForUpdates, openDownload } = useAppUpdate();
+  const {
+    status,
+    hasUpdate,
+    isChecking,
+    isUpdating,
+    isDownloading,
+    isInstalling,
+    updateInfo,
+    progress,
+    checkForUpdates,
+    startOneClickUpdate,
+    openDownload,
+  } = useAppUpdate();
 
   const allowWriteOps = settings?.allowWriteOps ?? false;
 
@@ -166,7 +185,7 @@ export function AboutDialog() {
                     <span>发现新版本 v{updateInfo.latestVersion}</span>
                   </div>
                   <Badge variant="outline" className="border-primary/40 bg-primary/10 text-[10px] text-primary">
-                    可更新
+                    {isInstalling ? '安装中' : isDownloading ? '下载中' : status === 'done' ? '准备就绪' : '可更新'}
                   </Badge>
                 </div>
                 {updateInfo.releaseNotes && (
@@ -174,15 +193,60 @@ export function AboutDialog() {
                     {updateInfo.releaseNotes}
                   </p>
                 )}
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => void openDownload()}
-                  className="mt-1 h-7 w-full gap-1.5 text-xs font-medium cursor-pointer"
-                >
-                  <DownloadIcon className="size-3.5" />
-                  <span>前往下载新版本</span>
-                </Button>
+
+                {/* 一键更新下载进度与状态展示 */}
+                {isUpdating || status === 'done' ? (
+                  <div className="flex flex-col gap-1.5 pt-1">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Loader2Icon className="size-3 animate-spin text-primary" />
+                        <span>{progress?.message || (isInstalling ? '正在安装更新…' : '正在下载…')}</span>
+                      </span>
+                      <span className="font-mono text-xs font-medium text-foreground">
+                        {progress?.percent.toFixed(0) ?? 0}%
+                      </span>
+                    </div>
+
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-primary/20">
+                      <div
+                        className="h-full bg-primary transition-all duration-150"
+                        style={{ width: `${Math.max(4, progress?.percent ?? 0)}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                      <span>
+                        {progress?.transferredBytes ? formatBytes(progress.transferredBytes) : '0 B'}
+                        {progress?.totalBytes ? ` / ${formatBytes(progress.totalBytes)}` : ''}
+                      </span>
+                      {Boolean(progress?.speedBytesPerSec) && (
+                        <span>{formatBytes(progress!.speedBytesPerSec)}/s</span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-1 flex items-center gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => void startOneClickUpdate()}
+                      className="h-7 flex-1 gap-1.5 text-xs font-medium cursor-pointer"
+                    >
+                      <SparklesIcon className="size-3.5" />
+                      <span>一键自动更新</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void openDownload()}
+                      className="h-7 gap-1 px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground cursor-pointer"
+                      title="在浏览器中手动下载安装包"
+                    >
+                      <ExternalLinkIcon className="size-3" />
+                      <span>手动下载</span>
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 

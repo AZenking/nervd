@@ -1,17 +1,23 @@
 import { create } from 'zustand';
 import { toast } from '@/components/ui/toast';
-import { checkForUpdates as fetchUpdateCheck } from '@/lib/updater-api';
+import {
+  checkForUpdates as fetchUpdateCheck,
+  downloadAndInstallUpdate,
+  listenUpdateProgress,
+} from '@/lib/updater-api';
 import { openExternal } from '@/lib/yunxiao-link';
-import type { UpdateCheckResult, UpdateStatus } from '@/types/updater';
+import type { UpdateCheckResult, UpdateProgress, UpdateStatus } from '@/types/updater';
 
 interface UpdaterState {
   status: UpdateStatus;
   updateInfo: UpdateCheckResult | null;
+  progress: UpdateProgress | null;
   error: string | null;
   lastCheckedAt: string | null;
   dismissedVersion: string | null;
 
   checkForUpdates: (silent?: boolean, customEndpoint?: string | null) => Promise<UpdateCheckResult | null>;
+  startOneClickUpdate: () => Promise<void>;
   openDownload: () => Promise<void>;
   dismissUpdate: () => void;
 }
@@ -19,6 +25,7 @@ interface UpdaterState {
 export const useUpdater = create<UpdaterState>((set, get) => ({
   status: 'idle',
   updateInfo: null,
+  progress: null,
   error: null,
   lastCheckedAt: null,
   dismissedVersion: null,
@@ -41,7 +48,7 @@ export const useUpdater = create<UpdaterState>((set, get) => ({
         if (!silent) {
           toast.add({
             title: `发现新版本 v${res.latestVersion}`,
-            description: res.releaseName || '点击“关于”查看更新内容并下载安装。',
+            description: res.releaseName || '点击“关于”查看更新内容并一键安装。',
             type: 'info',
           });
         }
@@ -89,6 +96,63 @@ export const useUpdater = create<UpdaterState>((set, get) => ({
       }
 
       return null;
+    }
+  },
+
+  startOneClickUpdate: async () => {
+    const { updateInfo } = get();
+    const downloadUrl = updateInfo?.downloadUrl;
+    if (!downloadUrl) {
+      // 若无具体二进制直链，降级打开外链下载
+      await get().openDownload();
+      return;
+    }
+
+    set({
+      status: 'downloading',
+      error: null,
+      progress: {
+        percent: 0,
+        transferredBytes: 0,
+        totalBytes: 0,
+        speedBytesPerSec: 0,
+        status: 'downloading',
+        message: '正在发起连接…',
+      },
+    });
+
+    let unlisten: (() => void) | null = null;
+    try {
+      unlisten = await listenUpdateProgress((payload) => {
+        set({
+          progress: payload,
+          status:
+            payload.status === 'installing'
+              ? 'installing'
+              : payload.status === 'done'
+              ? 'done'
+              : 'downloading',
+        });
+      });
+
+      await downloadAndInstallUpdate(downloadUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      set({
+        status: 'error',
+        error: `一键更新失败：${message}`,
+      });
+      toast.add({
+        title: '一键更新失败',
+        description: `${message}。已自动为您切换为手动下载。`,
+        type: 'error',
+      });
+      // 失败后引导打开外部下载
+      await get().openDownload();
+    } finally {
+      if (unlisten) {
+        unlisten();
+      }
     }
   },
 

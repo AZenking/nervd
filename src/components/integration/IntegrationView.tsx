@@ -116,7 +116,7 @@ export function IntegrationView() {
     setPhase('loading');
     void (async () => {
       try {
-        const raw = await api.listBranches(repoId, undefined, 1, 100);
+        const raw = await api.listBranches(repoId);
         const allBranches = parseBranchList(raw);
         const baseBranch = allBranches.find((b) => b.name === debounced.base);
         const baseSha = baseBranch?.commit?.id ?? baseBranch?.commit?.message ?? 'unknown_base';

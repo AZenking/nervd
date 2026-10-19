@@ -82,15 +82,10 @@ fn validate_settings(settings: &Settings) -> Result<(), String> {
         }
     }
     validate_branch_rule_templates(&settings.branch_rule_templates)?;
-    let template_ids: std::collections::HashSet<&str> = settings
-        .branch_rule_templates
-        .iter()
-        .map(|template| template.id.as_str())
-        .collect();
     for (workitem_id, repos) in &settings.workitem_repo_branch_templates {
         if workitem_id.trim().is_empty()
             || repos.iter().any(|(repo_id, template_id)| {
-                *repo_id <= 0 || !template_ids.contains(template_id.as_str())
+                *repo_id <= 0 || template_id.trim().is_empty() || template_id.len() > 100
             })
         {
             return Err("需求仓库的分支模板关联无效".into());
@@ -189,14 +184,22 @@ pub async fn save_branch_rule_templates(
         template.workitem_branch_pattern = template.workitem_branch_pattern.trim().to_string();
     }
     validate_branch_rule_templates(&templates)?;
-    let template_ids: std::collections::HashSet<String> = templates
+    let mut settings = state.settings.lock().unwrap().clone();
+    let old_template_ids: std::collections::HashSet<String> = settings
+        .branch_rule_templates
         .iter()
         .map(|template| template.id.clone())
         .collect();
-    let mut settings = state.settings.lock().unwrap().clone();
+    let new_template_ids: std::collections::HashSet<String> = templates
+        .iter()
+        .map(|template| template.id.clone())
+        .collect();
     settings.branch_rule_templates = templates;
+    // 仅清理在旧全局模板中存在、但在新全局模板中已被删除的 ID；保留迭代专属分支模板的绑定
     settings.workitem_repo_branch_templates.retain(|_, repos| {
-        repos.retain(|_, template_id| template_ids.contains(template_id));
+        repos.retain(|_, template_id| {
+            !old_template_ids.contains(template_id) || new_template_ids.contains(template_id)
+        });
         !repos.is_empty()
     });
     credentials::save_settings(&app, &settings)?;
@@ -218,13 +221,10 @@ pub async fn save_workitem_repo_branch_template(
     }
     let mut settings = state.settings.lock().unwrap().clone();
     if let Some(template_id) = template_id.map(|value| value.trim().to_string()) {
-        if !settings
-            .branch_rule_templates
-            .iter()
-            .any(|template| template.id == template_id)
-        {
-            return Err("所选分支模板不存在，请刷新后重试".into());
+        if template_id.is_empty() || template_id.len() > 100 {
+            return Err("分支模板 ID 无效".into());
         }
+        // 允许全局模板及当前迭代专属模板（迭代模板由前端按迭代上下文融合并校验），保存映射关系
         settings
             .workitem_repo_branch_templates
             .entry(workitem_id)
@@ -381,4 +381,36 @@ pub async fn list_projects(
         })
         .collect();
     Ok(Value::Array(items))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_validate_settings_allows_iteration_scoped_templates() {
+        let mut settings = Settings::default();
+        let mut repos = HashMap::new();
+        // 迭代专属分支模板 ID（不在全局 branch_rule_templates 中）
+        repos.insert(12345i64, "iter-template-sprint-99".to_string());
+        settings.workitem_repo_branch_templates.insert("REQ-101".to_string(), repos);
+
+        assert!(validate_settings(&settings).is_ok());
+    }
+
+    #[test]
+    fn test_validate_settings_rejects_invalid_template_id_or_repo_id() {
+        let mut settings = Settings::default();
+        let mut repos = HashMap::new();
+        repos.insert(0i64, "valid-id".to_string());
+        settings.workitem_repo_branch_templates.insert("REQ-101".to_string(), repos);
+        assert!(validate_settings(&settings).is_err());
+
+        let mut settings = Settings::default();
+        let mut repos = HashMap::new();
+        repos.insert(123i64, "".to_string());
+        settings.workitem_repo_branch_templates.insert("REQ-101".to_string(), repos);
+        assert!(validate_settings(&settings).is_err());
+    }
 }

@@ -12,4 +12,22 @@ export interface UpdateCheckResult {
   htmlUrl?: string | null;
 }
 
-export type UpdateStatus = 'idle' | 'checking' | 'available' | 'up_to_date' | 'error';
+export interface UpdateProgress {
+  percent: number;
+  transferredBytes: number;
+  totalBytes: number;
+  speedBytesPerSec: number;
+  status: 'downloading' | 'installing' | 'done' | 'error';
+  message?: string | null;
+}
+
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'up_to_date'
+  | 'downloading'
+  | 'installing'
+  | 'done'
+  | 'error';
+

@@ -151,3 +151,34 @@ pub(super) fn as_array(v: &Value) -> Vec<Value> {
         _ => vec![],
     }
 }
+
+/// 归一化 Codeup OpenAPI 分页聚合收集器：
+/// 循环翻页请求（单页 100），直到拉完或达到安全上限 max_items，自动合并所有项并返回
+pub(super) async fn fetch_all_codeup_pages(
+    client: &YunxiaoClient,
+    path: &str,
+    base_query: &[(&str, String)],
+    max_items: usize,
+) -> Result<Vec<Value>, String> {
+    let mut page: i64 = 1;
+    let per_page: i64 = 100;
+    let mut all_items: Vec<Value> = Vec::new();
+
+    loop {
+        let mut q = base_query.to_vec();
+        q.push(("page", page.to_string()));
+        q.push(("perPage", per_page.to_string()));
+
+        let resp = client.get(path, &q).await?;
+        let items = as_array(&resp);
+        let count = items.len();
+        all_items.extend(items);
+
+        if count < (per_page as usize) || all_items.len() >= max_items {
+            break;
+        }
+        page += 1;
+    }
+
+    Ok(all_items)
+}

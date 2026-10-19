@@ -219,7 +219,8 @@ pub fn run() {
             commands::delete_ai_api_key,
             commands::test_ai_connection,
             commands::ai_chat_completion,
-            commands::check_for_updates
+            commands::check_for_updates,
+            commands::download_and_install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running nervd");

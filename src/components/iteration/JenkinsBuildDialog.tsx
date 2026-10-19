@@ -254,7 +254,7 @@ export function JenkinsBuildDialog({
       })
       .finally(() => { if (active) setJobsLoading(false); });
     setBranchesLoading(true);
-    void api.listBranches(repoId, undefined, 1, 100)
+    void api.listBranches(repoId)
       .then((result) => { if (active) setBranches(branchNames(result)); })
       .catch(() => { if (active) setBranches([]); })
       .finally(() => { if (active) setBranchesLoading(false); });

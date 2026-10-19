@@ -1,4 +1,4 @@
-use super::common::{as_array, client_of, ensure_write, i64_of, org_of, s, s2};
+use super::common::{as_array, client_of, ensure_write, fetch_all_codeup_pages, i64_of, org_of, s, s2};
 use crate::AppState;
 use serde_json::{json, Value};
 use tauri::State;
@@ -9,17 +9,28 @@ use tauri::State;
 pub async fn list_repos(state: State<'_, AppState>, search: Option<String>, page: Option<i64>) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let mut q = vec![
-        ("page", page.unwrap_or(1).to_string()),
-        ("perPage", "50".to_string()),
-    ];
+    let mut base_q = Vec::new();
     if let Some(kw) = search {
-        if !kw.trim().is_empty() {
-            q.push(("search", kw));
+        let kw = kw.trim();
+        if !kw.is_empty() {
+            base_q.push(("search", kw.to_string()));
         }
     }
-    let resp = c.get(&format!("/oapi/v1/codeup/organizations/{org}/repositories"), &q).await?;
-    let items: Vec<Value> = as_array(&resp)
+    let path = format!("/oapi/v1/codeup/organizations/{org}/repositories");
+    let items_raw = match page {
+        Some(p) => {
+            let mut q = base_q;
+            q.push(("page", p.max(1).to_string()));
+            q.push(("perPage", "100".to_string()));
+            let resp = c.get(&path, &q).await?;
+            as_array(&resp)
+        }
+        None => {
+            // 未指定单页时自动多页递归聚合，取全组织仓库（上限 2000 个）
+            fetch_all_codeup_pages(&c, &path, &base_q, 2000).await?
+        }
+    };
+    let items: Vec<Value> = items_raw
         .iter()
         .map(|r| {
             json!({
@@ -45,20 +56,30 @@ pub async fn list_branches(
     if repo_id <= 0 {
         return Err("仓库 ID 无效".into());
     }
-    let page = page.unwrap_or(1).max(1);
-    let per_page = per_page.unwrap_or(100).clamp(1, 100);
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let mut q = vec![
-        ("page", page.to_string()),
-        ("perPage", per_page.to_string()),
-    ];
+    let mut base_q = Vec::new();
     if let Some(kw) = search {
-        if !kw.trim().is_empty() {
-            q.push(("search", kw));
+        let kw = kw.trim();
+        if !kw.is_empty() {
+            base_q.push(("search", kw.to_string()));
         }
     }
-    c.get(&format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/branches"), &q).await
+    let path = format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/branches");
+    match page {
+        Some(p) => {
+            let page = p.max(1);
+            let per_page = per_page.unwrap_or(100).clamp(1, 100);
+            let mut q = base_q;
+            q.push(("page", page.to_string()));
+            q.push(("perPage", per_page.to_string()));
+            c.get(&path, &q).await
+        }
+        None => {
+            let all = fetch_all_codeup_pages(&c, &path, &base_q, 2000).await?;
+            Ok(Value::Array(all))
+        }
+    }
 }
 
 #[tauri::command]
@@ -115,29 +136,30 @@ pub async fn list_repository_commits(state: State<'_, AppState>, repo_id: i64, p
     let org = org_of(&state)?;
     let q = vec![
         ("page", page.unwrap_or(1).to_string()),
-        ("perPage", "50".to_string()),
+        ("perPage", "100".to_string()),
     ];
     c.get(&format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/commits"), &q).await
 }
 
 // ---------- MR（oapi 里叫 changeRequests）----------
 
-/// 组织级列表，projectIds 过滤到本仓库
+/// 组织级列表，projectIds 过滤到本仓库，使用统一分页收集器自动取全
 #[tauri::command]
 pub async fn list_merge_requests(state: State<'_, AppState>, repo_id: i64, state_filter: Option<String>) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let mut q = vec![
-        ("page", "1".to_string()),
-        ("perPage", "50".to_string()),
+    let mut base_q = vec![
         ("projectIds", repo_id.to_string()),
     ];
     if let Some(st) = state_filter {
+        let st = st.trim();
         if !st.is_empty() {
-            q.push(("state", st));
+            base_q.push(("state", st.to_string()));
         }
     }
-    c.get(&format!("/oapi/v1/codeup/organizations/{org}/changeRequests"), &q).await
+    let path = format!("/oapi/v1/codeup/organizations/{org}/changeRequests");
+    let all = fetch_all_codeup_pages(&c, &path, &base_q, 1000).await?;
+    Ok(Value::Array(all))
 }
 
 #[tauri::command]

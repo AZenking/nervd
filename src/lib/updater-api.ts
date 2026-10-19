@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { UpdateCheckResult } from '@/types/updater';
+import { listen } from '@tauri-apps/api/event';
+import type { UpdateCheckResult, UpdateProgress } from '@/types/updater';
 import { APP_VERSION } from '@/lib/app-info';
 
 /**
@@ -27,3 +28,30 @@ export async function checkForUpdates(customEndpoint?: string | null): Promise<U
     customEndpoint: customEndpoint || null,
   });
 }
+
+/**
+ * 监听一键更新下载/安装进度事件
+ */
+export async function listenUpdateProgress(
+  callback: (progress: UpdateProgress) => void,
+): Promise<() => void> {
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  if (!isTauri) {
+    return () => {};
+  }
+  return listen<UpdateProgress>('update-progress', (event) => {
+    callback(event.payload);
+  });
+}
+
+/**
+ * 触发一键下载并自动安装更新
+ */
+export async function downloadAndInstallUpdate(downloadUrl: string): Promise<boolean> {
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  if (!isTauri) {
+    throw new Error('浏览器预览模式不支持一键本地安装，请在 Tauri 桌面端运行');
+  }
+  return invoke<boolean>('download_and_install_update', { downloadUrl });
+}
+
