@@ -2,6 +2,42 @@
 
 本文件为参与 **nervd** 项目开发与维护的 AI 智能体（Agents）提供统一的业务定位、设计基线、交互操作流程、前端规范与质量门禁指引。
 
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+This project has a CodeGraph MCP server (`codegraph_*` tools) configured. CodeGraph is a tree-sitter-parsed knowledge graph of every symbol, edge, and file. Reads are sub-millisecond and return structural information grep cannot.
+
+### When to prefer codegraph over native search
+
+Use codegraph for **structural** questions — what calls what, what would break, where is X defined, what is X's signature. Use native grep/read only for **literal text** queries (string contents, comments, log messages) or after you already have a specific file open.
+
+| Question | Tool |
+|---|---|
+| "Where is X defined?" / "Find symbol named X" | `codegraph_search` |
+| "What calls function Y?" | `codegraph_callers` |
+| "What does Y call?" | `codegraph_callees` |
+| "How does X reach/become Y? / trace the flow from X to Y" | `codegraph_trace` (one call = the whole path, incl. callback/React/JSX dynamic hops) |
+| "What would break if I changed Z?" | `codegraph_impact` |
+| "Show me Y's signature / source / docstring" | `codegraph_node` |
+| "Give me focused context for a task/area" | `codegraph_context` |
+| "See several related symbols' source at once" | `codegraph_explore` |
+| "What files exist under path/" | `codegraph_files` |
+| "Is the index healthy?" | `codegraph_status` |
+
+### Rules of thumb
+
+- **Answer directly — don't delegate exploration.** For "how does X work" / architecture questions, answer with 2-3 codegraph calls: `codegraph_context` first, then ONE `codegraph_explore` for the source of the symbols it surfaces. For a specific **flow** ("how does X reach Y") start with `codegraph_trace` from→to — one call returns the whole path with dynamic hops bridged — then ONE `codegraph_explore` for the bodies; don't rebuild the path with `codegraph_search` + `codegraph_callers`. Codegraph IS the pre-built index, so spawning a separate file-reading sub-task/agent — or running a grep + read loop — repeats work codegraph already did and costs more for the same answer.
+- **Trust codegraph results.** They come from a full AST parse. Do NOT re-verify them with grep — that's slower, less accurate, and wastes context.
+- **Don't grep first** when looking up a symbol by name. `codegraph_search` is faster and returns kind + location + signature in one call.
+- **Don't chain `codegraph_search` + `codegraph_node`** when you just want context — `codegraph_context` is one call.
+- **Don't loop `codegraph_node` over many symbols** — one `codegraph_explore` call returns several symbols' source grouped in a single capped call, while each separate node/Read call re-reads the whole context and costs far more.
+- **Index lag**: the file watcher debounces ~500ms behind writes; don't re-query immediately after editing a file in the same turn.
+
+### If `.codegraph/` doesn't exist
+
+The MCP server returns "not initialized." Ask the user: *"I notice this project doesn't have CodeGraph initialized. Want me to run `codegraph init -i` to build the index?"*
+<!-- CODEGRAPH_END -->
+
 ---
 
 ## 1. 项目定位与核心架构
@@ -205,7 +241,13 @@ nervd 面向企业真实云效与仓库，所有写操作必须通过前端组�
 
 在处理 nervd 项目的任务时，Agent 必须遵循以下工作准则：
 
-### 6.1 推荐 Skills 调用规范
+### 6.1 代码阅读与结构检索规范 (CodeGraph 优先)
+- **代码结构阅读与排查**：在阅读、查找和分析项目代码时，**必须优先使用顶部的 `codegraph_*` 工具**（例如 `codegraph_search`、`codegraph_callers`、`codegraph_callees`、`codegraph_trace`、`codegraph_context`、`codegraph_explore` 等），严禁盲目使用全文 grep 漫游或派发低效的文件阅读子任务。
+- **字面量文本搜索**：仅对普通字符串常量、UI 展示文案、注释或未被 AST 索引的配置文件使用文本 grep / 正则匹配。
+- **信任索引免二次验证**：CodeGraph 索引基于 Tree-sitter 全量 AST 解析，直接信任其给出的符号与调用路径结果，严禁再通过 grep 反复二次求证，避免浪费上下文和执行耗时。
+- **索引未初始化处理**：若 `.codegraph/` 未初始化，提示用户执行 `codegraph init -i` 构建索引。
+
+### 6.2 推荐 Skills 调用规范
 
 | 任务场景 | 推荐使用 Skill | 说明与职责 |
 |---|---|---|
@@ -216,14 +258,14 @@ nervd 面向企业真实云效与仓库，所有写操作必须通过前端组�
 | **渲染卡顿 / 内存泄漏排查** | **`memory-leak-debugging`** | 当长列表无限滚动、高频 CI 轮询或详情抽屉多次开闭出现卡顿时诊断排查。 |
 | **首屏与视图切换优化** | **`debug-optimize-lcp`** | 优化迭代列表大量工作项首屏渲染时间与加载骨架屏过渡。 |
 
-### 6.2 冻结契约保护
+### 6.3 冻结契约保护
 以下核心契约文件严禁未经架构决策破坏性修改：
 - `src/types.ts`
 - `docs/ipc-contract.md`
 - `package.json` / `pnpm-lock.yaml`
 - `vite.config.ts` / `tsconfig.json`
 
-### 6.3 每次变更必跑验证
+### 6.4 每次变更必跑验证
 由于终端环境中 node/pnpm 可能位于 `/opt/homebrew/bin`，执行验证脚本时须保证 PATH 完整。
 提交任何代码前必须执行：
 ```bash

@@ -183,10 +183,16 @@ function mergeChildrenWithOptimistic(
 /**
  * 列表行平滑更新（双缓冲 / Keep Previous Data）：
  * 1. 匹配已有项目（workitemId 或 identifier 相同）：保留其在原数组中的位置，就地更新字段；
- * 2. 匹配新增项目：追加至头部；
+ * 2. 匹配新增项目：
+ *    - 当 placement 为 'prepend'（默认，用于首页刷新/revalidate）：追加至头部；
+ *    - 当 placement 为 'append'（用于分页加载下一页）：追加至尾部；
  * 3. 原有已补拉的后续页数据完整保留，避免破坏性截断导致列表反复坍塌与瀑布式多轮重拉。
  */
-function mergeWorkitemRows(existing: WorkitemRow[], incoming: WorkitemRow[]): WorkitemRow[] {
+function mergeWorkitemRows(
+  existing: WorkitemRow[],
+  incoming: WorkitemRow[],
+  placement: 'prepend' | 'append' = 'prepend',
+): WorkitemRow[] {
   if (!existing.length) return incoming;
   const existingMap = new Map<string, number>();
   existing.forEach((it, index) => {
@@ -207,7 +213,8 @@ function mergeWorkitemRows(existing: WorkitemRow[], incoming: WorkitemRow[]): Wo
     }
   }
 
-  return newItems.length > 0 ? [...newItems, ...nextItems] : nextItems;
+  if (newItems.length === 0) return nextItems;
+  return placement === 'append' ? [...nextItems, ...newItems] : [...newItems, ...nextItems];
 }
 
 let pipelineRunRequestSequence = 0;
@@ -381,7 +388,7 @@ export const useApp = create<AppStore>((set, get) => ({
       set((st) => {
         if (next) {
           return {
-            items: [...st.items, ...mapped],
+            items: mergeWorkitemRows(st.items, mapped, 'append'),
             nextToken: page.nextToken,
             listFetchedAt: Date.now(),
           };
@@ -389,7 +396,7 @@ export const useApp = create<AppStore>((set, get) => ({
         // 当不是追加下一页时：
         // 若当前已有数据，采用平滑合并（保留已加载的多页数据，防止 filtered 坍塌和多轮瀑布补拉）
         // 若当前无数据（如首次加载或切换类别后），直接写入第 1 页
-        const items = st.items.length ? mergeWorkitemRows(st.items, mapped) : mapped;
+        const items = st.items.length ? mergeWorkitemRows(st.items, mapped, 'prepend') : mapped;
         return {
           items,
           nextToken: st.items.length ? (st.nextToken ?? page.nextToken) : page.nextToken,

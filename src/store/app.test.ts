@@ -11,7 +11,9 @@ vi.mock('@/lib/api', () => ({
 
 import * as api from '@/lib/api';
 import { useApp } from './app';
+import { scopedItems } from './ui';
 import type { WorkitemRow } from '@/lib/api';
+import type { IterationSummary } from '@/types';
 
 const row = (over: Partial<WorkitemRow>): WorkitemRow => ({
   identifier: 'REQ-2001',
@@ -347,6 +349,71 @@ describe('revalidateList & loadList 双缓冲平滑刷新（防列表坍塌与�
     // 既有项原地更新字段
     expect(state.items[1].workitemId).toBe('wi-1');
     expect(state.items[1].status).toBe('已解决');
+  });
+
+  it('loadList(next = true): 追加下一页时自动去重并追加在尾部，不产生重复条目', async () => {
+    useApp.setState({
+      settings: { defaultSpaceIdentifier: 'test-space' } as any,
+      items: [
+        row({ identifier: 'REQ-1', workitemId: 'wi-1', subject: '需求1', status: '开发中' }),
+        row({ identifier: 'REQ-2', workitemId: 'wi-2', subject: '需求2', status: '待办' }),
+      ],
+      nextToken: 'token-page-2',
+      loadingList: false,
+    });
+
+    // 远端返回下一页：包含重复项 wi-2（状态发生变化）和全新项 wi-3
+    vi.mocked(api.listWorkitems).mockResolvedValue({
+      items: [
+        {
+          identifier: 'REQ-2',
+          workitemId: 'wi-2',
+          subject: '需求2',
+          status: '开发中',
+          category: 'Req',
+        },
+        {
+          identifier: 'REQ-3',
+          workitemId: 'wi-3',
+          subject: '需求3',
+          status: '待办',
+          category: 'Req',
+        },
+      ],
+      nextToken: 'token-page-3',
+    });
+
+    await useApp.getState().loadList(true);
+
+    const state = useApp.getState();
+    // 总项数必须为 3（wi-2 去重原地更新，wi-3 有序追加在尾部），不得累加到 4 项！
+    expect(state.items).toHaveLength(3);
+    expect(state.items.map((it) => it.workitemId)).toEqual(['wi-1', 'wi-2', 'wi-3']);
+    // wi-2 状态原地更新
+    expect(state.items[1].status).toBe('开发中');
+    expect(state.nextToken).toBe('token-page-3');
+  });
+});
+
+describe('scopedItems 迭代收窄边界防护', () => {
+  it('当存在真实迭代但传入不存在的迭代名时，返回空数组，杜绝泄露全部工作项', () => {
+    const items = [
+      row({ identifier: 'REQ-1', workitemId: 'wi-1', sprintId: 'sprint-1' }),
+      row({ identifier: 'REQ-2', workitemId: 'wi-2', sprintId: 'sprint-2' }),
+    ];
+    const realIterations: IterationSummary[] = [
+      { id: 'sprint-1', name: 'Sprint 1', title: '', state: '进行中', startDate: '', endDate: '' },
+    ];
+    const scoped = scopedItems(items, 'Unknown Sprint', realIterations);
+    expect(scoped).toEqual([]);
+  });
+
+  it('当真实迭代为空（未加载完成/占位阶段）时，回退展示全量', () => {
+    const items = [
+      row({ identifier: 'REQ-1', workitemId: 'wi-1', sprintId: 'sprint-1' }),
+    ];
+    const scoped = scopedItems(items, 'Any Sprint', []);
+    expect(scoped).toEqual(items);
   });
 });
 

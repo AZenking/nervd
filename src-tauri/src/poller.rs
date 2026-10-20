@@ -40,6 +40,9 @@ pub fn spawn(app: tauri::AppHandle, inner: AppState) {
             if seen.len() > 500 {
                 seen.retain(|_, v| v == "RUNNING" || v == "WAITING");
             }
+            if seen_jenkins.len() > 500 {
+                seen_jenkins.retain(|_, v| v == "RUNNING" || v == "WAITING");
+            }
         }
     });
 }

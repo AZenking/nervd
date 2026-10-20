@@ -130,8 +130,9 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
         return Err("NOT_CONFIGURED: 请先在设置中选择默认项目空间".into());
     }
 
-    let mut children: Vec<Value> = Vec::new();
-    for category in ["Req", "Task", "Bug"] {
+    let search_category = |category: &'static str| {
+        let c = c.clone();
+        let path = format!("/oapi/v1/projex/organizations/{org}/workitems:search");
         let body = json!({
             "category": category,
             "spaceId": space,
@@ -141,14 +142,19 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
             "page": 1,
             "perPage": 100,
         });
-        let resp = c
-            .post(
-                &format!("/oapi/v1/projex/organizations/{org}/workitems:search"),
-                &[],
-                body,
-            )
-            .await
-            .unwrap_or(Value::Null);
+        async move {
+            c.post(&path, &[], body).await.unwrap_or(Value::Null)
+        }
+    };
+
+    let (resp_req, resp_task, resp_bug) = tokio::join!(
+        search_category("Req"),
+        search_category("Task"),
+        search_category("Bug"),
+    );
+
+    let mut children: Vec<Value> = Vec::new();
+    for resp in [resp_req, resp_task, resp_bug] {
         let rows = as_array(&resp);
         for w in &rows {
             if s(w, "parentId") != workitem_id {

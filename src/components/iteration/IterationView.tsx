@@ -198,13 +198,45 @@ export function IterationView() {
     [filtered, pageIndex],
   );
 
-  // 类别 / 迭代 / 筛选变化时回到第一页
-  useEffect(() => { setPageIndex(1); }, [category, iterationKey, activeFilterCount]);
+  // 补拉防护：限制连续自动补拉深度，防止需求少的小迭代把全空间成百上千条工作项瀑布式抽干
+  const backfillRoundRef = useRef(0);
+  const prevScopedCountRef = useRef(scoped.length);
+  const zeroYieldStreakRef = useRef(0);
 
-  // 当前页未填满且云端还有数据 → 自动补拉下一接口页（effect 随 loaded 增长连续触发，直至填满或取尽）
+  // 类别 / 迭代 / 筛选变化时回到第一页，并重置补拉计数器
   useEffect(() => {
-    if (pageItems.length < PAGE_SIZE && nextToken && !loadingList) void loadList(true);
-  }, [pageItems.length, nextToken, loadingList, loadList]);
+    setPageIndex(1);
+    backfillRoundRef.current = 0;
+    zeroYieldStreakRef.current = 0;
+    prevScopedCountRef.current = scoped.length;
+  }, [category, iterationKey, activeFilterCount]);
+
+  // 当用户主动翻页时，也给当前新页重置补拉轮数
+  useEffect(() => {
+    backfillRoundRef.current = 0;
+    zeroYieldStreakRef.current = 0;
+    prevScopedCountRef.current = scoped.length;
+  }, [pageIndex]);
+
+  // 当前页未填满且云端还有数据 → 适度自动补拉下一接口页（最多尝试 3 轮，或连续 2 轮无本迭代新增则熔断）
+  useEffect(() => {
+    if (pageItems.length >= PAGE_SIZE || !nextToken || loadingList) return;
+
+    if (scoped.length > prevScopedCountRef.current) {
+      zeroYieldStreakRef.current = 0;
+    } else if (backfillRoundRef.current > 0) {
+      zeroYieldStreakRef.current += 1;
+    }
+    prevScopedCountRef.current = scoped.length;
+
+    // 熔断条件：已达最大连续补拉轮数 (3次) 或 连续2次补拉全无本迭代数据
+    if (backfillRoundRef.current >= 3 || zeroYieldStreakRef.current >= 2) {
+      return;
+    }
+
+    backfillRoundRef.current += 1;
+    void loadList(true);
+  }, [pageItems.length, nextToken, loadingList, loadList, scoped.length]);
 
   // 计数口径（工具行尾部 + 列表底部共用）：全部已加载 y 项（当前迭代 x 项在工具行单独拼）
   const countSummary = `全部已加载 ${items.length} 项`;

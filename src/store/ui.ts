@@ -50,7 +50,7 @@ export interface FilterableRow {
 const assigneeOf = (it: FilterableRow) => (it.assignedTo && it.assignedTo !== '—' ? it.assignedTo : '未分配');
 const relatedOf = (it: FilterableRow) => (it.relatedTo?.length ? it.relatedTo : ['未关联']);
 
-/** 按当前迭代收窄工作项：真实迭代命中时只留 sprint 匹配的行（未命中迭代 / 占位壳=全量） */
+/** 按当前迭代收窄工作项：真实迭代命中时只留 sprint 匹配的行（真实迭代存在但未命中时返回空；占位壳/未加载真实迭代时回退全量） */
 export function scopedItems<T extends FilterableRow>(
   items: T[],
   iterationKey: string,
@@ -58,7 +58,7 @@ export function scopedItems<T extends FilterableRow>(
 ): T[] {
   if (!realIterations.length) return items;
   const current = realIterations.find((it) => it.name === iterationKey);
-  if (!current) return items;
+  if (!current) return [];
   return items.filter((it) => it.sprintId === current.id);
 }
 

@@ -58,7 +58,7 @@ export const mockCallsOf = (page: Page, cmd: string) =>
 export const test = base.extend({
   app: [
     async ({ page }, use) => {
-      await page.goto('/');
+      await page.goto('/#workbench');
       await expect(page.locator(LIST)).toBeVisible();
       await expect(page.getByTestId('pagination-info')).toContainText('第 1 - 30 项', { timeout: 20_000 });
       await mockReset(page);

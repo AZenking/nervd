@@ -1,6 +1,6 @@
 [package]
 name = "nervd"
-version = "0.2.3"
+version = "0.2.4"
 description = "以云效需求为维度的 CI/CD 桌面工作台"
 authors = ["charles"]
 edition = "2021"
@@ -21,7 +21,7 @@ serde_json = "1"
 reqwest = { version = "0.13", features = ["json", "query"] }
 thiserror = "2"
 keyring = "4"
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "macros"] }
 httpdate = "1.0.3"
 
 [profile.release]
