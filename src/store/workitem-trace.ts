@@ -36,9 +36,13 @@ function asArray(value: unknown): unknown[] {
 
 function mapBranches(value: unknown, identifier: string, pattern: string): BranchInfo[] {
   const branches: BranchInfo[] = [];
+  const idLower = identifier.trim().toLowerCase();
   for (const branch of asArray(value)) {
     const name = asString(pick(branch, 'name'));
-    if (name && matchesWorkitem(identifier, name, pattern)) {
+    if (!name) continue;
+    const isMatched = matchesWorkitem(identifier, name, pattern) ||
+      (idLower.length > 0 && name.toLowerCase().includes(idLower));
+    if (isMatched) {
       branches.push({ name, commit: pick(branch, 'commit') as BranchInfo['commit'] });
     }
   }
@@ -47,9 +51,13 @@ function mapBranches(value: unknown, identifier: string, pattern: string): Branc
 
 function mapCommits(value: unknown, identifier: string, pattern: string): CommitSummary[] {
   const commits: CommitSummary[] = [];
+  const idLower = identifier.trim().toLowerCase();
   for (const commit of asArray(value)) {
     const message = asString(pick(commit, 'message')) || asString(pick(commit, 'title'));
-    if (!message || !matchesWorkitem(identifier, message, pattern)) continue;
+    if (!message) continue;
+    const isMatched = matchesWorkitem(identifier, message, pattern) ||
+      (idLower.length > 0 && message.toLowerCase().includes(idLower));
+    if (!isMatched) continue;
 
     commits.push({
       sha: asString(pick(commit, 'sha')) || asString(pick(commit, 'id')),
@@ -67,11 +75,31 @@ function mapCommits(value: unknown, identifier: string, pattern: string): Commit
   return commits;
 }
 
-function mapMergeRequests(value: unknown, identifier: string, pattern: string): MrSummary[] {
+export function mapMergeRequests(value: unknown, identifier: string, pattern: string): MrSummary[] {
   const mergeRequests: MrSummary[] = [];
+  const idLower = identifier.trim().toLowerCase();
   for (const request of asArray(value)) {
     const title = asString(pick(request, 'title'));
-    if (!title || !matchesWorkitem(identifier, title, pattern)) continue;
+    const sourceBranch =
+      asString(pick(request, 'sourceBranch')) || asString(pick(request, 'source_branch'));
+    const description =
+      asString(pick(request, 'description')) || asString(pick(request, 'desc'));
+
+    // 匹配规则：MR 标题匹配、源分支名匹配、或描述中提及该工作项
+    const titleMatched = Boolean(
+      (title && matchesWorkitem(identifier, title, pattern)) ||
+      (idLower && title.toLowerCase().includes(idLower)),
+    );
+    const branchMatched = Boolean(
+      (sourceBranch && matchesWorkitem(identifier, sourceBranch, pattern)) ||
+      (idLower && sourceBranch.toLowerCase().includes(idLower)),
+    );
+    const descMatched = Boolean(
+      (description && matchesWorkitem(identifier, description, pattern)) ||
+      (idLower && description.toLowerCase().includes(idLower)),
+    );
+
+    if (!titleMatched && !branchMatched && !descMatched) continue;
 
     const webUrl =
       asString(pick(request, 'detailUrl')) ||
@@ -83,8 +111,7 @@ function mapMergeRequests(value: unknown, identifier: string, pattern: string): 
       localId: Number(pick(request, 'localId') ?? pick(request, 'local_id') ?? 0),
       title,
       state: asString(pick(request, 'state')) || asString(pick(request, 'status')),
-      sourceBranch:
-        asString(pick(request, 'sourceBranch')) || asString(pick(request, 'source_branch')),
+      sourceBranch,
       targetBranch:
         asString(pick(request, 'targetBranch')) || asString(pick(request, 'target_branch')),
       author: pick(request, 'author') as MrSummary['author'],

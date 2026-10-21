@@ -1186,7 +1186,7 @@ export const useApp = create<AppStore>((set, get) => ({
         childrenDebug: childrenRes.debug,
         detailFetchedAt: Date.now(),
       });
-      void get().loadTrace();
+      await get().loadTrace();
     } catch (e) {
       errorLog('app.reloadCurrentDetail', e);
     }

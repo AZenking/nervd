@@ -59,10 +59,12 @@ export function RequirementDetails({
   const {
     selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
     iterations, trace, traceLoading, currentUser,
-    saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast, reloadCurrentDetail,
+    saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast, reloadCurrentDetail, loadTrace,
   } = useApp();
   const allowWrite = settings?.allowWriteOps ?? false;
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshingCodeArea, setRefreshingCodeArea] = useState(false);
+  const [codeAreaRefreshSignal, setCodeAreaRefreshSignal] = useState(0);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
 
   useEffect(() => {
@@ -77,6 +79,22 @@ export function RequirementDetails({
       setToast({ text: '工作项已更新至最新状态', kind: 'ok' });
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleRefreshCodeArea = async () => {
+    if (refreshingCodeArea || traceLoading) return;
+    setRefreshingCodeArea(true);
+    try {
+      setCodeAreaRefreshSignal((s) => s + 1);
+      setBaselineRetry((v) => v + 1);
+      await loadTrace();
+      setToast({ text: '已刷新关联仓库的分支、提交与合并请求', kind: 'ok' });
+    } catch (e) {
+      errorLog('repo-code-refresh', e);
+      setToast({ text: `刷新失败：${humanizeError(e)}`, kind: 'fail' });
+    } finally {
+      setRefreshingCodeArea(false);
     }
   };
 
@@ -753,6 +771,22 @@ export function RequirementDetails({
                 : '当前使用设置中的默认云效仓库；保存选择后将覆盖默认值'}
               action={(
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={refreshingCodeArea || traceLoading}
+                    onClick={() => void handleRefreshCodeArea()}
+                    className="h-8 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    title="重新从云效拉取关联仓库的分支、合并请求、Commit 及分支落差"
+                  >
+                    <RefreshCwIcon
+                      className={cn(
+                        'size-3.5 mr-1',
+                        (refreshingCodeArea || traceLoading) && 'animate-spin text-primary',
+                      )}
+                    />
+                    {refreshingCodeArea || traceLoading ? '刷新中…' : '刷新代码与 MR'}
+                  </Button>
                   {hasRepoOverride && (
                     <Button
                       variant="ghost"
@@ -953,6 +987,7 @@ export function RequirementDetails({
                     baselineState={rule
                       ? baselineCheck?.branch === rule.baselineBranch ? baselineCheck.state : 'loading'
                       : undefined}
+                    refreshSignal={codeAreaRefreshSignal}
                     onRetryBaseline={() => setBaselineRetry((value) => value + 1)}
                     onTemplateChange={(templateId) => void saveRepoTemplate(repo.id, templateId)}
                     onUnlinkRepo={effectiveRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}

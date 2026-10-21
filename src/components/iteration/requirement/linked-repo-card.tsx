@@ -58,6 +58,7 @@ export interface LinkedRepoCardProps {
   templateEnabled: boolean;
   baselineBranch?: string;
   baselineState?: IterationBaselineCheck['state'];
+  refreshSignal?: number;
   onRetryBaseline: () => void;
   onTemplateChange: (templateId: string | null) => void;
   onUnlinkRepo?: (repoId: number) => void;
@@ -80,6 +81,7 @@ export function LinkedRepoCard({
   templateEnabled,
   baselineBranch,
   baselineState,
+  refreshSignal,
   onRetryBaseline,
   onTemplateChange,
   onUnlinkRepo,
@@ -105,6 +107,7 @@ export function LinkedRepoCard({
   const [expandedMrId, setExpandedMrId] = useState<number | null>(null);
   const [showAllMrs, setShowAllMrs] = useState(false);
   const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
+  const [cardRefreshing, setCardRefreshing] = useState(false);
 
   const divergence = useBranchDivergence(
     repo.id,
@@ -129,7 +132,7 @@ export function LinkedRepoCard({
       .then((branch) => { if (active) setDeveloperBranchState(branch ? 'exists' : 'missing'); })
       .catch(() => { if (active) setDeveloperBranchState('error'); });
     return () => { active = false; };
-  }, [repo.id, developerBranch]);
+  }, [repo.id, developerBranch, refreshSignal]);
 
   useEffect(() => {
     let active = true;
@@ -142,7 +145,13 @@ export function LinkedRepoCard({
       .then((branch) => { if (active) setDefaultBaseState(branch ? 'exists' : 'missing'); })
       .catch(() => { if (active) setDefaultBaseState('error'); });
     return () => { active = false; };
-  }, [repo.id, iterationId]);
+  }, [repo.id, iterationId, refreshSignal]);
+
+  useEffect(() => {
+    if (refreshSignal && refreshSignal > 0) {
+      divergence.refetch();
+    }
+  }, [refreshSignal]);
 
   // 统一排序 MR 列表：优先匹配本需求开发分支的，其次按 localId 倒序
   const sortedMergeRequests = [...mergeRequests].sort((a, b) => {
@@ -271,6 +280,28 @@ export function LinkedRepoCard({
     }, 60);
   };
 
+  /** 单仓就地刷新：重新检测分支、落差与 MR 列表 */
+  const handleRefreshSingleRepo = async () => {
+    if (cardRefreshing) return;
+    setCardRefreshing(true);
+    try {
+      if (developerBranch) {
+        setDeveloperBranchState('loading');
+        const branch = await findRemoteBranch(repo.id, developerBranch).catch(() => null);
+        setDeveloperBranchState(branch ? 'exists' : 'missing');
+      }
+      onRetryBaseline();
+      divergence.refetch();
+      await loadTrace();
+      setToast({ text: `已刷新「${repo.name}」分支与 MR 数据`, kind: 'ok' });
+    } catch (error) {
+      errorLog('repo-card-refresh', error);
+      setToast({ text: `刷新失败：${humanizeError(error)}`, kind: 'fail' });
+    } finally {
+      setCardRefreshing(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-border/70 bg-card/60 p-4 transition-all hover:border-border hover:shadow-xs flex flex-col gap-3.5">
       {/* 头部：仓库标识与全路径 + 模板选择 + MR 入口 (二选一) + 常驻构建入口 + CI 状态与详情 + 更多 */}
@@ -392,6 +423,25 @@ export function LinkedRepoCard({
             onOpen={() => setCiDetailsOpen(true)}
           />
 
+          {/* 单仓独立刷新按钮 */}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="刷新此仓库的分支、MR 与落差"
+                  disabled={cardRefreshing}
+                  onClick={() => void handleRefreshSingleRepo()}
+                />
+              }
+            >
+              <RefreshCwIcon className={cn('size-3.5', cardRefreshing && 'animate-spin text-primary')} />
+            </TooltipTrigger>
+            <TooltipContent>刷新此仓库分支、落差与合并请求</TooltipContent>
+          </Tooltip>
+
           {/* 更多操作下拉菜单 */}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -414,9 +464,9 @@ export function LinkedRepoCard({
                 <GitPullRequestIcon className="size-3.5 mr-2" />
                 自定义创建 MR…
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => divergence.refetch()}>
-                <RefreshCwIcon className="size-3.5 mr-2" />
-                重新检查分支落差
+              <DropdownMenuItem onClick={() => void handleRefreshSingleRepo()} disabled={cardRefreshing}>
+                <RefreshCwIcon className={cn('size-3.5 mr-2', cardRefreshing && 'animate-spin')} />
+                刷新分支与 MR 数据
               </DropdownMenuItem>
               {sortedMergeRequests.length > 0 && !showAllMrs && (
                 <DropdownMenuItem onClick={() => setShowAllMrs(true)}>
