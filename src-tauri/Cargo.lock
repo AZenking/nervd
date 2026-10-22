@@ -2482,7 +2482,7 @@ dependencies = [
 
 [[package]]
 name = "nervd"
-version = "0.2.5"
+version = "0.2.7"
 dependencies = [
  "httpdate",
  "keyring",

@@ -1,6 +1,6 @@
 [package]
 name = "nervd"
-version = "0.2.5"
+version = "0.2.7"
 description = "以云效需求为维度的 CI/CD 桌面工作台"
 authors = ["charles"]
 edition = "2021"
