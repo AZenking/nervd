@@ -96,6 +96,12 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
 export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'full-settings';
 export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security' | 'ai' | 'about';
 
+/** 构建工作台的内部页面；具体参数草稿由工作台 hook 持有。 */
+export type BuildWorkbenchPage = 'runs' | 'parameters' | 'logs';
+export type BuildWorkbenchTarget =
+  | { kind: 'repo'; repoId: number; title: string; defaultBranch?: string; runId?: string }
+  | { kind: 'pipeline'; pipelineId: number; jobId?: number; title: string; runId?: number };
+
 /** 面包屑上的工作项（父 › 子层级链的节点） */
 export interface WorkitemCrumb {
   workitemId: string;
@@ -156,6 +162,15 @@ interface UiStore {
   theme: 'dark' | 'light';
   setTheme(theme: 'dark' | 'light'): void;
   toggleTheme(event?: { clientX: number; clientY: number } | null): void;
+  /** 单一构建工作台导航状态；只保存目标与页面，不保存表单草稿。 */
+  buildWorkbenchOpen: boolean;
+  buildWorkbenchTarget: BuildWorkbenchTarget | null;
+  buildWorkbenchPage: BuildWorkbenchPage;
+  buildWorkbenchHistory: BuildWorkbenchPage[];
+  openBuildWorkbench(target: BuildWorkbenchTarget, page?: BuildWorkbenchPage): void;
+  navigateBuildWorkbench(page: BuildWorkbenchPage): void;
+  backBuildWorkbench(): void;
+  closeBuildWorkbench(): void;
 }
 
 /** 离开设置视图且草稿有未保存修改：无校验错误则静默保存放行，有阻断错误则弹窗确认 */
@@ -206,6 +221,42 @@ export const useUi = create<UiStore>((set, get) => {
     setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
     aboutOpen: false,
     setAboutOpen: (aboutOpen) => set({ aboutOpen }),
+    buildWorkbenchOpen: false,
+    buildWorkbenchTarget: null,
+    buildWorkbenchPage: 'runs',
+    buildWorkbenchHistory: [],
+    openBuildWorkbench: (target, page = 'runs') =>
+      set({
+        buildWorkbenchOpen: true,
+        buildWorkbenchTarget: target,
+        buildWorkbenchPage: page,
+        // 页面直接进入参数 / 日志时，返回到该目标的运行记录，而不是直接关闭工作台。
+        buildWorkbenchHistory: page === 'runs' ? [] : ['runs'],
+      }),
+    navigateBuildWorkbench: (page) =>
+      set((st) => ({
+        buildWorkbenchOpen: true,
+        buildWorkbenchPage: page,
+        buildWorkbenchHistory: st.buildWorkbenchPage === page
+          ? st.buildWorkbenchHistory
+          : [...st.buildWorkbenchHistory, st.buildWorkbenchPage],
+      })),
+    backBuildWorkbench: () =>
+      set((st) => {
+        const previous = st.buildWorkbenchHistory[st.buildWorkbenchHistory.length - 1];
+        if (!previous) return { buildWorkbenchOpen: false, buildWorkbenchTarget: null };
+        return {
+          buildWorkbenchPage: previous,
+          buildWorkbenchHistory: st.buildWorkbenchHistory.slice(0, -1),
+        };
+      }),
+    closeBuildWorkbench: () =>
+      set({
+        buildWorkbenchOpen: false,
+        buildWorkbenchTarget: null,
+        buildWorkbenchPage: 'runs',
+        buildWorkbenchHistory: [],
+      }),
     theme: (typeof localStorage !== 'undefined' && (localStorage.getItem('nervd-theme') as 'dark' | 'light')) || 'dark',
     setTheme: (theme) => {
       if (typeof localStorage !== 'undefined') localStorage.setItem('nervd-theme', theme);

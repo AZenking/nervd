@@ -5,7 +5,7 @@ import { AppSidebar } from './nav/app-sidebar';
 import { IterationView } from './iteration/IterationView';
 import { RequirementDetails } from './iteration/RequirementDetails';
 import { IntegrationView } from './integration/IntegrationView';
-import { LogViewer } from './LogViewer';
+import { BuildWorkbenchDrawer } from './build-workbench';
 import { OverviewView } from './OverviewView';
 import { SettingsView } from './SettingsView';
 import { CommandMenu } from './command-menu';
@@ -227,7 +227,7 @@ export function Shell() {
           </section>
         </div>
       </SidebarInset>
-      <LogViewer />
+      <BuildWorkbenchDrawer />
       <DirtyGuardDialog />
       <ShortcutsDialog />
       <AboutDialog />

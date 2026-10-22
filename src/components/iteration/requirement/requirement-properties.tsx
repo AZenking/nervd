@@ -1,32 +1,43 @@
 import {
   CalendarIcon, ClockIcon, DatabaseIcon, FolderIcon, GitBranchIcon, LayersIcon, UserIcon, CheckIcon,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { Descriptions } from '@/components/ui/descriptions';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { StatusIcon } from '@/components/status-icon';
 import { SearchableAssigneePopover } from './assignee-popover';
-import { STATUS_OPTIONS } from './types';
+import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 
 /** 原地快速流转详情状态 Popover */
 export function DetailStatusPopover({
   status,
+  statusId,
   workitemId,
   variant = 'badge',
 }: {
   status: string;
+  statusId?: string;
   workitemId?: string;
   variant?: 'badge' | 'cell';
 }) {
-  const updateWorkitemStatusOptimistic = useApp((s) => s.updateWorkitemStatusOptimistic);
+  const [open, setOpen] = useState(false);
+  const { statuses, loadingStatuses, fetchStatuses, changeStatus } = useWorkitemWorkflowStatuses({
+    workitemId,
+    currentStatusId: statusId,
+    currentStatusName: status,
+  });
+
+  useEffect(() => {
+    if (open) void fetchStatuses();
+  }, [fetchStatuses, open]);
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         className={cn(
           'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer rounded-sm hover:bg-muted/80 text-foreground',
@@ -41,21 +52,19 @@ export function DetailStatusPopover({
         <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
           流转状态
         </div>
-        {STATUS_OPTIONS.map((st) => (
+        {loadingStatuses && <div className="px-2 py-1.5 text-xs text-muted-foreground">读取状态流程…</div>}
+        {!loadingStatuses && statuses.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>}
+        {!loadingStatuses && statuses.map((st) => (
           <DropdownMenuItem
-            key={st.name}
-            onClick={() => {
-              if (workitemId) {
-                void updateWorkitemStatusOptimistic(workitemId, st.name);
-              }
-            }}
+            key={st.id}
+            onClick={() => void changeStatus(st)}
             className={cn(
               'flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm cursor-pointer',
               status === st.name && 'bg-accent font-medium text-accent-foreground',
             )}
           >
             <StatusIcon status={st.name} className="size-3.5" />
-            <span className="flex-1">{st.label}</span>
+            <span className="flex-1">{st.name}</span>
             {status === st.name && <CheckIcon className="size-3 text-primary" />}
           </DropdownMenuItem>
         ))}
@@ -90,6 +99,7 @@ export function DetailAssigneePopover({
 
 export interface RequirementPropertiesProps {
   statusName: string;
+  statusId?: string;
   selectedId: string | null;
   assignedToName: string;
   candidateAssignees?: { id: string; name: string; role?: string }[];
@@ -108,6 +118,7 @@ export interface RequirementPropertiesProps {
 /** 右侧边栏：Linear 式属性栏（全屏/非 embedded 模式下展示） */
 export function RequirementProperties({
   statusName,
+  statusId,
   selectedId,
   assignedToName,
   candidateAssignees,
@@ -142,6 +153,7 @@ export function RequirementProperties({
               children: (
                 <DetailStatusPopover
                   status={statusName}
+                  statusId={statusId}
                   workitemId={selectedId ?? undefined}
                   variant="cell"
                 />

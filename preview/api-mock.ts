@@ -80,6 +80,18 @@ const subjectPool = [
 
 /** 生成行缓存：getWorkitem 等详情接口可回查滚动加载出来的行 */
 const generatedRows = new Map<string, WorkitemRow>();
+const mockWorkitemUpdates = new Map<string, {
+  status?: string;
+  statusId?: string;
+  description?: string;
+  assignedTo?: string;
+  assignedToId?: string;
+}>();
+
+function applyMockWorkitemUpdate(row: WorkitemRow): WorkitemRow {
+  const update = mockWorkitemUpdates.get(row.workitemId);
+  return update ? { ...row, ...update } : row;
+}
 
 const sprintIds = iterations.map((it) => it.id);
 
@@ -113,7 +125,7 @@ function generatedPage(category: Category, page: number, perPage: number): Worki
       updatedAt: `2026-10-${String(1 + (n % 8)).padStart(2, '0')} ${String(8 + (n % 12)).padStart(2, '0')}:${String((n * 7) % 60).padStart(2, '0')}`,
     };
     generatedRows.set(row.workitemId, row);
-    return row;
+    return applyMockWorkitemUpdate(row);
   });
 }
 
@@ -282,37 +294,42 @@ export async function getWorkitem(workitemId: string): Promise<Record<string, un
   const allChildren = Object.values(mockChildren).flat();
   const child = allChildren.find((c) => c.workitemId === workitemId);
   if (child) {
+    const update = mockWorkitemUpdates.get(workitemId);
     return {
       workitem: {
+        workitemId: child.workitemId,
         identifier: child.identifier,
         serialNumber: child.identifier.replace(/^[A-Za-z]+-/, ''),
         subject: child.subject,
-        status: child.status,
-        statusId: child.statusId,
+        status: update?.status ?? child.status,
+        statusId: update?.statusId ?? child.statusId,
         category: child.category,
-        assignedTo: { name: child.assignedTo },
+        assignedTo: { id: update?.assignedToId, name: update?.assignedTo ?? child.assignedTo },
         space: { name: '平台工程' },
         sprint: { name: 'Benz-20261416' },
         gmtModified: child.gmtModified,
-        description: { raw_text: `这是子工作项 ${child.identifier}（${child.subject}）的详细说明，挂载在父需求下。` },
+        description: { raw_text: update?.description ?? `这是子工作项 ${child.identifier}（${child.subject}）的详细说明，挂载在父需求下。` },
       },
     };
   }
-  const cur = items.find((i) => i.workitemId === workitemId)
+  const cur = applyMockWorkitemUpdate(items.find((i) => i.workitemId === workitemId)
     ?? generatedRows.get(workitemId)
-    ?? items.map((i) => ({ ...i, subject: '（mock 子工作项）完善交付链路' })).find((i) => i.workitemId === workitemId);
+    ?? items.map((i) => ({ ...i, subject: '（mock 子工作项）完善交付链路' })).find((i) => i.workitemId === workitemId));
+  const update = mockWorkitemUpdates.get(workitemId);
   return {
     workitem: {
+      workitemId,
       identifier: cur?.identifier,
       serialNumber: cur?.identifier ? cur.identifier.replace(/^[A-Za-z]+-/, '') : undefined,
       subject: cur?.subject,
       status: cur?.status,
+      statusId: update?.statusId,
       category: cur?.category,
-      assignedTo: { name: cur?.assignedTo },
+      assignedTo: { id: update?.assignedToId, name: cur?.assignedTo },
       space: { name: cur?.spaceName ?? '平台工程' },
       sprint: { name: cur?.sprintName ?? 'Benz-20261416' },
       gmtModified: cur?.updatedAt,
-      description: { raw_text: '让“需求 → 分支 → 提交 → MR → 流水线”在一个工作面内可解释、可操作。当前需求正在整理追溯链路展示。' },
+      description: { raw_text: update?.description ?? '让“需求 → 分支 → 提交 → MR → 流水线”在一个工作面内可解释、可操作。当前需求正在整理追溯链路展示。' },
     },
   };
 }
@@ -329,7 +346,7 @@ export async function getWorkitemWorkflowStatuses(): Promise<WorkitemStatusOptio
 }
 export async function updateWorkitem(
   workitemId: string,
-  update: { subject?: string; statusId?: string; description?: string; formatType?: string },
+  update: { subject?: string; statusId?: string; description?: string; formatType?: string; assignedTo?: string },
 ): Promise<unknown> {
   await gate('update_workitem', [workitemId, update]);
   const child = Object.values(mockChildren).flat().find((item) => item.workitemId === workitemId);
@@ -341,6 +358,34 @@ export async function updateWorkitem(
       child.statusId = status.id;
       child.status = status.name;
     }
+    if (update.description !== undefined) {
+      mockWorkitemUpdates.set(workitemId, { ...mockWorkitemUpdates.get(workitemId), description: update.description });
+    }
+    if (update.assignedTo !== undefined) {
+      child.assignedTo = update.assignedTo;
+      mockWorkitemUpdates.set(workitemId, { ...mockWorkitemUpdates.get(workitemId), assignedTo: update.assignedTo });
+    }
+  } else {
+    const current = applyMockWorkitemUpdate(
+      items.find((item) => item.workitemId === workitemId) ?? generatedRows.get(workitemId) ?? {
+        identifier: workitemId,
+        workitemId,
+        subject: '',
+        status: '待处理',
+        category: 'Req',
+      },
+    );
+    const nextStatus = update.statusId
+      ? mockSubtaskStatuses.find((status) => status.id === update.statusId)?.name
+      : undefined;
+    mockWorkitemUpdates.set(workitemId, {
+      ...mockWorkitemUpdates.get(workitemId),
+      ...(nextStatus ? { status: nextStatus } : {}),
+      ...(update.statusId ? { statusId: update.statusId } : {}),
+      ...(update.description !== undefined ? { description: update.description } : {}),
+      ...(update.assignedTo !== undefined ? { assignedTo: update.assignedTo } : {}),
+    });
+    generatedRows.set(workitemId, { ...current, ...(nextStatus ? { status: nextStatus } : {}) });
   }
   return { success: true };
 }
@@ -457,6 +502,14 @@ export async function getRepoCiLogs(repoId: number, runId: string): Promise<stri
   await sleep(300);
   return Array.from({ length: 24 }, (_, i) => `[mock] ${repoId}/${runId} step ${i + 1} … ok`).join('\n');
 }
+export async function getRepoCiStages(_repoId: number, _runId: string) {
+  await sleep(80);
+  return [
+    { id: 'checkout', name: 'Checkout', status: 'SUCCESS', durationMillis: 12_000 },
+    { id: 'build', name: 'Build', status: 'SUCCESS', durationMillis: 96_000 },
+    { id: 'test', name: 'Test', status: 'SUCCESS', durationMillis: 72_000 },
+  ];
+}
 export async function getRepoCiLogChunk(repoId: number, runId: string, startOffset: number) {
   await sleep(250);
   const key = `${repoId}/${runId}`;
@@ -571,7 +624,16 @@ export async function listPipelineRuns(pipelineId: number) {
     { pipelineRunId: 76, status: p?.status ?? 'SUCCESS', startTime: Date.now() - 300e3, endTime: Date.now(), executorAccountId: 'charles', triggerMode: 1 },
   ];
 }
-export async function getPipelineRun() { return null; }
+export async function getPipelineRun(pipelineId: number, runId: number) {
+  await sleep(120);
+  return {
+    pipelineRun: {
+      pipelineId,
+      pipelineRunId: runId,
+      jobs: { Job: [{ jobId: Number(`${pipelineId}${runId}`.slice(-6)) }] },
+    },
+  };
+}
 export async function startPipelineRun(): Promise<unknown> { await gate('start_pipeline_run'); await sleep(400); return null; }
 export async function stopPipelineRun(): Promise<unknown> { await sleep(400); return null; }
 export async function getJobLogs(): Promise<string> { return '[mock] job logs'; }

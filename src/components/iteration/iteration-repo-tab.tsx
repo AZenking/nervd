@@ -14,7 +14,7 @@ import {
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import type { RepoSummary } from '@/types';
-import { buildRunParameter, ciProviderLabel, ciStatusText, triggerRepoCiWithFeedback } from '@/lib/ci';
+import { buildRunParameter, ciProviderLabel, ciStatusText } from '@/lib/ci';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -24,9 +24,8 @@ import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { EmptyHint } from '@/components/empty-hint';
 import { StatusBadge } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
-import { WriteOpButton } from '@/components/WriteOpButton';
 import { JenkinsBuildDialog } from './JenkinsBuildDialog';
-import { RepositoryCiDetails } from './RepositoryCiDetails';
+import { BuildWorkbenchTrigger, openBuildWorkbenchFromTrigger, openRepoBuildLogs } from '@/components/build-workbench';
 import { KeyboardPagination } from './keyboard-pagination';
 
 type WorkitemItem = ReturnType<typeof useApp.getState>['items'][number];
@@ -57,8 +56,7 @@ export function IterationRepoCard({
   onOpenDetail?: (item: WorkitemItem) => void;
 }) {
   const { repo, workitems, suggestedBranch } = repoItem;
-  const { repoCiByRepo, settings, openRepoCiLogs } = useApp();
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const { repoCiByRepo, settings } = useApp();
 
   const entry = repoCiByRepo[repo.id];
   const snapshot = entry?.snapshot;
@@ -174,11 +172,11 @@ export function IterationRepoCard({
               />
             )}
             {isFlow && (
-              <WriteOpButton
+              <BuildWorkbenchTrigger
+                target={{ kind: 'repo', repoId: repo.id, title: repo.name }}
                 label="触发流水线验证"
                 title={`触发流水线 ${binding.pipelineName}`}
                 variant={isRunning ? 'secondary' : 'default'}
-                onAction={() => triggerRepoCiWithFeedback(repo.id, repo.name)}
               />
             )}
             {!isBound && (
@@ -195,7 +193,7 @@ export function IterationRepoCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setDetailsOpen(true)}
+              onClick={() => openBuildWorkbenchFromTrigger({ kind: 'repo', repoId: repo.id, title: repo.name }, 'runs')}
               className="text-xs"
             >
               CI 详情
@@ -220,7 +218,7 @@ export function IterationRepoCard({
                   variant="ghost"
                   size="xs"
                   className="h-6 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 gap-1"
-                  onClick={() => void openRepoCiLogs(repo.id, runningRun.runId, `${repo.name} · #${runningRun.runId}`)}
+                  onClick={() => openRepoBuildLogs(repo.id, runningRun.runId, `${repo.name} · #${runningRun.runId}`)}
                 >
                   <TerminalIcon className="size-3" />
                   <span>实时日志</span>
@@ -291,7 +289,7 @@ export function IterationRepoCard({
               variant="ghost"
               size="xs"
               className="h-6 text-xs text-muted-foreground hover:text-foreground shrink-0 gap-1"
-              onClick={() => void openRepoCiLogs(repo.id, latestRun.runId, `${repo.name} · #${latestRun.runId}`)}
+              onClick={() => openRepoBuildLogs(repo.id, latestRun.runId, `${repo.name} · #${latestRun.runId}`)}
             >
               <TerminalIcon className="size-3" />
               <span>构建日志</span>
@@ -332,7 +330,6 @@ export function IterationRepoCard({
         )}
       </div>
 
-      <RepositoryCiDetails repo={repo} open={detailsOpen} onOpenChange={setDetailsOpen} />
     </>
   );
 }

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useApp } from '../store/app';
-import { triggerRepoCiWithFeedback } from '../lib/ci';
 import { formatDateTime, formatDuration } from '../lib/format';
 import { humanizeError } from '@/lib/error-format';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { RefreshCwIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StatusBadge } from './StatusBadge';
-import { WriteOpButton } from './WriteOpButton';
+import { BuildWorkbenchTrigger, openRepoBuildLogs } from './build-workbench';
 
 function when(timestamp?: number): string {
   if (!timestamp) return '时间未知';
@@ -24,7 +23,7 @@ function duration(durationMs?: number): string {
 const PROVIDER_LABELS: Record<string, string> = { JENKINS: 'Jenkins', FLOW: '云效 Flow' };
 
 export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: string }) {
-  const { repoCiByRepo, loadRepoCi, openRepoCiLogs } = useApp();
+  const { repoCiByRepo, loadRepoCi } = useApp();
   const [refreshing, setRefreshing] = useState(false);
   const entry = repoCiByRepo[repoId];
   const snapshot = entry?.snapshot;
@@ -37,13 +36,6 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
       setRefreshing(false);
     }
   };
-
-  const trigger = () =>
-    triggerRepoCiWithFeedback(repoId, repoName, {
-      okText: `${repoName} 的 CI Job 已触发`,
-      failText: `触发 ${repoName} CI 失败`,
-      refreshDelayMs: 1200,
-    });
 
   return (
     <section className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-muted/40">
@@ -96,7 +88,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
                 <span className="font-log text-foreground">#{run.runId}</span>
                 <span className="ml-auto text-muted-foreground">{when(run.startTime)}</span>
                 <span className="text-muted-foreground">{duration(run.durationMs)}</span>
-                <Button variant="ghost" size="xs" onClick={() => void openRepoCiLogs(repoId, run.runId, `${repoName} · ${snapshot.name} #${run.runId}`)}>
+                <Button variant="ghost" size="xs" onClick={() => openRepoBuildLogs(repoId, run.runId, `${repoName} · ${snapshot.name} #${run.runId}`)}>
                   查看日志
                 </Button>
               </div>
@@ -113,7 +105,11 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
     return (
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
         <p className="text-xs text-muted-foreground">显示该仓库 Job 的近期记录，不按需求过滤。</p>
-        <WriteOpButton label="触发构建" title="触发仓库当前 CI Job" onAction={trigger} />
+        <BuildWorkbenchTrigger
+          target={{ kind: 'repo', repoId, title: repoName }}
+          label="触发构建"
+          title="触发仓库当前 CI Job"
+        />
       </div>
     );
   }

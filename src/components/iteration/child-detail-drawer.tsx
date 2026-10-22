@@ -175,6 +175,14 @@ export function ChildDetailDrawer({
     return () => { alive = false; };
   }, [child?.workitemId]);
 
+  // 抽屉按工作项 ID 订阅父列表的最新行，避免父需求刷新后继续显示旧状态 / 负责人。
+  useEffect(() => {
+    if (!child) return;
+    setStatusName(child.status || '');
+    setStatusId(child.statusId || '');
+    setAssignedToName(child.assignedTo || '');
+  }, [child?.workitemId, child?.status, child?.statusId, child?.assignedTo]);
+
   // 候选处理人汇总
   const assigneeOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string; role?: string }>();

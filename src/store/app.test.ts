@@ -10,7 +10,7 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import * as api from '@/lib/api';
-import { useApp } from './app';
+import { createAppStore, useApp } from './app';
 import { scopedItems } from './ui';
 import type { WorkitemRow } from '@/lib/api';
 import type { IterationSummary } from '@/types';
@@ -414,6 +414,70 @@ describe('scopedItems 迭代收窄边界防护', () => {
     ];
     const scoped = scopedItems(items, 'Any Sprint', []);
     expect(scoped).toEqual(items);
+  });
+});
+
+describe('拆分 store 的详情同步与实例隔离', () => {
+  it('嵌套 workitem 详情也会同步状态、负责人和列表行', async () => {
+    vi.mocked(api.getWorkitemWorkflowStatuses).mockResolvedValue([{ id: 's-done', name: '已完成' }] as never);
+    vi.mocked(api.updateWorkitem).mockResolvedValue({ success: true } as never);
+    useApp.setState({
+      detail: {
+        data: {
+          workitem: {
+            id: 'wi-1',
+            status: { id: 's-old', name: '开发中' },
+            assignedTo: { id: 'user-old', name: '旧负责人' },
+          },
+        },
+      },
+      items: [row({ workitemId: 'wi-1', status: '开发中', assignedTo: '旧负责人', assignedToId: 'user-old' })],
+    });
+
+    await useApp.getState().updateWorkitemStatusOptimistic('wi-1', '已完成');
+    await useApp.getState().updateWorkitemAssigneeOptimistic('wi-1', 'user-new', '新负责人');
+
+    const detail = useApp.getState().detail as any;
+    expect(detail.data.workitem.status.name).toBe('已完成');
+    expect(detail.data.workitem.assignedTo).toEqual({ id: 'user-new', name: '新负责人' });
+    expect(useApp.getState().items[0].status).toBe('已完成');
+    expect(useApp.getState().items[0].assignedTo).toBe('新负责人');
+    expect(api.updateWorkitem).toHaveBeenCalledTimes(2);
+  });
+
+  it('子项旧调用方先做本地更新时，带 statusId 的统一 action 仍会发出 API 请求', async () => {
+    vi.mocked(api.updateWorkitem).mockResolvedValue({ success: true } as never);
+    useApp.setState({
+      children: [{ workitemId: 'child-1', identifier: 'TASK-1', subject: '子项', status: '已完成' } as never],
+    });
+
+    await useApp.getState().updateChildStatusOptimistic('child-1', '已完成', 's-done');
+    await useApp.getState().updateWorkitemStatusOptimistic('child-1', '已完成', 's-done');
+
+    expect(api.updateWorkitem).toHaveBeenCalledWith('child-1', { statusId: 's-done' });
+  });
+
+  it('子项旧调用方的预更新在写入失败时按字段回滚，不覆盖其他状态', async () => {
+    vi.mocked(api.updateWorkitem).mockRejectedValue(new Error('写入失败'));
+    useApp.setState({
+      children: [{ workitemId: 'child-2', identifier: 'TASK-2', subject: '子项', status: '待办', statusId: 's-todo' } as never],
+    });
+
+    await useApp.getState().updateChildStatusOptimistic('child-2', '已完成', 's-done');
+    const result = await useApp.getState().updateWorkitemStatusOptimistic('child-2', '已完成', 's-done');
+
+    expect(result).toBe(false);
+    expect(useApp.getState().children[0].status).toBe('待办');
+    expect(useApp.getState().toast?.kind).toBe('fail');
+  });
+
+  it('factory 创建的 store 不共享请求/乐观状态', () => {
+    const first = createAppStore();
+    const second = createAppStore();
+    first.setState({ items: [row({ workitemId: 'first' })] });
+    expect(second.getState().items).toEqual([]);
+    second.setState({ items: [row({ workitemId: 'second' })] });
+    expect(first.getState().items[0].workitemId).toBe('first');
   });
 });
 
