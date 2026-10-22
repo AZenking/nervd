@@ -36,7 +36,7 @@ export function InlineStatusDropdown({
   task: WorkitemChild;
   parentWorkitemId: string;
 }) {
-  const { loadChildren, updateChildStatusOptimistic } = useApp();
+  const loadChildren = useApp((state) => state.loadChildren);
   const [open, setOpen] = useState(false);
   const [localStatus, setLocalStatus] = useState({ id: task.statusId, name: task.status });
   const [statusSearch, setStatusSearch] = useState('');
@@ -70,14 +70,12 @@ export function InlineStatusDropdown({
   }, [statuses, statusSearch]);
 
   const handleSelectStatus = async (s: WorkflowStatusItem) => {
-    // 立即乐观变更本地回显与 store 状态（<1ms 极速响应）
+    // 本地回显由统一 workflow action 负责，避免先写一次 store、再由 API action 写第二次。
     const previous = { ...localStatus };
     setLocalStatus({ id: s.id, name: s.name });
-    updateChildStatusOptimistic(task.workitemId, s.name, s.id);
     const ok = await changeStatus(s);
     if (!ok) {
       setLocalStatus(previous);
-      updateChildStatusOptimistic(task.workitemId, previous.name ?? '', previous.id);
     }
   };
 

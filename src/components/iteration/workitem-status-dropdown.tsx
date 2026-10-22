@@ -1,7 +1,9 @@
 import { CheckIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { useApp } from '@/store/app';
 import { StatusIcon } from '@/components/status-icon';
+import { Spinner } from '@/components/ui/spinner';
+import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +22,7 @@ export const WORKITEM_STATUS_OPTIONS = [
 export interface WorkitemStatusDropdownProps {
   workitemId?: string;
   status: string;
+  statusId?: string;
   variant?: 'icon' | 'badge' | 'cell';
   className?: string;
   onStatusChange?: (newStatus: string) => void;
@@ -35,19 +38,25 @@ export interface WorkitemStatusDropdownProps {
 export function WorkitemStatusDropdown({
   workitemId,
   status,
+  statusId,
   variant = 'icon',
   className,
   onStatusChange,
 }: WorkitemStatusDropdownProps) {
-  const updateWorkitemStatusOptimistic = useApp((s) => s.updateWorkitemStatusOptimistic);
+  const [open, setOpen] = useState(false);
+  const { statuses, loadingStatuses, fetchStatuses, changeStatus } = useWorkitemWorkflowStatuses({
+    workitemId,
+    currentStatusId: statusId,
+    currentStatusName: status,
+  });
 
-  const handleSelect = (statusName: string) => {
-    if (workitemId) {
-      void updateWorkitemStatusOptimistic(workitemId, statusName);
-    }
-    if (onStatusChange) {
-      onStatusChange(statusName);
-    }
+  useEffect(() => {
+    if (open) void fetchStatuses();
+  }, [fetchStatuses, open]);
+
+  const handleSelect = async (target: { id: string; name: string }) => {
+    const success = await changeStatus(target);
+    if (success) onStatusChange?.(target.name);
   };
 
   const renderTrigger = () => {
@@ -87,7 +96,7 @@ export function WorkitemStatusDropdown({
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       {renderTrigger()}
       <DropdownMenuContent
         align="start"
@@ -97,12 +106,21 @@ export function WorkitemStatusDropdown({
         <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
           流转状态
         </div>
-        {WORKITEM_STATUS_OPTIONS.map((st) => (
+        {loadingStatuses && (
+          <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+            <Spinner className="size-3" />
+            读取状态流程…
+          </div>
+        )}
+        {!loadingStatuses && statuses.length === 0 && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>
+        )}
+        {!loadingStatuses && statuses.map((st) => (
           <DropdownMenuItem
-            key={st.name}
+            key={st.id}
             onClick={(e) => {
               e.stopPropagation();
-              handleSelect(st.name);
+              void handleSelect(st);
             }}
             className={cn(
               'flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm cursor-pointer',
@@ -110,7 +128,7 @@ export function WorkitemStatusDropdown({
             )}
           >
             <StatusIcon status={st.name} className="size-3.5" />
-            <span className="flex-1">{st.label}</span>
+            <span className="flex-1">{st.name}</span>
             {status === st.name && <CheckIcon className="size-3 text-primary" />}
           </DropdownMenuItem>
         ))}

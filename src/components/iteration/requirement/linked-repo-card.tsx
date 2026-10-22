@@ -15,7 +15,7 @@ import {
 import * as api from '@/lib/api';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { errorLog, humanizeError } from '@/lib/error-format';
-import { ciStatusText, triggerRepoCiWithFeedback } from '@/lib/ci';
+import { ciStatusText } from '@/lib/ci';
 import { useApp } from '@/store/app';
 import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
 import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
@@ -23,15 +23,16 @@ import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CopyButton } from '@/components/ui/copy-button';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
+import { BuildWorkbenchTrigger, openBuildWorkbenchFromTrigger } from '@/components/build-workbench';
 import { WriteOpButton } from '@/components/WriteOpButton';
 import { CiSummaryButton } from '@/components/ci-summary-button';
 import { BranchDivergenceCheck, useBranchDivergence } from '../BranchDivergenceCheck';
 import { JenkinsBuildDialog } from '../JenkinsBuildDialog';
-import { RepositoryCiDetails } from '../RepositoryCiDetails';
 import { CreateMrDialog } from './create-mr-dialog';
 import { MrInlineItem } from './mr-inline-item';
 import { IterationDevDivergence } from './iteration-dev-divergence';
@@ -87,7 +88,6 @@ export function LinkedRepoCard({
   onUnlinkRepo,
 }: LinkedRepoCardProps) {
   const { repoCiByRepo, settings, loadTrace, setToast } = useApp();
-  const [ciDetailsOpen, setCiDetailsOpen] = useState(false);
   const entry = repoCiByRepo[repo.id];
   const snapshot = entry?.snapshot;
   const ciBinding = settings?.repoCiBindings?.[String(repo.id)];
@@ -324,41 +324,6 @@ export function LinkedRepoCard({
 
         {/* 右侧：模板配置 + MR 入口 (查看/创建) + 常驻构建操作 + CI 状态胶囊 + 更多 */}
         <div className="flex shrink-0 items-center gap-2">
-          {/* 模板选择（行内收敛） */}
-          {templateEnabled && (
-            <div className="flex items-center gap-1.5 border-r border-border/40 pr-2 mr-0.5">
-              <span className="text-[11px] text-muted-foreground">分支模板:</span>
-              <SearchableSelect
-                className="text-xs h-7 w-40"
-                value={templateId || '__none'}
-                onValueChange={(value) => onTemplateChange(value && value !== '__none' ? value : null)}
-                items={[
-                  { label: '未选择模板', value: '__none' },
-                  ...templates.map((template): SearchableSelectOption<string> => {
-                    const scopeTag =
-                      'scope' in template && template.scope === 'iteration'
-                        ? ' (迭代专属)'
-                        : 'scope' in template && template.scope === 'global'
-                          ? ' (全局)'
-                          : '';
-                    return {
-                      label: `${template.name}${scopeTag}`,
-                      value: template.id,
-                    };
-                  }),
-                  ...(templateId && !templates.some((template) => template.id === templateId)
-                    ? [{ label: '模板不可用', value: templateId, disabled: true }]
-                    : []),
-                ]}
-              />
-              {hasValidRule && (
-                <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                  规则就绪
-                </span>
-              )}
-            </div>
-          )}
-
           {/* MR 入口（二选一）：有进行中的 MR 展现「查看 MR」，否则展现「创建 MR」 */}
           {loadingBranches && !traceAvailable ? (
             <Skeleton className="h-7 w-20 rounded" />
@@ -389,12 +354,12 @@ export function LinkedRepoCard({
           )}
 
           {/* 常驻发起构建入口：脱钩“已全部合入”判定，始终常驻可用 */}
-          {isFlowBound && ciBinding ? (
-            <WriteOpButton
+            {isFlowBound && ciBinding ? (
+              <BuildWorkbenchTrigger
+                target={{ kind: 'repo', repoId: repo.id, title: repo.name }}
               label="发起构建"
               title={`触发流水线 ${ciBinding.pipelineName}`}
               variant="default"
-              onAction={() => triggerRepoCiWithFeedback(repo.id, repo.name)}
             />
           ) : isJenkinsBound && ciBinding ? (
             <JenkinsBuildDialog
@@ -420,7 +385,7 @@ export function LinkedRepoCard({
             runCount={snapshot?.runs.length ?? 0}
             error={entry?.error}
             tooltip="点击查看 CI Job、构建分支和环境详情"
-            onOpen={() => setCiDetailsOpen(true)}
+            onOpen={() => openBuildWorkbenchFromTrigger({ kind: 'repo', repoId: repo.id, title: repo.name }, 'runs')}
           />
 
           {/* 单仓独立刷新按钮 */}
@@ -574,6 +539,45 @@ export function LinkedRepoCard({
           </div>
         )}
       </div>
+
+      {/* 非主路径配置默认收拢：保留分支关系与交付结论的首屏信息密度 */}
+      {templateEnabled && (
+        <Collapsible className="rounded-lg border border-border/40 bg-muted/10 px-3 py-2">
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground">
+            <span className="flex items-center gap-1.5">
+              <GitBranchIcon className="size-3.5" />
+              分支模板配置
+              {hasValidRule && <span className="text-[11px] text-emerald-600 dark:text-emerald-400">· 已就绪</span>}
+            </span>
+            <ChevronDownIcon className="size-3.5 transition-transform group-data-panel-open/collapsible:rotate-180" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2.5 border-t border-border/40 pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">应用模板:</span>
+              <SearchableSelect
+                className="h-7 w-56 text-xs"
+                value={templateId || '__none'}
+                onValueChange={(value) => onTemplateChange(value && value !== '__none' ? value : null)}
+                items={[
+                  { label: '未选择模板', value: '__none' },
+                  ...templates.map((template): SearchableSelectOption<string> => {
+                    const scopeTag =
+                      'scope' in template && template.scope === 'iteration'
+                        ? ' (迭代专属)'
+                        : 'scope' in template && template.scope === 'global'
+                          ? ' (全局)'
+                          : '';
+                    return { label: `${template.name}${scopeTag}`, value: template.id };
+                  }),
+                  ...(templateId && !templates.some((template) => template.id === templateId)
+                    ? [{ label: '模板不可用', value: templateId, disabled: true }]
+                    : []),
+                ]}
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* 模块 2：交付进度与状态指引条（仅展示状态结论与指引，移除重复的操作按钮） */}
       <div
@@ -751,40 +755,45 @@ export function LinkedRepoCard({
 
       {/* 模块 5：其他关联分支追溯（若有） */}
       {(loadingBranches || shownMatchedBranches.length > 0) && (
-        <div className="flex flex-col gap-1.5 rounded-lg border border-border/30 bg-muted/10 p-2.5 text-xs">
-          <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
-            <GitForkIcon className="size-3.5" />
-            <span>其他关联分支（追溯）：</span>
-          </div>
-          {loadingBranches ? (
-            <Skeleton className="h-5 w-28 rounded" />
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {shownMatchedBranches.map((branch) => (
-                <div key={`${branch}:${baselineBranch ?? ''}`} className="flex flex-wrap items-center gap-2">
-                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{branch}</code>
-                  <CopyButton text={branch} label="复制分支名" />
-                  {templateEnabled && (
-                    <BranchDivergenceCheck
-                      repoId={repo.id}
-                      developmentBranch={branch}
-                      baselineBranch={baselineBranch}
-                      baselineState={baselineState}
-                      onRetryBaseline={onRetryBaseline}
-                    />
-                  )}
-                </div>
-              ))}
-              {hiddenMatchedBranchCount > 0 && (
-                <span className="text-xs text-muted-foreground">…还有 {hiddenMatchedBranchCount} 个匹配分支</span>
-              )}
-            </div>
-          )}
-        </div>
+        <Collapsible className="rounded-lg border border-border/30 bg-muted/10 px-2.5 py-2 text-xs">
+          <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 font-medium text-muted-foreground hover:text-foreground">
+            <span className="flex items-center gap-1.5">
+              <GitForkIcon className="size-3.5" />
+              <span>其他关联分支（按需展开）</span>
+              {shownMatchedBranches.length > 0 && <span className="font-mono text-[11px]">· {shownMatchedBranches.length + hiddenMatchedBranchCount}</span>}
+            </span>
+            <ChevronDownIcon className="size-3.5 transition-transform group-data-panel-open/collapsible:rotate-180" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 flex flex-col gap-1.5 border-t border-border/40 pt-2">
+            {loadingBranches ? (
+              <Skeleton className="h-5 w-28 rounded" />
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {shownMatchedBranches.map((branch) => (
+                  <div key={`${branch}:${baselineBranch ?? ''}`} className="flex flex-wrap items-center gap-2">
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{branch}</code>
+                    <CopyButton text={branch} label="复制分支名" />
+                    {templateEnabled && (
+                      <BranchDivergenceCheck
+                        repoId={repo.id}
+                        developmentBranch={branch}
+                        baselineBranch={baselineBranch}
+                        baselineState={baselineState}
+                        onRetryBaseline={onRetryBaseline}
+                      />
+                    )}
+                  </div>
+                ))}
+                {hiddenMatchedBranchCount > 0 && (
+                  <span className="text-xs text-muted-foreground">…还有 {hiddenMatchedBranchCount} 个匹配分支</span>
+                )}
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
       )}
 
       {/* 仓库 CI 运行详情抽屉 */}
-      <RepositoryCiDetails repo={repo} open={ciDetailsOpen} onOpenChange={setCiDetailsOpen} />
 
       {/* 创建 MR 自定义表单对话框 */}
       <CreateMrDialog

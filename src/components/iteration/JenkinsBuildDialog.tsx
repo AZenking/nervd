@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import {
   ChevronDownIcon,
   GitBranchIcon,
@@ -21,20 +21,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WriteOpButton, WriteOpGatedTrigger } from '@/components/WriteOpButton';
 import { SearchableSelect, type SearchableSelectOption } from '../searchable-select';
+import { openBuildWorkbenchFromTrigger } from '@/components/build-workbench/actions';
 
 function branchNames(value: unknown): string[] {
   const collect = (input: unknown): string[] => {
@@ -197,25 +196,31 @@ function ParameterField({
   );
 }
 
-export function JenkinsBuildDialog({
-  repoId,
-  repoName,
-  defaultBranch,
-  buttonLabel = '触发 CI',
-  buttonVariant = 'default',
-}: {
+export interface JenkinsBuildParametersProps {
   repoId: number;
   repoName: string;
   defaultBranch?: string;
-  buttonLabel?: string;
-  buttonVariant?: ComponentProps<typeof Button>['variant'];
-}) {
+  /** 工作台会在切换仓库或关闭后更新此 key，清理本地草稿。 */
+  resetKey?: string;
+  active?: boolean;
+  onCancel?: () => void;
+  onSuccess?: () => void;
+}
+
+/** Jenkins 参数内容：可被全局构建工作台复用，也保留原有独立调用能力。 */
+export function JenkinsBuildParameters({
+  repoId,
+  repoName,
+  defaultBranch,
+  resetKey = `${repoId}`,
+  active = true,
+  onCancel,
+  onSuccess,
+}: JenkinsBuildParametersProps) {
   const { settings, setToast, loadRepoCi, saveRepoCiBinding } = useApp();
-  const allowWriteOps = settings?.allowWriteOps ?? false;
   const connections = (settings?.jenkinsConnections ?? []).filter((connection) => connection.hasToken);
   const currentBinding = settings?.repoCiBindings?.[String(repoId)];
   const savedBinding = currentBinding?.provider === 'jenkins' ? currentBinding : undefined;
-  const [open, setOpen] = useState(false);
   const [connectionId, setConnectionId] = useState('');
   const [jobs, setJobs] = useState<JenkinsJobSummary[]>([]);
   const [jobFullName, setJobFullName] = useState('');
@@ -231,11 +236,13 @@ export function JenkinsBuildDialog({
   const [error, setError] = useState('');
   const [remember, setRemember] = useState(false);
   const [triggering, setTriggering] = useState(false);
+  const initializedResetKey = useRef<string | null>(null);
 
-  const openDialog = () => {
+  const resetForm = () => {
     const initialConnectionId = savedBinding?.connectionId || connections[0]?.id || '';
     setConnectionId(initialConnectionId);
-    // 不强制清空 jobs，有缓存时保留以便秒开
+    setJobs([]);
+    setJobsRefresh(0);
     setJobFullName(savedBinding?.jobFullName ?? '');
     setParameters([]);
     setParameterValues(savedBinding?.parameters ?? {});
@@ -244,12 +251,17 @@ export function JenkinsBuildDialog({
     setBranches([]);
     setError('');
     setRemember(Boolean(savedBinding));
-    setOpen(true);
   };
 
   useEffect(() => {
-    if (!open || !connectionId) return;
-    let active = true;
+    if (initializedResetKey.current === resetKey) return;
+    initializedResetKey.current = resetKey;
+    resetForm();
+  }, [resetKey]);
+
+  useEffect(() => {
+    if (!active || !connectionId) return;
+    let requestActive = true;
     const isManualRefresh = jobsRefresh > 0;
 
     // 若无缓存或为手动点击刷新，显示 loading；有缓存时直接秒开
@@ -275,42 +287,42 @@ export function JenkinsBuildDialog({
     void getCachedJenkinsJobs(connectionId, {
       force: isManualRefresh,
       onStaleUpdate: (freshJobs) => {
-        if (!active) return;
+        if (!requestActive) return;
         applyJobs(freshJobs);
       },
     })
       .then(({ jobs: items }) => {
-        if (!active) return;
+        if (!requestActive) return;
         applyJobs(items);
       })
       .catch((cause: unknown) => {
-        if (!active) return;
+        if (!requestActive) return;
         errorLog('jenkins.listJobs', cause);
         setError(`读取 Jenkins Job 失败：${humanizeError(cause, '未能获取 Job 列表，请稍后重试')}`);
       })
-      .finally(() => { if (active) setJobsLoading(false); });
+      .finally(() => { if (requestActive) setJobsLoading(false); });
 
     setBranchesLoading(true);
     void api.listBranches(repoId)
       .then((result) => { if (active) setBranches(branchNames(result)); })
       .catch(() => { if (active) setBranches([]); })
       .finally(() => { if (active) setBranchesLoading(false); });
-    return () => { active = false; };
-  }, [open, connectionId, repoId, savedBinding, jobsRefresh]);
+    return () => { requestActive = false; };
+  }, [active, connectionId, repoId, savedBinding, jobsRefresh]);
 
   useEffect(() => {
-    if (!open || !connectionId || !jobFullName) {
+    if (!active || !connectionId || !jobFullName) {
       setParameters([]);
       return;
     }
-    let active = true;
+    let requestActive = true;
     setParametersLoading(true);
     setError('');
     void getCachedJenkinsJobParameters(connectionId, jobFullName, {
       force: jobsRefresh > 0,
     })
       .then((definitions) => {
-        if (!active) return;
+        if (!requestActive) return;
         const isCurrentJobSaved = savedBinding?.connectionId === connectionId && savedBinding.jobFullName === jobFullName;
         const savedBranch = isCurrentJobSaved ? savedBinding.branchParameter : undefined;
         const savedEnv = isCurrentJobSaved ? savedBinding.environmentParameter : undefined;
@@ -361,15 +373,15 @@ export function JenkinsBuildDialog({
         setParameterValues(values);
       })
       .catch((cause: unknown) => {
-        if (active) {
+        if (requestActive) {
           errorLog('jenkins.parameters', cause);
           setParameters([]);
           setError(`读取 Job 参数失败：${humanizeError(cause, '未能获取 Job 参数，请稍后重试')}`);
         }
       })
-      .finally(() => { if (active) setParametersLoading(false); });
-    return () => { active = false; };
-  }, [open, connectionId, jobFullName, branches, defaultBranch, savedBinding]);
+      .finally(() => { if (requestActive) setParametersLoading(false); });
+    return () => { requestActive = false; };
+  }, [active, connectionId, jobFullName, branches, defaultBranch, savedBinding]);
 
   const updateParameter = (name: string, value: string) => {
     setParameterValues((current) => ({ ...current, [name]: value }));
@@ -434,8 +446,10 @@ export function JenkinsBuildDialog({
     ];
   }, [jobs, jobsLoading, repoName, savedJobFullName]);
 
-  const buildDisabledReason = !connectionId
-    ? '请选择已保存 Token 的 Jenkins 实例'
+  const buildDisabledReason = !connections.length
+    ? '请先配置已保存 Token 的 Jenkins 实例'
+    : !connectionId
+      ? '请选择已保存 Token 的 Jenkins 实例'
     : !jobFullName
       ? '请选择 Jenkins Job'
       : jobsLoading || parametersLoading
@@ -461,9 +475,9 @@ export function JenkinsBuildDialog({
       }
       await api.triggerJenkinsJob(repoId, connectionId, jobFullName, parameterValues);
       setToast({ text: `已触发 ${repoName} 构建：${jobFullName}`, kind: 'ok' });
-      setOpen(false);
       useApp.getState().markRepoCiActive(90_000);
       void loadRepoCi(repoId);
+      onSuccess?.();
     } catch (cause) {
       errorLog('jenkins.trigger', cause);
       setToast({ text: `触发失败：${humanizeError(cause, `${repoName} 的 Jenkins 构建触发失败，请稍后重试`)}`, kind: 'fail' });
@@ -473,28 +487,7 @@ export function JenkinsBuildDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      {/* 只读门控（与 WriteOpButton 同规则）：写操作关闭时灰阶展示 + 说明弹窗，不进入向导 */}
-      <WriteOpGatedTrigger
-        label={buttonLabel}
-        icon={<WorkflowIcon data-icon="inline-start" />}
-        variant={buttonVariant}
-      />
-      {allowWriteOps && (
-        <Button size="sm" variant={buttonVariant} onClick={openDialog}>
-          <WorkflowIcon data-icon="inline-start" />
-          {buttonLabel}
-        </Button>
-      )}
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-        <ErrorBoundary fallbackTitle="构建参数面板加载异常">
-          <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <WorkflowIcon className="size-4 text-primary" />
-            触发 Jenkins 构建
-          </DialogTitle>
-          <DialogDescription>{repoName} · 填写参数后运行构建</DialogDescription>
-        </DialogHeader>
+    <div className="flex flex-col gap-4">
         {!connections.length ? (
           <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
             请先在「设置 → CI 集成」中配置 Jenkins 实例并保存 API Token。
@@ -666,8 +659,8 @@ export function JenkinsBuildDialog({
             </Label>
           </div>
         )}
-        <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
+        <div className="sticky bottom-0 -mx-1 flex items-center justify-end gap-2 border-t border-border/70 bg-popover/95 px-1 pt-3 backdrop-blur-sm">
+          {onCancel && <Button type="button" variant="outline" size="sm" onClick={onCancel}>取消</Button>}
           {/* UX A5：向导内两段式确认，不再弹窗套弹窗 */}
           <WriteOpButton
             label={triggering ? '构建中…' : '开始构建'}
@@ -678,9 +671,43 @@ export function JenkinsBuildDialog({
             disabledReason={buildDisabledReason}
             onAction={trigger}
           />
-        </DialogFooter>
-        </ErrorBoundary>
-      </DialogContent>
-    </Dialog>
+        </div>
+    </div>
+  );
+}
+
+/** 兼容旧调用方：按钮仍保留原有名称，但现在只打开统一构建工作台。 */
+export function JenkinsBuildDialog({
+  repoId,
+  repoName,
+  defaultBranch,
+  buttonLabel = '触发 CI',
+  buttonVariant = 'default',
+}: {
+  repoId: number;
+  repoName: string;
+  defaultBranch?: string;
+  buttonLabel?: string;
+  buttonVariant?: ComponentProps<typeof Button>['variant'];
+}) {
+  const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
+  const openWorkbench = () => {
+    openBuildWorkbenchFromTrigger({ kind: 'repo', repoId, title: repoName, defaultBranch }, 'parameters');
+  };
+
+  return (
+    <>
+      <WriteOpGatedTrigger
+        label={buttonLabel}
+        icon={<WorkflowIcon data-icon="inline-start" />}
+        variant={buttonVariant}
+      />
+      {allowWriteOps && (
+        <Button size="sm" variant={buttonVariant} onClick={openWorkbench}>
+          <WorkflowIcon data-icon="inline-start" />
+          {buttonLabel}
+        </Button>
+      )}
+    </>
   );
 }

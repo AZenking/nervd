@@ -16,6 +16,7 @@ export interface CurrentYunxiaoUser {
 
 /** 列表行 = WorkitemSummary + 后端增补字段 */
 export interface WorkitemRow extends WorkitemSummary {
+  statusId?: string;
   assignedToId?: string;
   relatedTo?: string[]; // 关联人姓名（commands.rs names_of 防御式提取）
   relatedToIds?: string[]; // 关联人 ID（commands.rs ids_of 提取）

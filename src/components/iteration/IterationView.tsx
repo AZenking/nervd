@@ -112,7 +112,7 @@ function WorkitemSkeletonRows() {
 
 /** 行内状态流转下拉菜单（Linear 式 In-place Popover 原语） */
 function RowStatusDropdown({ item }: { item: WorkitemItem }) {
-  return <WorkitemStatusDropdown workitemId={item.workitemId} status={item.status} variant="icon" />;
+  return <WorkitemStatusDropdown workitemId={item.workitemId} status={item.status} statusId={item.statusId} variant="icon" />;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, ClockIcon, CopyIcon, DatabaseIcon,
-  ExternalLinkIcon, FolderIcon, GitBranchIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, SparklesIcon, UserIcon, XIcon,
+  ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, CopyIcon, DatabaseIcon,
+  ExternalLinkIcon, GitBranchIcon, InboxIcon, Loader2Icon, Maximize2Icon, MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, SparklesIcon, UserIcon, XIcon,
 } from 'lucide-react';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
@@ -75,8 +75,14 @@ export function RequirementDetails({
     if (refreshing) return;
     setRefreshing(true);
     try {
-      await reloadCurrentDetail();
-      setToast({ text: '工作项已更新至最新状态', kind: 'ok' });
+      const result = await reloadCurrentDetail();
+      if (result.status === 'success') {
+        setToast({ text: '工作项已更新至最新状态', kind: 'ok' });
+      } else if (result.status === 'partial') {
+        setToast({ text: `工作项已部分更新：${result.errors.join('；')}`, kind: 'info' });
+      } else {
+        setToast({ text: `刷新失败：${result.errors.join('；')}`, kind: 'fail' });
+      }
     } finally {
       setRefreshing(false);
     }
@@ -88,8 +94,14 @@ export function RequirementDetails({
     try {
       setCodeAreaRefreshSignal((s) => s + 1);
       setBaselineRetry((v) => v + 1);
-      await loadTrace();
-      setToast({ text: '已刷新关联仓库的分支、提交与合并请求', kind: 'ok' });
+      const result = await loadTrace();
+      if (result.status === 'success') {
+        setToast({ text: '已刷新关联仓库的分支、提交与合并请求', kind: 'ok' });
+      } else if (result.status === 'partial') {
+        setToast({ text: `追溯数据已部分更新：${result.errors.join('；')}`, kind: 'info' });
+      } else {
+        setToast({ text: `刷新失败：${result.errors.join('；')}`, kind: 'fail' });
+      }
     } catch (e) {
       errorLog('repo-code-refresh', e);
       setToast({ text: `刷新失败：${humanizeError(e)}`, kind: 'fail' });
@@ -135,6 +147,12 @@ export function RequirementDetails({
     || childFromStore?.status
     || cur?.status
     || '';
+
+  const statusId = (typeof wi.statusId === 'string' && wi.statusId)
+    || (wi.status && typeof wi.status === 'object' && typeof (wi.status as any).id === 'string' ? (wi.status as any).id : '')
+    || childFromStore?.statusId
+    || cur?.statusId
+    || undefined;
 
   const assignedToName = (typeof wi.assignedTo === 'string' && wi.assignedTo)
     || (wi.assignedTo && typeof wi.assignedTo === 'object' && typeof (wi.assignedTo as any).name === 'string' ? (wi.assignedTo as any).name : '')
@@ -239,6 +257,9 @@ export function RequirementDetails({
   // 子工作项/缺陷详情侧滑抽屉（Linear Peek 机制）：免刷新浏览，保留父需求完整上下文与列表焦点
   const [drawerChild, setDrawerChild] = useState<WorkitemChild | null>(null);
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
+  const latestDrawerChild = drawerChild
+    ? children.find((child) => child.workitemId === drawerChild.workitemId) ?? drawerChild
+    : null;
 
   useEffect(() => {
     setDrawerChild(null);
@@ -608,9 +629,10 @@ export function RequirementDetails({
 
       {/* 嵌入分栏模式下的紧凑元数据条（替代占用整列的右属性栏，释放横向空间） */}
       {embedded && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/50 bg-muted/20 px-5 py-2 text-xs text-muted-foreground">
+        <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/50 bg-muted/20 px-5 py-2 text-xs text-muted-foreground">
           <DetailStatusPopover
             status={statusName}
+            statusId={statusId}
             workitemId={selectedId ?? undefined}
             variant="badge"
           />
@@ -626,60 +648,59 @@ export function RequirementDetails({
           </div>
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
-            <LayersIcon className="size-3.5 text-muted-foreground" />
-            <span className="text-foreground">{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</span>
-          </div>
-          {parent && (
-            <>
-              <span className="text-border">|</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">父需求</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onSelectParent) onSelectParent(parent.workitemId);
-                    else openWorkitem(parent.workitemId, parent);
-                  }}
-                  className="font-mono text-primary hover:underline cursor-pointer"
-                >
-                  {parent.identifier}
-                </button>
-              </div>
-            </>
-          )}
-          <span className="text-border">|</span>
-          <div className="flex items-center gap-1.5">
             <CalendarIcon className="size-3.5 text-muted-foreground" />
             <span className="text-foreground">{iterationName || '未关联迭代'}</span>
           </div>
-          {spaceName && (
-            <>
-              <span className="text-border">|</span>
-              <div className="flex items-center gap-1.5">
-                <FolderIcon className="size-3.5 text-muted-foreground" />
-                <span>{spaceName}</span>
-              </div>
-            </>
-          )}
-          {updatedAt && (
-            <>
-              <span className="text-border">|</span>
-              <div className="flex items-center gap-1.5 font-mono">
-                <ClockIcon className="size-3.5 text-muted-foreground" />
-                <span>{String(updatedAt).slice(0, 16).replace('T', ' ')}</span>
-              </div>
-            </>
-          )}
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
             <DatabaseIcon className="size-3.5 text-muted-foreground" />
             <span>{effectiveRepoIds.length} 个仓库</span>
-            {iterationBranchValue && iterationBranchValue !== '—' && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
-                {iterationBranchValue}
-              </span>
-            )}
           </div>
+          <Collapsible className="ml-auto">
+            <CollapsibleTrigger className="rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+              更多属性
+              <ChevronRightIcon className="ml-1 inline-block size-3 transition-transform group-data-panel-open/collapsible:rotate-90" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="absolute right-5 z-30 mt-2 flex min-w-64 flex-col gap-2 rounded-lg border border-border/70 bg-popover p-3 text-xs text-muted-foreground shadow-level-2">
+              <div className="flex items-center justify-between gap-3">
+                <span>类型</span>
+                <span className="text-foreground">{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</span>
+              </div>
+              {parent && (
+                <div className="flex items-center justify-between gap-3">
+                  <span>父需求</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onSelectParent) onSelectParent(parent.workitemId);
+                      else openWorkitem(parent.workitemId, parent);
+                    }}
+                    className="font-mono text-primary hover:underline cursor-pointer"
+                  >
+                    {parent.identifier}
+                  </button>
+                </div>
+              )}
+              {spaceName && (
+                <div className="flex items-center justify-between gap-3">
+                  <span>空间</span>
+                  <span className="text-foreground">{spaceName}</span>
+                </div>
+              )}
+              {updatedAt && (
+                <div className="flex items-center justify-between gap-3 font-mono">
+                  <span className="font-sans">更新时间</span>
+                  <span className="text-foreground">{String(updatedAt).slice(0, 16).replace('T', ' ')}</span>
+                </div>
+              )}
+              {iterationBranchValue && iterationBranchValue !== '—' && (
+                <div className="flex items-center justify-between gap-3">
+                  <span>迭代基准</span>
+                  <span className="font-mono text-foreground">{iterationBranchValue}</span>
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       )}
 
@@ -1096,8 +1117,8 @@ export function RequirementDetails({
             identifier={identifier}
             subject={subject}
             subtaskStats={{
-              total: subtasks.length,
-              done: subtasks.filter((s) => s.status === '已完成' || s.status === '已解决' || s.status === '已关闭').length,
+              total: subtasks.length + defects.length,
+              done: [...subtasks, ...defects].filter((s) => s.status === '已完成' || s.status === '已解决' || s.status === '已关闭').length,
             }}
           />
         </div>
@@ -1106,6 +1127,7 @@ export function RequirementDetails({
         {!embedded && (
           <RequirementProperties
             statusName={statusName}
+            statusId={statusId}
             selectedId={selectedId}
             assignedToName={assignedToName}
             candidateAssignees={candidateAssignees}
@@ -1124,7 +1146,7 @@ export function RequirementDetails({
 
       {/* 子工作项/缺陷详情侧滑抽屉（Linear Peek 面板） */}
       <ChildDetailDrawer
-        child={drawerChild}
+        child={latestDrawerChild}
         parentWorkitem={selectedId && identifier ? { workitemId: selectedId, identifier, subject } : null}
         candidateAssignees={candidateAssignees}
         onClose={() => setDrawerChild(null)}

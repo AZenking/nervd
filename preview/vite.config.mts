@@ -17,7 +17,9 @@ export default defineConfig({
       name: 'preview-api-mock',
       enforce: 'pre',
       resolveId(source, importer) {
-        if (source.endsWith('lib/api') && importer && importer.includes('/src/')) {
+        const isApiImport = source.endsWith('lib/api')
+          || (source === './api' && importer?.endsWith('/src/lib/jenkins-cache.ts'));
+        if (isApiImport && importer && importer.includes('/src/')) {
           return path.resolve(previewRoot, 'api-mock.ts');
         }
         return null;
