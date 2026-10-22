@@ -84,10 +84,16 @@ function DevBranchSettingRow() {
 
 /** 默认云效仓库勾选清单（读写设置草稿） */
 function RepoChecklist() {
+  const [filter, setFilter] = useState('');
   const repositories = useApp((s) => s.repositories);
   const hasPat = useApp((s) => s.settings?.hasPat);
   const watched = useSettingsDraft((s) => s.draft?.watchedRepos ?? []);
   const update = useSettingsDraft((s) => s.update);
+
+  const keyword = filter.trim().toLowerCase();
+  const visibleRepos = keyword
+    ? repositories.filter((r) => (r.pathWithNamespace || r.name).toLowerCase().includes(keyword))
+    : repositories;
 
   const toggleRepo = (id: number) => {
     update(
@@ -100,30 +106,46 @@ function RepoChecklist() {
 
   return (
     <SettingsRow
-      label={`默认云效仓库${repositories.length ? `（${repositories.length} 个）` : ''}`}
+      label={`默认云效仓库${
+        repositories.length ? `（已选 ${watched.length} / 共 ${repositories.length} 个）` : ''
+      }`}
       description="未单独关联仓库的需求，扫描这些仓库的分支 / commit / MR。"
+      htmlFor="repo-filter-input"
       control={(
-        <ScrollArea className="h-48 rounded-md border border-border/60 bg-background/50">
-          <div className="flex flex-col gap-0.5 p-1.5">
-            {repositories.map((r) => (
-              <Label
-                key={r.id}
-                className="cursor-pointer rounded-md px-2 py-1.5 font-normal text-foreground hover:bg-muted"
-              >
-                <Checkbox
-                  checked={watched.includes(r.id)}
-                  onCheckedChange={() => toggleRepo(r.id)}
-                />
-                <span className="font-mono text-xs">{r.pathWithNamespace || r.name}</span>
-              </Label>
-            ))}
-            {!repositories.length && (
-              <div className="p-2 text-sm text-muted-foreground">
-                {hasPat ? '仓库加载中…' : '先保存令牌后自动加载'}
-              </div>
-            )}
-          </div>
-        </ScrollArea>
+        <div className="flex flex-col gap-2">
+          <Input
+            id="repo-filter-input"
+            className="h-8 text-xs"
+            placeholder="输入名称过滤…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+          <ScrollArea className="h-48 rounded-md border border-border/60 bg-background/50">
+            <div className="flex flex-col gap-0.5 p-1.5">
+              {visibleRepos.map((r) => (
+                <Label
+                  key={r.id}
+                  className="cursor-pointer rounded-md px-2 py-1.5 font-normal text-foreground hover:bg-muted"
+                >
+                  <Checkbox
+                    checked={watched.includes(r.id)}
+                    onCheckedChange={() => toggleRepo(r.id)}
+                  />
+                  <span className="font-mono text-xs">{r.pathWithNamespace || r.name}</span>
+                </Label>
+              ))}
+              {!visibleRepos.length && (
+                <div className="p-2 text-sm text-muted-foreground">
+                  {repositories.length
+                    ? '无匹配仓库'
+                    : hasPat
+                      ? '仓库加载中…'
+                      : '先保存令牌后自动加载'}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
       )}
     />
   );
