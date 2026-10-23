@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SearchableSelect } from '../searchable-select';
 import { SettingsGroup } from './settings-group';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 /** Jenkins 实例管理卡（读写设置草稿；测试连接 / 验证 Job 的瞬态结果显示在卡内） */
 export function JenkinsInstancesCard() {
@@ -162,6 +163,15 @@ export function RepoCiBindingsCard() {
   const [ciResults, setCiResults] = useState<Record<string, string>>({});
 
   const bindings = draft?.repoCiBindings ?? {};
+  const [repoFilter, setRepoFilter] = useState('');
+  const [boundOnly, setBoundOnly] = useState(false);
+
+  const keyword = repoFilter.trim().toLowerCase();
+  const boundCount = repositories.filter((repo) => bindings[String(repo.id)]).length;
+  const visibleRepos = repositories.filter((repo) => {
+    if (boundOnly && !bindings[String(repo.id)]) return false;
+    return !keyword || (repo.pathWithNamespace || repo.name).toLowerCase().includes(keyword);
+  });
 
   const verifyJenkinsJob = async (repoId: number, binding: Extract<RepoCiBinding, { provider: 'jenkins' }>) => {
     const key = `repo-${repoId}`;
@@ -192,7 +202,32 @@ export function RepoCiBindingsCard() {
         </>
       )}
     >
-      {repositories.map((repo) => {
+      {repositories.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border/50 px-4 py-3">
+          <Input
+            aria-label="按仓库名称过滤"
+            className="h-8 min-w-40 flex-1 text-xs"
+            placeholder="输入名称过滤…"
+            value={repoFilter}
+            onChange={(e) => setRepoFilter(e.target.value)}
+          />
+          <ToggleGroup
+            variant="outline"
+            size="sm"
+            spacing={0}
+            value={boundOnly ? ['bound'] : ['all']}
+            onValueChange={(v) => setBoundOnly(v.includes('bound'))}
+          >
+            <ToggleGroupItem value="bound" className="text-xs">
+              已绑定 {boundCount}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="all" className="text-xs">
+              全部 {repositories.length}
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      )}
+      {visibleRepos.map((repo) => {
         const binding = bindings[String(repo.id)];
         const label = repo.pathWithNamespace || repo.name;
         const savedProfile = binding?.provider === 'jenkins'
@@ -282,9 +317,11 @@ export function RepoCiBindingsCard() {
           </div>
         );
       })}
-      {!repositories.length && (
+      {!visibleRepos.length && (
         <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-          仓库列表为空，请先在「设置 → 云效连接」配置并保存云效连接
+          {repositories.length
+            ? '无匹配仓库'
+            : '仓库列表为空，请先在「设置 → 云效连接」配置并保存云效连接'}
         </div>
       )}
     </SettingsGroup>
