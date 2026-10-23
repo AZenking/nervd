@@ -15,6 +15,7 @@ import {
 import {
   ArrowDownToLineIcon,
   ArrowLeftIcon,
+  ClockIcon,
   GitBranchIcon,
   LayoutDashboardIcon,
   Loader2Icon,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
+import { useRecentWorkitems } from '@/store/recent-workitems';
 import { useAppUpdate } from '@/hooks/use-app-update';
 import { APP_VERSION } from '@/lib/app-info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -39,6 +41,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const fieldErrors = useSettingsDraft((s) => s.fieldErrors);
   const { hasUpdate, updateInfo, isUpdating } = useAppUpdate();
   const latestVersion = updateInfo?.latestVersion;
+  const recentCount = useRecentWorkitems((s) => s.items.length);
   const inSettings = view === 'full-settings';
 
   return (
@@ -222,6 +225,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: '总览',
                 icon: <LayoutDashboardIcon />,
                 view: 'overview',
+              },
+              {
+                title: '最近查看',
+                icon: <ClockIcon />,
+                view: 'recents',
+                badge: recentCount > 0 ? (
+                  <span className="rounded bg-muted/80 px-1.5 py-0.2 font-mono text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+                    {recentCount}
+                  </span>
+                ) : null,
               },
               {
                 title: '集成分支',

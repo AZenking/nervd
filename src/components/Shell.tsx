@@ -7,6 +7,7 @@ import { RequirementDetails } from './iteration/RequirementDetails';
 import { IntegrationView } from './integration/IntegrationView';
 import { BuildWorkbenchDrawer } from './build-workbench';
 import { OverviewView } from './OverviewView';
+import { RecentsView } from './recents/RecentsView';
 import { SettingsView } from './SettingsView';
 import { CommandMenu } from './command-menu';
 import { ShortcutsDialog } from './shortcuts-dialog';
@@ -167,6 +168,7 @@ export function Shell() {
       resetGSequence();
       if (awaitingG) {
         if (e.key === 'o') return void ui.setView('overview');
+        if (e.key === 'r') return void ui.setView('recents');
         if (e.key === 'i') return void ui.setView('iteration');
         if (e.key === 'b') return void ui.setView('integration');
         if (e.key === 's') return void ui.openSettings('connection');
@@ -220,6 +222,7 @@ export function Shell() {
                 {view === 'requirement' && <RequirementDetails />}
                 {view === 'integration' && <IntegrationView />}
                 {view === 'overview' && <OverviewView />}
+                {view === 'recents' && <RecentsView />}
                 {/* 设置为全页布局：左侧栏即设置菜单，这里只渲染当前分区内容（宽度由 embedded 视图自带） */}
                 {view === 'full-settings' && <SettingsView embedded />}
               </div>

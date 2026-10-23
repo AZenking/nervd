@@ -118,3 +118,180 @@ export function parseFileDiffs(rawDiffs: unknown[]): FileDiffItem[] {
     };
   });
 }
+
+export interface DiffTreeNode {
+  id: string;
+  name: string;
+  path: string;
+  kind: 'directory' | 'file';
+  file?: FileDiffItem;
+  children?: DiffTreeNode[];
+  additions: number;
+  deletions: number;
+  fileCount: number;
+}
+
+/**
+ * 将文件路径安全转为 DOM 锚点 ID
+ */
+export function getDiffAnchorId(filePath: string): string {
+  return `diff-file-${filePath.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+}
+
+/**
+ * 将 FileDiffItem 列表构建为具有层级关系的树形结构
+ */
+export function buildDiffTree(diffs: FileDiffItem[]): DiffTreeNode[] {
+  if (!diffs || diffs.length === 0) return [];
+
+  interface InternalDir {
+    name: string;
+    path: string;
+    subDirs: Map<string, InternalDir>;
+    files: DiffTreeNode[];
+  }
+
+  const rootDir: InternalDir = {
+    name: '',
+    path: '',
+    subDirs: new Map(),
+    files: [],
+  };
+
+  for (const diffItem of diffs) {
+    const rawPath = (diffItem.newPath || diffItem.oldPath || '').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    if (!rawPath) continue;
+
+    const parts = rawPath.split('/');
+    const fileName = parts.pop()!;
+    let currentDir = rootDir;
+    let accumulatedPath = '';
+
+    for (const folder of parts) {
+      accumulatedPath = accumulatedPath ? `${accumulatedPath}/${folder}` : folder;
+      let nextDir = currentDir.subDirs.get(folder);
+      if (!nextDir) {
+        nextDir = {
+          name: folder,
+          path: accumulatedPath,
+          subDirs: new Map(),
+          files: [],
+        };
+        currentDir.subDirs.set(folder, nextDir);
+      }
+      currentDir = nextDir;
+    }
+
+    const fileNode: DiffTreeNode = {
+      id: rawPath,
+      name: fileName,
+      path: rawPath,
+      kind: 'file',
+      file: diffItem,
+      additions: diffItem.additions,
+      deletions: diffItem.deletions,
+      fileCount: 1,
+    };
+
+    currentDir.files.push(fileNode);
+  }
+
+  // 递归将 InternalDir 转换为 DiffTreeNode
+  function convertDir(dir: InternalDir): DiffTreeNode[] {
+    const nodes: DiffTreeNode[] = [];
+
+    // 目录按名称排序
+    const sortedDirEntries = Array.from(dir.subDirs.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
+
+    for (const subDir of sortedDirEntries) {
+      const childNodes = convertDir(subDir);
+      const totalAdditions = childNodes.reduce((acc, c) => acc + c.additions, 0);
+      const totalDeletions = childNodes.reduce((acc, c) => acc + c.deletions, 0);
+      const totalFileCount = childNodes.reduce((acc, c) => acc + c.fileCount, 0);
+
+      nodes.push({
+        id: `dir:${subDir.path}`,
+        name: subDir.name,
+        path: subDir.path,
+        kind: 'directory',
+        children: childNodes,
+        additions: totalAdditions,
+        deletions: totalDeletions,
+        fileCount: totalFileCount,
+      });
+    }
+
+    // 文件按名称排序
+    const sortedFiles = dir.files.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
+
+    nodes.push(...sortedFiles);
+    return nodes;
+  }
+
+  return convertDir(rootDir);
+}
+
+/**
+ * 递归收集所有目录路径
+ */
+export function getAllDirectoryPaths(nodes: DiffTreeNode[]): string[] {
+  const paths: string[] = [];
+  function traverse(list: DiffTreeNode[]) {
+    for (const node of list) {
+      if (node.kind === 'directory') {
+        paths.push(node.path);
+        if (node.children) {
+          traverse(node.children);
+        }
+      }
+    }
+  }
+  traverse(nodes);
+  return paths;
+}
+
+/**
+ * 根据搜索关键字过滤树节点（保留匹配节点的全部祖先路径）
+ */
+export function filterDiffTree(nodes: DiffTreeNode[], query: string): DiffTreeNode[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return nodes;
+
+  function filterNode(node: DiffTreeNode): DiffTreeNode | null {
+    if (node.kind === 'file') {
+      const matches = node.name.toLowerCase().includes(q) || node.path.toLowerCase().includes(q);
+      return matches ? node : null;
+    }
+
+    // 目录节点：递归过滤子节点
+    const filteredChildren = (node.children || [])
+      .map(filterNode)
+      .filter((n): n is DiffTreeNode => n !== null);
+
+    const dirMatches = node.name.toLowerCase().includes(q) || node.path.toLowerCase().includes(q);
+
+    if (filteredChildren.length > 0 || dirMatches) {
+      const children = filteredChildren.length > 0 ? filteredChildren : node.children;
+      const totalAdditions = (children || []).reduce((acc, c) => acc + c.additions, 0);
+      const totalDeletions = (children || []).reduce((acc, c) => acc + c.deletions, 0);
+      const totalFileCount = (children || []).reduce((acc, c) => acc + c.fileCount, 0);
+
+      return {
+        ...node,
+        children,
+        additions: totalAdditions,
+        deletions: totalDeletions,
+        fileCount: totalFileCount,
+      };
+    }
+
+    return null;
+  }
+
+  return nodes.map(filterNode).filter((n): n is DiffTreeNode => n !== null);
+}
+

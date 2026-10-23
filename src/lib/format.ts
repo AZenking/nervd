@@ -15,3 +15,17 @@ export function formatDuration(durationMs: number): string {
   if (durationMs < 60_000) return `${Math.round(durationMs / 1000)} 秒`;
   return `${Math.floor(durationMs / 60_000)} 分 ${Math.round((durationMs % 60_000) / 1000)} 秒`;
 }
+
+/** 时间戳 → 相对时间（刚刚 / N分钟前 / N小时前 / N天前 / 具体日期） */
+export function formatRelativeTime(timestamp: number): string {
+  const diffMs = Date.now() - timestamp;
+  if (diffMs < 60_000) return '刚刚';
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 60) return `${mins} 分钟前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} 天前`;
+  return formatDateTime(timestamp);
+}
+

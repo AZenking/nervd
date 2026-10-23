@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
   CalendarDaysIcon,
+  ClockIcon,
   GitBranchIcon,
   InfoIcon,
   LayoutDashboardIcon,
@@ -15,6 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { iterationsOrFallback, useUi } from '@/store/ui';
+import { useRecentWorkitems } from '@/store/recent-workitems';
 import { APP_VERSION } from '@/lib/app-info';
 import { StatusIcon } from './status-icon';
 
@@ -28,7 +30,7 @@ import { StatusIcon } from './status-icon';
 /** 面板条目模型（group 决定分组与渲染顺序；run 前统一先收面板） */
 interface CommandEntry {
   id: string;
-  group: '导航' | '迭代' | '工作项' | '操作';
+  group: '最近查看' | '导航' | '迭代' | '工作项' | '操作';
   label: string;
   hint?: string;
   icon: React.ReactNode;
@@ -39,7 +41,7 @@ interface CommandEntry {
 }
 
 /** 组顺序固定（Linear 信息架构），构建条目时按此顺序展开 */
-const GROUP_ORDER = ['导航', '迭代', '工作项', '操作'] as const;
+const GROUP_ORDER = ['最近查看', '导航', '迭代', '工作项', '操作'] as const;
 type CommandGroup = (typeof GROUP_ORDER)[number];
 
 /** 工作项条目上限：有搜索词取 15 条，空态预览前 8 条 */
@@ -61,6 +63,7 @@ export function CommandMenu() {
   const { view, setView, openSettings, setIteration, openWorkitem, theme, toggleTheme, setAboutOpen, settingsSection } = useUi();
   const items = useApp((s) => s.items);
   const realIterations = useApp((s) => s.iterations);
+  const recentItems = useRecentWorkitems((s) => s.items);
   const loadList = useApp((s) => s.loadList);
   const revalidateList = useApp((s) => s.revalidateList);
   const loadIterations = useApp((s) => s.loadIterations);
@@ -77,20 +80,51 @@ export function CommandMenu() {
     const hit = (entry: { label: string; keywords?: string; hint?: string }) =>
       [entry.label, entry.keywords, entry.hint].some((text) => text?.toLowerCase().includes(q));
 
+    const recentPool = q
+      ? recentItems.filter((it) => `${it.identifier} ${it.subject}`.toLowerCase().includes(q))
+      : recentItems;
+    const recentEntries: CommandEntry[] = recentPool
+      .slice(0, 6)
+      .map((it) => ({
+        id: `recent-${it.workitemId}`,
+        group: '最近查看',
+        label: it.subject,
+        hint: `${it.identifier} · 30s+`,
+        icon: <ClockIcon className="size-4 text-amber-500" />,
+        run: () =>
+          openWorkitem(it.workitemId, {
+            workitemId: it.workitemId,
+            identifier: it.identifier,
+            subject: it.subject,
+          }),
+      }));
+
     const nav: CommandEntry[] = [
       {
         id: 'nav-overview',
         group: '导航',
         label: '总览',
+        hint: 'g o',
         icon: <LayoutDashboardIcon className="size-4" />,
         keywords: '总览 overview dashboard 大盘',
         active: view === 'overview',
         run: () => setView('overview'),
       },
       {
+        id: 'nav-recents',
+        group: '导航',
+        label: '最近查看',
+        hint: 'g r',
+        icon: <ClockIcon className="size-4" />,
+        keywords: '最近 查看 recents 30s 历史',
+        active: view === 'recents',
+        run: () => setView('recents'),
+      },
+      {
         id: 'nav-iteration',
         group: '导航',
         label: '当前迭代',
+        hint: 'g i',
         icon: <CalendarDaysIcon className="size-4" />,
         keywords: '迭代 iteration sprint 工作项',
         active: view === 'iteration' || view === 'requirement',
@@ -100,6 +134,7 @@ export function CommandMenu() {
         id: 'nav-integration',
         group: '导航',
         label: '集成分支',
+        hint: 'g b',
         icon: <GitBranchIcon className="size-4" />,
         keywords: '集成分支 分支 branch integration release',
         active: view === 'integration',
@@ -194,12 +229,13 @@ export function CommandMenu() {
     ];
 
     return [
+      ...recentEntries,
       ...nav.filter(hit),
       ...iterationEntries.filter(hit),
       ...workitemEntries,
       ...actions.filter(hit),
     ];
-  }, [q, view, realIterations, items, setView, openSettings, setIteration, openWorkitem, loadList, revalidateList, loadIterations, theme, toggleTheme]);
+  }, [q, view, realIterations, items, recentItems, setView, openSettings, setIteration, openWorkitem, loadList, revalidateList, loadIterations, theme, toggleTheme]);
 
   // 非空组（保持 GROUP_ORDER 顺序）+ 扁平序（键盘 active 索引按扁平序计）
   const groups = useMemo<{ group: CommandGroup; entries: CommandEntry[] }[]>(

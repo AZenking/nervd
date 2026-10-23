@@ -11,6 +11,7 @@ import type { AiRepoRecommendation } from '@/types/ai';
 import type { WorkitemChild } from '@/lib/api';
 import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { cn } from '@/lib/utils';
+import { useRecentTracker } from '@/hooks/use-recent-tracker';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { CATEGORY_LABELS, type Category } from '@/types';
@@ -225,6 +226,16 @@ export function RequirementDetails({
     || (typeof wi.projectId === 'string' && wi.projectId)
     || settings?.defaultSpaceIdentifier
     || '';
+
+  // 持续检视停留 30s+ 自动收录为「最近查看」
+  useRecentTracker({
+    workitemId: selectedId,
+    identifier,
+    subject,
+    category,
+    status: statusName,
+    spaceName,
+  });
 
   const handleOpenInYunxiao = () => {
     void openWorkitemInYunxiao({

@@ -12,6 +12,7 @@ export interface NavMainItem {
   icon: React.ReactNode;
   view?: WorkspaceView;
   isActive?: boolean;
+  badge?: React.ReactNode;
 }
 
 /** 主导航：Linear 式直接主菜单项，无多余折叠包裹 */
@@ -30,7 +31,8 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
               }}
             >
               {item.icon}
-              <span>{item.title}</span>
+              <span className="flex-1">{item.title}</span>
+              {item.badge}
             </SidebarMenuButton>
           </SidebarMenuItem>
         ))}

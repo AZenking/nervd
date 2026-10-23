@@ -93,7 +93,7 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
   });
 }
 
-export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'full-settings';
+export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings';
 export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security' | 'ai' | 'about';
 
 /** 构建工作台的内部页面；具体参数草稿由工作台 hook 持有。 */
