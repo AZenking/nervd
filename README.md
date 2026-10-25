@@ -112,7 +112,7 @@ nervd 倡导**以工作项为锚点、主线快速推进、质量门禁前置**�
 
 #### 语义化版本规范 (Semantic Versioning)
 项目遵循 `v<Major>.<Minor>.<Patch>` 语义化版本规范：
-- **`Patch` (补丁号，如 `v0.2.7` → `v0.2.8`)**：日常缺陷修复、交互与排印优化、安全与依赖更新。
+- **`Patch` (补丁号，如 `v0.2.8` → `v0.2.9`)**：日常缺陷修复、交互与排印优化、安全与依赖更新。
 - **`Minor` (次版本号，如 `v0.2.0`)**：向后兼容的核心功能新增（如集成分支视图、代码变更树形 Diff、Jenkins 构建实时日志追踪等）。
 - **`Major` (主版本号，如 `v1.0.0`)**：架构断代重构、IPC 契约重大调整或桌面端核心交互范式升级。
 - **自动化发布 (Release Trigger)**：主线合并并通过终验后，打上 `v*` Tag 即自动触发 GitHub Actions 多架构矩阵构建（macOS Apple Silicon/Intel DMG + Windows NSIS/MSI 安装包）并生成附带 SHA-256 校验的 Release。
