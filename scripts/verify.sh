@@ -18,9 +18,10 @@ echo "== 3/5 Rust cargo check =="
 (cd src-tauri && cargo check -q 2>&1 | tail -20) || fail "cargo check 报错"
 
 echo "== 4/5 契约符合性抽查 =="
-# 冻结文件不得被任务改动（相对当前分支 HEAD）
-if ! git diff --quiet HEAD -- src/types.ts docs/ipc-contract.md package.json pnpm-lock.yaml vite.config.ts tsconfig.json tsconfig.node.json; then
-  fail "冻结文件被修改: $(git diff --name-only HEAD -- src/types.ts docs/ipc-contract.md package.json pnpm-lock.yaml vite.config.ts tsconfig.json tsconfig.node.json | tr '\n' ' ')"
+# 冻结文件不得被任务改动（相对当前分支 HEAD，package.json 仅允许更新 version 版本号）
+if ! git diff -I '"version":' --quiet HEAD -- package.json || \
+   ! git diff --quiet HEAD -- src/types.ts docs/ipc-contract.md pnpm-lock.yaml vite.config.ts tsconfig.json tsconfig.node.json; then
+  fail "冻结文件被修改: $(git diff --name-only HEAD -- src/types.ts docs/ipc-contract.md pnpm-lock.yaml vite.config.ts tsconfig.json tsconfig.node.json | tr '\n' ' ')"
 fi
 echo "   冻结文件完好"
 
