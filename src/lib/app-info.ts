@@ -1,8 +1,9 @@
 import { toast } from '@/components/ui/toast';
 import type { Settings, SettingsView } from '@/types';
+import packageJson from '../../package.json';
 
 export const APP_NAME = 'nervd';
-export const APP_VERSION = '0.2.6';
+export const APP_VERSION = packageJson.version;
 export const APP_TAGLINE = '以云效需求为核心维度的一站式 CI/CD 桌面工作台';
 export const APP_BUILD_CHANNEL = 'Stable (Universal)';
 export const REPO_URL = 'https://github.com/AZenking/nervd';
