@@ -7,7 +7,7 @@ import { Shell } from '../src/components/Shell';
 import { Toaster } from '../src/components/ui/toast';
 import { TooltipProvider } from '../src/components/ui/tooltip';
 
-import { useUi } from '../src/store/ui';
+import { useUi, initThemeListener } from '../src/store/ui';
 import { dismissSplashScreen } from '../src/lib/splash';
 import { toast } from '../src/components/ui/toast';
 import { LandingView } from './landing/LandingView';
@@ -30,7 +30,7 @@ function ToastHost() {
 function Preview() {
   const init = useApp((s) => s.init);
   const booting = useApp((s) => s.booting);
-  const theme = useUi((s) => s.theme);
+  const resolvedTheme = useUi((s) => s.resolvedTheme);
 
   const getInitialMode = (): 'landing' | 'workbench' => {
     if (typeof window !== 'undefined') {
@@ -43,6 +43,11 @@ function Preview() {
   };
 
   const [mode, setMode] = useState<'landing' | 'workbench'>(getInitialMode);
+
+  useEffect(() => {
+    const unlisten = initThemeListener();
+    return () => unlisten();
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -61,8 +66,8 @@ function Preview() {
   useEffect(() => {
     (window as any).__nervd_app = useApp;
     (window as any).__nervd_ui = useUi;
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
+    document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
+  }, [resolvedTheme]);
 
   useEffect(() => {
     void init();

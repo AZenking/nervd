@@ -7,6 +7,7 @@ import {
   InfoIcon,
   LayoutDashboardIcon,
   LockIcon,
+  MonitorIcon,
   MoonIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -60,7 +61,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export function CommandMenu() {
   const open = useUi((s) => s.commandOpen);
   const setCommandOpen = useUi((s) => s.setCommandOpen);
-  const { view, setView, openSettings, setIteration, openWorkitem, theme, toggleTheme, setAboutOpen, settingsSection } = useUi();
+  const { view, setView, openSettings, setIteration, openWorkitem, theme, resolvedTheme, setTheme, toggleTheme, setAboutOpen, settingsSection } = useUi();
   const items = useApp((s) => s.items);
   const realIterations = useApp((s) => s.iterations);
   const recentItems = useRecentWorkitems((s) => s.items);
@@ -211,12 +212,37 @@ export function CommandMenu() {
         },
       },
       {
-        id: 'action-theme',
+        id: 'action-theme-toggle',
         group: '操作',
-        label: theme === 'dark' ? '切换为浅色模式' : '切换为深色模式',
-        icon: theme === 'dark' ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />,
-        keywords: '主题 theme dark light 深色 浅色 模式切换',
+        label: `外观：切换主题（当前：${theme === 'system' ? `跟随系统·${resolvedTheme === 'dark' ? '深色' : '浅色'}` : theme === 'dark' ? '深色模式' : '浅色模式'}）`,
+        icon: theme === 'system' ? <MonitorIcon className="size-4" /> : resolvedTheme === 'dark' ? <MoonIcon className="size-4" /> : <SunIcon className="size-4" />,
+        keywords: '主题 theme dark light system 跟随系统 深色 浅色 模式切换 切换外观',
         run: () => toggleTheme(),
+      },
+      {
+        id: 'action-theme-system',
+        group: '操作',
+        label: '外观：跟随系统',
+        hint: resolvedTheme === 'dark' ? '当前系统深色' : '当前系统浅色',
+        icon: <MonitorIcon className="size-4" />,
+        keywords: '主题 theme system 跟随系统 自动',
+        run: () => setTheme('system'),
+      },
+      {
+        id: 'action-theme-dark',
+        group: '操作',
+        label: '外观：深色模式',
+        icon: <MoonIcon className="size-4" />,
+        keywords: '主题 theme dark 深色 暗色 黑',
+        run: () => setTheme('dark'),
+      },
+      {
+        id: 'action-theme-light',
+        group: '操作',
+        label: '外观：浅色模式',
+        icon: <SunIcon className="size-4" />,
+        keywords: '主题 theme light 浅色 亮色 白',
+        run: () => setTheme('light'),
       },
       {
         id: 'action-security',
@@ -235,7 +261,7 @@ export function CommandMenu() {
       ...workitemEntries,
       ...actions.filter(hit),
     ];
-  }, [q, view, realIterations, items, recentItems, setView, openSettings, setIteration, openWorkitem, loadList, revalidateList, loadIterations, theme, toggleTheme]);
+  }, [q, view, realIterations, items, recentItems, setView, openSettings, setIteration, openWorkitem, loadList, revalidateList, loadIterations, theme, resolvedTheme, setTheme, toggleTheme]);
 
   // 非空组（保持 GROUP_ORDER 顺序）+ 扁平序（键盘 active 索引按扁平序计）
   const groups = useMemo<{ group: CommandGroup; entries: CommandEntry[] }[]>(

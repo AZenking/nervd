@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ArrowRightIcon, CheckCircle2Icon, MoonIcon, SparklesIcon, SunIcon } from 'lucide-react';
+import { ArrowRightIcon, CheckCircle2Icon, MonitorIcon, MoonIcon, SparklesIcon, SunIcon } from 'lucide-react';
 import { useApp } from '../store/app';
 import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type SettingsSection } from '../store/ui';
@@ -38,6 +38,7 @@ export function SettingsView({
   const settingsSection = useUi((state) => state.settingsSection);
   const setSettingsSection = useUi((state) => state.setSettingsSection);
   const theme = useUi((state) => state.theme);
+  const resolvedTheme = useUi((state) => state.resolvedTheme);
   const toggleTheme = useUi((state) => state.toggleTheme);
   const fieldErrors = useSettingsDraft((state) => state.fieldErrors);
 
@@ -132,10 +133,28 @@ export function SettingsView({
             size="icon"
             className="size-7 cursor-pointer text-muted-foreground hover:text-foreground"
             onClick={(e) => toggleTheme({ clientX: e.clientX, clientY: e.clientY })}
-            title={theme === 'dark' ? '切换为浅色模式' : '切换为深色模式'}
-            aria-label={theme === 'dark' ? '切换为浅色模式' : '切换为深色模式'}
+            title={
+              theme === 'system'
+                ? `主题：跟随系统（当前${resolvedTheme === 'dark' ? '深色' : '浅色'}）· 点击切换`
+                : theme === 'dark'
+                ? '主题：深色模式 · 点击切换'
+                : '主题：浅色模式 · 点击切换'
+            }
+            aria-label={
+              theme === 'system'
+                ? `主题：跟随系统（当前${resolvedTheme === 'dark' ? '深色' : '浅色'}）`
+                : theme === 'dark'
+                ? '主题：深色模式'
+                : '主题：浅色模式'
+            }
           >
-            {theme === 'dark' ? <SunIcon className="size-3.5" /> : <MoonIcon className="size-3.5" />}
+            {theme === 'system' ? (
+              <MonitorIcon className="size-3.5" />
+            ) : theme === 'dark' ? (
+              <MoonIcon className="size-3.5" />
+            ) : (
+              <SunIcon className="size-3.5" />
+            )}
           </Button>
           {onComplete && (
             <Button

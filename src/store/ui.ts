@@ -96,6 +96,35 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
 export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings';
 export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security' | 'ai' | 'about';
 
+/** 主题偏好模式：跟随系统 / 深色 / 浅色 */
+export type ThemeMode = 'system' | 'dark' | 'light';
+/** 实际渲染生效的主题：深色 / 浅色 */
+export type ResolvedTheme = 'dark' | 'light';
+
+/** 获取系统当前明暗偏好（默认回退深色以契合客户端基准视觉） */
+export function getSystemTheme(): ResolvedTheme {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'dark';
+}
+
+/** 将用户主题模式解析为当前实际明暗模式 */
+export function resolveTheme(mode: ThemeMode): ResolvedTheme {
+  if (mode === 'system') {
+    return getSystemTheme();
+  }
+  return mode;
+}
+
+/** 读取本地持久化的主题偏好（未配置时默认跟随系统） */
+export function getStoredTheme(): ThemeMode {
+  if (typeof localStorage === 'undefined') return 'system';
+  const val = localStorage.getItem('nervd-theme');
+  if (val === 'light' || val === 'dark' || val === 'system') return val;
+  return 'system';
+}
+
 /** 构建工作台的内部页面；具体参数草稿由工作台 hook 持有。 */
 export type BuildWorkbenchPage = 'runs' | 'parameters' | 'logs';
 export type BuildWorkbenchTarget =
@@ -158,9 +187,12 @@ interface UiStore {
   /** 关于 nervd 弹窗开关 */
   aboutOpen: boolean;
   setAboutOpen(open: boolean): void;
-  /** 主题模式：深色 dark（默认）与浅色 light */
-  theme: 'dark' | 'light';
-  setTheme(theme: 'dark' | 'light'): void;
+  /** 主题模式：跟随系统 system、深色 dark 与浅色 light */
+  theme: ThemeMode;
+  /** 当前实际渲染的明暗模式：'dark' | 'light' */
+  resolvedTheme: ResolvedTheme;
+  setTheme(theme: ThemeMode, event?: { clientX: number; clientY: number } | null): void;
+  setResolvedTheme(resolvedTheme: ResolvedTheme): void;
   toggleTheme(event?: { clientX: number; clientY: number } | null): void;
   /** 单一构建工作台导航状态；只保存目标与页面，不保存表单草稿。 */
   buildWorkbenchOpen: boolean;
@@ -257,22 +289,29 @@ export const useUi = create<UiStore>((set, get) => {
         buildWorkbenchPage: 'runs',
         buildWorkbenchHistory: [],
       }),
-    theme: (typeof localStorage !== 'undefined' && (localStorage.getItem('nervd-theme') as 'dark' | 'light')) || 'dark',
-    setTheme: (theme) => {
+    theme: getStoredTheme(),
+    resolvedTheme: resolveTheme(getStoredTheme()),
+    setTheme: (theme, event) => {
       if (typeof localStorage !== 'undefined') localStorage.setItem('nervd-theme', theme);
-      if (typeof document !== 'undefined') {
-        document.documentElement.classList.toggle('dark', theme === 'dark');
+      const nextResolved = resolveTheme(theme);
+      const currentResolved = get().resolvedTheme;
+
+      const applyTheme = () => {
+        if (typeof document !== 'undefined') {
+          document.documentElement.classList.toggle('dark', nextResolved === 'dark');
+        }
+        set({ theme, resolvedTheme: nextResolved });
+      };
+
+      if (nextResolved === currentResolved) {
+        applyTheme();
+        return;
       }
-      set({ theme });
-    },
-    toggleTheme: (event) => {
-      const current = get().theme;
-      const next = current === 'dark' ? 'light' : 'dark';
 
       // 降级判定：检查环境支持与系统减弱动态效果偏好
       const isReducedMotion =
         typeof window !== 'undefined' &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
       const doc = typeof document !== 'undefined' ? (document as Document & {
         startViewTransition?: (callback: () => void | Promise<void>) => { ready: Promise<void> };
       }) : null;
@@ -281,7 +320,7 @@ export const useUi = create<UiStore>((set, get) => {
       );
 
       if (!isAppearanceTransition || !doc?.startViewTransition) {
-        get().setTheme(next);
+        applyTheme();
         return;
       }
 
@@ -294,14 +333,14 @@ export const useUi = create<UiStore>((set, get) => {
 
       const transition = doc.startViewTransition(() => {
         flushSync(() => {
-          get().setTheme(next);
+          applyTheme();
         });
       });
 
       if (!transition) return;
 
       void transition.ready.then(() => {
-        const isDark = next === 'dark';
+        const isDark = nextResolved === 'dark';
         const clipPath = [
           `circle(0px at ${x}px ${y}px)`,
           `circle(${endRadius}px at ${x}px ${y}px)`,
@@ -322,6 +361,33 @@ export const useUi = create<UiStore>((set, get) => {
           // 在不支持伪元素 Web Animations 的早期 WebKit 中静默回退
         }
       });
+    },
+    setResolvedTheme: (resolvedTheme) => {
+      const currentResolved = get().resolvedTheme;
+      if (currentResolved === resolvedTheme) return;
+      if (typeof document !== 'undefined') {
+        document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
+      }
+      set({ resolvedTheme });
+    },
+    toggleTheme: (event) => {
+      const currentTheme = get().theme;
+      const currentResolved = get().resolvedTheme;
+      const systemTheme = getSystemTheme();
+
+      let next: ThemeMode;
+      if (currentTheme === 'system') {
+        // 跟随系统状态下点击，切换到与当前视觉相反的显式模式
+        next = currentResolved === 'dark' ? 'light' : 'dark';
+      } else if (currentTheme !== systemTheme) {
+        // 当前为与系统相反的模式，切换到与系统相同的显式模式
+        next = systemTheme;
+      } else {
+        // 当前显式模式与系统一致，切换回跟随系统
+        next = 'system';
+      }
+
+      get().setTheme(next, event);
     },
     setView: (view) => {
       const st = get();
@@ -389,3 +455,69 @@ export const useUi = create<UiStore>((set, get) => {
     },
   };
 });
+
+/**
+ * 初始化系统明暗外观监听器：
+ * 1. 监听系统 prefers-color-scheme 媒体查询；
+ * 2. 在 Tauri 环境中同步监听窗口级 onThemeChanged 事件；
+ * 3. 当处于 'system' 模式时，自动动态同步并应用主题。
+ * 返回取消监听函数供组件卸载时调用。
+ */
+export function initThemeListener(): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const mediaQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+  const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
+    const isDark = e.matches;
+    const currentTheme = useUi.getState().theme;
+    if (currentTheme === 'system') {
+      useUi.getState().setResolvedTheme(isDark ? 'dark' : 'light');
+    }
+  };
+
+  if (mediaQuery) {
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleMediaChange);
+    } else if (typeof (mediaQuery as any).addListener === 'function') {
+      (mediaQuery as any).addListener(handleMediaChange);
+    }
+  }
+
+  let unlistenTauri: (() => void) | undefined;
+  if ('__TAURI_INTERNALS__' in window) {
+    import('@tauri-apps/api/window')
+      .then(({ getCurrentWindow }) => {
+        try {
+          const appWindow = getCurrentWindow();
+          if (typeof appWindow.onThemeChanged === 'function') {
+            void appWindow
+              .onThemeChanged(({ payload: newTheme }) => {
+                const currentTheme = useUi.getState().theme;
+                if (currentTheme === 'system') {
+                  const isDark = newTheme === 'dark';
+                  useUi.getState().setResolvedTheme(isDark ? 'dark' : 'light');
+                }
+              })
+              .then((unlisten) => {
+                unlistenTauri = unlisten;
+              });
+          }
+        } catch {
+          // 静默处理非真实 Tauri 运行时环境
+        }
+      })
+      .catch(() => {});
+  }
+
+  return () => {
+    if (mediaQuery) {
+      if (typeof mediaQuery.removeEventListener === 'function') {
+        mediaQuery.removeEventListener('change', handleMediaChange);
+      } else if (typeof (mediaQuery as any).removeListener === 'function') {
+        (mediaQuery as any).removeListener(handleMediaChange);
+      }
+    }
+    if (unlistenTauri) unlistenTauri();
+  };
+}
+

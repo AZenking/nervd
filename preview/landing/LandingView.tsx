@@ -33,12 +33,8 @@ interface LandingViewProps {
 }
 
 export const LandingView: React.FC<LandingViewProps> = ({ onLaunchWorkbench }) => {
-  const theme = useUi((s) => s.theme);
-  const setTheme = useUi((s) => s.setTheme);
-
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
+  const resolvedTheme = useUi((s) => s.resolvedTheme);
+  const toggleTheme = useUi((s) => s.toggleTheme);
 
   return (
     <div className="relative min-h-screen bg-background text-foreground overflow-x-hidden selection:bg-primary/20 selection:text-primary">
@@ -93,11 +89,11 @@ export const LandingView: React.FC<LandingViewProps> = ({ onLaunchWorkbench }) =
 
           <div className="flex items-center gap-3">
             <button
-              onClick={toggleTheme}
-              className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              onClick={(e) => toggleTheme({ clientX: e.clientX, clientY: e.clientY })}
+              className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               aria-label="切换明暗主题"
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {resolvedTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             <button
               onClick={onLaunchWorkbench}

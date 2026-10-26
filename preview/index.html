@@ -9,8 +9,13 @@
     <script>
       window.__NERVD_START_TIME__ = Date.now();
       try {
-        var theme = localStorage.getItem('nervd-theme') || 'dark';
-        if (theme === 'dark') {
+        var theme = localStorage.getItem('nervd-theme') || 'system';
+        var isDark =
+          theme === 'dark' ||
+          (theme !== 'light' &&
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
           document.documentElement.classList.add('dark');
         } else {
           document.documentElement.classList.remove('dark');

@@ -5,14 +5,18 @@ import {
   ExternalLinkIcon,
   InfoIcon,
   KeyRoundIcon,
+  MonitorIcon,
+  MoonIcon,
   RefreshCwIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
   SparklesIcon,
+  SunIcon,
   TerminalIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
@@ -31,7 +35,7 @@ import { openExternal } from '@/lib/yunxiao-link';
 
 export function AboutSection() {
   const { settings } = useApp();
-  const { openSettings, setShortcutsOpen, setAboutOpen } = useUi();
+  const { openSettings, setShortcutsOpen, setAboutOpen, theme, resolvedTheme, setTheme } = useUi();
   const { status, hasUpdate, isChecking, updateInfo, error, checkForUpdates, openDownload } = useAppUpdate();
 
   const allowWriteOps = settings?.allowWriteOps ?? false;
@@ -154,6 +158,67 @@ export function AboutSection() {
                     : '检查更新'}
                 </span>
               </Button>
+            </div>
+          )}
+        />
+      </SettingsGroup>
+
+      {/* 外观与主题偏好 */}
+      <SettingsGroup
+        title="外观与主题"
+        description="选择 nervd 界面主题模式，支持跟随 macOS 系统外观自动切换。"
+      >
+        <SettingsRow
+          orientation="horizontal"
+          label="明暗主题模式"
+          description={
+            theme === 'system'
+              ? `当前正跟随系统外观（当前解析为${resolvedTheme === 'dark' ? '深色模式' : '浅色模式'}）。`
+              : theme === 'dark'
+              ? '当前已锁定深色模式（Dark）。'
+              : '当前已锁定浅色模式（Light）。'
+          }
+          control={(
+            <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs">
+              <button
+                type="button"
+                onClick={(e) => setTheme('system', { clientX: e.clientX, clientY: e.clientY })}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer',
+                  theme === 'system'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <MonitorIcon className="size-3.5" />
+                <span>跟随系统</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => setTheme('light', { clientX: e.clientX, clientY: e.clientY })}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer',
+                  theme === 'light'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <SunIcon className="size-3.5" />
+                <span>浅色</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => setTheme('dark', { clientX: e.clientX, clientY: e.clientY })}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer',
+                  theme === 'dark'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <MoonIcon className="size-3.5" />
+                <span>深色</span>
+              </button>
             </div>
           )}
         />

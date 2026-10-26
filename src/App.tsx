@@ -7,7 +7,7 @@ import { SettingsView } from './components/SettingsView';
 import { StartupSplash } from './components/StartupSplash';
 import { dismissSplashScreen } from './lib/splash';
 import { useApp } from './store/app';
-import { useUi } from './store/ui';
+import { useUi, initThemeListener } from './store/ui';
 import { useUpdater } from './store/updater';
 import { useWindowDrag } from './hooks/use-window-drag';
 import type { JenkinsBuildEvent, PipelineRunEvent, SettingsView as SettingsViewType } from './types';
@@ -62,9 +62,13 @@ export default function App() {
   useWindowDrag();
 
   useEffect(() => {
-    const theme = useUi.getState().theme;
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    const unlistenTheme = initThemeListener();
+    const resolvedTheme = useUi.getState().resolvedTheme;
+    document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
     void init();
+    return () => {
+      unlistenTheme();
+    };
   }, [init]);
 
   // 当 settings 加载完成或发生变化时，若已齐备则自动同步已完成状态

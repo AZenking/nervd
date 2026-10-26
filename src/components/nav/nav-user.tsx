@@ -3,15 +3,32 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { MoonIcon, SettingsIcon, SunIcon } from 'lucide-react';
+import { MonitorIcon, MoonIcon, SettingsIcon, SunIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 
 /** 侧栏底部操作区：用户信息、主题切换与设置入口 */
 export function NavUser() {
-  const { openSettings, theme, toggleTheme } = useUi();
+  const { openSettings, theme, resolvedTheme, toggleTheme } = useUi();
   const { currentUser } = useApp();
+
+  const themeTooltip =
+    theme === 'system'
+      ? `主题：跟随系统（当前${resolvedTheme === 'dark' ? '深色' : '浅色'}）· 点击切换`
+      : theme === 'dark'
+      ? '主题：深色模式 · 点击切换'
+      : '主题：浅色模式 · 点击切换';
+
+  const themeLabel =
+    theme === 'system'
+      ? `跟随系统 (${resolvedTheme === 'dark' ? '深色' : '浅色'})`
+      : theme === 'dark'
+      ? '深色模式'
+      : '浅色模式';
+
+  const ThemeIcon =
+    theme === 'system' ? MonitorIcon : theme === 'dark' ? MoonIcon : SunIcon;
 
   return (
     <SidebarMenu className="gap-0.5">
@@ -39,12 +56,12 @@ export function NavUser() {
       <SidebarMenuItem>
         <SidebarMenuButton
           size="default"
-          tooltip={theme === 'dark' ? '浅色模式' : '深色模式'}
+          tooltip={themeTooltip}
           onClick={(e) => toggleTheme({ clientX: e.clientX, clientY: e.clientY })}
           className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
         >
-          {theme === 'dark' ? <SunIcon className="size-4 shrink-0" /> : <MoonIcon className="size-4 shrink-0" />}
-          <span className="truncate text-[13px] font-medium">{theme === 'dark' ? '浅色模式' : '深色模式'}</span>
+          <ThemeIcon className="size-4 shrink-0" />
+          <span className="truncate text-[13px] font-medium">{themeLabel}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>
