@@ -2,6 +2,7 @@
 
 mod commands;
 mod credentials;
+mod db;
 mod jenkins;
 mod poller;
 mod yunxiao;
@@ -14,6 +15,7 @@ pub struct AppStateInner {
     pub client: Mutex<Option<Arc<yunxiao::YunxiaoClient>>>,
     pub settings: Mutex<credentials::Settings>,
     pub jenkins_trigger_baselines: Mutex<HashMap<String, Vec<i64>>>,
+    pub db: Mutex<rusqlite::Connection>,
 }
 pub type AppState = Arc<AppStateInner>;
 
@@ -156,10 +158,15 @@ pub fn run() {
             let client = credentials::load_pat()
                 .and_then(|p| yunxiao::YunxiaoClient::new(&p).ok())
                 .map(Arc::new);
+            let db_conn = db::init_db(&app.handle()).map_err(|e| {
+                eprintln!("[db] failed to init sqlite: {e}");
+                e
+            })?;
             let inner: AppState = Arc::new(AppStateInner {
                 client: Mutex::new(client),
                 settings: Mutex::new(settings),
                 jenkins_trigger_baselines: Mutex::new(HashMap::new()),
+                db: Mutex::new(db_conn),
             });
             app.manage(inner.clone());
             poller::spawn(app.handle().clone(), inner);
@@ -220,6 +227,10 @@ pub fn run() {
             commands::delete_ai_api_key,
             commands::test_ai_connection,
             commands::ai_chat_completion,
+            commands::list_local_tasks,
+            commands::create_local_task,
+            commands::update_local_task,
+            commands::delete_local_task,
             commands::check_for_updates,
             commands::download_and_install_update
         ])

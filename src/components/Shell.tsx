@@ -10,6 +10,7 @@ import { OverviewView } from './OverviewView';
 import { RecentsView } from './recents/RecentsView';
 import { SettingsView } from './SettingsView';
 import { SchedulesView } from './schedules/SchedulesView';
+import { LocalTasksView } from './local-tasks/LocalTasksView';
 import { CommandMenu } from './command-menu';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { AboutDialog } from './about-dialog';
@@ -177,6 +178,7 @@ export function Shell() {
         if (e.key === 'i') return void ui.setView('iteration');
         if (e.key === 'b') return void ui.setView('integration');
         if (e.key === 'c') return void ui.setView('schedules');
+        if (e.key === 't') return void ui.setView('local-tasks');
         if (e.key === 's') return void ui.openSettings('connection');
         // 其他键：已复位，继续落入下方单键逻辑
       } else if (e.key === 'g') {
@@ -230,6 +232,7 @@ export function Shell() {
                 {view === 'overview' && <OverviewView />}
                 {view === 'recents' && <RecentsView />}
                 {view === 'schedules' && <SchedulesView />}
+                {view === 'local-tasks' && <LocalTasksView />}
                 {/* 设置为全页布局：左侧栏即设置菜单，这里只渲染当前分区内容（宽度由 embedded 视图自带） */}
                 {view === 'full-settings' && <SettingsView embedded />}
               </div>

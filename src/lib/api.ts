@@ -278,3 +278,21 @@ export async function stopPipelineRun(pipelineId: number, runId: number): Promis
 export async function getJobLogs(pipelineId: number, runId: number, jobId: number): Promise<string> {
   return invoke('get_job_logs', { pipelineId, runId, jobId });
 }
+
+// ---------- 本地任务 (SQLite: local_tasks) ----------
+
+export async function listLocalTasks(status?: string, search?: string): Promise<import('@/types/local-task').LocalTask[]> {
+  return invoke('list_local_tasks', { status, search });
+}
+
+export async function createLocalTask(payload: import('@/types/local-task').CreateLocalTaskPayload): Promise<import('@/types/local-task').LocalTask> {
+  return invoke('create_local_task', { payload });
+}
+
+export async function updateLocalTask(id: string, payload: import('@/types/local-task').UpdateLocalTaskPayload): Promise<import('@/types/local-task').LocalTask> {
+  return invoke('update_local_task', { id, payload });
+}
+
+export async function deleteLocalTask(id: string): Promise<boolean> {
+  return invoke('delete_local_task', { id });
+}

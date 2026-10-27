@@ -93,7 +93,7 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
   });
 }
 
-export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings' | 'schedules';
+export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings' | 'schedules' | 'local-tasks';
 export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security' | 'ai' | 'about';
 
 /** 主题偏好模式：跟随系统 / 深色 / 浅色 */
