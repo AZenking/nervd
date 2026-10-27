@@ -75,22 +75,27 @@ export function RecentsView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className={STICKY_PAGE_HEADER_CLASS}>
-        <div className="flex min-h-9 items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-sm font-semibold tracking-tight text-foreground">最近查看</h1>
+      <header
+        data-tauri-drag-region
+        className={cn(STICKY_PAGE_HEADER_CLASS, 'select-none')}
+      >
+        <div className="flex min-h-9 items-center justify-between gap-3" data-tauri-drag-region>
+          <div className="flex items-center gap-2.5" data-tauri-drag-region>
+            <h1 className="text-sm font-semibold tracking-tight text-foreground select-none cursor-default">
+              最近查看
+            </h1>
             {items.length > 0 && (
-              <span className="rounded-md border border-border/80 bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] font-medium text-muted-foreground">
+              <span className="rounded-md border border-border/80 bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] font-medium text-muted-foreground select-none cursor-default">
                 {items.length} 项
               </span>
             )}
-            <span className="text-xs text-muted-foreground hidden sm:inline">
+            <span className="text-xs text-muted-foreground hidden sm:inline select-none cursor-default">
               · 仅记录持续深入查看超过 30 秒的需求项
             </span>
           </div>
 
           {items.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" data-no-drag>
               <Button
                 variant="ghost"
                 size="sm"

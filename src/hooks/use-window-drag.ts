@@ -53,8 +53,9 @@ export function useWindowDrag() {
       // 若元素已声明 data-tauri-drag-region，由 Tauri 底层原生接管，JS 不介入
       if (target.closest('[data-tauri-drag-region]')) return;
 
-      // 仅在应用最顶部 8px 系统边缘微缝处作为 fallback 允许拖拽窗口
-      if (e.clientY <= 8) {
+      // 兜底保护：当在应用最顶部 38px（标准 macOS 沉浸式 Titlebar 高度）内的非交互式空白区域点击时，
+      // 若该区域未显式声明 data-tauri-drag-region，依然触发窗口拖拽
+      if (e.clientY <= 38) {
         try {
           const { getCurrentWindow } = await import('@tauri-apps/api/window');
           await getCurrentWindow().startDragging();

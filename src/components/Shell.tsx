@@ -9,6 +9,7 @@ import { BuildWorkbenchDrawer } from './build-workbench';
 import { OverviewView } from './OverviewView';
 import { RecentsView } from './recents/RecentsView';
 import { SettingsView } from './SettingsView';
+import { SchedulesView } from './schedules/SchedulesView';
 import { CommandMenu } from './command-menu';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { AboutDialog } from './about-dialog';
@@ -18,6 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useGlobalCiScheduler } from '@/hooks/use-ci-polling';
+import { useScheduleRunner } from '@/hooks/use-schedule-runner';
 import { useApp } from '@/store/app';
 
 /** g 前缀序列的等待窗口（Linear g+letter：g 后 1200ms 内的下一键才生效） */
@@ -97,6 +99,9 @@ export function Shell() {
   // 挂载全局自适应 CI 轮询调度器（覆盖总览、迭代、需求详情全视图，活跃态 4s / 空闲态 60s）
   useGlobalCiScheduler();
 
+  // 挂载全局常驻定时任务调度执行器（10s 心跳自愈调度）
+  useScheduleRunner();
+
   // 窗口激活焦点时自动重验陈旧数据（SWR 机制：超过 2 分钟未刷新的工作项和迭代数据静默补拉）
   useEffect(() => {
     const onFocus = () => {
@@ -163,7 +168,7 @@ export function Shell() {
         return;
       }
 
-      // ③ g 前缀序列跳转（g o 总览 / g i 迭代 / g b 集成分支 / g s 设置）：第二键未命中也照常复位
+      // ③ g 前缀序列跳转（g o 总览 / g i 迭代 / g b 集成分支 / g c 定时任务 / g s 设置）：第二键未命中也照常复位
       const awaitingG = gTimerRef.current != null;
       resetGSequence();
       if (awaitingG) {
@@ -171,6 +176,7 @@ export function Shell() {
         if (e.key === 'r') return void ui.setView('recents');
         if (e.key === 'i') return void ui.setView('iteration');
         if (e.key === 'b') return void ui.setView('integration');
+        if (e.key === 'c') return void ui.setView('schedules');
         if (e.key === 's') return void ui.openSettings('connection');
         // 其他键：已复位，继续落入下方单键逻辑
       } else if (e.key === 'g') {
@@ -223,6 +229,7 @@ export function Shell() {
                 {view === 'integration' && <IntegrationView />}
                 {view === 'overview' && <OverviewView />}
                 {view === 'recents' && <RecentsView />}
+                {view === 'schedules' && <SchedulesView />}
                 {/* 设置为全页布局：左侧栏即设置菜单，这里只渲染当前分区内容（宽度由 embedded 视图自带） */}
                 {view === 'full-settings' && <SettingsView embedded />}
               </div>

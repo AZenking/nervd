@@ -19,6 +19,7 @@ const NAV_ROWS: ShortcutRow[] = [
   { keys: ['g', 'r'], label: '最近查看' },
   { keys: ['g', 'i'], label: '当前迭代' },
   { keys: ['g', 'b'], label: '集成分支' },
+  { keys: ['g', 'c'], label: '定时任务' },
   { keys: ['g', 's'], label: '设置' },
   { keys: ['⌘K'], label: '命令面板' },
   { keys: ['⌘←'], label: '后退' },

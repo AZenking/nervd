@@ -134,12 +134,17 @@ export function OverviewView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className={STICKY_PAGE_HEADER_CLASS}>
-        <div className="flex min-h-9 items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-semibold tracking-tight text-foreground">总览</h1>
+      <header
+        data-tauri-drag-region
+        className={cn(STICKY_PAGE_HEADER_CLASS, 'select-none')}
+      >
+        <div className="flex min-h-9 items-center justify-between gap-3" data-tauri-drag-region>
+          <div className="flex items-center gap-2" data-tauri-drag-region>
+            <h1 className="text-sm font-semibold tracking-tight text-foreground select-none cursor-default">
+              总览
+            </h1>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2" data-no-drag>
             <span className="text-xs text-muted-foreground">{CATEGORY_LABELS[category]}</span>
             <Button
               variant="ghost"

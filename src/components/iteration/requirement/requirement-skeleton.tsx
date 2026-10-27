@@ -19,7 +19,7 @@ export function RequirementDetailsSkeleton({ embedded }: { embedded?: boolean })
           </div>
         </div>
       ) : (
-        <header className={STICKY_PAGE_HEADER_CLASS}>
+        <header data-tauri-drag-region className={cn(STICKY_PAGE_HEADER_CLASS, 'select-none')}>
           <div className="flex min-h-9 items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-14 rounded" />

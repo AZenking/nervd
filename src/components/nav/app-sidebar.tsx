@@ -15,6 +15,7 @@ import {
 import {
   ArrowDownToLineIcon,
   ArrowLeftIcon,
+  CalendarClockIcon,
   ClockIcon,
   GitBranchIcon,
   LayoutDashboardIcon,
@@ -25,6 +26,7 @@ import {
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { useRecentWorkitems } from '@/store/recent-workitems';
+import { useScheduleStore } from '@/store/schedule';
 import { useAppUpdate } from '@/hooks/use-app-update';
 import { APP_VERSION } from '@/lib/app-info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -42,16 +44,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { hasUpdate, updateInfo, isUpdating } = useAppUpdate();
   const latestVersion = updateInfo?.latestVersion;
   const recentCount = useRecentWorkitems((s) => s.items.length);
+  const activeScheduleCount = useScheduleStore(
+    (s) => s.tasks.filter((t) => t.enabled).length,
+  );
   const inSettings = view === 'full-settings';
 
   return (
     <Sidebar variant="inset" collapsible="icon" {...props}>
       {/* Linear 头部：干净品牌行 + 只读/可写指示 + 侧栏折叠 */}
-      <SidebarHeader className="px-2.5 pb-2 pt-1.5">
+      <SidebarHeader
+        data-tauri-drag-region
+        className="px-2.5 pb-2 pt-1.5 select-none"
+      >
         {/* macOS 沉浸式窗口：红绿灯安全留白避让与可拖拽区（Linear 桌面端标准） */}
-        <div data-tauri-drag-region className="h-8 w-full shrink-0 select-none" />
-        <div className="flex items-center justify-between gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 group-data-[collapsible=icon]:flex-col">
+        <div data-tauri-drag-region className="h-8 w-full shrink-0 select-none cursor-default" />
+        <div
+          data-tauri-drag-region
+          className="flex items-center justify-between gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-2"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 group-data-[collapsible=icon]:flex-col" data-no-drag>
             <button
               type="button"
               onClick={() => setAboutOpen(true)}
@@ -137,7 +148,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0" data-no-drag>
             {/* 读写策略指示：只读时展示微标，点击直达安全设置；可写时展示状态小绿点 */}
             <div className="group-data-[collapsible=icon]:hidden">
               {settings != null && !settings.allowWriteOps ? (
@@ -240,6 +251,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: '集成分支',
                 icon: <GitBranchIcon />,
                 view: 'integration',
+              },
+              {
+                title: '定时任务',
+                icon: <CalendarClockIcon />,
+                view: 'schedules',
+                badge: activeScheduleCount > 0 ? (
+                  <span className="rounded bg-muted/80 px-1.5 py-0.2 font-mono text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+                    {activeScheduleCount}
+                  </span>
+                ) : null,
               },
             ]}
           />

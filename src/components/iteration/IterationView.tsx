@@ -817,45 +817,52 @@ export function IterationView() {
   return (
     <div ref={listScrollRef} className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10">
       {/* sticky 页头（Linear 无大标题形态）：行1 = 页面标题 + 视图 Tabs + 迭代切换/刷新；行2 = 视图工具栏 */}
-      <header className={STICKY_PAGE_HEADER_CLASS}>
-        <div className="flex min-h-9 items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <h1 className="text-sm font-semibold tracking-tight text-foreground">迭代</h1>
+      <header
+        data-tauri-drag-region
+        className={cn(STICKY_PAGE_HEADER_CLASS, 'select-none')}
+      >
+        <div className="flex min-h-9 items-center justify-between gap-3" data-tauri-drag-region>
+          <div className="flex items-center gap-3" data-tauri-drag-region>
+            <h1 className="text-sm font-semibold tracking-tight text-foreground select-none cursor-default">
+              迭代
+            </h1>
             <div className="h-3.5 w-px bg-border/70" />
-            <Tabs
-              value={viewTab}
-              onValueChange={(v) => {
-                setViewTab(v as 'workitems' | 'repos' | 'branches');
-                if (v !== 'workitems') setSplitWorkitemId(null);
-              }}
-            >
-              <TabsList className="h-7 bg-muted/60 p-0.5">
-                <TabsTrigger value="workitems" className="px-2.5 py-0.5 text-xs gap-1.5">
-                  <span>工作项</span>
-                  <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                    {filtered.length}
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="repos" className="px-2.5 py-0.5 text-xs gap-1.5">
-                  <span>涉及仓库</span>
-                  {scopedRepoCount > 0 && (
+            <div data-no-drag>
+              <Tabs
+                value={viewTab}
+                onValueChange={(v) => {
+                  setViewTab(v as 'workitems' | 'repos' | 'branches');
+                  if (v !== 'workitems') setSplitWorkitemId(null);
+                }}
+              >
+                <TabsList className="h-7 bg-muted/60 p-0.5">
+                  <TabsTrigger value="workitems" className="px-2.5 py-0.5 text-xs gap-1.5">
+                    <span>工作项</span>
                     <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                      {scopedRepoCount}
+                      {filtered.length}
                     </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="branches" className="px-2.5 py-0.5 text-xs gap-1.5">
-                  <span>分支模板</span>
-                  {templateCount > 0 && (
-                    <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                      {templateCount}
-                    </span>
-                  )}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+                  </TabsTrigger>
+                  <TabsTrigger value="repos" className="px-2.5 py-0.5 text-xs gap-1.5">
+                    <span>涉及仓库</span>
+                    {scopedRepoCount > 0 && (
+                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                        {scopedRepoCount}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="branches" className="px-2.5 py-0.5 text-xs gap-1.5">
+                    <span>分支模板</span>
+                    {templateCount > 0 && (
+                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                        {templateCount}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2" data-no-drag>
             <SearchableSelect
               className="w-44 text-xs"
               ariaLabel="切换迭代"
@@ -884,7 +891,7 @@ export function IterationView() {
         </div>
 
         {viewTab === 'workitems' && (
-          <div className="flex items-center gap-3 pt-1">
+          <div className="flex items-center gap-3 pt-1" data-no-drag>
             <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
               <TabsList>
                 {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
@@ -901,7 +908,7 @@ export function IterationView() {
         )}
 
         {viewTab === 'repos' && (
-          <div className="flex items-center justify-between gap-3 pt-1 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-3 pt-1 text-xs text-muted-foreground" data-no-drag>
             <span>本迭代工作项实际涉及的代码仓库，可手动选择分支与环境触发验证，并实时监控构建 Job</span>
             <Button
               variant="ghost"

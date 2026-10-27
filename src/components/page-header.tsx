@@ -33,37 +33,49 @@ export function PageHeader({
 }) {
   if (breadcrumb) {
     return (
-      <header className={cn('flex flex-col gap-2', className)}>
-        <div className="flex min-w-0 items-center justify-between gap-4">
-          <div className="min-w-0">{breadcrumb}</div>
-          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      <header
+        data-tauri-drag-region
+        className={cn('flex flex-col gap-2 select-none', className)}
+      >
+        <div className="flex min-w-0 items-center justify-between gap-4" data-tauri-drag-region>
+          <div className="min-w-0 flex items-center" data-no-drag>{breadcrumb}</div>
+          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2" data-no-drag>{actions}</div>}
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2" data-tauri-drag-region>
           {/* B2：不再覆写字号，页面标题统一走 theme.css base h1（26px/700/−0.625px） */}
-          <h1 className={titleClassName}>{title}</h1>
-          {titleBadge}
+          <h1 className={cn('select-none cursor-default', titleClassName)}>{title}</h1>
+          <div data-no-drag>{titleBadge}</div>
           {description && (
-            <span className="min-w-0 truncate text-xs text-muted-foreground">{description}</span>
+            <span className="min-w-0 truncate text-xs text-muted-foreground select-none cursor-default">
+              {description}
+            </span>
           )}
         </div>
-        {meta && <div className="border-t pt-3">{meta}</div>}
+        {meta && <div className="border-t pt-3" data-no-drag>{meta}</div>}
       </header>
     );
   }
   return (
-    <header className={cn('flex flex-col gap-3', className)}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          {eyebrow && <p className="eyebrow">{eyebrow}</p>}
-          <h1 className="mt-1 flex flex-wrap items-center gap-2">
+    <header
+      data-tauri-drag-region
+      className={cn('flex flex-col gap-3 select-none', className)}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4" data-tauri-drag-region>
+        <div className="min-w-0" data-tauri-drag-region>
+          {eyebrow && <p className="eyebrow select-none cursor-default">{eyebrow}</p>}
+          <h1 className="mt-1 flex flex-wrap items-center gap-2 select-none cursor-default">
             <span className="min-w-0 truncate">{title}</span>
-            {titleBadge}
+            <span data-no-drag>{titleBadge}</span>
           </h1>
-          {description && <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>}
+          {description && (
+            <p className="mt-1.5 text-sm text-muted-foreground select-none cursor-default">
+              {description}
+            </p>
+          )}
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2" data-no-drag>{actions}</div>}
       </div>
-      {meta && <div className="border-t pt-3">{meta}</div>}
+      {meta && <div className="border-t pt-3" data-no-drag>{meta}</div>}
     </header>
   );
 }

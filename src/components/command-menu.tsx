@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
+  CalendarClockIcon,
   CalendarDaysIcon,
   ClockIcon,
   GitBranchIcon,
@@ -140,6 +141,16 @@ export function CommandMenu() {
         keywords: '集成分支 分支 branch integration release',
         active: view === 'integration',
         run: () => setView('integration'),
+      },
+      {
+        id: 'nav-schedules',
+        group: '导航',
+        label: '定时任务',
+        hint: 'g c',
+        icon: <CalendarClockIcon className="size-4" />,
+        keywords: '定时任务 调度 计划 cron schedule merge 合并 分支同步',
+        active: view === 'schedules',
+        run: () => setView('schedules'),
       },
       {
         id: 'nav-settings',
