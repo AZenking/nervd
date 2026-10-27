@@ -38,6 +38,7 @@ pub async fn list_repos(state: State<'_, AppState>, search: Option<String>, page
                 "name": s(r, "name"),
                 "pathWithNamespace": s2(r, "pathWithNamespace", "path_with_namespace"),
                 "lastActivityAt": s2(r, "lastActivityAt", "last_activity_at"),
+                "archived": r.get("archived").and_then(|v| v.as_bool()).unwrap_or(false),
             })
         })
         .filter(|r| r["id"].as_i64().unwrap_or(0) > 0)

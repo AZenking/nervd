@@ -118,7 +118,8 @@ export interface IterationsSlice {
 export interface TraceSlice {
   trace: TraceResult | null;
   traceLoading: boolean;
-  repositories: RepoSummary[];
+  /** list_repos 额外透传的云效仓库归档标记；不扩冻结契约 RepoSummary */
+  repositories: (RepoSummary & { archived?: boolean })[];
   repoRefreshVersion: Record<number, number>;
   loadTrace(): Promise<RefreshResult>;
   loadRepos(): Promise<void>;

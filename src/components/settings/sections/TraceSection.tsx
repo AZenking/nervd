@@ -85,15 +85,21 @@ function DevBranchSettingRow() {
 /** 默认云效仓库勾选清单（读写设置草稿） */
 function RepoChecklist() {
   const [filter, setFilter] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
   const repositories = useApp((s) => s.repositories);
   const hasPat = useApp((s) => s.settings?.hasPat);
   const watched = useSettingsDraft((s) => s.draft?.watchedRepos ?? []);
   const update = useSettingsDraft((s) => s.update);
 
+  const archivedCount = repositories.filter((r) => r.archived).length;
+  // 已勾选的归档仓库仍显示，否则用户无法取消勾选
+  const scoped = showArchived
+    ? repositories
+    : repositories.filter((r) => !r.archived || watched.includes(r.id));
   const keyword = filter.trim().toLowerCase();
   const visibleRepos = keyword
-    ? repositories.filter((r) => (r.pathWithNamespace || r.name).toLowerCase().includes(keyword))
-    : repositories;
+    ? scoped.filter((r) => (r.pathWithNamespace || r.name).toLowerCase().includes(keyword))
+    : scoped;
 
   const toggleRepo = (id: number) => {
     update(
@@ -107,7 +113,7 @@ function RepoChecklist() {
   return (
     <SettingsRow
       label={`默认云效仓库${
-        repositories.length ? `（已选 ${watched.length} / 共 ${repositories.length} 个）` : ''
+        repositories.length ? `（已选 ${watched.length} / 共 ${scoped.length} 个）` : ''
       }`}
       description="未单独关联仓库的需求，扫描这些仓库的分支 / commit / MR。"
       htmlFor="repo-filter-input"
@@ -120,6 +126,15 @@ function RepoChecklist() {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
+          {archivedCount > 0 && (
+            <Label className="cursor-pointer text-xs font-normal text-muted-foreground">
+              <Checkbox
+                checked={showArchived}
+                onCheckedChange={(v) => setShowArchived(v === true)}
+              />
+              显示已归档（{archivedCount}）
+            </Label>
+          )}
           <ScrollArea className="h-48 rounded-md border border-border/60 bg-background/50">
             <div className="flex flex-col gap-0.5 p-1.5">
               {visibleRepos.map((r) => (
