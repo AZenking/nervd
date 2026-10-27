@@ -108,4 +108,30 @@ describe('useLocalTasksStore', () => {
     expect(useLocalTasksStore.getState().tasks.length).toBe(1);
     expect(useLocalTasksStore.getState().tasks[0].id).toBe('lt-del');
   });
+
+  it('支持关联多个代码仓库与分支 (repos)', async () => {
+    const multiRepoTask: LocalTask = {
+      id: 'lt-multi',
+      title: '跨仓库联调任务',
+      status: 'in_progress',
+      priority: 'high',
+      repos: [
+        { repoId: 101, repoName: 'group/repo-frontend', branchName: 'feat/login' },
+        { repoId: 102, repoName: 'group/repo-backend', branchName: 'feat/login-api' },
+      ],
+      createdAt: 1000,
+      updatedAt: 1000,
+    };
+    vi.mocked(api.createLocalTask).mockResolvedValueOnce(multiRepoTask);
+
+    const task = await useLocalTasksStore.getState().createTask('跨仓库联调任务', {
+      repos: multiRepoTask.repos,
+      priority: 'high',
+    });
+
+    expect(task).toEqual(multiRepoTask);
+    expect(useLocalTasksStore.getState().tasks[0].repos).toHaveLength(2);
+    expect(useLocalTasksStore.getState().tasks[0].repos?.[0].repoName).toBe('group/repo-frontend');
+    expect(useLocalTasksStore.getState().tasks[0].repos?.[1].repoName).toBe('group/repo-backend');
+  });
 });

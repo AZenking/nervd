@@ -244,23 +244,46 @@ export function LocalTasksView() {
                             {task.title}
                           </span>
 
-                          {/* 关联 Codeup 分支芯片 */}
-                          {task.branchName && (
-                            <span
-                              className="flex items-center gap-1 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground border border-border/40 shrink-0"
-                              title={task.repoName ? `${task.repoName} -> ${task.branchName}` : task.branchName}
-                            >
-                              <GitBranchIcon className="size-3 text-primary" />
-                              <span className="truncate max-w-[140px]">{task.branchName}</span>
-                            </span>
-                          )}
+                          {/* 关联 Codeup 分支与仓库芯片（支持多仓库） */}
+                          {(() => {
+                            const repos = task.repos && task.repos.length > 0
+                              ? task.repos
+                              : (task.repoId && task.repoName)
+                                ? [{ repoId: task.repoId, repoName: task.repoName, branchName: task.branchName }]
+                                : [];
 
-                          {/* 关联仓库名 */}
-                          {task.repoName && (
-                            <span className="text-[11px] text-muted-foreground/70 truncate max-w-[120px] hidden md:inline">
-                              {task.repoName.split('/').pop()}
-                            </span>
-                          )}
+                            if (repos.length === 0) return null;
+
+                            const first = repos[0];
+                            const extraCount = repos.length - 1;
+
+                            return (
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {first.branchName && (
+                                  <span
+                                    className="flex items-center gap-1 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground border border-border/40 shrink-0"
+                                    title={`${first.repoName} -> ${first.branchName}`}
+                                  >
+                                    <GitBranchIcon className="size-3 text-primary" />
+                                    <span className="truncate max-w-[120px]">{first.branchName}</span>
+                                  </span>
+                                )}
+
+                                <span className="text-[11px] text-muted-foreground/70 truncate max-w-[100px] hidden md:inline">
+                                  {first.repoName.split('/').pop()}
+                                </span>
+
+                                {extraCount > 0 && (
+                                  <span
+                                    className="rounded bg-muted px-1 py-0.2 text-[10px] font-mono text-muted-foreground"
+                                    title={repos.map((r) => `${r.repoName}${r.branchName ? ` (${r.branchName})` : ''}`).join('\n')}
+                                  >
+                                    +{extraCount}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* 更新时间 */}
                           <span className="w-16 shrink-0 text-right text-[11px] text-muted-foreground font-mono tabular-nums">

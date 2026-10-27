@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/searchable-select';
 import { useApp } from '@/store/app';
 import { useLocalTasksStore } from '@/store/local-tasks';
-import type { LocalTaskPriority, LocalTaskStatus } from '@/types/local-task';
+import type { LocalTaskPriority, LocalTaskRepoLink, LocalTaskStatus } from '@/types/local-task';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/format';
 
@@ -47,13 +47,11 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [branchName, setBranchName] = useState('');
 
   useEffect(() => {
     if (task) {
       setTitle(task.title || '');
       setDescription(task.description || '');
-      setBranchName(task.branchName || '');
     }
   }, [task]);
 
@@ -71,20 +69,62 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
     }
   };
 
-  const handleBranchBlur = () => {
-    if (branchName.trim() !== (task.branchName || '')) {
-      void updateTask(task.id, { branchName: branchName.trim() });
-    }
-  };
-
   const handleRepoChange = (val: string | number | null) => {
     const rId = val ? Number(val) : null;
+    if (!rId) return;
     const r = repositories.find((repo) => repo.id === rId);
-    void updateTask(task.id, {
-      repoId: rId,
-      repoName: r?.pathWithNamespace || r?.name || null,
-    });
+    if (!r) return;
+
+    const currentRepos: LocalTaskRepoLink[] = task.repos && task.repos.length > 0
+      ? [...task.repos]
+      : (task.repoId && task.repoName)
+        ? [{ repoId: task.repoId, repoName: task.repoName, branchName: task.branchName }]
+        : [];
+
+    // 避免重复添加同一个仓库
+    if (currentRepos.some((link) => link.repoId === rId)) return;
+
+    const updated = [
+      ...currentRepos,
+      {
+        repoId: rId,
+        repoName: r.pathWithNamespace || r.name,
+        branchName: null,
+      },
+    ];
+
+    void updateTask(task.id, { repos: updated });
   };
+
+  const handleRemoveRepo = (repoId: number) => {
+    const currentRepos: LocalTaskRepoLink[] = task.repos && task.repos.length > 0
+      ? [...task.repos]
+      : (task.repoId && task.repoName)
+        ? [{ repoId: task.repoId, repoName: task.repoName, branchName: task.branchName }]
+        : [];
+
+    const updated = currentRepos.filter((link) => link.repoId !== repoId);
+    void updateTask(task.id, { repos: updated });
+  };
+
+  const handleUpdateRepoBranch = (repoId: number, newBranch: string) => {
+    const currentRepos: LocalTaskRepoLink[] = task.repos && task.repos.length > 0
+      ? [...task.repos]
+      : (task.repoId && task.repoName)
+        ? [{ repoId: task.repoId, repoName: task.repoName, branchName: task.branchName }]
+        : [];
+
+    const updated = currentRepos.map((link) =>
+      link.repoId === repoId ? { ...link, branchName: newBranch.trim() || null } : link,
+    );
+    void updateTask(task.id, { repos: updated });
+  };
+
+  const activeRepos: LocalTaskRepoLink[] = task.repos && task.repos.length > 0
+    ? task.repos
+    : (task.repoId && task.repoName)
+      ? [{ repoId: task.repoId, repoName: task.repoName, branchName: task.branchName }]
+      : [];
 
   const handleDelete = async () => {
     if (window.confirm(`确定要彻底删除本地任务「${task.title}」吗？`)) {
@@ -188,41 +228,67 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
               />
             </div>
 
-            {/* Codeup 仓库与分支联动卡片 */}
+            {/* Codeup 仓库与分支联动卡片（支持关联多个仓库） */}
             <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-medium text-foreground">
-                <FolderGit2Icon className="size-3.5 text-primary" />
-                <span>Codeup 代码仓库与分支关联</span>
+              <div className="flex items-center justify-between text-xs font-medium text-foreground">
+                <div className="flex items-center gap-2">
+                  <FolderGit2Icon className="size-3.5 text-primary" />
+                  <span>关联 Codeup 代码仓库与分支 ({activeRepos.length})</span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] text-muted-foreground">关联代码仓库</label>
-                  <SearchableSelect
-                    className="w-full text-xs"
-                    value={task.repoId ? String(task.repoId) : null}
-                    onValueChange={handleRepoChange}
-                    items={repositories.map((r) => ({
+              {/* 已绑定的仓库与分支列表 */}
+              {activeRepos.length > 0 && (
+                <div className="space-y-2">
+                  {activeRepos.map((link) => (
+                    <div
+                      key={link.repoId}
+                      className="flex items-center gap-2 rounded-md border border-border/60 bg-background/80 p-2 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-foreground truncate" title={link.repoName}>
+                          {link.repoName}
+                        </div>
+                      </div>
+
+                      <div className="relative flex items-center w-48 sm:w-56 shrink-0">
+                        <GitBranchIcon className="absolute left-2 size-3 text-muted-foreground pointer-events-none" />
+                        <Input
+                          defaultValue={link.branchName || ''}
+                          onBlur={(e) => handleUpdateRepoBranch(link.repoId, e.target.value)}
+                          placeholder="分支名，如 feat/demo"
+                          className="pl-7 h-7 text-[11px] font-mono"
+                        />
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => handleRemoveRepo(link.repoId)}
+                        title="取消关联此仓库"
+                        className="text-muted-foreground hover:text-destructive shrink-0"
+                      >
+                        <XIcon className="size-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 添加新仓库关联下拉 */}
+              <div className="pt-1">
+                <SearchableSelect
+                  className="w-full text-xs"
+                  value={null}
+                  onValueChange={handleRepoChange}
+                  items={repositories
+                    .filter((r) => !activeRepos.some((link) => link.repoId === r.id))
+                    .map((r) => ({
                       label: r.pathWithNamespace || r.name,
                       value: String(r.id),
                     }))}
-                    placeholder="选择 Codeup 仓库..."
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] text-muted-foreground">关联开发分支</label>
-                  <div className="relative flex items-center">
-                    <GitBranchIcon className="absolute left-2.5 size-3.5 text-muted-foreground pointer-events-none" />
-                    <Input
-                      value={branchName}
-                      onChange={(e) => setBranchName(e.target.value)}
-                      onBlur={handleBranchBlur}
-                      placeholder="如 feature/user-auth"
-                      className="pl-8 h-8 text-xs font-mono"
-                    />
-                  </div>
-                </div>
+                  placeholder="+ 添加关联代码仓库..."
+                />
               </div>
             </div>
 

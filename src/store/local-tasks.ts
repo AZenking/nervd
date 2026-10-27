@@ -62,6 +62,7 @@ export const useLocalTasksStore = create<LocalTasksState>((set, get) => ({
       id: tempId,
       title: trimmed,
       status: options?.status || 'todo',
+      repos: options?.repos || [],
       repoId: options?.repoId ?? null,
       repoName: options?.repoName ?? null,
       branchName: options?.branchName ?? null,
