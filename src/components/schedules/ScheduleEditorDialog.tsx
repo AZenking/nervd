@@ -4,12 +4,14 @@ import {
   CheckIcon,
   GitMergeIcon,
   HelpCircleIcon,
+  Loader2Icon,
   PlayCircleIcon,
   RefreshCwIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
   WorkflowIcon,
 } from 'lucide-react';
+import * as api from '@/lib/api';
 import {
   Dialog,
   DialogContent,
@@ -69,9 +71,59 @@ export function ScheduleEditorDialog({
   const [repoId, setRepoId] = useState<number>(0);
   const [sourceBranch, setSourceBranch] = useState('dev');
   const [targetBranch, setTargetBranch] = useState('master');
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
   const [strategy, setStrategy] = useState<MergeStrategy>('cautious');
   const [conflictPreference, setConflictPreference] =
     useState<AggressiveConflictPreference>('theirs');
+
+  // 当选择的代码仓库变更且处于弹窗打开态时，异步获取该仓库的所有远端分支
+  useEffect(() => {
+    if (!open || !repoId || repoId <= 0) {
+      setAvailableBranches([]);
+      return;
+    }
+    let cancelled = false;
+    setBranchesLoading(true);
+
+    api
+      .listBranches(repoId, undefined, 1, 100)
+      .then((res) => {
+        if (cancelled) return;
+        const collect = (input: unknown): string[] => {
+          if (Array.isArray(input)) {
+            return input.flatMap((item) => {
+              if (typeof item === 'string') return [item];
+              if (!item || typeof item !== 'object') return [];
+              const record = item as Record<string, unknown>;
+              const name = record.name ?? record.branchName ?? record.branch_name;
+              return typeof name === 'string' ? [name] : [];
+            });
+          }
+          if (!input || typeof input !== 'object') return [];
+          const record = input as Record<string, unknown>;
+          for (const key of ['branches', 'items', 'data', 'result']) {
+            if (record[key] !== undefined) {
+              const names = collect(record[key]);
+              if (names.length) return names;
+            }
+          }
+          return [];
+        };
+        const branchList = [...new Set(collect(res).map((name) => name.trim()).filter(Boolean))].sort();
+        setAvailableBranches(branchList);
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableBranches([]);
+      })
+      .finally(() => {
+        if (!cancelled) setBranchesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, repoId]);
 
   // Jenkins fields
   const [jenkinsConnId, setJenkinsConnId] = useState('');
@@ -434,25 +486,51 @@ export function ScheduleEditorDialog({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-medium text-muted-foreground block">
-                    源分支 (Source)
-                  </Label>
-                  <Input
-                    value={sourceBranch}
-                    onChange={(e) => setSourceBranch(e.target.value)}
-                    placeholder="例如: dev / feature/xxx"
-                    className="h-8 text-xs font-mono"
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px] font-medium text-muted-foreground block">
+                      源分支 (Source)
+                    </Label>
+                    {branchesLoading && (
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <Loader2Icon className="size-2.5 animate-spin" />
+                        拉取分支...
+                      </span>
+                    )}
+                  </div>
+                  <SearchableSelect
+                    value={sourceBranch || null}
+                    onValueChange={(val) => setSourceBranch(val ? String(val) : '')}
+                    items={availableBranches.map((b) => ({
+                      label: b,
+                      value: b,
+                    }))}
+                    placeholder="选择或输入源分支..."
+                    allowCustomValue
+                    className="w-full text-xs font-mono"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-medium text-muted-foreground block">
-                    目标分支 (Target)
-                  </Label>
-                  <Input
-                    value={targetBranch}
-                    onChange={(e) => setTargetBranch(e.target.value)}
-                    placeholder="例如: master / release/xxx"
-                    className="h-8 text-xs font-mono"
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px] font-medium text-muted-foreground block">
+                      目标分支 (Target)
+                    </Label>
+                    {branchesLoading && (
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <Loader2Icon className="size-2.5 animate-spin" />
+                        拉取分支...
+                      </span>
+                    )}
+                  </div>
+                  <SearchableSelect
+                    value={targetBranch || null}
+                    onValueChange={(val) => setTargetBranch(val ? String(val) : '')}
+                    items={availableBranches.map((b) => ({
+                      label: b,
+                      value: b,
+                    }))}
+                    placeholder="选择或输入目标分支..."
+                    allowCustomValue
+                    className="w-full text-xs font-mono"
                   />
                 </div>
               </div>
