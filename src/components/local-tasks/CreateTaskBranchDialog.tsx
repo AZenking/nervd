@@ -67,7 +67,7 @@ export function CreateTaskBranchDialog({
       setBranchName(defaultBranchName);
       setBranchesLoading(true);
       void api
-        .listBranches(repoId, undefined, 1, 100)
+        .listBranches(repoId)
         .then((res) => {
           const names = parseBranchList(res);
           setAvailableBranches(names);

@@ -87,7 +87,7 @@ export function ScheduleEditorDialog({
     setBranchesLoading(true);
 
     api
-      .listBranches(repoId, undefined, 1, 100)
+      .listBranches(repoId)
       .then((res) => {
         if (cancelled) return;
         const collect = (input: unknown): string[] => {
