@@ -5,6 +5,7 @@ import {
   ClockIcon,
   FolderGit2Icon,
   GitBranchIcon,
+  GitForkIcon,
   Trash2Icon,
   XCircleIcon,
   XIcon,
@@ -18,6 +19,7 @@ import { useLocalTasksStore } from '@/store/local-tasks';
 import type { LocalTaskPriority, LocalTaskRepoLink, LocalTaskStatus } from '@/types/local-task';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/format';
+import { CreateTaskBranchDialog } from './CreateTaskBranchDialog';
 
 interface LocalTaskDrawerProps {
   taskId: string | null;
@@ -47,6 +49,12 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [branchModal, setBranchModal] = useState<{
+    open: boolean;
+    repoId: number;
+    repoName: string;
+    defaultBranchName: string;
+  } | null>(null);
 
   useEffect(() => {
     if (task) {
@@ -251,7 +259,7 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
                         </div>
                       </div>
 
-                      <div className="relative flex items-center w-48 sm:w-56 shrink-0">
+                      <div className="relative flex items-center w-44 sm:w-52 shrink-0">
                         <GitBranchIcon className="absolute left-2 size-3 text-muted-foreground pointer-events-none" />
                         <Input
                           defaultValue={link.branchName || ''}
@@ -260,6 +268,24 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
                           className="pl-7 h-7 text-[11px] font-mono"
                         />
                       </div>
+
+                      {/* 发起新分支按钮 */}
+                      <Button
+                        variant="outline"
+                        size="icon-xs"
+                        onClick={() =>
+                          setBranchModal({
+                            open: true,
+                            repoId: link.repoId,
+                            repoName: link.repoName,
+                            defaultBranchName: link.branchName || `feat/${task.id.toLowerCase()}`,
+                          })
+                        }
+                        title="在 Codeup 中由此发起新分支"
+                        className="text-primary hover:bg-primary/10 shrink-0"
+                      >
+                        <GitForkIcon className="size-3.5" />
+                      </Button>
 
                       <Button
                         variant="ghost"
@@ -309,6 +335,20 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
           </div>
         </div>
       </DrawerContent>
+
+      {/* 发起分支弹窗 */}
+      {branchModal && (
+        <CreateTaskBranchDialog
+          open={branchModal.open}
+          onOpenChange={(open) => setBranchModal((prev) => (prev ? { ...prev, open } : null))}
+          repoId={branchModal.repoId}
+          repoName={branchModal.repoName}
+          defaultBranchName={branchModal.defaultBranchName}
+          onSuccess={(newBranch) => {
+            handleUpdateRepoBranch(branchModal.repoId, newBranch);
+          }}
+        />
+      )}
     </Drawer>
   );
 }
