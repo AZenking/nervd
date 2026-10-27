@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   Category, IterationSummary, JenkinsConnection, OrgSummary, PipelineRunSummary, RepoCiSnapshot,
   JenkinsJobParameter, JenkinsJobSummary, JenkinsLogChunk, RepoCiBinding, Settings, SettingsView, WorkitemPage,
-  WorkitemStatusOption, WorkitemSummary, BranchRuleTemplate,
+  WorkitemStatusOption, WorkitemSummary, BranchRuleTemplate, RepoSummary,
 } from '../types';
 
 export interface CurrentYunxiaoUser {
@@ -161,7 +161,7 @@ export async function proxyWorkitemFile(url: string): Promise<string> {
   return invoke('proxy_workitem_file', { url });
 }
 
-export async function listRepos(search?: string, page?: number): Promise<{ id: number; name: string; pathWithNamespace?: string; lastActivityAt?: string }[]> {
+export async function listRepos(search?: string, page?: number): Promise<(RepoSummary & { archived?: boolean })[]> {
   return invoke('list_repos', { search, page });
 }
 

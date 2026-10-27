@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '../searchable-select';
 import { SettingsGroup } from './settings-group';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -165,10 +167,16 @@ export function RepoCiBindingsCard() {
   const bindings = draft?.repoCiBindings ?? {};
   const [repoFilter, setRepoFilter] = useState('');
   const [boundOnly, setBoundOnly] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
+  const archivedCount = repositories.filter((repo) => repo.archived).length;
+  // 已绑定的归档仓库仍显示，否则用户无法解绑
+  const scoped = showArchived
+    ? repositories
+    : repositories.filter((repo) => !repo.archived || Boolean(bindings[String(repo.id)]));
   const keyword = repoFilter.trim().toLowerCase();
-  const boundCount = repositories.filter((repo) => bindings[String(repo.id)]).length;
-  const visibleRepos = repositories.filter((repo) => {
+  const boundCount = scoped.filter((repo) => bindings[String(repo.id)]).length;
+  const visibleRepos = scoped.filter((repo) => {
     if (boundOnly && !bindings[String(repo.id)]) return false;
     return !keyword || (repo.pathWithNamespace || repo.name).toLowerCase().includes(keyword);
   });
@@ -211,6 +219,15 @@ export function RepoCiBindingsCard() {
             value={repoFilter}
             onChange={(e) => setRepoFilter(e.target.value)}
           />
+          {archivedCount > 0 && (
+            <Label className="cursor-pointer text-xs font-normal text-muted-foreground">
+              <Checkbox
+                checked={showArchived}
+                onCheckedChange={(v) => setShowArchived(v === true)}
+              />
+              显示已归档（{archivedCount}）
+            </Label>
+          )}
           <ToggleGroup
             variant="outline"
             size="sm"
@@ -222,7 +239,7 @@ export function RepoCiBindingsCard() {
               已绑定 {boundCount}
             </ToggleGroupItem>
             <ToggleGroupItem value="all" className="text-xs">
-              全部 {repositories.length}
+              全部 {scoped.length}
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
@@ -319,7 +336,7 @@ export function RepoCiBindingsCard() {
       })}
       {!visibleRepos.length && (
         <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-          {repositories.length
+          {scoped.length
             ? '无匹配仓库'
             : '仓库列表为空，请先在「设置 → 云效连接」配置并保存云效连接'}
         </div>

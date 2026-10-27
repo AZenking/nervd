@@ -132,7 +132,7 @@ function generatedPage(category: Category, page: number, perPage: number): Worki
 const repositories = [
   { id: 101, name: 'nervd-web', pathWithNamespace: 'codeup/nervd-web', lastActivityAt: '2026-10-08T14:00:00Z' },
   { id: 102, name: 'nervd-core', pathWithNamespace: 'codeup/nervd-core', lastActivityAt: '2026-10-08T12:20:00Z' },
-  { id: 103, name: 'nervd-docs', pathWithNamespace: 'docs/nervd-docs', lastActivityAt: '2026-10-05T08:00:00Z' },
+  { id: 103, name: 'nervd-docs', pathWithNamespace: 'docs/nervd-docs', lastActivityAt: '2026-10-05T08:00:00Z', archived: true },
 ];
 
 const ciSnapshots: Record<number, RepoCiSnapshot> = {
