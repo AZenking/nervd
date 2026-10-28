@@ -16,10 +16,6 @@ export function formatCompactDateTime(timestamp: number | string | Date): string
   return `${mm}-${dd} ${hh}:${min}`;
 }
 
-/** 时间戳 → 本地时间文本（不含日期），如 11:04:30 */
-export function formatTime(timestamp: number | string): string {
-  return new Date(timestamp).toLocaleTimeString('zh-CN', { hour12: false });
-}
 
 /** 毫秒耗时 → 人类可读文本：<1 分钟显示「N 秒」，否则「N 分 N 秒」 */
 export function formatDuration(durationMs: number): string {

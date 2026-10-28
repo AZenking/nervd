@@ -1,5 +1,4 @@
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 
 /**
  * 统一页头（DESIGN.md heading-2 规格）：
@@ -87,8 +86,3 @@ export function PageHeader({
  */
 export const STICKY_PAGE_HEADER_CLASS =
   'sticky top-0 z-10 -mx-5 border-b border-border bg-background px-5 pt-8 pb-3.5 sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10';
-
-/** 便捷导出：状态徽章保持同一变体 */
-export function PageStatusBadge({ children }: { children: React.ReactNode }) {
-  return <Badge variant="secondary">{children}</Badge>;
-}

@@ -1,5 +1,3 @@
-import * as api from '@/lib/api';
-import { useApp } from '@/store/app';
 import type { CiRunSummary, JenkinsJobSummary, RepoCiBinding } from '@/types';
 
 /**
@@ -50,30 +48,6 @@ export function buildRunParameter(
   return inferred?.trim() || '未记录';
 }
 
-/**
- * 触发仓库 CI 的统一反馈链路：触发 → 成功 toast →（可选延迟）刷新快照；失败 toast。
- * Flow 触发（迭代页 / CI 详情抽屉）默认立即刷新、文案「流水线」；
- * 总览 CI 卡传入 CI Job 文案与 1200ms 延迟，保持各自原口径。
- */
-export async function triggerRepoCiWithFeedback(
-  repoId: number,
-  repoName: string,
-  opts?: { okText?: string; failText?: string; refreshDelayMs?: number },
-): Promise<void> {
-  const { setToast, loadRepoCi, markRepoCiActive } = useApp.getState();
-  try {
-    await api.triggerRepoCi(repoId);
-    setToast({ text: opts?.okText ?? `已触发 ${repoName} 的流水线`, kind: 'ok' });
-    // 触发成功后将全局 CI 调度器拉入活跃态（高频轮询 90 秒，快速捕获运行状态）
-    markRepoCiActive(90_000);
-    if (opts?.refreshDelayMs) {
-      await new Promise((resolve) => setTimeout(resolve, opts.refreshDelayMs));
-    }
-    await loadRepoCi(repoId);
-  } catch (e) {
-    setToast({ text: opts?.failText ?? `触发 ${repoName} 流水线失败：${String(e)}`, kind: 'fail' });
-  }
-}
 
 export interface ScoredJenkinsJob {
   name: string;

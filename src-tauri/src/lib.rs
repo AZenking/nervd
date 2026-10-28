@@ -150,15 +150,15 @@ pub fn run() {
         })
         .setup(|app| {
             #[cfg(target_os = "macos")]
-            if let Err(e) = setup_macos_menu(&app.handle()) {
+            if let Err(e) = setup_macos_menu(app.handle()) {
                 eprintln!("[menu] failed to set macos menu: {e}");
             }
 
-            let settings = credentials::load_settings(&app.handle());
+            let settings = credentials::load_settings(app.handle());
             let client = credentials::load_pat()
                 .and_then(|p| yunxiao::YunxiaoClient::new(&p).ok())
                 .map(Arc::new);
-            let db_conn = db::init_db(&app.handle()).map_err(|e| {
+            let db_conn = db::init_db(app.handle()).map_err(|e| {
                 eprintln!("[db] failed to init sqlite: {e}");
                 e
             })?;

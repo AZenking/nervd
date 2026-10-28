@@ -158,7 +158,7 @@ pub async fn get_job_logs(state: State<'_, AppState>, pipeline_id: i64, run_id: 
     if let Some(arr) = resp.get("logs").and_then(|x| x.as_array()) {
         let mut out = String::new();
         for line in arr {
-            out.push_str(&line.as_str().unwrap_or_default());
+            out.push_str(line.as_str().unwrap_or_default());
             out.push('\n');
         }
         return Ok(out);

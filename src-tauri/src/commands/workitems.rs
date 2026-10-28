@@ -85,7 +85,7 @@ pub(super) fn chrono_ms_to_local(ms: i64) -> String {
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
-    let doe = (z - era * 146097) as i64;
+    let doe = z - era * 146097;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
     let y = yoe + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
@@ -450,6 +450,18 @@ fn resolve_user_id(name_or_id: &str, detail: &Value) -> String {
     trimmed.to_string()
 }
 
+fn extract_val_id_or_str(v: &Value) -> Option<String> {
+    v.as_str()
+        .map(|s| s.to_string())
+        .or_else(|| {
+            v.get("id")
+                .or_else(|| v.get("identifier"))
+                .or_else(|| v.get("value"))
+                .and_then(|x| x.as_str())
+                .map(|id| id.to_string())
+        })
+}
+
 /// 从工作项字段配置中智能匹配最符合的选项 ID，防止非法中文字符串直接发往云效导致 400 校验报错。
 pub(crate) fn match_field_option(
     field: &Value,
@@ -466,12 +478,7 @@ pub(crate) fn match_field_option(
         Some(arr) if !arr.is_empty() => arr,
         _ => {
             return field.get("defaultValue")
-                .and_then(|v| {
-                    if let Some(s) = v.as_str() { Some(s.to_string()) }
-                    else if let Some(id) = v.get("id").or_else(|| v.get("identifier")).or_else(|| v.get("value")).and_then(|x| x.as_str()) {
-                        Some(id.to_string())
-                    } else { None }
-                })
+                .and_then(extract_val_id_or_str)
                 .or_else(|| target_val.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
         }
     };
@@ -534,12 +541,7 @@ pub(crate) fn match_field_option(
     }
 
     // 2. 尝试从 defaultValue / defaultOption 取
-    if let Some(def) = field.get("defaultValue").and_then(|v| {
-        if let Some(s) = v.as_str() { Some(s.to_string()) }
-        else if let Some(id) = v.get("id").or_else(|| v.get("identifier")).or_else(|| v.get("value")).and_then(|x| x.as_str()) {
-            Some(id.to_string())
-        } else { None }
-    }) {
+    if let Some(def) = field.get("defaultValue").and_then(extract_val_id_or_str) {
         if !def.is_empty() {
             for opt in opts {
                 let (opt_id, opt_name) = parse_opt(opt);
