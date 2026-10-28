@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useShallow } from 'zustand/react/shallow';
 import {
-  useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters, buildWorkitemFilterOptions,
+  useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters, buildWorkitemFilterOptions, UNPLANNED_ITERATION,
 } from '@/store/ui';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { SearchableSelect } from '../searchable-select';
@@ -153,6 +153,7 @@ export function IterationView() {
 
   const iterations = iterationsOrFallback(realIterations);
   const iteration = iterations.find((it) => it.name === iterationKey) ?? iterations[0];
+  const isUnplanned = iteration.name === UNPLANNED_ITERATION.name;
   const usingFallback = !realIterations.length;
   const activeFilterCount = filters.assignees.length + filters.related.length + filters.statuses.length;
 
@@ -275,6 +276,8 @@ export function IterationView() {
 
   // 顶层视图 Tab：工作项（默认）/ 关联仓库与 CI / 分支模板
   const [viewTab, setViewTab] = useState<'workitems' | 'repos' | 'branches'>('workitems');
+  // 未规划虚拟迭代无分支模板（保存静默失败），强制回落工作项 tab
+  const shownTab = isUnplanned && viewTab === 'branches' ? 'workitems' : viewTab;
 
   /** 打开工作项详情分栏：行点击 / Enter / 右键菜单就地展开 Master-Detail 两栏 */
   const openDetail = useCallback((item: WorkitemItem) => {
@@ -704,7 +707,7 @@ export function IterationView() {
               <div className="flex items-center gap-2 min-w-0">
                 <h1 className="text-sm font-semibold tracking-tight text-foreground shrink-0">迭代</h1>
                 <Tabs
-                  value={viewTab}
+                  value={shownTab}
                   onValueChange={(v) => {
                     setViewTab(v as 'workitems' | 'repos' | 'branches');
                     if (v !== 'workitems') setSplitWorkitemId(null);
@@ -713,7 +716,7 @@ export function IterationView() {
                   <TabsList className="h-6 bg-muted/60 p-0.5">
                     <TabsTrigger value="workitems" className="px-2 py-0 text-[11px]">工作项</TabsTrigger>
                     <TabsTrigger value="repos" className="px-2 py-0 text-[11px]">涉及仓库</TabsTrigger>
-                    <TabsTrigger value="branches" className="px-2 py-0 text-[11px]">模板</TabsTrigger>
+                    {!isUnplanned && <TabsTrigger value="branches" className="px-2 py-0 text-[11px]">模板</TabsTrigger>}
                   </TabsList>
                 </Tabs>
               </div>
@@ -829,7 +832,7 @@ export function IterationView() {
             <div className="h-3.5 w-px bg-border/70" />
             <div data-no-drag>
               <Tabs
-                value={viewTab}
+                  value={shownTab}
                 onValueChange={(v) => {
                   setViewTab(v as 'workitems' | 'repos' | 'branches');
                   if (v !== 'workitems') setSplitWorkitemId(null);
@@ -850,14 +853,16 @@ export function IterationView() {
                       </span>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="branches" className="px-2.5 py-0.5 text-xs gap-1.5">
-                    <span>分支模板</span>
-                    {templateCount > 0 && (
-                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                        {templateCount}
-                      </span>
-                    )}
-                  </TabsTrigger>
+                  {!isUnplanned && (
+                    <TabsTrigger value="branches" className="px-2.5 py-0.5 text-xs gap-1.5">
+                      <span>分支模板</span>
+                      {templateCount > 0 && (
+                        <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                          {templateCount}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </Tabs>
             </div>
@@ -922,7 +927,7 @@ export function IterationView() {
           </div>
         )}
 
-        {viewTab === 'branches' && (
+        {shownTab === 'branches' && (
           <div className="flex items-center justify-between gap-3 pt-1 text-xs text-muted-foreground">
             <span>针对各仓库定义的分支生成规则模板，保存在本机供需求仓库选用</span>
           </div>
@@ -931,9 +936,9 @@ export function IterationView() {
 
       {/* 页头贴左全宽，正文居中限宽 */}
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
-        {viewTab === 'workitems' && renderWorkitemList(false)}
-        {viewTab === 'repos' && reposView}
-        {viewTab === 'branches' && branchesView}
+        {shownTab === 'workitems' && renderWorkitemList(false)}
+        {shownTab === 'repos' && reposView}
+        {shownTab === 'branches' && branchesView}
       </div>
 
       {contextMenuNode}
