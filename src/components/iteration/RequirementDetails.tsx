@@ -10,6 +10,7 @@ import { aiRecommendRepositories } from '@/lib/ai-api';
 import type { AiRepoRecommendation } from '@/types/ai';
 import type { WorkitemChild } from '@/lib/api';
 import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
+import { probeRepoSignalHits, repoSignalScores } from '@/lib/repo-signals';
 import { cn } from '@/lib/utils';
 import { useRecentTracker } from '@/hooks/use-recent-tracker';
 import { useApp } from '@/store/app';
@@ -47,6 +48,8 @@ export type { RequirementDetailsProps };
 
 /** 分支同步状态图（教学用静态图）：默认折叠，展开时才加载 React Flow 代码（lazy chunk） */
 const BranchStateDiagram = lazy(() => import('./BranchStateDiagram'));
+/** 两段式仓库推荐：默认云效仓库池至少给出这么多条高置信结果即收手，不再扩到其他仓库 */
+const MIN_SUFFICIENT_REPOS = 1;
 
 /** 需求/工作项详情（1:1 对齐 Linear 工具风格） */
 export function RequirementDetails({
@@ -432,22 +435,79 @@ export function RequirementDetails({
     if (recommendingRepos) return;
     setRecommendingRepos(true);
     try {
+      const watched = settings?.watchedRepos ?? [];
+      const watchedSet = new Set(watched);
       const unlinked = repositories.filter((r) => !effectiveRepoIds.includes(r.id));
-      const res = await aiRecommendRepositories({
+      const descriptionText = typeof wi.description === 'string'
+        ? wi.description
+        : typeof wi.content === 'string' ? wi.content : '';
+      const selectedRow = items.find((item) => item.workitemId === selectedId);
+      // 共现只统计真正同迭代（sprint）的工作项；store.items 是全量已加载列表
+      const iterationItems = selectedRow?.sprintId
+        ? items.filter((item) => item.sprintId === selectedRow.sprintId)
+        : items;
+      const watchedPool = unlinked.filter((r) => watchedSet.has(r.id));
+      // trace 只覆盖已关联仓库：默认仓库池现扫分支/作者，让信号 1/4 对候选真正生效
+      const probes = watchedPool.length > 0
+        ? await probeRepoSignalHits({
+            repositories: watchedPool,
+            identifier,
+            linkPattern: settings?.linkPattern ?? '',
+            assigneeName: selectedRow?.assignedTo,
+          })
+        : undefined;
+      const signals = repoSignalScores({
+        repositories: unlinked,
+        settings,
+        items: iterationItems,
+        currentWorkitemId: selectedId,
+        assigneeName: selectedRow?.assignedTo,
+        trace,
+        probes,
+      });
+      const scoreOf = (repoId: number) => signals.get(repoId)?.score ?? 0;
+      // 候选排序：确定性信号（追溯/处理人/共现/CI）优先，同分时默认云效仓库优先
+      const ranked = [...unlinked].sort((a, b) => scoreOf(b.id) - scoreOf(a.id)
+        || Number(watchedSet.has(b.id)) - Number(watchedSet.has(a.id)));
+      const ask = (list: typeof unlinked) => aiRecommendRepositories({
         subject,
-        description: typeof wi.description === 'string' ? wi.description : typeof wi.content === 'string' ? wi.content : '',
-        availableRepos: unlinked.map((r) => ({
+        description: descriptionText,
+        availableRepos: list.map((r) => ({
           id: r.id,
           name: r.pathWithNamespace || r.name,
-          description: (r as any).description,
+          description: [
+            watchedSet.has(r.id) ? '默认云效仓库（团队主战场，优先考虑）' : '',
+            signals.get(r.id)?.reasons.join('；') ?? '',
+            'description' in r && typeof r.description === 'string' ? r.description : '',
+          ].filter(Boolean).join('；') || undefined,
         })),
       });
-      setRecommendedRepos(res);
+
+      // 两段式：先只在默认云效仓库中找；充分（数量达标且全为高置信）即收手，否则再扩到其余仓库
+      const watchedRanked = ranked.filter((r) => watchedSet.has(r.id));
+      const primary = watchedRanked.length > 0 ? await ask(watchedRanked) : [];
+      const primarySufficient = primary.length >= MIN_SUFFICIENT_REPOS
+        && primary.every((r) => r.confidence === 'high');
+      let res = primary;
+      if (!primarySufficient) {
+        const seen = new Set(primary.map((r) => r.repoId));
+        const rest = ranked.filter((r) => !watchedSet.has(r.id) && !seen.has(r.id));
+        if (rest.length > 0) res = [...primary, ...await ask(rest)];
+      }
+      // 默认云效仓库排前，同组内按确定性信号分排序，最多 3 个
+      setRecommendedRepos(
+        [...res]
+          .sort((a, b) => Number(watchedSet.has(b.repoId)) - Number(watchedSet.has(a.repoId))
+            || scoreOf(b.repoId) - scoreOf(a.repoId))
+          .slice(0, 3),
+      );
       setShowAddRepo(true);
       if (res.length === 0) {
         setToast({ text: '未找到明显匹配的代码仓库，请手动选择关联', kind: 'info' });
+      } else if (primarySufficient) {
+        setToast({ text: `AI 在默认云效仓库中推荐了 ${res.length} 个高置信仓库`, kind: 'ok' });
       } else {
-        setToast({ text: `AI 为您推荐了 ${res.length} 个相关代码仓库`, kind: 'ok' });
+        setToast({ text: `AI 为您推荐了 ${res.length} 个相关代码仓库（含默认云效仓库优先命中）`, kind: 'ok' });
       }
     } catch (err) {
       setToast({ text: `AI 推荐仓库失败：${humanizeError(err)}`, kind: 'fail' });
