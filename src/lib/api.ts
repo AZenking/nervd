@@ -249,7 +249,7 @@ export async function listRepositoryCommits(repoId: number, page?: number): Prom
 }
 
 export async function listMergeRequests(repoId: number, state?: string): Promise<Record<string, unknown>> {
-  return invoke('list_merge_requests', { repoId, state });
+  return invoke('list_merge_requests', { repoId, stateFilter: state });
 }
 export async function createMergeRequest(p: {
   repoId: number; title: string; sourceBranch: string; targetBranch: string; description?: string;

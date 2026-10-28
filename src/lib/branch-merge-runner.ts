@@ -161,7 +161,11 @@ export async function executeBranchMerge(
       const match = mrs.find((it: any) => {
         const s = it.sourceBranch ?? it.source_branch;
         const t = it.targetBranch ?? it.target_branch;
-        return s === sourceBranch && t === targetBranch;
+        const st = String(it.state ?? it.status ?? '').trim().toUpperCase();
+        // 关键防御：必须是真正处于开放/待合并状态的 MR（云效常见：TO_BE_MERGED / OPENED / OPEN）
+        // 绝对不能将已合并（MERGED）或已关闭（CLOSED）的历史 MR 误认作当前待合并 MR！
+        const isOpen = st === 'OPENED' || st === 'OPEN' || st === 'TO_BE_MERGED';
+        return s === sourceBranch && t === targetBranch && isOpen;
       }) as any;
 
       if (match) {

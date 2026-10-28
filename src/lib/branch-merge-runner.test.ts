@@ -205,4 +205,47 @@ describe('executeBranchMerge', () => {
       }),
     );
   });
+
+  it('ignores already MERGED or CLOSED merge requests and creates a fresh MR', async () => {
+    vi.mocked(api.compareBranches).mockResolvedValueOnce({
+      commits: [{ id: 'c1' }],
+      diffs: [{ newPath: 'a.txt' }],
+    });
+    // 模拟云效历史 MR 列表中存在相同源和目标的旧 MR，但状态已经是 MERGED 和 CLOSED
+    vi.mocked(api.listMergeRequests).mockResolvedValueOnce({
+      result: [
+        {
+          localId: 311,
+          sourceBranch: 'iteration/feat',
+          targetBranch: 'dev',
+          state: 'MERGED',
+        },
+        {
+          localId: 310,
+          sourceBranch: 'iteration/feat',
+          targetBranch: 'dev',
+          state: 'CLOSED',
+        },
+      ],
+    } as any);
+    vi.mocked(api.createMergeRequest).mockResolvedValueOnce({ localId: 315 });
+    vi.mocked(api.mergeMergeRequest).mockResolvedValueOnce({ status: 'MERGED' });
+
+    const result = await executeBranchMerge(
+      {
+        type: 'branch_merge',
+        repoId: 101,
+        sourceBranch: 'iteration/feat',
+        targetBranch: 'dev',
+        strategy: 'cautious',
+      },
+      { retryDelayMs: 1 },
+    );
+
+    expect(result.success).toBe(true);
+    // 必须创建新的 MR (315)，绝不能重复去合并已合入的 311
+    expect(result.mrId).toBe(315);
+    expect(api.createMergeRequest).toHaveBeenCalledTimes(1);
+    expect(api.mergeMergeRequest).toHaveBeenCalledWith(101, 315);
+  });
 });
