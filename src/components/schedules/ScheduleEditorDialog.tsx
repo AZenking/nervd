@@ -981,30 +981,34 @@ export function ScheduleEditorDialog({
                       className="w-24 h-8 text-xs font-mono"
                     />
                     <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5">
-                      <button
+                      <Button
                         type="button"
+                        variant={intervalUnit === 'minute' ? 'default' : 'ghost'}
+                        size="xs"
                         onClick={() => handleIntervalChange(intervalValue, 'minute')}
                         className={cn(
-                          'px-2.5 py-1 text-xs rounded-sm transition-colors cursor-pointer',
+                          'h-6 px-2.5 text-xs rounded-sm transition-colors',
                           intervalUnit === 'minute'
                             ? 'bg-primary text-primary-foreground font-medium shadow-xs'
                             : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
                         分钟
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant={intervalUnit === 'hour' ? 'default' : 'ghost'}
+                        size="xs"
                         onClick={() => handleIntervalChange(intervalValue, 'hour')}
                         className={cn(
-                          'px-2.5 py-1 text-xs rounded-sm transition-colors cursor-pointer',
+                          'h-6 px-2.5 text-xs rounded-sm transition-colors',
                           intervalUnit === 'hour'
                             ? 'bg-primary text-primary-foreground font-medium shadow-xs'
                             : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
                         小时
-                      </button>
+                      </Button>
                     </div>
                     <span className="text-xs text-muted-foreground shrink-0">执行一次</span>
                   </div>
@@ -1017,19 +1021,21 @@ export function ScheduleEditorDialog({
                       { label: '每 1 小时', val: 1, unit: 'hour' as const },
                       { label: '每 2 小时', val: 2, unit: 'hour' as const },
                     ].map((item) => (
-                      <button
+                      <Button
                         key={item.label}
                         type="button"
+                        variant="outline"
+                        size="xs"
                         onClick={() => handleIntervalChange(item.val, item.unit)}
                         className={cn(
-                          'px-1.5 py-0.5 rounded text-[10px] border border-border/50 hover:border-primary/50 cursor-pointer transition-colors',
+                          'h-5 px-1.5 rounded text-[10px] border border-border/50 hover:border-primary/50 transition-colors',
                           intervalValue === item.val && intervalUnit === item.unit
-                            ? 'bg-primary/10 text-primary border-primary'
-                            : 'bg-muted/30 text-muted-foreground',
+                            ? 'bg-primary/10 text-primary border-primary hover:bg-primary/15'
+                            : 'bg-muted/30 text-muted-foreground hover:text-foreground',
                         )}
                       >
                         {item.label}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -1047,9 +1053,11 @@ export function ScheduleEditorDialog({
                         { label: '周末 (周六日)', value: 'weekend' as const },
                         { label: '每周特定日', value: 'weekly' as const },
                       ].map((item) => (
-                        <button
+                        <Button
                           key={item.value}
                           type="button"
+                          variant={fixedDaysType === item.value ? 'default' : 'ghost'}
+                          size="xs"
                           onClick={() =>
                             handleFixedTimeChange(
                               fixedTime,
@@ -1058,14 +1066,14 @@ export function ScheduleEditorDialog({
                             )
                           }
                           className={cn(
-                            'px-2 py-1 text-xs rounded-sm transition-colors cursor-pointer',
+                            'h-6 px-2 text-xs rounded-sm transition-colors',
                             fixedDaysType === item.value
                               ? 'bg-primary text-primary-foreground font-medium shadow-xs'
                               : 'text-muted-foreground hover:text-foreground',
                           )}
                         >
                           {item.label}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </div>
@@ -1084,9 +1092,11 @@ export function ScheduleEditorDialog({
                             { label: '周六', day: 6 },
                             { label: '周日', day: 0 },
                           ].map((item) => (
-                            <button
+                            <Button
                               key={item.day}
                               type="button"
+                              variant={fixedWeeklyDay === item.day ? 'default' : 'ghost'}
+                              size="xs"
                               onClick={() =>
                                 handleFixedTimeChange(
                                   fixedTime,
@@ -1095,14 +1105,14 @@ export function ScheduleEditorDialog({
                                 )
                               }
                               className={cn(
-                                'px-1.5 py-0.5 text-xs rounded-sm transition-colors cursor-pointer',
+                                'h-6 px-1.5 text-xs rounded-sm transition-colors',
                                 fixedWeeklyDay === item.day
                                   ? 'bg-primary text-primary-foreground font-medium shadow-xs'
                                   : 'text-muted-foreground hover:text-foreground',
                               )}
                             >
                               {item.label}
-                            </button>
+                            </Button>
                           ))}
                         </div>
                       </div>
