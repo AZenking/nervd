@@ -123,18 +123,49 @@ describe('executeBranchMerge', () => {
     vi.mocked(api.createMergeRequest).mockResolvedValueOnce({ localId: 88 });
     vi.mocked(api.mergeMergeRequest).mockResolvedValueOnce({ status: 'MERGED' });
 
-    const result = await executeBranchMerge({
-      type: 'branch_merge',
-      repoId: 101,
-      sourceBranch: 'feature/clean',
-      targetBranch: 'master',
-      strategy: 'cautious',
-    });
+    const result = await executeBranchMerge(
+      {
+        type: 'branch_merge',
+        repoId: 101,
+        sourceBranch: 'feature/clean',
+        targetBranch: 'master',
+        strategy: 'cautious',
+      },
+      { retryDelayMs: 1 },
+    );
 
     expect(result.success).toBe(true);
     expect(result.conflictDetected).toBe(false);
     expect(result.mrId).toBe(88);
     expect(api.mergeMergeRequest).toHaveBeenCalledWith(101, 88);
+  });
+
+  it('retries and recovers when encountering 405 status not allowed error from Yunxiao', async () => {
+    vi.mocked(api.compareBranches).mockResolvedValueOnce({
+      commits: [{ id: 'c1' }],
+      diffs: [{ newPath: 'clean.txt' }],
+    });
+    vi.mocked(api.listMergeRequests).mockResolvedValueOnce({ result: [] });
+    vi.mocked(api.createMergeRequest).mockResolvedValueOnce({ localId: 88 });
+    // 第 1 次调用报 405（云效计算中），第 2 次成功
+    vi.mocked(api.mergeMergeRequest)
+      .mockRejectedValueOnce(new Error('YUNXIAO 405 Method Not Allowed: SYSTEM_FORBIDDEN_ERROR: 405 METHOD_NOT_ALLOWED - 该状态下的评审不允许合并，请刷新页面后重试。'))
+      .mockResolvedValueOnce({ status: 'MERGED' });
+
+    const result = await executeBranchMerge(
+      {
+        type: 'branch_merge',
+        repoId: 101,
+        sourceBranch: 'feature/retry',
+        targetBranch: 'master',
+        strategy: 'cautious',
+      },
+      { retryDelayMs: 1 },
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.mrId).toBe(88);
+    expect(api.mergeMergeRequest).toHaveBeenCalledTimes(2);
   });
 
   it('aggressive strategy resolves conflicts in shadow isolated branch without polluting source branch', async () => {

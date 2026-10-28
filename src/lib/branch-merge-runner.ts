@@ -49,11 +49,65 @@ function analyzeCompareResult(res: unknown): {
 }
 
 /**
+ * 带有云效服务端异步计算缓冲与自愈重试的 MR 合并调用。
+ * 针对云效特性：MR 创建或有新提交后，云效后台异步计算 Git 差异、分支落差与准入卡点（小分支约 1~3 秒，大落差分支如数百提交需 10~20 秒）。
+ * 在云效后台评估尚未结束时直接发起合并，云效会抛出「405 METHOD_NOT_ALLOWED - 该状态下的评审不允许合并，请刷新页面后重试」。
+ * 此函数在遇到 405 时按自适应阶梯间隔轮询自愈重试（默认覆盖至 25~30 秒），并在最终超时未通过时输出清晰排查指引。
+ */
+async function mergeMergeRequestWithRetry(
+  repoId: number,
+  mrId: number,
+  options?: { isNewlyCreated?: boolean; baseDelayMs?: number; maxRetries?: number },
+): Promise<void> {
+  const maxRetries = options?.maxRetries ?? 8;
+  const isCustomDelay = options?.baseDelayMs !== undefined;
+  const baseDelayMs = isCustomDelay ? options!.baseDelayMs! : 2500;
+  const initialDelayMs = options?.isNewlyCreated ? (isCustomDelay ? baseDelayMs : 3000) : 0;
+
+  // 新建 MR 时，给予云效后台基础 Git 三方比对与规则计算启动缓冲
+  if (initialDelayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, initialDelayMs));
+  }
+
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    try {
+      await api.mergeMergeRequest(repoId, mrId);
+      return;
+    } catch (err: unknown) {
+      lastErr = err;
+      const errStr = err instanceof Error ? err.message : String(err);
+
+      // 若远端实际已处于已合并状态（幂等防御）
+      if (/already merged|已合入|已合并/i.test(errStr)) {
+        return;
+      }
+
+      // 检测是否为云效典型的「异步比对未完成 / 准入评估中」405 报错
+      const isStatusNotAllowedErr = /405|METHOD_NOT_ALLOWED|该状态下的评审不允许合并/i.test(errStr);
+
+      if (isStatusNotAllowedErr && attempt < maxRetries) {
+        // 自适应递增退避间隔，在 2.5s ~ 4s 之间平滑轮询，兼顾响应速度与云效并发限制
+        const waitMs = isCustomDelay
+          ? Math.max(1, baseDelayMs)
+          : Math.min(4000, 2000 + attempt * 500);
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  if (lastErr) throw lastErr;
+}
+
+/**
  * 执行分支合并任务
  */
 export async function executeBranchMerge(
   action: BranchMergeScheduleAction,
-  options?: { bypassWriteCheckForTest?: boolean },
+  options?: { bypassWriteCheckForTest?: boolean; retryDelayMs?: number },
 ): Promise<BranchMergeExecutionResult> {
   const { repoId, sourceBranch, targetBranch, strategy, aggressiveConflictPreference = 'isolated_pr' } = action;
 
@@ -146,12 +200,18 @@ export async function executeBranchMerge(
           targetBranch,
           description: `由 nervd 定时任务自动触发。源分支: ${sourceBranch}，目标: ${targetBranch}`,
         })) as any;
-        mrId = Number(createRes?.localId ?? createRes?.id ?? createRes?.data?.localId);
+        const raw = createRes?.result ?? createRes?.data ?? createRes;
+        mrId = Number(raw?.localId ?? raw?.id);
       }
 
-      if (mrId) {
-        await api.mergeMergeRequest(repoId, mrId);
+      if (!mrId || Number.isNaN(mrId)) {
+        throw new Error('创建或获取合并请求失败: 未能获取到有效的 MR 编号');
       }
+
+      await mergeMergeRequestWithRetry(repoId, mrId, {
+        isNewlyCreated: !existingMrId,
+        baseDelayMs: options?.retryDelayMs,
+      });
 
       return {
         success: true,
@@ -176,6 +236,10 @@ export async function executeBranchMerge(
           details: errStr,
         };
       }
+      const isReviewBlocked = /该状态下的评审不允许合并/i.test(errStr);
+      if (isReviewBlocked) {
+        throw new Error(`执行合并失败: 云效评审状态不允许合并（已等待云效规则计算重试仍未通过，若并非计算延迟，通常为目标分支设置了人工评审卡点、流水线门禁未通过或权限不足）: ${errStr}`);
+      }
       throw new Error(`执行合并失败: ${errStr}`);
     }
   }
@@ -195,11 +259,16 @@ export async function executeBranchMerge(
             targetBranch,
             description: `由 nervd 定时任务自动触发（激进策略·无冲突直合）。`,
           })) as any;
-          mrId = Number(createRes?.localId ?? createRes?.id ?? createRes?.data?.localId);
+          const raw = createRes?.result ?? createRes?.data ?? createRes;
+          mrId = Number(raw?.localId ?? raw?.id);
         }
-        if (mrId) {
-          await api.mergeMergeRequest(repoId, mrId);
+        if (!mrId || Number.isNaN(mrId)) {
+          throw new Error('创建或获取合并请求失败: 未能获取到有效的 MR 编号');
         }
+        await mergeMergeRequestWithRetry(repoId, mrId, {
+          isNewlyCreated: !existingMrId,
+          baseDelayMs: options?.retryDelayMs,
+        });
         return {
           success: true,
           strategy: 'aggressive',
