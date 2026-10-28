@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stat, StatBand } from '@/components/ui/stat';
 import { cn } from '@/lib/utils';
-import { STICKY_PAGE_HEADER_CLASS } from './page-header';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { PageHeader } from './page-header';
 import { EmptyHint } from './empty-hint';
 import { SectionHeader } from './section-header';
 import { PipelineCard } from './PipelineCard';
@@ -134,29 +135,23 @@ export function OverviewView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header
-        data-tauri-drag-region
-        className={cn(STICKY_PAGE_HEADER_CLASS, 'select-none')}
-      >
-        <div className="flex min-h-9 items-center justify-between gap-3" data-tauri-drag-region>
-          <div className="flex items-center gap-2" data-tauri-drag-region>
-            <h1 className="text-sm font-semibold tracking-tight text-foreground select-none cursor-default">
-              总览
-            </h1>
-          </div>
-          <div className="flex shrink-0 items-center gap-2" data-no-drag>
-            <span className="text-xs text-muted-foreground">{CATEGORY_LABELS[category]}</span>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="刷新"
-              onClick={refresh}
-            >
-              <RefreshCwIcon />
-            </Button>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        sticky
+        navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
+        title="总览"
+        titleClassName="text-sm font-semibold tracking-tight text-foreground"
+        scope={<span className="text-xs text-muted-foreground">{CATEGORY_LABELS[category]}</span>}
+        actions={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="刷新"
+            onClick={refresh}
+          >
+            <RefreshCwIcon />
+          </Button>
+        }
+      />
 
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-7 py-1">
         {/* 统计带：hairline 分隔的 4 格（StatBand 默认列数 xs:1 / sm:2 / lg:4） */}

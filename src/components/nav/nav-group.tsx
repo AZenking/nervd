@@ -30,6 +30,7 @@ export function NavCollapsibleGroup({
   return (
     <Collapsible open={open} onOpenChange={setOpen} render={<SidebarGroup className={className} />}>
       <CollapsibleTrigger
+        nativeButton={false}
         render={
           <SidebarGroupLabel
             className={cn(

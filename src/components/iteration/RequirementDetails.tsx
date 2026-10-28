@@ -46,6 +46,15 @@ import { RequirementActivity } from './requirement/requirement-activity';
 export { RequirementDetailsSkeleton };
 export type { RequirementDetailsProps };
 
+/**
+ * 单栏窄窗口扩展 props（IterationView 在 < SINGLE_COLUMN_WORKSPACE_WIDTH 时传入）：
+ * 提供顶部「返回列表」入口，点击后由父组件收起详情态并恢复全宽列表现场。
+ * 独立扩展接口而不改 requirement/types.ts，保持原契约文件不动。
+ */
+export interface RequirementDetailsBackToListProps {
+  onBackToList?: () => void;
+}
+
 /** 分支同步状态图（教学用静态图）：默认折叠，展开时才加载 React Flow 代码（lazy chunk） */
 const BranchStateDiagram = lazy(() => import('./BranchStateDiagram'));
 /** 两段式仓库推荐：默认云效仓库池至少给出这么多条高置信结果即收手，不再扩到其他仓库 */
@@ -59,7 +68,8 @@ export function RequirementDetails({
   onClose,
   onSelectChild,
   onSelectParent,
-}: RequirementDetailsProps = {}) {
+  onBackToList,
+}: RequirementDetailsProps & RequirementDetailsBackToListProps = {}) {
   const {
     selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
     iterations, trace, traceLoading, currentUser,
@@ -567,85 +577,112 @@ export function RequirementDetails({
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       {embedded ? (
-        <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border/70 bg-popover/95 px-5 pt-7 pb-3 backdrop-blur-sm">
-          <div data-no-drag className="flex min-w-0 items-center gap-2.5 select-text">
-            {parent && (
+        <PageHeader
+          density="compact"
+          className="sticky top-0 z-20 shrink-0 border-b border-border/70 bg-popover/95 px-5 pt-7 pb-3 backdrop-blur-sm"
+          navigation={onBackToList || parent ? (
+            <>
+              {onBackToList && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    data-testid="back-to-list"
+                    className="shrink-0 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={onBackToList}
+                    title="返回列表 (Esc)"
+                    aria-label="返回列表"
+                  >
+                    <ArrowLeftIcon className="size-3.5" />
+                    <span>返回列表</span>
+                  </Button>
+                  <span className="h-3.5 w-px shrink-0 bg-border/70" aria-hidden />
+                </>
+              )}
+              {parent && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-6 text-muted-foreground hover:text-foreground shrink-0"
+                  onClick={() => {
+                    if (onSelectParent) onSelectParent(parent.workitemId);
+                    else openWorkitem(parent.workitemId, parent);
+                  }}
+                  title={`返回父需求 ${parent.identifier}`}
+                >
+                  <ArrowLeftIcon className="size-3.5" />
+                </Button>
+              )}
+            </>
+          ) : undefined}
+          title={(
+            <span className="flex min-w-0 items-center gap-2.5">
+              <StatusIcon status={statusName} className="size-4 shrink-0" />
+              {identifier && (
+                <button
+                  type="button"
+                  onClick={copyIdentifier}
+                  className="group inline-flex shrink-0 items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+                  title="点击复制编号"
+                >
+                  <span>{identifier}</span>
+                  {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
+                </button>
+              )}
+              <OverflowTooltip
+                text={subject}
+                className="min-w-0 truncate text-base font-semibold text-foreground"
+              />
+            </span>
+          )}
+          titleClassName="flex min-w-0 items-center gap-2.5 select-text cursor-text"
+          actions={(
+            <>
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="size-6 text-muted-foreground hover:text-foreground shrink-0 -ml-1 mr-0.5"
-                onClick={() => {
-                  if (onSelectParent) onSelectParent(parent.workitemId);
-                  else openWorkitem(parent.workitemId, parent);
-                }}
-                title={`返回父需求 ${parent.identifier}`}
+                onClick={() => void handleRefreshDetail()}
+                title="刷新当前工作项（含讨论、子任务与追溯）"
+                aria-label="刷新工作项"
               >
-                <ArrowLeftIcon className="size-3.5" />
+                <RefreshCwIcon className={cn('size-3.5', (refreshing || traceLoading) && 'animate-spin')} />
               </Button>
-            )}
-            <StatusIcon status={statusName} className="size-4 shrink-0" />
-            {identifier && (
-              <button
-                type="button"
-                onClick={copyIdentifier}
-                className="group inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
-                title="点击复制编号"
-              >
-                <span>{identifier}</span>
-                {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
-              </button>
-            )}
-            <OverflowTooltip
-              as="h2"
-              text={subject}
-              className="min-w-0 truncate text-base font-semibold text-foreground select-text cursor-text"
-            />
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => void handleRefreshDetail()}
-              title="刷新当前工作项（含讨论、子任务与追溯）"
-              aria-label="刷新工作项"
-            >
-              <RefreshCwIcon className={cn('size-3.5', (refreshing || traceLoading) && 'animate-spin')} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={handleOpenInYunxiao}
-              title="在云效中打开"
-              aria-label="在云效中打开"
-            >
-              <ExternalLinkIcon className="size-3.5" />
-            </Button>
-            {onOpenWorkbench && (
               <Button
                 variant="ghost"
                 size="icon-xs"
-                onClick={onOpenWorkbench}
-                title="在工作台全屏打开"
-                aria-label="在工作台全屏打开"
+                onClick={handleOpenInYunxiao}
+                title="在云效中打开"
+                aria-label="在云效中打开"
               >
-                <Maximize2Icon className="size-3.5" />
+                <ExternalLinkIcon className="size-3.5" />
               </Button>
-            )}
-            {onClose && (
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={onClose}
-                title="关闭分栏 (Esc)"
-                aria-label="关闭分栏 (Esc)"
-              >
-                <XIcon className="size-3.5" />
-              </Button>
-            )}
-          </div>
-        </div>
+              {onOpenWorkbench && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={onOpenWorkbench}
+                  title="在工作台全屏打开"
+                  aria-label="在工作台全屏打开"
+                >
+                  <Maximize2Icon className="size-3.5" />
+                </Button>
+              )}
+              {onClose && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={onClose}
+                  title="关闭分栏 (Esc)"
+                  aria-label="关闭分栏 (Esc)"
+                >
+                  <XIcon className="size-3.5" />
+                </Button>
+              )}
+            </>
+          )}
+        />
       ) : (
         <PageHeader
           breadcrumb={<AppBreadcrumb />}
@@ -767,7 +804,7 @@ export function RequirementDetails({
               {iterationBranchValue && iterationBranchValue !== '—' && (
                 <div className="flex items-center justify-between gap-3">
                   <span>迭代基准</span>
-                  <span className="font-mono text-foreground">{iterationBranchValue}</span>
+                  <span className="min-w-0 break-all text-right font-mono text-foreground">{iterationBranchValue}</span>
                 </div>
               )}
             </CollapsibleContent>

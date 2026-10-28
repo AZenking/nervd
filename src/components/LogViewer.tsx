@@ -35,6 +35,7 @@ import {
   type ProcessedLogLine,
 } from '@/lib/log-highlighter';
 import { buildLogAccordionSections } from '@/lib/log-accordion';
+import { updateLogFollowState, type LogScrollMetrics } from '@/lib/log-follow';
 import type { CiStageItem } from '@/lib/api';
 
 type FilterMode = 'all' | 'error' | 'warning' | 'stage';
@@ -89,7 +90,11 @@ export function LogViewerContent({
   onClose?: () => void;
 } = {}) {
   const { logView, closeLogs, refreshRepoCiLogs, setToast } = useApp();
+  const contentRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(true);
+  const followTargetKeyRef = useRef<string | null>(null);
+  const previousScrollMetricsRef = useRef<LogScrollMetrics | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [wrapLines, setWrapLines] = useState<boolean>(true);
   const [openSectionId, setOpenSectionId] = useState<string | null>(null);
@@ -143,6 +148,21 @@ export function LogViewerContent({
     : null;
 
   useEffect(() => {
+    if (followTargetKeyRef.current === accordionTargetKey) return;
+    followTargetKeyRef.current = accordionTargetKey;
+    followLatestRef.current = true;
+
+    const viewport = contentRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+    if (viewport) {
+      previousScrollMetricsRef.current = {
+        scrollTop: viewport.scrollTop,
+        scrollHeight: viewport.scrollHeight,
+        clientHeight: viewport.clientHeight,
+      };
+    }
+  }, [accordionTargetKey]);
+
+  useEffect(() => {
     if (!logView) {
       accordionTargetKeyRef.current = null;
       setOpenSectionId(null);
@@ -162,13 +182,42 @@ export function LogViewerContent({
     }
   }, [openSectionId, visibleSections]);
 
+  useEffect(() => {
+    const viewport = contentRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+    if (!viewport) return;
+
+    previousScrollMetricsRef.current = {
+      scrollTop: viewport.scrollTop,
+      scrollHeight: viewport.scrollHeight,
+      clientHeight: viewport.clientHeight,
+    };
+
+    const handleScroll = () => {
+      const previous = previousScrollMetricsRef.current;
+      const current: LogScrollMetrics = {
+        scrollTop: viewport.scrollTop,
+        scrollHeight: viewport.scrollHeight,
+        clientHeight: viewport.clientHeight,
+      };
+
+      followLatestRef.current = updateLogFollowState(followLatestRef.current, previous, current);
+      previousScrollMetricsRef.current = current;
+    };
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    return () => viewport.removeEventListener('scroll', handleScroll);
+  }, [accordionTargetKey]);
+
   // 自动滚动到底部（仅在全量展示且处于实时追加模式时）
   useEffect(() => {
-    if (logView && filterMode === 'all' && logView.hasMore) {
-      requestAnimationFrame(() => {
+    if (logView && filterMode === 'all' && logView.hasMore && followLatestRef.current) {
+      const frame = requestAnimationFrame(() => {
         const vp = bodyRef.current?.closest('[data-slot="scroll-area-viewport"]');
-        vp?.scrollTo({ top: vp.scrollHeight, behavior: 'smooth' });
+        if (followLatestRef.current) {
+          vp?.scrollTo({ top: vp.scrollHeight, behavior: 'auto' });
+        }
       });
+      return () => cancelAnimationFrame(frame);
     }
   }, [lines.length, logView?.hasMore, filterMode, logView]);
 
@@ -206,7 +255,7 @@ export function LogViewerContent({
   };
 
   return (
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div ref={contentRef} className="flex min-h-0 flex-1 flex-col">
         {/* 页头区 */}
         <DrawerHeader className="border-b border-border/70 px-5 py-3 shrink-0">
           <div className="flex w-full items-center justify-between gap-4">

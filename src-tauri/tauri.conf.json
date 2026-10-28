@@ -15,7 +15,7 @@
         "title": "nervd",
         "width": 1360,
         "height": 860,
-        "minWidth": 1080,
+        "minWidth": 800,
         "minHeight": 640,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,

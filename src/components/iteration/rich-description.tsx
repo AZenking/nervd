@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PencilIcon, CheckIcon, XIcon, Loader2Icon } from 'lucide-react';
 import * as api from '@/lib/api';
 import { extractRichHtml, extractRichImageUrls } from '@/lib/richtext';
@@ -44,19 +44,26 @@ export function RichDescription({
 
   const [draftHtml, setDraftHtml] = useState(initialHtml);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const currentId = useRef(workitemId);
+  currentId.current = workitemId;
 
-  // 外部 raw 更新时同步重置编辑草稿
+  // Only changing workitems discards the edit session. Optimistic raw updates must not.
   useEffect(() => {
     setDraftHtml(initialHtml);
     setIsEditing(false);
-  }, [initialHtml, workitemId]);
+  }, [workitemId]);
+
+  useEffect(() => {
+    if (!isEditing) setDraftHtml(initialHtml);
+  }, [initialHtml, isEditing]);
 
   // 当外部 isEditing 变为 true 时同步当前最新 initialHtml
   useEffect(() => {
     if (isEditing) {
       setDraftHtml(initialHtml);
     }
-  }, [isEditing, initialHtml]);
+  }, [isEditing]);
 
   // 附件图片代理加载（devops 鉴权）
   const images = useMemo(() => extractRichImageUrls(raw), [raw]);
@@ -97,25 +104,29 @@ export function RichDescription({
   };
 
   const handleCancel = () => {
+    if (savingRef.current) return;
     setDraftHtml(initialHtml);
     setIsEditing(false);
   };
 
   const handleSave = async () => {
-    if (!workitemId || saving) return;
+    if (!workitemId || savingRef.current) return;
     if (!allowWrite) {
       setToast({ text: '保存失败：未开启写操作权限', kind: 'fail' });
       return;
     }
+    savingRef.current = true;
     setSaving(true);
+    const submittedId = workitemId;
     try {
       const ok = await updateWorkitemDescriptionOptimistic(workitemId, draftHtml);
-      if (ok) {
+      if (ok && currentId.current === submittedId) {
         setToast({ text: '需求描述已保存', kind: 'ok' });
         setIsEditing(false);
         onSaved?.(draftHtml);
       }
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -126,7 +137,7 @@ export function RichDescription({
         <div className="flex flex-col gap-3 rounded-md border border-border/80 bg-background/50 p-3">
           <RichEditor
             content={draftHtml}
-            editable={true}
+            editable={!saving}
             showToolbar={true}
             autofocus={true}
             placeholder="输入需求描述，支持 Markdown 语法与快捷指令…"

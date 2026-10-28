@@ -22,9 +22,10 @@ import type { BranchInfo } from '@/types';
 import { useDebounce } from '@/hooks/use-debounce';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { SearchableSelect } from '../searchable-select';
 
-import { STICKY_PAGE_HEADER_CLASS } from '../page-header';
+import { PageHeader } from '../page-header';
 import { EmptyHint } from '../empty-hint';
 import { WorkitemPeekDrawer } from '../workitem-peek-drawer';
 import { AiReleaseNotesDialog } from './ai-release-notes-dialog';
@@ -373,17 +374,24 @@ export function IntegrationView() {
 
   return (
     <div className="flex flex-col gap-5">
-      <header
-        data-tauri-drag-region
-        className={cn(STICKY_PAGE_HEADER_CLASS, 'select-none')}
-      >
-        <div className="flex min-h-9 items-center justify-between gap-3" data-tauri-drag-region>
-          <div className="flex items-center gap-2" data-tauri-drag-region>
-            <h1 className="text-sm font-semibold tracking-tight text-foreground select-none cursor-default">
-              集成分支
-            </h1>
-          </div>
-          <div className="flex shrink-0 items-center gap-2" data-no-drag>
+      <PageHeader
+        sticky
+        navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
+        title="集成分支"
+        titleClassName="text-sm font-semibold tracking-tight text-foreground"
+        actions={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="刷新"
+            title="重新拉取分支数据"
+            onClick={handleRefresh}
+          >
+            <RefreshCwIcon className={cn(branchPhase === 'loading' && 'animate-spin')} />
+          </Button>
+        }
+        toolbar={
+          <>
             <SearchableSelect
               className="w-56 text-xs"
               ariaLabel="切换仓库"
@@ -393,48 +401,37 @@ export function IntegrationView() {
               }}
               items={repoOptions}
             />
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="刷新"
-              title="重新拉取分支数据"
-              onClick={handleRefresh}
-            >
-              <RefreshCwIcon className={cn(branchPhase === 'loading' && 'animate-spin')} />
-            </Button>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5 pt-1" data-no-drag>
-          <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-xs">
-            <GitBranchIcon className="size-3 text-muted-foreground" />
-            <span className="text-[11px] font-medium text-muted-foreground">基准</span>
-            <input
-              value={base}
-              onChange={(event) => setBase(event.target.value)}
-              placeholder="master"
-              aria-label="基准分支"
-              className="h-6 w-24 bg-transparent font-mono text-xs outline-none"
-            />
-          </div>
-          <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-xs">
-            <SearchIcon className="size-3 text-muted-foreground" />
-            <span className="text-[11px] font-medium text-muted-foreground">匹配模式</span>
-            <input
-              value={patterns}
-              onChange={(event) => setPatterns(event.target.value)}
-              placeholder={DEFAULT_PATTERNS}
-              aria-label="集成分支匹配模式"
-              className="h-6 w-56 bg-transparent font-mono text-xs outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-          {branchPhase === 'ready' && (
-            <span className="min-w-0 truncate text-xs text-muted-foreground">
-              {repoName} · 命中 {matchedBranches.length} 条
-              {matchedBranches.length > PAGE_SIZE && ` (第 ${page}/${totalPages} 页)`}
-            </span>
-          )}
-        </div>
-      </header>
+            <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-xs">
+              <GitBranchIcon className="size-3 text-muted-foreground" />
+              <span className="text-[11px] font-medium text-muted-foreground">基准</span>
+              <input
+                value={base}
+                onChange={(event) => setBase(event.target.value)}
+                placeholder="master"
+                aria-label="基准分支"
+                className="h-6 w-24 bg-transparent font-mono text-xs outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-xs">
+              <SearchIcon className="size-3 text-muted-foreground" />
+              <span className="text-[11px] font-medium text-muted-foreground">匹配模式</span>
+              <input
+                value={patterns}
+                onChange={(event) => setPatterns(event.target.value)}
+                placeholder={DEFAULT_PATTERNS}
+                aria-label="集成分支匹配模式"
+                className="h-6 w-56 bg-transparent font-mono text-xs outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+            {branchPhase === 'ready' && (
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                {repoName} · 命中 {matchedBranches.length} 条
+                {matchedBranches.length > PAGE_SIZE && ` (第 ${page}/${totalPages} 页)`}
+              </span>
+            )}
+          </>
+        }
+      />
 
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
         {branchPhase === 'loading' && (

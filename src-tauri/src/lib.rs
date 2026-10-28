@@ -67,9 +67,15 @@ fn setup_macos_menu(app: &tauri::AppHandle) -> tauri::Result<()> {
         "视图",
         true,
         &[
+            &MenuItem::with_id(app, "workspace_back", "后退", true, Some("CmdOrCtrl+["))?,
+            &MenuItem::with_id(app, "workspace_forward", "前进", true, Some("CmdOrCtrl+]"))?,
+            &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "nav_overview", "总览", true, None::<&str>)?,
             &MenuItem::with_id(app, "nav_iteration", "当前迭代", true, None::<&str>)?,
             &MenuItem::with_id(app, "nav_integration", "集成分支", true, None::<&str>)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "workspace_find", "查找…", true, Some("CmdOrCtrl+F"))?,
+            &MenuItem::with_id(app, "workspace_refresh", "刷新", true, Some("CmdOrCtrl+R"))?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "open_command", "命令面板…", true, Some("CmdOrCtrl+K"))?,
             &PredefinedMenuItem::separator(app)?,
@@ -144,6 +150,18 @@ pub fn run() {
                 }
                 "nav_integration" => {
                     let _ = app.emit("navigate-view", "integration");
+                }
+                "workspace_back" => {
+                    let _ = app.emit("workspace-command", "back");
+                }
+                "workspace_forward" => {
+                    let _ = app.emit("workspace-command", "forward");
+                }
+                "workspace_find" => {
+                    let _ = app.emit("workspace-command", "find");
+                }
+                "workspace_refresh" => {
+                    let _ = app.emit("workspace-command", "refresh");
                 }
                 _ => {}
             }

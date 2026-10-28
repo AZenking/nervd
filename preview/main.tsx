@@ -7,7 +7,7 @@ import { Shell } from '../src/components/Shell';
 import { Toaster } from '../src/components/ui/toast';
 import { TooltipProvider } from '../src/components/ui/tooltip';
 
-import { useUi, initThemeListener } from '../src/store/ui';
+import { useUi, initThemeListener, restoreNavigation } from '../src/store/ui';
 import { dismissSplashScreen } from '../src/lib/splash';
 import { toast } from '../src/components/ui/toast';
 import { LandingView } from './landing/LandingView';
@@ -75,6 +75,7 @@ function Preview() {
 
   useEffect(() => {
     if (booting) return;
+    restoreNavigation();
     void dismissSplashScreen();
   }, [booting]);
 

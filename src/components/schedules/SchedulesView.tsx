@@ -21,7 +21,8 @@ import {
   WorkflowIcon,
   XCircleIcon,
 } from 'lucide-react';
-import { PageHeader, STICKY_PAGE_HEADER_CLASS } from '@/components/page-header';
+import { PageHeader } from '@/components/page-header';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -148,9 +149,10 @@ export function SchedulesView() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 顶部标题区 */}
+      {/* 统一吸顶页头：标题区 + 过滤工具行（筛选与搜索并入 toolbar 槽，页头吸顶固定） */}
       <PageHeader
-        className={STICKY_PAGE_HEADER_CLASS}
+        sticky
+        navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="定时任务工作台"
         titleBadge={
           <Badge
@@ -197,75 +199,75 @@ export function SchedulesView() {
             </Button>
           </div>
         }
+        toolbar={
+          <div className="flex w-full flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-1.5 text-xs">
+              <Button
+                variant={activeTab === 'all' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setActiveTab('all')}
+                className="h-7 text-xs font-medium"
+              >
+                全部
+                <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.2 font-mono text-[10px]">
+                  {tasks.length}
+                </span>
+              </Button>
+
+              <Button
+                variant={activeTab === 'enabled' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setActiveTab('enabled')}
+                className="h-7 text-xs font-medium"
+              >
+                已启用
+                <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.2 font-mono text-[10px]">
+                  {activeCount}
+                </span>
+              </Button>
+
+              {runningCount > 0 && (
+                <Button
+                  variant={activeTab === 'running' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setActiveTab('running')}
+                  className="h-7 text-xs font-medium text-amber-500"
+                >
+                  执行中
+                  <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 py-0.2 font-mono text-[10px]">
+                    {runningCount}
+                  </span>
+                </Button>
+              )}
+
+              {failedCount > 0 && (
+                <Button
+                  variant={activeTab === 'failed' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setActiveTab('failed')}
+                  className="h-7 text-xs font-medium text-destructive"
+                >
+                  失败告警
+                  <span className="ml-1.5 rounded-full bg-destructive/20 px-1.5 py-0.2 font-mono text-[10px]">
+                    {failedCount}
+                  </span>
+                </Button>
+              )}
+            </div>
+
+            {/* 搜索框 */}
+            <div className="relative w-full sm:w-64">
+              <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜索任务名称、分支、Cron..."
+                className="h-7 pl-8 text-xs"
+              />
+            </div>
+          </div>
+        }
       />
-
-      {/* 过滤器与快速指标条 */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
-        <div className="flex items-center gap-1.5 text-xs">
-          <Button
-            variant={activeTab === 'all' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('all')}
-            className="h-7 text-xs font-medium"
-          >
-            全部
-            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.2 font-mono text-[10px]">
-              {tasks.length}
-            </span>
-          </Button>
-
-          <Button
-            variant={activeTab === 'enabled' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('enabled')}
-            className="h-7 text-xs font-medium"
-          >
-            已启用
-            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.2 font-mono text-[10px]">
-              {activeCount}
-            </span>
-          </Button>
-
-          {runningCount > 0 && (
-            <Button
-              variant={activeTab === 'running' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('running')}
-              className="h-7 text-xs font-medium text-amber-500"
-            >
-              执行中
-              <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 py-0.2 font-mono text-[10px]">
-                {runningCount}
-              </span>
-            </Button>
-          )}
-
-          {failedCount > 0 && (
-            <Button
-              variant={activeTab === 'failed' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('failed')}
-              className="h-7 text-xs font-medium text-destructive"
-            >
-              失败告警
-              <span className="ml-1.5 rounded-full bg-destructive/20 px-1.5 py-0.2 font-mono text-[10px]">
-                {failedCount}
-              </span>
-            </Button>
-          )}
-        </div>
-
-        {/* 搜索框 */}
-        <div className="relative w-full sm:w-64">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索任务名称、分支、Cron..."
-            className="h-7 pl-8 text-xs"
-          />
-        </div>
-      </div>
 
       {/* 任务列表区域 */}
       {filteredTasks.length === 0 ? (

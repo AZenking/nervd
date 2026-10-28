@@ -6,7 +6,8 @@ import { useUi, type SettingsSection } from '../store/ui';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SETTINGS_SECTIONS, getSectionErrorCount } from './settings/sections';
-import { PageHeader, STICKY_PAGE_HEADER_CLASS } from './page-header';
+import { PageHeader } from './page-header';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { SettingsAutoSaveStatus } from './settings/SettingsAutoSaveStatus';
 import { cn } from '@/lib/utils';
 import {
@@ -100,11 +101,12 @@ export function SettingsView({
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
+          sticky
+          navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
           actions={<SettingsAutoSaveStatus />}
           title={activeSection.label}
           titleClassName="text-2xl font-semibold tracking-tight text-foreground"
           description={activeSection.description}
-          className={STICKY_PAGE_HEADER_CLASS}
         />
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-20">
           {sectionContent[settingsSection]}

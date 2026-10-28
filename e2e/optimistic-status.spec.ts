@@ -17,6 +17,12 @@ async function moveToRowWithStatusNot(page: Page, avoid: string) {
 }
 
 test.describe('行首状态就地流转（乐观更新）', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.evaluate(() => {
+      const app = (window as any).__nervd_app;
+      app.setState({ settings: { ...app.getState().settings, allowWriteOps: true } });
+    });
+  });
   test('IT-007 网络悬挂时 UI 立即呈现新状态', async ({ page }) => {
     await moveToRowWithStatusNot(page, '已完成');
     const identifier = await activeRow(page).getAttribute('data-identifier');

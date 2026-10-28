@@ -90,15 +90,18 @@ export function RichEditor({
         ),
       },
       handleKeyDown: (_, event) => {
+        if (event.isComposing) return false;
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
           if (onSubmit) {
             event.preventDefault();
+            event.stopPropagation();
             onSubmit();
             return true;
           }
         }
         if (event.key === 'Escape' && onCancel) {
           event.preventDefault();
+          event.stopPropagation();
           onCancel();
           return true;
         }

@@ -589,3 +589,49 @@ Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a h
 4. 拷贝位统一用 `ui/copy-button`，反馈为图标切换，不弹全局 toast
 5. **禁用暖纸色系（Notion 遗留，如 `#f6f5f4` 类），新增界面一律冷灰 + 紫罗兰体系**
 6. 参照链接失效或需要补充时更新 D 节，注明搜集日期
+
+## F. 页面布局规范（统一页头 / 可拖动分栏 / 窄窗口适配）
+
+> 布局原则参照 Apple HIG（ macOS 适配、渐进式收窄、可预期恢复）；以下尺寸为 nervd 产品约定，HIG 不规定具体数值。
+> 落地件：`page-header.tsx`（统一页头）、`ui/resizable.tsx`（分隔线）、`store/layout.ts`（布局偏好）、`Shell.tsx`（容器自适应编排）。
+
+### F.1 统一页头（PageHeader）
+
+所有页面（总览 / 最近查看 / 迭代 / 需求详情 / 集成分支 / 定时任务 / 本地任务 / 设置）统一排列：
+
+```
+主行：navigation（侧栏入口/返回/面包屑）｜ title（可截断）｜ scope（当前范围，可截断）｜ 弹性空隙 ｜ actions（主要操作）+ secondaryActions
+次行：toolbar（筛选与分类控件）
+```
+
+- **降级顺序**：空间不足时先截断标题与范围名称（`min-w-0` + `truncate`），再把次要操作收入「更多」菜单（页头根 `@container`，阈值 `@[520px]`），主要操作永不收纳。
+- **吸顶**：`sticky` prop 输出 `STICKY_PAGE_HEADER_CLASS`，筛选/分类随页头固定，正文独立滚动；嵌入详情用 `density="compact"`（紧凑间距，顶部留白仍 ≥28px 避让红绿灯）。
+- **窗口拖拽**：页头空白区 `data-tauri-drag-region`，交互控件 `data-no-drag`（见 `use-window-drag.ts`）。
+- 设置页首次配置全屏页（无侧栏自定义 titlebar）为唯一例外，不接入 SidebarTrigger。
+
+### F.2 可拖动分栏
+
+| 区域 | 默认宽度 | 宽度限制 | 持久化 |
+|---|---:|---:|---|
+| 导航侧栏 | 256px | 200–300px | `nervd-layout` |
+| 工作项列表 | 360px | 280–480px | `nervd-layout` |
+| 需求详情 | 剩余空间 | 最小 480px | —（由列表钳制间接保证） |
+
+- 分隔线（`PaneSeparator`）：1px 可见线（`bg-border`）+ 8px 透明命中区；`role="separator"` + `aria-valuenow/min/max`，可访问名称含尺寸范围。
+- 键盘：方向键 ±8px（Shift ×4）、Home/End 到上下限、双击恢复默认；聚焦时隔离页面单键快捷键（j/k 让路），⌘ 组合键放行。
+- 拖动结束 150ms debounce 持久化；**窗口收窄只做展示期钳制（`effectiveListWidth`），绝不写回已保存偏好**。
+- 拖动不重载数据、不改变选择 / 光标 / 导航状态；列表与详情独立滚动。
+
+### F.3 窄窗口适配（阈值均为产品约定）
+
+| 条件 | 行为 |
+|---|---|
+| 应用容器 < **1180px** | 侧栏自动收为图标栏；页头 / 侧栏入口可**临时展开**（会话态，不写偏好） |
+| 工作区（扣除侧栏）≥ **760px** | 列表 + 详情双栏，分栏宽度按上表钳制 |
+| 工作区 < **760px** | 单栏：选工作项进入详情，「返回列表」恢复原列表现场（筛选/分页/多选/光标/折叠/滚动） |
+| 浏览器 < **768px** | 沿用移动侧栏抽屉（Sheet） |
+| macOS 桌面 | 窗口最小 **800×640**，默认 1360×860 |
+
+- 自动收放（容器宽度驱动）与用户主动开合（`sidebar_state` cookie）**分别管理**；放大窗口后自动恢复用户偏好。
+- 布局切换不增加导航历史，不清空筛选、分页、多选、详情及滚动位置；列表滚动经 onScroll 即时保存、重挂载后一次性恢复。
+- 普通内容换行；分支名、commit SHA、日志仅在自身区域横向滚动（truncate / `overflow-x-auto`），任何形态不得出现整页横向溢出。
