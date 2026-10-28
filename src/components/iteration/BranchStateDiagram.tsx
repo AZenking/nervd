@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { comparisonCommits } from './BranchDivergenceCheck';
+import { useMeasure } from '@/hooks/use-measure';
 import {
   Background, Controls, Handle, MarkerType, Position, ReactFlow,
   type Edge, type Node, type NodeProps,
@@ -301,6 +302,8 @@ export default function BranchStateDiagram({
     markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_GRAY },
   })), [repos]);
 
+  const [measureRef, { width: containerWidth }] = useMeasure<HTMLDivElement>();
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-3">
@@ -320,8 +323,12 @@ export default function BranchStateDiagram({
           重新比较
         </Button>
       </div>
-      <div className="h-[640px] w-full overflow-hidden rounded-md border border-border/70 bg-background">
+      <div
+        ref={measureRef}
+        className="h-[640px] w-full overflow-hidden rounded-md border border-border/70 bg-background"
+      >
         <ReactFlow
+          key={containerWidth ? Math.round(containerWidth / 20) : 'initial'}
           nodes={nodes}
           edges={[...rootEdges, ...edges]}
           nodeTypes={nodeTypes}

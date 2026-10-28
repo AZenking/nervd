@@ -21,6 +21,7 @@ import {
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useGlobalCiScheduler } from '@/hooks/use-ci-polling';
 import { useScheduleRunner } from '@/hooks/use-schedule-runner';
+import { useEventListener } from '@/hooks/use-event-listener';
 import { useApp } from '@/store/app';
 
 /** g 前缀序列的等待窗口（Linear g+letter：g 后 1200ms 内的下一键才生效） */
@@ -104,16 +105,12 @@ export function Shell() {
   useScheduleRunner();
 
   // 窗口激活焦点时自动重验陈旧数据（SWR 机制：超过 2 分钟未刷新的工作项和迭代数据静默补拉）
-  useEffect(() => {
-    const onFocus = () => {
-      if (document.querySelector(OPEN_DIALOG_SELECTOR)) return;
-      const activeEl = document.activeElement;
-      if (isEditableTarget(activeEl)) return;
-      void useApp.getState().revalidateIfStale(120_000);
-    };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, []);
+  useEventListener('focus', () => {
+    if (document.querySelector(OPEN_DIALOG_SELECTOR)) return;
+    const activeEl = document.activeElement;
+    if (isEditableTarget(activeEl)) return;
+    void useApp.getState().revalidateIfStale(120_000);
+  });
 
   // ---- 全局快捷键层（Linear 操作逻辑，合并原有 ⌘K / ⌘←）----
   // 处理顺序：① ⌘/Ctrl 组合键（不参与 g 序列）→ ② 浮层/输入焦点让路 → ③ g 前缀序列 → ④ ? 面板 → ⑤ Esc 后退。
@@ -128,81 +125,79 @@ export function Shell() {
     }
   }, []);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const ui = useUi.getState();
-      const el = e.target as HTMLElement | null;
+  useEventListener('keydown', (e: KeyboardEvent) => {
+    const ui = useUi.getState();
+    const el = e.target as HTMLElement | null;
 
-      // ① ⌘/Ctrl 组合键：保持原有行为（⌘K 面板 / ⌘← 后退）；任何组合键都不触发下方单键序列
-      if (e.metaKey || e.ctrlKey) {
-        resetGSequence();
-        if (e.key.toLowerCase() === 'k') {
-          e.preventDefault();
-          // 快捷键面板或关于面板开着时先收起，避免两个浮层叠开
-          if (ui.shortcutsOpen) ui.setShortcutsOpen(false);
-          if (ui.aboutOpen) ui.setAboutOpen(false);
-          ui.toggleCommandMenu();
-          return;
-        }
-        if (e.key === 'ArrowLeft') {
-          // 输入控件内保留光标移动语义
-          if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
-          if (!ui.history.length) return;
-          e.preventDefault();
-          ui.back();
-        }
-        return;
-      }
-      if (e.altKey) {
-        resetGSequence();
-        return;
-      }
-
-      // ② 浮层打开（命令面板 / 快捷键面板 / 关于面板 / 任意 Base UI 弹层）或焦点在输入控件：
-      //    全局单键一律让路（Esc 由 Base UI 自行关闭浮层），并复位 g 序列
-      if (ui.commandOpen || ui.shortcutsOpen || ui.aboutOpen || document.querySelector(OPEN_DIALOG_SELECTOR)) {
-        resetGSequence();
-        return;
-      }
-      if (isEditableTarget(el) || el?.tagName === 'SELECT') {
-        resetGSequence();
-        return;
-      }
-
-      // ③ g 前缀序列跳转（g o 总览 / g i 迭代 / g b 集成分支 / g c 定时任务 / g s 设置）：第二键未命中也照常复位
-      const awaitingG = gTimerRef.current != null;
+    // ① ⌘/Ctrl 组合键：保持原有行为（⌘K 面板 / ⌘← 后退）；任何组合键都不触发下方单键序列
+    if (e.metaKey || e.ctrlKey) {
       resetGSequence();
-      if (awaitingG) {
-        if (e.key === 'o') return void ui.setView('overview');
-        if (e.key === 'r') return void ui.setView('recents');
-        if (e.key === 'i') return void ui.setView('iteration');
-        if (e.key === 'b') return void ui.setView('integration');
-        if (e.key === 'c') return void ui.setView('schedules');
-        if (e.key === 't') return void ui.setView('local-tasks');
-        if (e.key === 's') return void ui.openSettings('connection');
-        // 其他键：已复位，继续落入下方单键逻辑
-      } else if (e.key === 'g') {
-        gTimerRef.current = window.setTimeout(resetGSequence, G_SEQUENCE_TIMEOUT_MS);
-        return;
-      }
-
-      // ④ ? 打开键盘快捷键面板（Shift+/，焦点不在输入控件时）
-      if (e.key === '?') {
+      if (e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        ui.setShortcutsOpen(true);
+        // 快捷键面板或关于面板开着时先收起，避免两个浮层叠开
+        if (ui.shortcutsOpen) ui.setShortcutsOpen(false);
+        if (ui.aboutOpen) ui.setAboutOpen(false);
+        ui.toggleCommandMenu();
         return;
       }
-
-      // ⑤ Esc 后退：仅 requirement / full-settings 有层级可退（iteration/overview 即根视图）
-      if (e.key === 'Escape') {
-        if (ui.view === 'requirement' || ui.view === 'full-settings') ui.back();
+      if (e.key === 'ArrowLeft') {
+        // 输入控件内保留光标移动语义
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+        if (!ui.history.length) return;
+        e.preventDefault();
+        ui.back();
       }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
+      return;
+    }
+    if (e.altKey) {
       resetGSequence();
-    };
+      return;
+    }
+
+    // ② 浮层打开（命令面板 / 快捷键面板 / 关于面板 / 任意 Base UI 弹层）或焦点在输入控件：
+    //    全局单键一律让路（Esc 由 Base UI 自行关闭浮层），并复位 g 序列
+    if (ui.commandOpen || ui.shortcutsOpen || ui.aboutOpen || document.querySelector(OPEN_DIALOG_SELECTOR)) {
+      resetGSequence();
+      return;
+    }
+    if (isEditableTarget(el) || el?.tagName === 'SELECT') {
+      resetGSequence();
+      return;
+    }
+
+    // ③ g 前缀序列跳转（g o 总览 / g i 迭代 / g b 集成分支 / g c 定时任务 / g s 设置）：第二键未命中也照常复位
+    const awaitingG = gTimerRef.current != null;
+    resetGSequence();
+    if (awaitingG) {
+      if (e.key === 'o') return void ui.setView('overview');
+      if (e.key === 'r') return void ui.setView('recents');
+      if (e.key === 'i') return void ui.setView('iteration');
+      if (e.key === 'b') return void ui.setView('integration');
+      if (e.key === 'c') return void ui.setView('schedules');
+      if (e.key === 't') return void ui.setView('local-tasks');
+      if (e.key === 's') return void ui.openSettings('connection');
+      // 其他键：已复位，继续落入下方单键逻辑
+    } else if (e.key === 'g') {
+      gTimerRef.current = window.setTimeout(resetGSequence, G_SEQUENCE_TIMEOUT_MS);
+      return;
+    }
+
+    // ④ ? 打开键盘快捷键面板（Shift+/，焦点不在输入控件时）
+    if (e.key === '?') {
+      e.preventDefault();
+      ui.setShortcutsOpen(true);
+      return;
+    }
+
+    // ⑤ Esc 后退：仅 requirement / full-settings 有层级可退（iteration/overview 即根视图）
+    if (e.key === 'Escape') {
+      if (ui.view === 'requirement' || ui.view === 'full-settings') ui.back();
+    }
+  });
+
+  // 组件卸载时安全清理 g 序列计时器
+  useEffect(() => {
+    return () => resetGSequence();
   }, [resetGSequence]);
 
   // 后退恢复工作区滚动位置（应用一次后清空，避免前向导航被旧值干扰）

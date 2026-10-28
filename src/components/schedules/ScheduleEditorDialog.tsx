@@ -421,9 +421,12 @@ export function ScheduleEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[88vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent className="sm:max-w-xl max-h-[88vh] flex flex-col p-5 overflow-hidden">
+        <DialogHeader className="shrink-0 pb-1">
+          <DialogTitle
+            className="truncate"
+            title={initialTask ? `编辑任务 · ${initialTask.name}` : '新建定时任务'}
+          >
             {initialTask ? `编辑任务 · ${initialTask.name}` : '新建定时任务'}
           </DialogTitle>
           <DialogDescription>
@@ -431,7 +434,7 @@ export function ScheduleEditorDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2 text-xs">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-4 py-2 pr-1 text-xs">
           {/* 任务基本信息 */}
           <div className="space-y-2">
             <Label className="font-medium text-foreground block">
@@ -466,17 +469,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('branch_merge')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                   actionType === 'branch_merge'
                     ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                     : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
-                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
-                  <GitMergeIcon className="size-3.5 text-primary" />
-                  <span>分支安全同步</span>
+                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs min-w-0">
+                  <GitMergeIcon className="size-3.5 text-primary shrink-0" />
+                  <span className="truncate">分支安全同步</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-0.5">
+                <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
                   谨慎/激进(零污染)
                 </span>
               </Button>
@@ -486,17 +489,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('jenkins')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                   actionType === 'jenkins'
                     ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                     : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
-                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
-                  <PlayCircleIcon className="size-3.5 text-primary" />
-                  <span>Jenkins 构建</span>
+                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs min-w-0">
+                  <PlayCircleIcon className="size-3.5 text-primary shrink-0" />
+                  <span className="truncate">Jenkins 构建</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-0.5">
+                <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
                   触发远程 Jenkins Job
                 </span>
               </Button>
@@ -506,17 +509,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('pipeline')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                   actionType === 'pipeline'
                     ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                     : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
-                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
-                  <WorkflowIcon className="size-3.5 text-emerald-500" />
-                  <span>云效 Flow 流水线</span>
+                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs min-w-0">
+                  <WorkflowIcon className="size-3.5 text-emerald-500 shrink-0" />
+                  <span className="truncate">云效 Flow 流水线</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-0.5">
+                <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
                   运行云效 CI 交付流水线
                 </span>
               </Button>
@@ -526,17 +529,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('sync_workitems')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                   actionType === 'sync_workitems'
                     ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                     : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
-                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
-                  <RefreshCwIcon className="size-3.5 text-amber-500" />
-                  <span>同步云效需求</span>
+                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs min-w-0">
+                  <RefreshCwIcon className="size-3.5 text-amber-500 shrink-0" />
+                  <span className="truncate">同步云效需求</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-0.5">
+                <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
                   定时拉取工作项/迭代
                 </span>
               </Button>
@@ -546,17 +549,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('scan_branches')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                   actionType === 'scan_branches'
                     ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                     : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
-                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
-                  <RefreshCwIcon className="size-3.5 text-purple-400" />
-                  <span>集成分支巡检</span>
+                <div className="flex items-center gap-1.5 font-medium text-foreground text-xs min-w-0">
+                  <RefreshCwIcon className="size-3.5 text-purple-400 shrink-0" />
+                  <span className="truncate">集成分支巡检</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-0.5">
+                <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
                   定时比对落差与超前
                 </span>
               </Button>
@@ -587,14 +590,14 @@ export function ScheduleEditorDialog({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5 min-w-0">
                   <div className="flex items-center justify-between">
                     <Label className="text-[11px] font-medium text-muted-foreground block">
                       源分支 (Source)
                     </Label>
                     {branchesLoading && (
-                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
                         <Loader2Icon className="size-2.5 animate-spin" />
                         拉取分支...
                       </span>
@@ -612,13 +615,13 @@ export function ScheduleEditorDialog({
                     className="w-full text-xs font-mono"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0">
                   <div className="flex items-center justify-between">
                     <Label className="text-[11px] font-medium text-muted-foreground block">
                       目标分支 (Target)
                     </Label>
                     {branchesLoading && (
-                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
                         <Loader2Icon className="size-2.5 animate-spin" />
                         拉取分支...
                       </span>
@@ -649,19 +652,19 @@ export function ScheduleEditorDialog({
                     variant="outline"
                     onClick={() => setStrategy('cautious')}
                     className={cn(
-                      'h-auto flex items-start gap-2.5 p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                      'h-auto flex items-start gap-2.5 p-2.5 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                       strategy === 'cautious'
                         ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                         : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                     )}
                   >
                     <ShieldAlertIcon className="size-4 text-blue-400 shrink-0 mt-0.5" />
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                         <span>谨慎策略</span>
                         <Badge
                           variant="outline"
-                          className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-400"
+                          className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-400 shrink-0"
                         >
                           冲突即终止
                         </Badge>
@@ -677,19 +680,19 @@ export function ScheduleEditorDialog({
                     variant="outline"
                     onClick={() => setStrategy('aggressive')}
                     className={cn(
-                      'h-auto flex items-start gap-2.5 p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                      'h-auto flex items-start gap-2.5 p-2.5 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                       strategy === 'aggressive'
                         ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                         : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                     )}
                   >
                     <ShieldCheckIcon className="size-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                         <span>激进策略</span>
                         <Badge
                           variant="outline"
-                          className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-400"
+                          className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-400 shrink-0"
                         >
                           零污染隔离
                         </Badge>
@@ -704,7 +707,7 @@ export function ScheduleEditorDialog({
                 {strategy === 'aggressive' && (
                   <div className="rounded-md border border-border/70 bg-muted/20 p-2.5 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 font-medium text-amber-500">
+                      <div className="flex items-center gap-1.5 font-medium text-amber-500 shrink-0">
                         <HelpCircleIcon className="size-3.5 shrink-0" />
                         <span>激进冲突自动裁决偏好</span>
                       </div>
@@ -719,7 +722,7 @@ export function ScheduleEditorDialog({
                         variant="outline"
                         onClick={() => setConflictPreference('theirs')}
                         className={cn(
-                          'h-auto flex flex-col items-start p-2 rounded-md text-left transition-colors whitespace-normal',
+                          'h-auto flex flex-col items-start p-2 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                           conflictPreference === 'theirs'
                             ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                             : 'border-border/60 hover:bg-muted/40 text-muted-foreground bg-card/40',
@@ -737,13 +740,13 @@ export function ScheduleEditorDialog({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-400"
+                            className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-400 shrink-0"
                           >
                             新代码优先
                           </Badge>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                          代码冲突时，自动以源分支（如 <span className="font-mono text-foreground">{sourceBranch || 'dev'}</span>）的新改为准覆盖目标分支，适合新功能冲刺迭代。
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed break-words">
+                          代码冲突时，自动以源分支（如 <span className="font-mono text-foreground break-all">{sourceBranch || 'dev'}</span>）的新改为准覆盖目标分支，适合新功能冲刺迭代。
                         </p>
                       </Button>
 
@@ -752,7 +755,7 @@ export function ScheduleEditorDialog({
                         variant="outline"
                         onClick={() => setConflictPreference('ours')}
                         className={cn(
-                          'h-auto flex flex-col items-start p-2 rounded-md text-left transition-colors whitespace-normal',
+                          'h-auto flex flex-col items-start p-2 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                           conflictPreference === 'ours'
                             ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                             : 'border-border/60 hover:bg-muted/40 text-muted-foreground bg-card/40',
@@ -770,13 +773,13 @@ export function ScheduleEditorDialog({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 py-0 border-emerald-500/30 text-emerald-400"
+                            className="text-[9px] px-1 py-0 border-emerald-500/30 text-emerald-400 shrink-0"
                           >
                             主干稳定优先
                           </Badge>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                          代码冲突时，保留目标分支（如 <span className="font-mono text-foreground">{targetBranch || 'master'}</span>）原本的代码，丢弃冲突改动，确保生产基线稳定。
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed break-words">
+                          代码冲突时，保留目标分支（如 <span className="font-mono text-foreground break-all">{targetBranch || 'master'}</span>）原本的代码，丢弃冲突改动，确保生产基线稳定。
                         </p>
                       </Button>
 
@@ -785,7 +788,7 @@ export function ScheduleEditorDialog({
                         variant="outline"
                         onClick={() => setConflictPreference('isolated_pr')}
                         className={cn(
-                          'h-auto flex flex-col items-start p-2 rounded-md text-left transition-colors whitespace-normal',
+                          'h-auto flex flex-col items-start p-2 rounded-md text-left transition-colors whitespace-normal min-w-0 w-full',
                           conflictPreference === 'isolated_pr'
                             ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
                             : 'border-border/60 hover:bg-muted/40 text-muted-foreground bg-card/40',
@@ -803,12 +806,12 @@ export function ScheduleEditorDialog({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-500 bg-amber-500/10"
+                            className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-500 bg-amber-500/10 shrink-0"
                           >
                             推荐 · 人工裁决
                           </Badge>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed break-words">
                           机器不自动覆盖。在影子分支完整保留冲突现场并发起 MR，由负责人人工比对与核准，零污染且最安全。
                         </p>
                       </Button>
@@ -908,31 +911,31 @@ export function ScheduleEditorDialog({
                 <TabsList className="w-full grid grid-cols-4 bg-muted/40 p-0.5 rounded-md border border-border/60 h-8">
                   <TabsTrigger
                     value="preset"
-                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm"
+                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm px-1 sm:px-2 min-w-0"
                   >
-                    <SparklesIcon className="size-3 mr-1 text-primary" />
-                    常用推荐
+                    <SparklesIcon className="size-3 mr-1 text-primary shrink-0" />
+                    <span className="truncate">常用推荐</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="interval"
-                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm"
+                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm px-1 sm:px-2 min-w-0"
                   >
-                    <ClockIcon className="size-3 mr-1 text-blue-400" />
-                    循环间隔
+                    <ClockIcon className="size-3 mr-1 text-blue-400 shrink-0" />
+                    <span className="truncate">循环间隔</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="daily"
-                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm"
+                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm px-1 sm:px-2 min-w-0"
                   >
-                    <CalendarClockIcon className="size-3 mr-1 text-amber-500" />
-                    固定时间
+                    <CalendarClockIcon className="size-3 mr-1 text-amber-500 shrink-0" />
+                    <span className="truncate">固定时间</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="cron"
-                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm"
+                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm px-1 sm:px-2 min-w-0"
                   >
-                    <TerminalIcon className="size-3 mr-1 text-muted-foreground" />
-                    Cron 专家
+                    <TerminalIcon className="size-3 mr-1 text-muted-foreground shrink-0" />
+                    <span className="truncate">Cron 专家</span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -965,7 +968,7 @@ export function ScheduleEditorDialog({
               {/* Tab 2: 循环间隔模式 (每 N 分钟/小时) */}
               {freqMode === 'interval' && (
                 <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs text-muted-foreground shrink-0">每隔</span>
                     <Input
                       type="number"
@@ -978,9 +981,9 @@ export function ScheduleEditorDialog({
                           intervalUnit,
                         )
                       }
-                      className="w-24 h-8 text-xs font-mono"
+                      className="w-20 h-8 text-xs font-mono"
                     />
-                    <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5">
+                    <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5 shrink-0">
                       <Button
                         type="button"
                         variant={intervalUnit === 'minute' ? 'default' : 'ghost'}
@@ -1012,8 +1015,8 @@ export function ScheduleEditorDialog({
                     </div>
                     <span className="text-xs text-muted-foreground shrink-0">执行一次</span>
                   </div>
-                  <div className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
-                    <span className="text-muted-foreground/70">快速选择:</span>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
+                    <span className="text-muted-foreground/70 shrink-0">快速选择:</span>
                     {[
                       { label: '每 5 分钟', val: 5, unit: 'minute' as const },
                       { label: '每 15 分钟', val: 15, unit: 'minute' as const },
@@ -1028,7 +1031,7 @@ export function ScheduleEditorDialog({
                         size="xs"
                         onClick={() => handleIntervalChange(item.val, item.unit)}
                         className={cn(
-                          'h-5 px-1.5 rounded text-[10px] border border-border/50 hover:border-primary/50 transition-colors',
+                          'h-5 px-1.5 rounded text-[10px] border border-border/50 hover:border-primary/50 transition-colors shrink-0',
                           intervalValue === item.val && intervalUnit === item.unit
                             ? 'bg-primary/10 text-primary border-primary hover:bg-primary/15'
                             : 'bg-muted/30 text-muted-foreground hover:text-foreground',
@@ -1046,7 +1049,7 @@ export function ScheduleEditorDialog({
                 <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs text-muted-foreground shrink-0">在每个</span>
-                    <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5">
+                    <div className="inline-flex flex-wrap rounded-md border border-border/70 bg-muted/30 p-0.5">
                       {[
                         { label: '每天', value: 'everyday' as const },
                         { label: '工作日 (周一至周五)', value: 'workday' as const },
@@ -1078,11 +1081,11 @@ export function ScheduleEditorDialog({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-1">
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
                     {fixedDaysType === 'weekly' && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-muted-foreground">逢</span>
-                        <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground shrink-0">逢</span>
+                        <div className="inline-flex flex-wrap rounded-md border border-border/70 bg-muted/30 p-0.5">
                           {[
                             { label: '周一', day: 1 },
                             { label: '周二', day: 2 },
@@ -1118,8 +1121,8 @@ export function ScheduleEditorDialog({
                       </div>
                     )}
 
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-muted-foreground">时间</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs text-muted-foreground shrink-0">时间</span>
                       <Input
                         type="time"
                         value={fixedTime}
@@ -1171,28 +1174,30 @@ export function ScheduleEditorDialog({
 
               {/* Cron 表达式预览与预计接下来执行时间 */}
               <div className="rounded-md border border-border/50 bg-muted/20 p-2.5 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-medium text-foreground">
-                    <ClockIcon className="size-3 text-muted-foreground" />
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5 font-medium text-foreground shrink-0">
+                    <ClockIcon className="size-3 text-muted-foreground shrink-0" />
                     <span>预计接下来的执行时间：</span>
                   </div>
-                  <span className="text-[10px] font-mono text-muted-foreground">
+                  <span className="text-[10px] font-mono text-muted-foreground break-all">
                     Cron 规则: <code className="rounded bg-muted px-1 py-0.5 text-foreground">{cron}</code>
                   </span>
                 </div>
                 {nextRuns.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] font-mono pt-0.5">
                     {nextRuns.map((time, idx) => (
-                      <span key={idx} className="text-muted-foreground flex items-center gap-1">
+                      <span key={idx} className="text-muted-foreground flex items-center gap-1 min-w-0 truncate">
                         <span className="size-1 rounded-full bg-primary shrink-0" />
-                        {time.toLocaleString('zh-CN', {
-                          month: '2-digit',
-                          day: '2-digit',
-                          weekday: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        })}
+                        <span className="truncate">
+                          {time.toLocaleString('zh-CN', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            weekday: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false,
+                          })}
+                        </span>
                       </span>
                     ))}
                   </div>
@@ -1239,7 +1244,7 @@ export function ScheduleEditorDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>

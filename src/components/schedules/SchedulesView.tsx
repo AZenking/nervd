@@ -27,6 +27,7 @@ import { ScheduleEditorDialog } from './ScheduleEditorDialog';
 import { ScheduleLogDrawer } from './ScheduleLogDrawer';
 import { useScheduleStore } from '@/store/schedule';
 import { runTaskNow } from '@/hooks/use-schedule-runner';
+import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { ScheduledTask } from '@/types/schedule';
 import { cn } from '@/lib/utils';
 
@@ -38,9 +39,12 @@ export function SchedulesView() {
   const deleteTask = useScheduleStore((s) => s.deleteTask);
   const addTask = useScheduleStore((s) => s.addTask);
 
-  // Search & Filter
+  // Search & Filter (activeTab 持久化记忆用户偏好)
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'enabled' | 'running' | 'failed'>('all');
+  const [activeTab, setActiveTab] = useLocalStorage<'all' | 'enabled' | 'running' | 'failed'>(
+    'nervd_schedules_tab',
+    'all',
+  );
 
   // Dialog & Drawer state
   const [editorOpen, setEditorOpen] = useState(false);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUi } from '@/store/ui';
+import { useEventListener } from '@/hooks/use-event-listener';
 
 export interface UseKeyboardListNavigationOptions<T = string> {
   /** 扁平可见项序列 */
@@ -65,55 +66,47 @@ export function useKeyboardListNavigation<T = string>(
     }
   }, [cursor, items, getId]);
 
-  // 全局键盘监听
-  useEffect(() => {
+  // 全局键盘监听（使用 useEventListener 避免无谓重绑与内存泄漏）
+  useEventListener('keydown', (e: KeyboardEvent) => {
     if (disabled) return;
+    if (isEditableTarget(e.target)) return;
+    if (useUi.getState().commandOpen) return;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isEditableTarget(e.target)) return;
-      if (useUi.getState().commandOpen) return;
+    const currentIndex = cursorRef.current;
+    const currentItem = items[currentIndex];
 
-      const currentIndex = cursorRef.current;
-      const currentItem = items[currentIndex];
+    // 先允许外部自定义按键拦截
+    if (onKeyDown) {
+      const handled = onKeyDown(e, currentItem, currentIndex);
+      if (handled) return;
+    }
 
-      // 先允许外部自定义按键拦截
-      if (onKeyDown) {
-        const handled = onKeyDown(e, currentItem, currentIndex);
-        if (handled) return;
+    // j / ↓ 下一项
+    if (e.key === 'j' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      applyCursor((prev) => (items.length ? (prev + 1) % items.length : 0));
+      return;
+    }
+
+    // k / ↑ 上一项
+    if (e.key === 'k' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      applyCursor((prev) => (items.length ? (prev - 1 + items.length) % items.length : 0));
+      return;
+    }
+
+    // Enter 激活当前行
+    if (e.key === 'Enter') {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'BUTTON' || target.tagName === 'A')) {
+        return; // 交还原生按钮或链接行为
       }
-
-      // j / ↓ 下一项
-      if (e.key === 'j' || e.key === 'ArrowDown') {
+      if (currentItem && onSelect) {
         e.preventDefault();
-        applyCursor((prev) => (items.length ? (prev + 1) % items.length : 0));
-        return;
+        onSelect(currentItem, currentIndex);
       }
-
-      // k / ↑ 上一项
-      if (e.key === 'k' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        applyCursor((prev) => (items.length ? (prev - 1 + items.length) % items.length : 0));
-        return;
-      }
-
-      // Enter 激活当前行
-      if (e.key === 'Enter') {
-        const target = e.target as HTMLElement | null;
-        if (target && (target.tagName === 'BUTTON' || target.tagName === 'A')) {
-          return; // 交还原生按钮或链接行为
-        }
-        if (currentItem && onSelect) {
-          e.preventDefault();
-          onSelect(currentItem, currentIndex);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [disabled, items, onSelect, onKeyDown, applyCursor]);
+    }
+  });
 
   /** 注册行元素引用 */
   const registerRowRef = useCallback((id: string, el: HTMLElement | null) => {
