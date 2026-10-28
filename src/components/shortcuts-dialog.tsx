@@ -16,7 +16,6 @@ interface ShortcutRow {
 /** 导航组：g 前缀序列与全局动作（实现均在 Shell 的全局 keydown 层） */
 const NAV_ROWS: ShortcutRow[] = [
   { keys: ['g', 'o'], label: '总览' },
-  { keys: ['g', 't'], label: '本地任务' },
   { keys: ['g', 'r'], label: '最近查看' },
   { keys: ['g', 'i'], label: '当前迭代' },
   { keys: ['g', 'b'], label: '集成分支' },

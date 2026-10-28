@@ -19,7 +19,6 @@ import {
   ClockIcon,
   GitBranchIcon,
   LayoutDashboardIcon,
-  ListTodoIcon,
   Loader2Icon,
   SearchIcon,
   SparklesIcon,
@@ -28,7 +27,6 @@ import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { useRecentWorkitems } from '@/store/recent-workitems';
 import { useScheduleStore } from '@/store/schedule';
-import { useLocalTasksStore } from '@/store/local-tasks';
 import { useAppUpdate } from '@/hooks/use-app-update';
 import { APP_VERSION } from '@/lib/app-info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -46,9 +44,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { hasUpdate, updateInfo, isUpdating } = useAppUpdate();
   const latestVersion = updateInfo?.latestVersion;
   const recentCount = useRecentWorkitems((s) => s.items.length);
-  const pendingLocalTaskCount = useLocalTasksStore(
-    (s) => s.tasks.filter((t) => t.status === 'todo' || t.status === 'in_progress').length,
-  );
   const activeScheduleCount = useScheduleStore(
     (s) => s.tasks.filter((t) => t.enabled).length,
   );
@@ -241,16 +236,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: '总览',
                 icon: <LayoutDashboardIcon />,
                 view: 'overview',
-              },
-              {
-                title: '本地任务',
-                icon: <ListTodoIcon />,
-                view: 'local-tasks',
-                badge: pendingLocalTaskCount > 0 ? (
-                  <span className="rounded bg-muted/80 px-1.5 py-0.2 font-mono text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
-                    {pendingLocalTaskCount}
-                  </span>
-                ) : null,
               },
               {
                 title: '最近查看',
