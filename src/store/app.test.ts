@@ -7,11 +7,12 @@ vi.mock('@/lib/api', () => ({
   updateWorkitem: vi.fn(),
   listWorkitemChildren: vi.fn(),
   listWorkitems: vi.fn(),
+  listIterations: vi.fn(),
 }));
 
 import * as api from '@/lib/api';
 import { createAppStore, useApp } from './app';
-import { scopedItems } from './ui';
+import { scopedItems, UNPLANNED_ITERATION, useUi } from './ui';
 import type { WorkitemRow } from '@/lib/api';
 import type { IterationSummary } from '@/types';
 
@@ -407,6 +408,30 @@ describe('scopedItems 迭代收窄边界防护', () => {
     const scoped = scopedItems(items, 'Unknown Sprint', realIterations);
     expect(scoped).toEqual([]);
   });
+  it('未规划虚拟桶：只聚合 sprintId 为空的工作项，不泄露已规划迭代的工作项', () => {
+    const items = [
+      row({ identifier: 'REQ-1', workitemId: 'wi-1', sprintId: 'sprint-1' }),
+      row({ identifier: 'REQ-2', workitemId: 'wi-2', sprintId: '' }),
+    ];
+    const realIterations: IterationSummary[] = [
+      { id: 'sprint-1', name: 'Sprint 1', title: '', state: '进行中', startDate: '', endDate: '' },
+    ];
+    const scoped = scopedItems(items, '未规划', realIterations);
+    expect(scoped.map((it) => it.workitemId)).toEqual(['wi-2']);
+  });
+  it('loadIterations：iterationKey 为虚拟「未规划」时，刷新后不被重置回真实迭代', async () => {
+    vi.mocked(api.listIterations).mockResolvedValue([
+      { id: 'sprint-1', name: 'Sprint 1', title: '', state: '进行中', startDate: '', endDate: '' },
+    ] as never);
+    useApp.setState({ iterations: [], iterationsFetchedAt: null });
+    useUi.setState({ iterationKey: UNPLANNED_ITERATION.name });
+
+    await useApp.getState().loadIterations();
+
+    expect(useUi.getState().iterationKey).toBe(UNPLANNED_ITERATION.name);
+  });
+
+
 
   it('当真实迭代为空（未加载完成/占位阶段）时，回退展示全量', () => {
     const items = [

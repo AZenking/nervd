@@ -1,5 +1,5 @@
 import * as api from '../../lib/api';
-import { visibleIterations, useUi } from '../ui';
+import { UNPLANNED_ITERATION, visibleIterations, useUi } from '../ui';
 import type { AppRuntime } from './runtime';
 import type { AppSliceCreator, IterationsSlice } from './types';
 
@@ -30,7 +30,8 @@ export function createIterationsSlice(_runtime: AppRuntime): AppSliceCreator<Ite
         });
 
         const key = useUi.getState().iterationKey;
-        if (iterations.length && !iterations.some((item) => item.name === key)) {
+        const known = key === UNPLANNED_ITERATION.name || iterations.some((item) => item.name === key);
+        if (iterations.length && !known) {
           const visible = visibleIterations(iterations);
           const preferred = visible.find((item) => item.state === '进行中') ?? visible[0] ?? iterations[0];
           useUi.setState({ iterationKey: preferred.name });

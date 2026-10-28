@@ -13,6 +13,10 @@ import { useSettingsDraft } from './settings-draft';
 export const PLACEHOLDER_ITERATIONS: IterationSummary[] = [
   { id: 'placeholder-benz', name: 'Benz-20261016', title: '前端优化迭代', state: '进行中', startDate: '', endDate: '' },
 ];
+/** 虚拟「未规划」迭代：云效 OpenAPI 不返回该桶（实测 sprints 仅 TODO/DOING/ARCHIVED），用 sprintId 为空的工作项聚合呈现 */
+export const UNPLANNED_ITERATION: IterationSummary = {
+  id: '', name: '未规划', title: '', state: '未开始', startDate: '', endDate: '',
+};
 
 /** 需要展示的迭代状态：正在执行中 / 未开始；归档（含已完成、已结束）等不展示 */
 const VISIBLE_ITERATION_STATES = new Set(['进行中', '未开始']);
@@ -22,12 +26,13 @@ export function visibleIterations(list: IterationSummary[]): IterationSummary[] 
   return list.filter((it) => VISIBLE_ITERATION_STATES.has(it.state));
 }
 
-/** 真实迭代列表为空时回退占位壳（与 PLACEHOLDER_ITERATIONS 同形态），并过滤掉归档等不可见迭代 */
+/** 真实迭代列表为空时回退占位壳（与 PLACEHOLDER_ITERATIONS 同形态），并过滤掉归档等不可见迭代；真实迭代可用时追加虚拟「未规划」桶 */
 export function iterationsOrFallback(real: IterationSummary[]): IterationSummary[] {
   const base = real.length ? real : PLACEHOLDER_ITERATIONS;
   const visible = visibleIterations(base);
   // 极端情况：全部迭代都已归档 → 仍展示原列表，避免迭代壳空掉
-  return visible.length ? visible : base;
+  const list = visible.length ? visible : base;
+  return real.length ? [...list, UNPLANNED_ITERATION] : list;
 }
 
 // ---- 工作项筛选（侧栏迭代内的筛选控件与主区工作项网格共享同一份选中状态） ----
@@ -58,8 +63,9 @@ export function scopedItems<T extends FilterableRow>(
 ): T[] {
   if (!realIterations.length) return items;
   const current = realIterations.find((it) => it.name === iterationKey);
-  if (!current) return [];
-  return items.filter((it) => it.sprintId === current.id);
+  if (current) return items.filter((it) => it.sprintId === current.id);
+  if (iterationKey === UNPLANNED_ITERATION.name) return items.filter((it) => !it.sprintId);
+  return [];
 }
 
 /** 筛选选项（含计数，按计数降序） */
