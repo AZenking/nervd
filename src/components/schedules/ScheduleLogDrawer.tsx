@@ -18,6 +18,7 @@ import { EmptyHint } from '@/components/empty-hint';
 import { useScheduleStore } from '@/store/schedule';
 import { formatDateTime } from '@/lib/format';
 import type { ScheduleExecutionLog } from '@/types/schedule';
+import { ActionTypeTag } from './SchedulesView';
 import { cn } from '@/lib/utils';
 
 export interface ScheduleLogDrawerProps {
@@ -154,12 +155,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
           >
             {isManual ? '手动执行' : 'Cron 定时'}
           </Badge>
-          <Badge
-            variant="outline"
-            className="font-mono text-[10px] px-1.5 py-0 text-muted-foreground"
-          >
-            {log.actionType}
-          </Badge>
+          <ActionTypeTag type={log.actionType} />
         </div>
 
         <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground shrink-0">

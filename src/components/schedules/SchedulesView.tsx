@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react';
 import {
+  ArrowRightIcon,
   CheckCircle2Icon,
   ClockIcon,
   FileTextIcon,
+  FolderGit2Icon,
+  GitBranchIcon,
+  GitCompareIcon,
   GitMergeIcon,
   PencilIcon,
   PlayCircleIcon,
@@ -11,6 +15,8 @@ import {
   SearchIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
+  SlidersHorizontalIcon,
+  TerminalIcon,
   Trash2Icon,
   WorkflowIcon,
   XCircleIcon,
@@ -26,10 +32,11 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 import { ScheduleEditorDialog } from './ScheduleEditorDialog';
 import { ScheduleLogDrawer } from './ScheduleLogDrawer';
 import { useScheduleStore } from '@/store/schedule';
+import { useApp } from '@/store/app';
 import { runTaskNow } from '@/hooks/use-schedule-runner';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { formatCompactDateTime } from '@/lib/format';
-import type { ScheduledTask } from '@/types/schedule';
+import type { ScheduledTask, ScheduleActionType } from '@/types/schedule';
 import { cn } from '@/lib/utils';
 
 export function SchedulesView() {
@@ -56,6 +63,9 @@ export function SchedulesView() {
   // Running tasks state for optimistic spinner
   const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
 
+  const repositories = useApp((s) => s.repositories);
+  const pipelines = useApp((s) => s.pipelines);
+
   // Quick stats
   const activeCount = useMemo(() => tasks.filter((t) => t.enabled).length, [tasks]);
   const runningCount = useMemo(() => tasks.filter((t) => t.lastStatus === 'running').length, [tasks]);
@@ -70,22 +80,43 @@ export function SchedulesView() {
 
       // Search query
       if (search.trim()) {
-        const q = search.toLowerCase();
+        const q = search.trim().toLowerCase();
         const matchesName = task.name.toLowerCase().includes(q);
         const matchesDesc = (task.description ?? '').toLowerCase().includes(q);
-        const matchesCron = task.cron.toLowerCase().includes(q);
-        let matchesBranch = false;
-        if (task.action.type === 'branch_merge') {
-          matchesBranch =
-            task.action.sourceBranch.toLowerCase().includes(q) ||
-            task.action.targetBranch.toLowerCase().includes(q) ||
-            (task.action.repoName ?? '').toLowerCase().includes(q);
+        const matchesCron = task.cron.toLowerCase().includes(q) || (task.cronLabel ?? '').toLowerCase().includes(q);
+
+        // 动作类型与上下文专属信息匹配
+        let matchesAction = false;
+        const act = task.action;
+        if (act.type === 'branch_merge') {
+          const repoName = act.repoName || repositories.find((r) => r.id === act.repoId)?.name || '';
+          matchesAction =
+            '分支合并'.includes(q) ||
+            act.sourceBranch.toLowerCase().includes(q) ||
+            act.targetBranch.toLowerCase().includes(q) ||
+            repoName.toLowerCase().includes(q) ||
+            (act.strategy === 'aggressive' ? '激进零污染'.includes(q) : '谨慎冲突终止'.includes(q));
+        } else if (act.type === 'pipeline') {
+          const pName = act.pipelineName || pipelines.find((p) => p.pipelineId === act.pipelineId)?.pipelineName || '';
+          matchesAction =
+            '流水线'.includes(q) ||
+            pName.toLowerCase().includes(q) ||
+            String(act.pipelineId).includes(q);
+        } else if (act.type === 'jenkins') {
+          matchesAction =
+            'jenkins'.includes(q) ||
+            act.jobFullName.toLowerCase().includes(q);
+        } else if (act.type === 'sync_workitems') {
+          matchesAction = '需求同步'.includes(q) || '云效'.includes(q) || '工作项'.includes(q);
+        } else if (act.type === 'scan_branches') {
+          matchesAction = '分支巡检'.includes(q) || '落差'.includes(q);
         }
-        return matchesName || matchesDesc || matchesCron || matchesBranch;
+
+        return matchesName || matchesDesc || matchesCron || matchesAction;
       }
       return true;
     });
-  }, [tasks, activeTab, search]);
+  }, [tasks, activeTab, search, repositories, pipelines]);
 
   const handleRunNow = async (task: ScheduledTask) => {
     setRunningIds((prev) => new Set(prev).add(task.id));
@@ -351,22 +382,34 @@ export function SchedulesView() {
                     )}
                   </div>
 
-                  <div className="space-y-1.5 min-w-0 flex-1">
+                  <div className="space-y-2 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-foreground text-sm">
+                      <span className="font-semibold text-foreground text-sm tracking-tight">
                         {task.name}
                       </span>
-                      <ActionTypeBadge action={task.action} />
+                      {/* 执行动作类型 Tag */}
+                      <ActionTypeTag type={task.action.type} />
+                      {/* 调度周期 Cron Tag */}
                       <Badge
                         variant="outline"
-                        className="font-mono text-[10px] text-muted-foreground"
+                        className="font-mono text-[10px] text-muted-foreground bg-muted/20 border-border/70"
                       >
+                        <ClockIcon className="mr-1 size-2.5 text-muted-foreground" />
                         {task.cronLabel || task.cron}
                       </Badge>
                     </div>
 
+                    {/* 专属动作类型详细信息 Tag 簇行（如分支合并展示仓库名、分支流向、策略） */}
+                    <div className="pt-0.5">
+                      <ActionDetailTags
+                        action={task.action}
+                        repositories={repositories}
+                        pipelines={pipelines}
+                      />
+                    </div>
+
                     {task.description && (
-                      <p className="text-xs text-muted-foreground truncate max-w-xl">
+                      <p className="text-xs text-muted-foreground/80 truncate max-w-xl">
                         {task.description}
                       </p>
                     )}
@@ -472,78 +515,227 @@ export function SchedulesView() {
   );
 }
 
-function ActionTypeBadge({ action }: { action: ScheduledTask['action'] }) {
-  switch (action.type) {
-    case 'branch_merge': {
-      const isAggressive = action.strategy === 'aggressive';
-      return (
-        <div className="flex items-center gap-1.5">
-          <Badge
-            variant="outline"
-            className="border-primary/30 text-primary bg-primary/5 text-[10px] font-mono"
-          >
-            <GitMergeIcon className="mr-1 size-3" />
-            {action.sourceBranch} → {action.targetBranch}
-          </Badge>
-          {isAggressive ? (
-            <Badge
-              variant="outline"
-              className="border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5 text-[10px]"
-            >
-              <ShieldCheckIcon className="mr-1 size-3" />
-              激进 · 零污染
-            </Badge>
-          ) : (
-            <Badge
-              variant="outline"
-              className="border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-500/5 text-[10px]"
-            >
-              <ShieldAlertIcon className="mr-1 size-3" />
-              谨慎 · 冲突终止
-            </Badge>
-          )}
-        </div>
-      );
-    }
-    case 'jenkins':
+/**
+ * 执行动作类型标记 Tag 徽标
+ */
+export function ActionTypeTag({
+  type,
+  className,
+}: {
+  type: ScheduleActionType;
+  className?: string;
+}) {
+  switch (type) {
+    case 'branch_merge':
       return (
         <Badge
           variant="outline"
-          className="border-blue-500/30 text-blue-500 bg-blue-500/5 text-[10px] font-mono"
+          className={cn(
+            'border-indigo-500/30 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
+            className,
+          )}
         >
-          <PlayCircleIcon className="mr-1 size-3" />
-          Jenkins: {action.jobFullName}
+          <GitMergeIcon className="size-3" />
+          分支合并
         </Badge>
       );
     case 'pipeline':
       return (
         <Badge
           variant="outline"
-          className="border-emerald-500/30 text-emerald-500 bg-emerald-500/5 text-[10px] font-mono"
+          className={cn(
+            'border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
+            className,
+          )}
         >
-          <WorkflowIcon className="mr-1 size-3" />
-          流水线 #{action.pipelineId}
+          <WorkflowIcon className="size-3" />
+          云效流水线
+        </Badge>
+      );
+    case 'jenkins':
+      return (
+        <Badge
+          variant="outline"
+          className={cn(
+            'border-sky-500/30 text-sky-600 dark:text-sky-400 bg-sky-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
+            className,
+          )}
+        >
+          <TerminalIcon className="size-3" />
+          Jenkins
         </Badge>
       );
     case 'sync_workitems':
       return (
         <Badge
           variant="outline"
-          className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px]"
+          className={cn(
+            'border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
+            className,
+          )}
         >
-          <RefreshCwIcon className="mr-1 size-3" />
-          云效需求同步
+          <RefreshCwIcon className="size-3" />
+          需求同步
         </Badge>
       );
     case 'scan_branches':
       return (
         <Badge
           variant="outline"
-          className="border-purple-500/30 text-purple-500 bg-purple-500/5 text-[10px]"
+          className={cn(
+            'border-purple-500/30 text-purple-600 dark:text-purple-400 bg-purple-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
+            className,
+          )}
         >
-          <RefreshCwIcon className="mr-1 size-3" />
-          集成分支巡检
+          <GitCompareIcon className="size-3" />
+          分支巡检
         </Badge>
+      );
+    default:
+      return null;
+  }
+}
+
+/**
+ * 不同动作类型的专有详细信息 Tag 簇
+ * 例如：分支合并展示对应仓库信息、源目标分支、合并策略；流水线展示流水线名称与ID等
+ */
+export function ActionDetailTags({
+  action,
+  repositories = [],
+  pipelines = [],
+  className,
+}: {
+  action: ScheduledTask['action'];
+  repositories?: { id: number; name: string }[];
+  pipelines?: { pipelineId: number; pipelineName: string }[];
+  className?: string;
+}) {
+  switch (action.type) {
+    case 'branch_merge': {
+      const isAggressive = action.strategy === 'aggressive';
+      const matchedRepo = repositories.find((r) => r.id === action.repoId);
+      const repoDisplayName =
+        action.repoName || matchedRepo?.name || (action.repoId ? `仓库 #${action.repoId}` : '未指定仓库');
+
+      return (
+        <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
+          {/* 仓库 Tag（重点：展示对应仓库信息） */}
+          <Badge
+            variant="outline"
+            className="border-border/80 text-foreground/90 bg-muted/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+            title={`关联代码库: ${repoDisplayName}`}
+          >
+            <FolderGit2Icon className="size-3 text-muted-foreground shrink-0" />
+            <span className="font-semibold">{repoDisplayName}</span>
+          </Badge>
+
+          {/* 分支流转 Tag */}
+          <Badge
+            variant="outline"
+            className="border-border/80 text-foreground/90 bg-background/80 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+            title={`源分支 [${action.sourceBranch}] → 目标分支 [${action.targetBranch}]`}
+          >
+            <GitBranchIcon className="size-2.5 text-muted-foreground shrink-0" />
+            <span>{action.sourceBranch}</span>
+            <ArrowRightIcon className="size-2.5 text-muted-foreground mx-0.5 shrink-0" />
+            <span className="text-primary font-medium">{action.targetBranch}</span>
+          </Badge>
+
+          {/* 合并策略 Tag */}
+          {isAggressive ? (
+            <Badge
+              variant="outline"
+              className="border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+              title="遇冲突将自动在影子隔离分支消解，原分支保持 100% 纯净"
+            >
+              <ShieldCheckIcon className="size-3 shrink-0" />
+              激进 · 零污染
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-500/5 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+              title="检测到代码冲突立即中止合并，原分支零变更"
+            >
+              <ShieldAlertIcon className="size-3 shrink-0" />
+              谨慎 · 冲突终止
+            </Badge>
+          )}
+        </div>
+      );
+    }
+    case 'pipeline': {
+      const matchedPipeline = pipelines.find((p) => p.pipelineId === action.pipelineId);
+      const pipelineDisplayName =
+        action.pipelineName || matchedPipeline?.pipelineName || `流水线 #${action.pipelineId}`;
+
+      return (
+        <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
+          <Badge
+            variant="outline"
+            className="border-border/80 text-foreground/90 bg-muted/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+          >
+            <WorkflowIcon className="size-3 text-emerald-500 shrink-0" />
+            <span>{pipelineDisplayName}</span>
+          </Badge>
+          <Badge
+            variant="outline"
+            className="border-border/60 text-muted-foreground bg-background/60 text-[10px] font-mono px-1 py-0.5"
+          >
+            #{action.pipelineId}
+          </Badge>
+        </div>
+      );
+    }
+    case 'jenkins': {
+      const paramCount = action.parameters ? Object.keys(action.parameters).length : 0;
+      return (
+        <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
+          <Badge
+            variant="outline"
+            className="border-border/80 text-foreground/90 bg-muted/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+          >
+            <TerminalIcon className="size-3 text-sky-500 shrink-0" />
+            <span>{action.jobFullName}</span>
+          </Badge>
+          {paramCount > 0 && (
+            <Badge
+              variant="outline"
+              className="border-border/60 text-muted-foreground bg-background/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+            >
+              <SlidersHorizontalIcon className="size-2.5 text-muted-foreground" />
+              {paramCount} 个参数
+            </Badge>
+          )}
+        </div>
+      );
+    }
+    case 'sync_workitems':
+      return (
+        <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
+          <Badge
+            variant="outline"
+            className="border-border/80 text-muted-foreground bg-muted/40 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+          >
+            <RefreshCwIcon className="size-2.5 text-amber-500 shrink-0" />
+            云效迭代与全量工作项状态巡检
+          </Badge>
+        </div>
+      );
+    case 'scan_branches':
+      return (
+        <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
+          <Badge
+            variant="outline"
+            className="border-border/80 text-muted-foreground bg-muted/40 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+          >
+            <GitCompareIcon className="size-2.5 text-purple-500 shrink-0" />
+            {action.repoIds && action.repoIds.length > 0
+              ? `指定 ${action.repoIds.length} 个代码库落差`
+              : '全量纳管仓库集成分支落差'}
+          </Badge>
+        </div>
       );
     default:
       return null;
