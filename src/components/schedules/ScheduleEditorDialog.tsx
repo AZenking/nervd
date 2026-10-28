@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangleIcon,
+  CalendarClockIcon,
   CheckIcon,
   ClockIcon,
   GitMergeIcon,
@@ -10,6 +11,8 @@ import {
   RefreshCwIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
+  SparklesIcon,
+  TerminalIcon,
   WorkflowIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
@@ -27,6 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
 import { SearchableSelect } from '@/components/searchable-select';
 import { useApp } from '@/store/app';
@@ -135,9 +139,19 @@ export function ScheduleEditorDialog({
   const [pipelineName, setPipelineName] = useState('');
 
   // Cron schedule fields
+  type FreqMode = 'preset' | 'interval' | 'daily' | 'cron';
+  const [freqMode, setFreqMode] = useState<FreqMode>('preset');
   const [cron, setCron] = useState('0 2 * * *');
   const [preset, setPreset] = useState('0 2 * * *');
-  const [showAdvancedCron, setShowAdvancedCron] = useState(false);
+
+  // 自定义周期模式（每 N 分钟/小时）
+  const [intervalValue, setIntervalValue] = useState<number>(30);
+  const [intervalUnit, setIntervalUnit] = useState<'minute' | 'hour'>('minute');
+
+  // 自定义固定时间模式（每天/工作日/特定日期的 HH:mm）
+  const [fixedDaysType, setFixedDaysType] = useState<'everyday' | 'workday' | 'weekend' | 'weekly'>('everyday');
+  const [fixedWeeklyDay, setFixedWeeklyDay] = useState<number>(1); // 1 = 周一
+  const [fixedTime, setFixedTime] = useState('02:00'); // HH:mm
 
   // Notification fields
   const [notifyOnSuccess, setNotifyOnSuccess] = useState(true);
@@ -157,7 +171,35 @@ export function ScheduleEditorDialog({
 
       const matchedPreset = CRON_PRESETS.find((p) => p.value === initialTask.cron);
       setPreset(matchedPreset ? matchedPreset.value : 'custom');
-      setShowAdvancedCron(!matchedPreset);
+      if (matchedPreset) {
+        setFreqMode('preset');
+      } else {
+        // 尝试判断是否是固定时间模式（如 0 2 * * *）或周期模式（如 */10 * * * *）
+        const parts = initialTask.cron.trim().split(/\s+/);
+        if (parts.length === 5 && parts[0].startsWith('*/') && parts[1] === '*' && parts[2] === '*' && parts[3] === '*' && parts[4] === '*') {
+          setFreqMode('interval');
+          setIntervalValue(parseInt(parts[0].slice(2), 10) || 30);
+          setIntervalUnit('minute');
+        } else if (parts.length === 5 && parts[0] === '0' && parts[1].startsWith('*/') && parts[2] === '*' && parts[3] === '*' && parts[4] === '*') {
+          setFreqMode('interval');
+          setIntervalValue(parseInt(parts[1].slice(2), 10) || 2);
+          setIntervalUnit('hour');
+        } else if (parts.length === 5 && !parts[0].includes('*') && !parts[1].includes('*') && parts[2] === '*' && parts[3] === '*') {
+          setFreqMode('daily');
+          const hh = parts[1].padStart(2, '0');
+          const mm = parts[0].padStart(2, '0');
+          setFixedTime(`${hh}:${mm}`);
+          if (parts[4] === '*') setFixedDaysType('everyday');
+          else if (parts[4] === '1-5') setFixedDaysType('workday');
+          else if (parts[4] === '0,6' || parts[4] === '6,0') setFixedDaysType('weekend');
+          else {
+            setFixedDaysType('weekly');
+            setFixedWeeklyDay(parseInt(parts[4], 10) || 1);
+          }
+        } else {
+          setFreqMode('cron');
+        }
+      }
 
       const act = initialTask.action;
       setActionType(act.type);
@@ -188,8 +230,13 @@ export function ScheduleEditorDialog({
       setTargetBranch('master');
       setStrategy('cautious');
       setConflictPreference('theirs');
+      setFreqMode('preset');
       setCron('0 2 * * *');
       setPreset('0 2 * * *');
+      setIntervalValue(30);
+      setIntervalUnit('minute');
+      setFixedDaysType('everyday');
+      setFixedTime('02:00');
       setNotifyOnSuccess(true);
       setNotifyOnFailure(true);
 
@@ -212,11 +259,64 @@ export function ScheduleEditorDialog({
     [cron, cronValidation.valid],
   );
 
+  // 周期切换处理
+  const handleFreqModeSelect = (mode: FreqMode) => {
+    setFreqMode(mode);
+    if (mode === 'preset') {
+      setCron(preset === 'custom' ? '0 2 * * *' : preset);
+    } else if (mode === 'interval') {
+      if (intervalUnit === 'minute') {
+        setCron(`*/${intervalValue} * * * *`);
+      } else {
+        setCron(`0 */${intervalValue} * * *`);
+      }
+    } else if (mode === 'daily') {
+      const [hh, mm] = fixedTime.split(':').map((v) => parseInt(v, 10) || 0);
+      let dowStr = '*';
+      if (fixedDaysType === 'workday') dowStr = '1-5';
+      else if (fixedDaysType === 'weekend') dowStr = '0,6';
+      else if (fixedDaysType === 'weekly') dowStr = String(fixedWeeklyDay);
+      setCron(`${mm} ${hh} * * ${dowStr}`);
+    }
+  };
+
   const handlePresetChange = (value: string) => {
     setPreset(value);
     if (value !== 'custom') {
       setCron(value);
+    } else {
+      setFreqMode('cron');
     }
+  };
+
+  // 自定义周期修改
+  const handleIntervalChange = (val: number, unit: 'minute' | 'hour') => {
+    const safeVal = Math.max(1, val);
+    setIntervalValue(safeVal);
+    setIntervalUnit(unit);
+    if (unit === 'minute') {
+      setCron(`*/${safeVal} * * * *`);
+    } else {
+      setCron(`0 */${safeVal} * * *`);
+    }
+  };
+
+  // 自定义固定时间修改
+  const handleFixedTimeChange = (
+    newTime: string,
+    daysType: 'everyday' | 'workday' | 'weekend' | 'weekly',
+    weeklyDay: number,
+  ) => {
+    setFixedTime(newTime);
+    setFixedDaysType(daysType);
+    setFixedWeeklyDay(weeklyDay);
+
+    const [hh, mm] = newTime.split(':').map((v) => parseInt(v, 10) || 0);
+    let dowStr = '*';
+    if (daysType === 'workday') dowStr = '1-5';
+    else if (daysType === 'weekend') dowStr = '0,6';
+    else if (daysType === 'weekly') dowStr = String(weeklyDay);
+    setCron(`${mm} ${hh} * * ${dowStr}`);
   };
 
   const handleSave = () => {
@@ -366,17 +466,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('branch_merge')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-lg text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
                   actionType === 'branch_merge'
-                    ? 'border-primary bg-primary/5 text-foreground ring-1 ring-primary hover:bg-primary/10'
-                    : 'border-border/80 hover:bg-muted/40 text-muted-foreground',
+                    ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                    : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
                 <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
                   <GitMergeIcon className="size-3.5 text-primary" />
                   <span>分支安全同步</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-1">
+                <span className="text-[10px] text-muted-foreground mt-0.5">
                   谨慎/激进(零污染)
                 </span>
               </Button>
@@ -386,17 +486,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('jenkins')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-lg text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
                   actionType === 'jenkins'
-                    ? 'border-primary bg-primary/5 text-foreground ring-1 ring-primary hover:bg-primary/10'
-                    : 'border-border/80 hover:bg-muted/40 text-muted-foreground',
+                    ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                    : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
                 <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
-                  <PlayCircleIcon className="size-3.5 text-blue-500" />
+                  <PlayCircleIcon className="size-3.5 text-primary" />
                   <span>Jenkins 构建</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-1">
+                <span className="text-[10px] text-muted-foreground mt-0.5">
                   触发远程 Jenkins Job
                 </span>
               </Button>
@@ -406,17 +506,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('pipeline')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-lg text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
                   actionType === 'pipeline'
-                    ? 'border-primary bg-primary/5 text-foreground ring-1 ring-primary hover:bg-primary/10'
-                    : 'border-border/80 hover:bg-muted/40 text-muted-foreground',
+                    ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                    : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
                 <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
                   <WorkflowIcon className="size-3.5 text-emerald-500" />
                   <span>云效 Flow 流水线</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-1">
+                <span className="text-[10px] text-muted-foreground mt-0.5">
                   运行云效 CI 交付流水线
                 </span>
               </Button>
@@ -426,17 +526,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('sync_workitems')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-lg text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
                   actionType === 'sync_workitems'
-                    ? 'border-primary bg-primary/5 text-foreground ring-1 ring-primary hover:bg-primary/10'
-                    : 'border-border/80 hover:bg-muted/40 text-muted-foreground',
+                    ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                    : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
                 <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
                   <RefreshCwIcon className="size-3.5 text-amber-500" />
                   <span>同步云效需求</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-1">
+                <span className="text-[10px] text-muted-foreground mt-0.5">
                   定时拉取工作项/迭代
                 </span>
               </Button>
@@ -446,17 +546,17 @@ export function ScheduleEditorDialog({
                 variant="outline"
                 onClick={() => setActionType('scan_branches')}
                 className={cn(
-                  'h-auto flex flex-col items-start p-2.5 rounded-lg text-left transition-colors whitespace-normal',
+                  'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
                   actionType === 'scan_branches'
-                    ? 'border-primary bg-primary/5 text-foreground ring-1 ring-primary hover:bg-primary/10'
-                    : 'border-border/80 hover:bg-muted/40 text-muted-foreground',
+                    ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                    : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                 )}
               >
                 <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
-                  <RefreshCwIcon className="size-3.5 text-purple-500" />
+                  <RefreshCwIcon className="size-3.5 text-purple-400" />
                   <span>集成分支巡检</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-1">
+                <span className="text-[10px] text-muted-foreground mt-0.5">
                   定时比对落差与超前
                 </span>
               </Button>
@@ -465,13 +565,13 @@ export function ScheduleEditorDialog({
 
           {/* 分支同步专属配置 */}
           {actionType === 'branch_merge' && (
-            <div className="rounded-lg border border-border/80 bg-muted/30 p-3 space-y-3">
+            <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-3">
               <div className="flex items-center gap-2 text-foreground font-medium text-xs">
                 <GitMergeIcon className="size-4 text-primary" />
                 <span>分支合并与策略配置</span>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label className="text-[11px] font-medium text-muted-foreground block">
                   目标代码仓库
                 </Label>
@@ -539,7 +639,7 @@ export function ScheduleEditorDialog({
               </div>
 
               {/* 核心策略选择：谨慎 vs 激进 */}
-              <div className="space-y-2 pt-1 border-t border-border/60">
+              <div className="space-y-2 pt-1 border-t border-border/50">
                 <Label className="text-[11px] font-medium text-muted-foreground block">
                   合并冲突策略
                 </Label>
@@ -551,17 +651,17 @@ export function ScheduleEditorDialog({
                     className={cn(
                       'h-auto flex items-start gap-2.5 p-2.5 rounded-md text-left transition-colors whitespace-normal',
                       strategy === 'cautious'
-                        ? 'border-blue-500 bg-blue-500/10 text-foreground ring-1 ring-blue-500/60 hover:bg-blue-500/15'
-                        : 'border-border/70 hover:bg-muted/50 text-muted-foreground',
+                        ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                        : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                     )}
                   >
-                    <ShieldAlertIcon className="size-4 text-blue-500 shrink-0 mt-0.5" />
+                    <ShieldAlertIcon className="size-4 text-blue-400 shrink-0 mt-0.5" />
                     <div>
                       <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                         <span>谨慎策略</span>
                         <Badge
                           variant="outline"
-                          className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-500"
+                          className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-400"
                         >
                           冲突即终止
                         </Badge>
@@ -579,8 +679,8 @@ export function ScheduleEditorDialog({
                     className={cn(
                       'h-auto flex items-start gap-2.5 p-2.5 rounded-md text-left transition-colors whitespace-normal',
                       strategy === 'aggressive'
-                        ? 'border-amber-500 bg-amber-500/10 text-foreground ring-1 ring-amber-500/60 hover:bg-amber-500/15'
-                        : 'border-border/70 hover:bg-muted/50 text-muted-foreground',
+                        ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                        : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                     )}
                   >
                     <ShieldCheckIcon className="size-4 text-amber-500 shrink-0 mt-0.5" />
@@ -589,7 +689,7 @@ export function ScheduleEditorDialog({
                         <span>激进策略</span>
                         <Badge
                           variant="outline"
-                          className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-500"
+                          className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-400"
                         >
                           零污染隔离
                         </Badge>
@@ -602,9 +702,9 @@ export function ScheduleEditorDialog({
                 </div>
 
                 {strategy === 'aggressive' && (
-                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2.5 text-xs">
+                  <div className="rounded-md border border-border/70 bg-muted/20 p-2.5 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
+                      <div className="flex items-center gap-1.5 font-medium text-amber-500">
                         <HelpCircleIcon className="size-3.5 shrink-0" />
                         <span>激进冲突自动裁决偏好</span>
                       </div>
@@ -613,23 +713,23 @@ export function ScheduleEditorDialog({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2">
+                    <div className="grid grid-cols-1 gap-1.5">
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => setConflictPreference('theirs')}
                         className={cn(
-                          'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                          'h-auto flex flex-col items-start p-2 rounded-md text-left transition-colors whitespace-normal',
                           conflictPreference === 'theirs'
-                            ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary hover:bg-primary/15'
-                            : 'border-border/70 hover:bg-muted/40 text-muted-foreground bg-card/60',
+                            ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                            : 'border-border/60 hover:bg-muted/40 text-muted-foreground bg-card/40',
                         )}
                       >
                         <div className="flex items-center justify-between w-full">
                           <span className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                             <span
                               className={cn(
-                                'size-2 rounded-full shrink-0',
+                                'size-1.5 rounded-full shrink-0',
                                 conflictPreference === 'theirs' ? 'bg-primary' : 'bg-muted-foreground/40',
                               )}
                             />
@@ -637,12 +737,12 @@ export function ScheduleEditorDialog({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-500"
+                            className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-400"
                           >
                             新代码优先
                           </Badge>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
                           代码冲突时，自动以源分支（如 <span className="font-mono text-foreground">{sourceBranch || 'dev'}</span>）的新改为准覆盖目标分支，适合新功能冲刺迭代。
                         </p>
                       </Button>
@@ -652,17 +752,17 @@ export function ScheduleEditorDialog({
                         variant="outline"
                         onClick={() => setConflictPreference('ours')}
                         className={cn(
-                          'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                          'h-auto flex flex-col items-start p-2 rounded-md text-left transition-colors whitespace-normal',
                           conflictPreference === 'ours'
-                            ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary hover:bg-primary/15'
-                            : 'border-border/70 hover:bg-muted/40 text-muted-foreground bg-card/60',
+                            ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                            : 'border-border/60 hover:bg-muted/40 text-muted-foreground bg-card/40',
                         )}
                       >
                         <div className="flex items-center justify-between w-full">
                           <span className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                             <span
                               className={cn(
-                                'size-2 rounded-full shrink-0',
+                                'size-1.5 rounded-full shrink-0',
                                 conflictPreference === 'ours' ? 'bg-primary' : 'bg-muted-foreground/40',
                               )}
                             />
@@ -670,12 +770,12 @@ export function ScheduleEditorDialog({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 py-0 border-emerald-500/30 text-emerald-500"
+                            className="text-[9px] px-1 py-0 border-emerald-500/30 text-emerald-400"
                           >
                             主干稳定优先
                           </Badge>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
                           代码冲突时，保留目标分支（如 <span className="font-mono text-foreground">{targetBranch || 'master'}</span>）原本的代码，丢弃冲突改动，确保生产基线稳定。
                         </p>
                       </Button>
@@ -685,17 +785,17 @@ export function ScheduleEditorDialog({
                         variant="outline"
                         onClick={() => setConflictPreference('isolated_pr')}
                         className={cn(
-                          'h-auto flex flex-col items-start p-2.5 rounded-md text-left transition-colors whitespace-normal',
+                          'h-auto flex flex-col items-start p-2 rounded-md text-left transition-colors whitespace-normal',
                           conflictPreference === 'isolated_pr'
-                            ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary hover:bg-primary/15'
-                            : 'border-border/70 hover:bg-muted/40 text-muted-foreground bg-card/60',
+                            ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary'
+                            : 'border-border/60 hover:bg-muted/40 text-muted-foreground bg-card/40',
                         )}
                       >
                         <div className="flex items-center justify-between w-full">
                           <span className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                             <span
                               className={cn(
-                                'size-2 rounded-full shrink-0',
+                                'size-1.5 rounded-full shrink-0',
                                 conflictPreference === 'isolated_pr' ? 'bg-primary' : 'bg-muted-foreground/40',
                               )}
                             />
@@ -703,12 +803,12 @@ export function ScheduleEditorDialog({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                            className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-500 bg-amber-500/10"
                           >
                             推荐 · 人工裁决
                           </Badge>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
                           机器不自动覆盖。在影子分支完整保留冲突现场并发起 MR，由负责人人工比对与核准，零污染且最安全。
                         </p>
                       </Button>
@@ -721,7 +821,7 @@ export function ScheduleEditorDialog({
 
           {/* Jenkins 配置 */}
           {actionType === 'jenkins' && (
-            <div className="rounded-lg border border-border/80 bg-muted/30 p-3 space-y-3">
+            <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-medium text-muted-foreground block">
                   Jenkins 实例连接
@@ -754,7 +854,7 @@ export function ScheduleEditorDialog({
 
           {/* 云效 Flow 配置 */}
           {actionType === 'pipeline' && (
-            <div className="rounded-lg border border-border/80 bg-muted/30 p-3 space-y-3">
+            <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-medium text-muted-foreground block">
                   流水线 ID (Pipeline ID)
@@ -782,7 +882,7 @@ export function ScheduleEditorDialog({
           )}
 
           {/* 执行时间与频率 */}
-          <div className="space-y-3 pt-2 border-t border-border/60">
+          <div className="space-y-3 pt-2 border-t border-border/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <ClockIcon className="size-3.5 text-primary" />
@@ -792,51 +892,251 @@ export function ScheduleEditorDialog({
               </div>
 
               {cronDescription && (
-                <span className="text-[11px] text-emerald-500 font-medium">
+                <span className="text-[11px] text-emerald-400 font-medium">
                   {cronDescription}
                 </span>
               )}
             </div>
 
-            <div className="space-y-2">
-              {/* 人性化预设下拉 */}
-              <SearchableSelect
-                value={preset}
-                onValueChange={(val) => {
-                  const selected = val ? String(val) : '';
-                  handlePresetChange(selected);
-                  if (selected === 'custom') {
-                    setShowAdvancedCron(true);
-                  }
-                }}
-                items={[
-                  ...CRON_PRESETS.map((p) => ({
-                    label: `${p.label} · ${p.description}`,
-                    value: p.value,
-                  })),
-                  {
-                    label: '自定义 Cron 表达式 (高级设置)...',
-                    value: 'custom',
-                  },
-                ]}
-                placeholder="请选择执行频率（如每天凌晨、工作日早九点）..."
-                className="w-full text-xs"
-              />
+            <div className="space-y-2.5">
+              {/* 分段模式切换 Tabs: 常用推荐 / 循环间隔 / 固定时间 / Cron 专家 */}
+              <Tabs
+                value={freqMode}
+                onValueChange={(val) => handleFreqModeSelect(val as FreqMode)}
+                className="w-full"
+              >
+                <TabsList className="w-full grid grid-cols-4 bg-muted/40 p-0.5 rounded-md border border-border/60 h-8">
+                  <TabsTrigger
+                    value="preset"
+                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm"
+                  >
+                    <SparklesIcon className="size-3 mr-1 text-primary" />
+                    常用推荐
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="interval"
+                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm"
+                  >
+                    <ClockIcon className="size-3 mr-1 text-blue-400" />
+                    循环间隔
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="daily"
+                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm"
+                  >
+                    <CalendarClockIcon className="size-3 mr-1 text-amber-500" />
+                    固定时间
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="cron"
+                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm"
+                  >
+                    <TerminalIcon className="size-3 mr-1 text-muted-foreground" />
+                    Cron 专家
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
 
-              {/* 仅在需要时或点开高级设置时显示 Cron 原始输入框 */}
-              {showAdvancedCron ? (
-                <div className="space-y-1.5 rounded-md border border-border/70 bg-muted/20 p-2.5">
+              {/* Tab 1: 常用推荐模式 */}
+              {freqMode === 'preset' && (
+                <div className="space-y-2">
+                  <SearchableSelect
+                    value={preset}
+                    onValueChange={(val) => {
+                      const selected = val ? String(val) : '';
+                      handlePresetChange(selected);
+                    }}
+                    items={[
+                      ...CRON_PRESETS.map((p) => ({
+                        label: `${p.label} · ${p.description}`,
+                        value: p.value,
+                      })),
+                      {
+                        label: '自定义 Cron 表达式 (高级设置)...',
+                        value: 'custom',
+                      },
+                    ]}
+                    placeholder="请选择预设频率..."
+                    className="w-full text-xs"
+                  />
+                </div>
+              )}
+
+              {/* Tab 2: 循环间隔模式 (每 N 分钟/小时) */}
+              {freqMode === 'interval' && (
+                <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0">每隔</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={intervalUnit === 'minute' ? 59 : 23}
+                      value={intervalValue}
+                      onChange={(e) =>
+                        handleIntervalChange(
+                          parseInt(e.target.value, 10) || 1,
+                          intervalUnit,
+                        )
+                      }
+                      className="w-24 h-8 text-xs font-mono"
+                    />
+                    <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleIntervalChange(intervalValue, 'minute')}
+                        className={cn(
+                          'px-2.5 py-1 text-xs rounded-sm transition-colors cursor-pointer',
+                          intervalUnit === 'minute'
+                            ? 'bg-primary text-primary-foreground font-medium shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        分钟
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleIntervalChange(intervalValue, 'hour')}
+                        className={cn(
+                          'px-2.5 py-1 text-xs rounded-sm transition-colors cursor-pointer',
+                          intervalUnit === 'hour'
+                            ? 'bg-primary text-primary-foreground font-medium shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        小时
+                      </button>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">执行一次</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
+                    <span className="text-muted-foreground/70">快速选择:</span>
+                    {[
+                      { label: '每 5 分钟', val: 5, unit: 'minute' as const },
+                      { label: '每 15 分钟', val: 15, unit: 'minute' as const },
+                      { label: '每 30 分钟', val: 30, unit: 'minute' as const },
+                      { label: '每 1 小时', val: 1, unit: 'hour' as const },
+                      { label: '每 2 小时', val: 2, unit: 'hour' as const },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => handleIntervalChange(item.val, item.unit)}
+                        className={cn(
+                          'px-1.5 py-0.5 rounded text-[10px] border border-border/50 hover:border-primary/50 cursor-pointer transition-colors',
+                          intervalValue === item.val && intervalUnit === item.unit
+                            ? 'bg-primary/10 text-primary border-primary'
+                            : 'bg-muted/30 text-muted-foreground',
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: 固定时间模式 (每天/工作日/周末/每周几的 HH:mm) */}
+              {freqMode === 'daily' && (
+                <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0">在每个</span>
+                    <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5">
+                      {[
+                        { label: '每天', value: 'everyday' as const },
+                        { label: '工作日 (周一至周五)', value: 'workday' as const },
+                        { label: '周末 (周六日)', value: 'weekend' as const },
+                        { label: '每周特定日', value: 'weekly' as const },
+                      ].map((item) => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() =>
+                            handleFixedTimeChange(
+                              fixedTime,
+                              item.value,
+                              fixedWeeklyDay,
+                            )
+                          }
+                          className={cn(
+                            'px-2 py-1 text-xs rounded-sm transition-colors cursor-pointer',
+                            fixedDaysType === item.value
+                              ? 'bg-primary text-primary-foreground font-medium shadow-xs'
+                              : 'text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    {fixedDaysType === 'weekly' && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">逢</span>
+                        <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5">
+                          {[
+                            { label: '周一', day: 1 },
+                            { label: '周二', day: 2 },
+                            { label: '周三', day: 3 },
+                            { label: '周四', day: 4 },
+                            { label: '周五', day: 5 },
+                            { label: '周六', day: 6 },
+                            { label: '周日', day: 0 },
+                          ].map((item) => (
+                            <button
+                              key={item.day}
+                              type="button"
+                              onClick={() =>
+                                handleFixedTimeChange(
+                                  fixedTime,
+                                  fixedDaysType,
+                                  item.day,
+                                )
+                              }
+                              className={cn(
+                                'px-1.5 py-0.5 text-xs rounded-sm transition-colors cursor-pointer',
+                                fixedWeeklyDay === item.day
+                                  ? 'bg-primary text-primary-foreground font-medium shadow-xs'
+                                  : 'text-muted-foreground hover:text-foreground',
+                              )}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">时间</span>
+                      <Input
+                        type="time"
+                        value={fixedTime}
+                        onChange={(e) =>
+                          handleFixedTimeChange(
+                            e.target.value || '02:00',
+                            fixedDaysType,
+                            fixedWeeklyDay,
+                          )
+                        }
+                        className="w-28 h-8 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 4: Cron 专家模式 */}
+              {freqMode === 'cron' && (
+                <div className="space-y-1.5 rounded-md border border-border/70 bg-card/40 p-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-medium text-muted-foreground">
-                      标准 5 段式 Cron 表达式（分钟 小时 日期 月份 星期）
+                      标准 5 段式 Cron 表达式（分 时 日 月 周）
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowAdvancedCron(false)}
-                      className="text-[11px] text-primary hover:underline cursor-pointer"
-                    >
-                      收起高级设置
-                    </button>
+                    <span className="text-[10px] text-muted-foreground/70 font-mono">
+                      * 代表任意，*/N 代表步长
+                    </span>
                   </div>
                   <Input
                     value={cron}
@@ -857,32 +1157,24 @@ export function ScheduleEditorDialog({
                     </p>
                   )}
                 </div>
-              ) : (
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-[11px] font-mono text-muted-foreground/80">
-                    Cron 规则: <code className="rounded bg-muted px-1 py-0.5">{cron}</code>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvancedCron(true)}
-                    className="text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  >
-                    自定义表达式 ⚙️
-                  </button>
-                </div>
               )}
 
-              {/* 接下来执行时间：大白话预览展示，消除理解门槛 */}
-              {nextRuns.length > 0 && (
-                <div className="rounded-md border border-border/50 bg-muted/30 p-2.5 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1.5 mb-1.5 font-medium text-foreground">
+              {/* Cron 表达式预览与预计接下来执行时间 */}
+              <div className="rounded-md border border-border/50 bg-muted/20 p-2.5 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-medium text-foreground">
                     <ClockIcon className="size-3 text-muted-foreground" />
                     <span>预计接下来的执行时间：</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] font-mono">
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    Cron 规则: <code className="rounded bg-muted px-1 py-0.5 text-foreground">{cron}</code>
+                  </span>
+                </div>
+                {nextRuns.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] font-mono pt-0.5">
                     {nextRuns.map((time, idx) => (
                       <span key={idx} className="text-muted-foreground flex items-center gap-1">
-                        <span className="size-1 rounded-full bg-primary/70 shrink-0" />
+                        <span className="size-1 rounded-full bg-primary shrink-0" />
                         {time.toLocaleString('zh-CN', {
                           month: '2-digit',
                           day: '2-digit',
@@ -894,8 +1186,12 @@ export function ScheduleEditorDialog({
                       </span>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <span className="text-[11px] text-destructive">
+                    当前表达式无有效执行时间，请检查输入格式
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
