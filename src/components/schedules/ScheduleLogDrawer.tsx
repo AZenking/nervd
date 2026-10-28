@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { CopyButton } from '@/components/ui/copy-button';
 import { EmptyHint } from '@/components/empty-hint';
 import { useScheduleStore } from '@/store/schedule';
+import { formatDateTime } from '@/lib/format';
 import type { ScheduleExecutionLog } from '@/types/schedule';
 import { cn } from '@/lib/utils';
 
@@ -121,7 +122,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
     typeof log.durationMs === 'number'
       ? `${(log.durationMs / 1000).toFixed(2)}s`
       : null;
-  const timeDisplay = (log.startedAt || log.finishedAt || '').slice(0, 19).replace('T', ' ');
+  const timeDisplay = log.startedAt || log.finishedAt ? formatDateTime(log.startedAt || log.finishedAt!) : '';
 
   return (
     <div

@@ -25,7 +25,30 @@ function loadStoredTasks(): ScheduledTask[] {
     if (!raw) return [];
     const list = JSON.parse(raw);
     if (!Array.isArray(list)) return [];
-    return list;
+
+    // 自愈修正：如果本地缓存中的任务 nextRunAt 已经落后于当前时间（例如休眠或跨天后打开客户端），
+    // 自动重新计算为未来的有效下次执行时间，防止界面显示过期的历史时间
+    const now = new Date();
+    let hasHealed = false;
+    const healedList = list.map((task: ScheduledTask) => {
+      if (task.enabled && task.cron && task.nextRunAt) {
+        const nextTime = new Date(task.nextRunAt).getTime();
+        if (isNaN(nextTime) || nextTime <= now.getTime()) {
+          const freshNext = getNextRunTime(task.cron, now);
+          hasHealed = true;
+          return {
+            ...task,
+            nextRunAt: freshNext ? freshNext.toISOString() : undefined,
+          };
+        }
+      }
+      return task;
+    });
+
+    if (hasHealed) {
+      saveTasks(healedList);
+    }
+    return healedList;
   } catch {
     return [];
   }

@@ -28,6 +28,7 @@ import { ScheduleLogDrawer } from './ScheduleLogDrawer';
 import { useScheduleStore } from '@/store/schedule';
 import { runTaskNow } from '@/hooks/use-schedule-runner';
 import { useLocalStorage } from '@/hooks/use-local-storage';
+import { formatCompactDateTime } from '@/lib/format';
 import type { ScheduledTask } from '@/types/schedule';
 import { cn } from '@/lib/utils';
 
@@ -375,14 +376,14 @@ export function SchedulesView() {
                       <span>已运行 {task.runCount} 次</span>
                       {task.lastRunAt && (
                         <span>
-                          上次：{task.lastRunAt.slice(5, 16).replace('T', ' ')}
+                          上次：{formatCompactDateTime(task.lastRunAt)}
                           {typeof task.lastDurationMs === 'number' &&
                             ` (${(task.lastDurationMs / 1000).toFixed(1)}s)`}
                         </span>
                       )}
                       {task.nextRunAt && task.enabled && !globalPaused && (
                         <span className="text-primary/90">
-                          预计下次：{task.nextRunAt.slice(5, 16).replace('T', ' ')}
+                          预计下次：{formatCompactDateTime(task.nextRunAt)}
                         </span>
                       )}
                       {task.lastError && (

@@ -5,6 +5,17 @@ export function formatDateTime(timestamp: number | string): string {
   return new Date(timestamp).toLocaleString('zh-CN', { hour12: false });
 }
 
+/** 时间戳 → 本地紧凑日期时间文本（MM-DD HH:mm），用于列表与卡片次级信息 */
+export function formatCompactDateTime(timestamp: number | string | Date): string {
+  const d = new Date(timestamp);
+  if (isNaN(d.getTime())) return '';
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${mm}-${dd} ${hh}:${min}`;
+}
+
 /** 时间戳 → 本地时间文本（不含日期），如 11:04:30 */
 export function formatTime(timestamp: number | string): string {
   return new Date(timestamp).toLocaleTimeString('zh-CN', { hour12: false });

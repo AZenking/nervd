@@ -30,7 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
 import { SearchableSelect } from '@/components/searchable-select';
 import { useApp } from '@/store/app';
@@ -906,43 +906,41 @@ export function ScheduleEditorDialog({
               <Tabs
                 value={freqMode}
                 onValueChange={(val) => handleFreqModeSelect(val as FreqMode)}
-                className="w-full"
+                className="w-full space-y-2.5"
               >
-                <TabsList className="w-full grid grid-cols-4 bg-muted/40 p-0.5 rounded-md border border-border/60 h-8">
+                <TabsList className="w-full grid grid-cols-4 bg-muted/60 p-0.5 rounded-lg h-8 border-0 shadow-none">
                   <TabsTrigger
                     value="preset"
-                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm px-1 sm:px-2 min-w-0"
+                    className="text-xs h-7 rounded-md px-1 sm:px-2 min-w-0 transition-all text-muted-foreground hover:text-foreground data-active:bg-background data-active:text-foreground data-active:shadow-xs data-active:border-transparent font-normal data-active:font-medium"
                   >
                     <SparklesIcon className="size-3 mr-1 text-primary shrink-0" />
                     <span className="truncate">常用推荐</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="interval"
-                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm px-1 sm:px-2 min-w-0"
+                    className="text-xs h-7 rounded-md px-1 sm:px-2 min-w-0 transition-all text-muted-foreground hover:text-foreground data-active:bg-background data-active:text-foreground data-active:shadow-xs data-active:border-transparent font-normal data-active:font-medium"
                   >
-                    <ClockIcon className="size-3 mr-1 text-blue-400 shrink-0" />
+                    <ClockIcon className="size-3 mr-1 text-blue-500 shrink-0" />
                     <span className="truncate">循环间隔</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="daily"
-                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm px-1 sm:px-2 min-w-0"
+                    className="text-xs h-7 rounded-md px-1 sm:px-2 min-w-0 transition-all text-muted-foreground hover:text-foreground data-active:bg-background data-active:text-foreground data-active:shadow-xs data-active:border-transparent font-normal data-active:font-medium"
                   >
                     <CalendarClockIcon className="size-3 mr-1 text-amber-500 shrink-0" />
                     <span className="truncate">固定时间</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="cron"
-                    className="text-xs h-7 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm px-1 sm:px-2 min-w-0"
+                    className="text-xs h-7 rounded-md px-1 sm:px-2 min-w-0 transition-all text-muted-foreground hover:text-foreground data-active:bg-background data-active:text-foreground data-active:shadow-xs data-active:border-transparent font-normal data-active:font-medium"
                   >
-                    <TerminalIcon className="size-3 mr-1 text-muted-foreground shrink-0" />
+                    <TerminalIcon className="size-3 mr-1 text-purple-500 shrink-0" />
                     <span className="truncate">Cron 专家</span>
                   </TabsTrigger>
                 </TabsList>
-              </Tabs>
 
-              {/* Tab 1: 常用推荐模式 */}
-              {freqMode === 'preset' && (
-                <div className="space-y-2">
+                {/* Tab 1: 常用推荐模式 */}
+                <TabsContent value="preset" className="mt-0 space-y-2 focus-visible:outline-none">
                   <SearchableSelect
                     value={preset}
                     onValueChange={(val) => {
@@ -962,117 +960,78 @@ export function ScheduleEditorDialog({
                     placeholder="请选择预设频率..."
                     className="w-full text-xs"
                   />
-                </div>
-              )}
+                </TabsContent>
 
-              {/* Tab 2: 循环间隔模式 (每 N 分钟/小时) */}
-              {freqMode === 'interval' && (
-                <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground shrink-0">每隔</span>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={intervalUnit === 'minute' ? 59 : 23}
-                      value={intervalValue}
-                      onChange={(e) =>
-                        handleIntervalChange(
-                          parseInt(e.target.value, 10) || 1,
-                          intervalUnit,
-                        )
-                      }
-                      className="w-20 h-8 text-xs font-mono"
-                    />
-                    <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5 shrink-0">
-                      <Button
-                        type="button"
-                        variant={intervalUnit === 'minute' ? 'default' : 'ghost'}
-                        size="xs"
-                        onClick={() => handleIntervalChange(intervalValue, 'minute')}
-                        className={cn(
-                          'h-6 px-2.5 text-xs rounded-sm transition-colors',
-                          intervalUnit === 'minute'
-                            ? 'bg-primary text-primary-foreground font-medium shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        分钟
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={intervalUnit === 'hour' ? 'default' : 'ghost'}
-                        size="xs"
-                        onClick={() => handleIntervalChange(intervalValue, 'hour')}
-                        className={cn(
-                          'h-6 px-2.5 text-xs rounded-sm transition-colors',
-                          intervalUnit === 'hour'
-                            ? 'bg-primary text-primary-foreground font-medium shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        小时
-                      </Button>
-                    </div>
-                    <span className="text-xs text-muted-foreground shrink-0">执行一次</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
-                    <span className="text-muted-foreground/70 shrink-0">快速选择:</span>
-                    {[
-                      { label: '每 5 分钟', val: 5, unit: 'minute' as const },
-                      { label: '每 15 分钟', val: 15, unit: 'minute' as const },
-                      { label: '每 30 分钟', val: 30, unit: 'minute' as const },
-                      { label: '每 1 小时', val: 1, unit: 'hour' as const },
-                      { label: '每 2 小时', val: 2, unit: 'hour' as const },
-                    ].map((item) => (
-                      <Button
-                        key={item.label}
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        onClick={() => handleIntervalChange(item.val, item.unit)}
-                        className={cn(
-                          'h-5 px-1.5 rounded text-[10px] border border-border/50 hover:border-primary/50 transition-colors shrink-0',
-                          intervalValue === item.val && intervalUnit === item.unit
-                            ? 'bg-primary/10 text-primary border-primary hover:bg-primary/15'
-                            : 'bg-muted/30 text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        {item.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 3: 固定时间模式 (每天/工作日/周末/每周几的 HH:mm) */}
-              {freqMode === 'daily' && (
-                <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground shrink-0">在每个</span>
-                    <div className="inline-flex flex-wrap rounded-md border border-border/70 bg-muted/30 p-0.5">
-                      {[
-                        { label: '每天', value: 'everyday' as const },
-                        { label: '工作日 (周一至周五)', value: 'workday' as const },
-                        { label: '周末 (周六日)', value: 'weekend' as const },
-                        { label: '每周特定日', value: 'weekly' as const },
-                      ].map((item) => (
+                {/* Tab 2: 循环间隔模式 (每 N 分钟/小时) */}
+                <TabsContent value="interval" className="mt-0 focus-visible:outline-none">
+                  <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground shrink-0">每隔</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={intervalUnit === 'minute' ? 59 : 23}
+                        value={intervalValue}
+                        onChange={(e) =>
+                          handleIntervalChange(
+                            parseInt(e.target.value, 10) || 1,
+                            intervalUnit,
+                          )
+                        }
+                        className="w-20 h-8 text-xs font-mono"
+                      />
+                      <div className="inline-flex rounded-md border border-border/70 bg-muted/30 p-0.5 shrink-0">
                         <Button
-                          key={item.value}
                           type="button"
-                          variant={fixedDaysType === item.value ? 'default' : 'ghost'}
+                          variant={intervalUnit === 'minute' ? 'default' : 'ghost'}
                           size="xs"
-                          onClick={() =>
-                            handleFixedTimeChange(
-                              fixedTime,
-                              item.value,
-                              fixedWeeklyDay,
-                            )
-                          }
+                          onClick={() => handleIntervalChange(intervalValue, 'minute')}
                           className={cn(
-                            'h-6 px-2 text-xs rounded-sm transition-colors',
-                            fixedDaysType === item.value
+                            'h-6 px-2.5 text-xs rounded-sm transition-colors',
+                            intervalUnit === 'minute'
                               ? 'bg-primary text-primary-foreground font-medium shadow-xs'
                               : 'text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          分钟
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={intervalUnit === 'hour' ? 'default' : 'ghost'}
+                          size="xs"
+                          onClick={() => handleIntervalChange(intervalValue, 'hour')}
+                          className={cn(
+                            'h-6 px-2.5 text-xs rounded-sm transition-colors',
+                            intervalUnit === 'hour'
+                              ? 'bg-primary text-primary-foreground font-medium shadow-xs'
+                              : 'text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          小时
+                        </Button>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">执行一次</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
+                      <span className="text-muted-foreground/70 shrink-0">快速选择:</span>
+                      {[
+                        { label: '每 5 分钟', val: 5, unit: 'minute' as const },
+                        { label: '每 15 分钟', val: 15, unit: 'minute' as const },
+                        { label: '每 30 分钟', val: 30, unit: 'minute' as const },
+                        { label: '每 1 小时', val: 1, unit: 'hour' as const },
+                        { label: '每 2 小时', val: 2, unit: 'hour' as const },
+                      ].map((item) => (
+                        <Button
+                          key={item.label}
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          onClick={() => handleIntervalChange(item.val, item.unit)}
+                          className={cn(
+                            'h-5 px-1.5 rounded text-[10px] border border-border/50 hover:border-primary/50 transition-colors shrink-0',
+                            intervalValue === item.val && intervalUnit === item.unit
+                              ? 'bg-primary/10 text-primary border-primary hover:bg-primary/15'
+                              : 'bg-muted/30 text-muted-foreground hover:text-foreground',
                           )}
                         >
                           {item.label}
@@ -1080,97 +1039,136 @@ export function ScheduleEditorDialog({
                       ))}
                     </div>
                   </div>
+                </TabsContent>
 
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {fixedDaysType === 'weekly' && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs text-muted-foreground shrink-0">逢</span>
-                        <div className="inline-flex flex-wrap rounded-md border border-border/70 bg-muted/30 p-0.5">
-                          {[
-                            { label: '周一', day: 1 },
-                            { label: '周二', day: 2 },
-                            { label: '周三', day: 3 },
-                            { label: '周四', day: 4 },
-                            { label: '周五', day: 5 },
-                            { label: '周六', day: 6 },
-                            { label: '周日', day: 0 },
-                          ].map((item) => (
-                            <Button
-                              key={item.day}
-                              type="button"
-                              variant={fixedWeeklyDay === item.day ? 'default' : 'ghost'}
-                              size="xs"
-                              onClick={() =>
-                                handleFixedTimeChange(
-                                  fixedTime,
-                                  fixedDaysType,
-                                  item.day,
-                                )
-                              }
-                              className={cn(
-                                'h-6 px-1.5 text-xs rounded-sm transition-colors',
-                                fixedWeeklyDay === item.day
-                                  ? 'bg-primary text-primary-foreground font-medium shadow-xs'
-                                  : 'text-muted-foreground hover:text-foreground',
-                              )}
-                            >
-                              {item.label}
-                            </Button>
-                          ))}
-                        </div>
+                {/* Tab 3: 固定时间模式 (每天/工作日/周末/每周几的 HH:mm) */}
+                <TabsContent value="daily" className="mt-0 focus-visible:outline-none">
+                  <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground shrink-0">在每个</span>
+                      <div className="inline-flex flex-wrap rounded-md border border-border/70 bg-muted/30 p-0.5">
+                        {[
+                          { label: '每天', value: 'everyday' as const },
+                          { label: '工作日 (周一至周五)', value: 'workday' as const },
+                          { label: '周末 (周六日)', value: 'weekend' as const },
+                          { label: '每周特定日', value: 'weekly' as const },
+                        ].map((item) => (
+                          <Button
+                            key={item.value}
+                            type="button"
+                            variant={fixedDaysType === item.value ? 'default' : 'ghost'}
+                            size="xs"
+                            onClick={() =>
+                              handleFixedTimeChange(
+                                fixedTime,
+                                item.value,
+                                fixedWeeklyDay,
+                              )
+                            }
+                            className={cn(
+                              'h-6 px-2 text-xs rounded-sm transition-colors',
+                              fixedDaysType === item.value
+                                ? 'bg-primary text-primary-foreground font-medium shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            {item.label}
+                          </Button>
+                        ))}
                       </div>
-                    )}
+                    </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-xs text-muted-foreground shrink-0">时间</span>
-                      <Input
-                        type="time"
-                        value={fixedTime}
-                        onChange={(e) =>
-                          handleFixedTimeChange(
-                            e.target.value || '02:00',
-                            fixedDaysType,
-                            fixedWeeklyDay,
-                          )
-                        }
-                        className="w-28 h-8 text-xs font-mono"
-                      />
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {fixedDaysType === 'weekly' && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground shrink-0">逢</span>
+                          <div className="inline-flex flex-wrap rounded-md border border-border/70 bg-muted/30 p-0.5">
+                            {[
+                              { label: '周一', day: 1 },
+                              { label: '周二', day: 2 },
+                              { label: '周三', day: 3 },
+                              { label: '周四', day: 4 },
+                              { label: '周五', day: 5 },
+                              { label: '周六', day: 6 },
+                              { label: '周日', day: 0 },
+                            ].map((item) => (
+                              <Button
+                                key={item.day}
+                                type="button"
+                                variant={fixedWeeklyDay === item.day ? 'default' : 'ghost'}
+                                size="xs"
+                                onClick={() =>
+                                  handleFixedTimeChange(
+                                    fixedTime,
+                                    fixedDaysType,
+                                    item.day,
+                                  )
+                                }
+                                className={cn(
+                                  'h-6 px-1.5 text-xs rounded-sm transition-colors',
+                                  fixedWeeklyDay === item.day
+                                    ? 'bg-primary text-primary-foreground font-medium shadow-xs'
+                                    : 'text-muted-foreground hover:text-foreground',
+                                )}
+                              >
+                                {item.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xs text-muted-foreground shrink-0">时间</span>
+                        <Input
+                          type="time"
+                          value={fixedTime}
+                          onChange={(e) =>
+                            handleFixedTimeChange(
+                              e.target.value || '02:00',
+                              fixedDaysType,
+                              fixedWeeklyDay,
+                            )
+                          }
+                          className="w-28 h-8 text-xs font-mono"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                </TabsContent>
 
-              {/* Tab 4: Cron 专家模式 */}
-              {freqMode === 'cron' && (
-                <div className="space-y-1.5 rounded-md border border-border/70 bg-card/40 p-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      标准 5 段式 Cron 表达式（分 时 日 月 周）
-                    </span>
-                    <span className="text-[10px] text-muted-foreground/70 font-mono">
-                      * 代表任意，*/N 代表步长
-                    </span>
-                  </div>
-                  <Input
-                    value={cron}
-                    onChange={(e) => {
-                      setCron(e.target.value);
-                      setPreset('custom');
-                    }}
-                    placeholder="例如: 0 2 * * *"
-                    className={cn(
-                      'h-8 font-mono text-xs',
-                      !cronValidation.valid && 'border-destructive focus-visible:ring-destructive',
+                {/* Tab 4: Cron 专家模式 */}
+                <TabsContent value="cron" className="mt-0 focus-visible:outline-none">
+                  <div className="space-y-1.5 rounded-md border border-border/70 bg-card/40 p-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        标准 5 段式 Cron 表达式（分 时 日 月 周）
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/70 font-mono">
+                        * 代表任意，*/N 代表步长
+                      </span>
+                    </div>
+                    <Input
+                      value={cron}
+                      onChange={(e) => {
+                        setCron(e.target.value);
+                        setPreset('custom');
+                      }}
+                      placeholder="例如: 0 2 * * *"
+                      className={cn(
+                        'h-8 font-mono text-xs',
+                        !cronValidation.valid && 'border-destructive focus-visible:ring-destructive',
+                      )}
+                    />
+                    {!cronValidation.valid && (
+                      <p className="text-[11px] text-destructive flex items-center gap-1">
+                        <AlertTriangleIcon className="size-3" />
+                        <span>{cronValidation.error}</span>
+                      </p>
                     )}
-                  />
-                  {!cronValidation.valid && (
-                    <p className="text-[11px] text-destructive flex items-center gap-1">
-                      <AlertTriangleIcon className="size-3" />
-                      <span>{cronValidation.error}</span>
-                    </p>
-                  )}
-                </div>
-              )}
+                  </div>
+                </TabsContent>
+              </Tabs>
 
               {/* Cron 表达式预览与预计接下来执行时间 */}
               <div className="rounded-md border border-border/50 bg-muted/20 p-2.5 space-y-1.5 text-xs">
