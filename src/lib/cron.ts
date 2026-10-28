@@ -8,13 +8,13 @@ export interface CronPreset {
 }
 
 export const CRON_PRESETS: readonly CronPreset[] = [
-  { label: '每 15 分钟', value: '*/15 * * * *', description: '高频巡检' },
-  { label: '每 30 分钟', value: '*/30 * * * *', description: '周期同步' },
-  { label: '每小时整点', value: '0 * * * *', description: '整点任务' },
-  { label: '每 2 小时', value: '0 */2 * * *', description: '低频定时' },
-  { label: '工作日早 09:00', value: '0 9 * * 1-5', description: '工作日开工同步' },
+  { label: '每 15 分钟', value: '*/15 * * * *', description: '高频敏捷巡检' },
+  { label: '每 30 分钟', value: '*/30 * * * *', description: '日常周期同步' },
+  { label: '每小时整点', value: '0 * * * *', description: '如 09:00, 10:00, 11:00' },
+  { label: '每 2 小时', value: '0 */2 * * *', description: '如 08:00, 10:00, 12:00' },
+  { label: '工作日早 09:00', value: '0 9 * * 1-5', description: '周一至周五开工前' },
   { label: '每天凌晨 02:00', value: '0 2 * * *', description: '夜间全量构建与集成' },
-  { label: '每周一早 09:00', value: '0 9 * * 1', description: '每周开始' },
+  { label: '每周一早 09:00', value: '0 9 * * 1', description: '周会前全量代码对齐' },
 ];
 
 interface FieldRange {

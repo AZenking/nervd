@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangleIcon,
   CheckIcon,
+  ClockIcon,
   GitMergeIcon,
   HelpCircleIcon,
   Loader2Icon,
@@ -136,6 +137,7 @@ export function ScheduleEditorDialog({
   // Cron schedule fields
   const [cron, setCron] = useState('0 2 * * *');
   const [preset, setPreset] = useState('0 2 * * *');
+  const [showAdvancedCron, setShowAdvancedCron] = useState(false);
 
   // Notification fields
   const [notifyOnSuccess, setNotifyOnSuccess] = useState(true);
@@ -155,6 +157,7 @@ export function ScheduleEditorDialog({
 
       const matchedPreset = CRON_PRESETS.find((p) => p.value === initialTask.cron);
       setPreset(matchedPreset ? matchedPreset.value : 'custom');
+      setShowAdvancedCron(!matchedPreset);
 
       const act = initialTask.action;
       setActionType(act.type);
@@ -778,68 +781,116 @@ export function ScheduleEditorDialog({
             </div>
           )}
 
-          {/* 触发频率 Cron */}
-          <div className="space-y-2 pt-2 border-t border-border/60">
+          {/* 执行时间与频率 */}
+          <div className="space-y-3 pt-2 border-t border-border/60">
             <div className="flex items-center justify-between">
-              <Label className="font-medium text-foreground block">
-                调度周期 (Cron) <span className="text-destructive">*</span>
-              </Label>
+              <div className="flex items-center gap-1.5">
+                <ClockIcon className="size-3.5 text-primary" />
+                <Label className="font-medium text-foreground text-xs block">
+                  自动执行时间 (调度频率) <span className="text-destructive">*</span>
+                </Label>
+              </div>
+
               {cronDescription && (
-                <span className="text-[11px] text-primary font-mono font-medium">
+                <span className="text-[11px] text-emerald-500 font-medium">
                   {cronDescription}
                 </span>
               )}
             </div>
 
             <div className="space-y-2">
+              {/* 人性化预设下拉 */}
               <SearchableSelect
                 value={preset}
-                onValueChange={(val) => handlePresetChange(val ? String(val) : '')}
+                onValueChange={(val) => {
+                  const selected = val ? String(val) : '';
+                  handlePresetChange(selected);
+                  if (selected === 'custom') {
+                    setShowAdvancedCron(true);
+                  }
+                }}
                 items={[
                   ...CRON_PRESETS.map((p) => ({
-                    label: `${p.label} (${p.value}) · ${p.description}`,
+                    label: `${p.label} · ${p.description}`,
                     value: p.value,
                   })),
                   {
-                    label: '自定义 Cron 表达式...',
+                    label: '自定义 Cron 表达式 (高级设置)...',
                     value: 'custom',
                   },
                 ]}
-                placeholder="选择调度周期预设..."
+                placeholder="请选择执行频率（如每天凌晨、工作日早九点）..."
                 className="w-full text-xs"
               />
 
-              <div className="space-y-1">
-                <Input
-                  value={cron}
-                  onChange={(e) => {
-                    setCron(e.target.value);
-                    setPreset('custom');
-                  }}
-                  placeholder="例如: 0 2 * * *"
-                  className={cn(
-                    'h-8 font-mono text-xs',
-                    !cronValidation.valid && 'border-destructive focus-visible:ring-destructive',
+              {/* 仅在需要时或点开高级设置时显示 Cron 原始输入框 */}
+              {showAdvancedCron ? (
+                <div className="space-y-1.5 rounded-md border border-border/70 bg-muted/20 p-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      标准 5 段式 Cron 表达式（分钟 小时 日期 月份 星期）
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedCron(false)}
+                      className="text-[11px] text-primary hover:underline cursor-pointer"
+                    >
+                      收起高级设置
+                    </button>
+                  </div>
+                  <Input
+                    value={cron}
+                    onChange={(e) => {
+                      setCron(e.target.value);
+                      setPreset('custom');
+                    }}
+                    placeholder="例如: 0 2 * * *"
+                    className={cn(
+                      'h-8 font-mono text-xs',
+                      !cronValidation.valid && 'border-destructive focus-visible:ring-destructive',
+                    )}
+                  />
+                  {!cronValidation.valid && (
+                    <p className="text-[11px] text-destructive flex items-center gap-1">
+                      <AlertTriangleIcon className="size-3" />
+                      <span>{cronValidation.error}</span>
+                    </p>
                   )}
-                />
-                {!cronValidation.valid && (
-                  <p className="text-[11px] text-destructive flex items-center gap-1">
-                    <AlertTriangleIcon className="size-3" />
-                    <span>{cronValidation.error}</span>
-                  </p>
-                )}
-              </div>
-
-              {/* 未来执行时间预览 */}
-              {nextRuns.length > 0 && (
-                <div className="rounded bg-muted/40 p-2.5 text-[11px] font-mono text-muted-foreground">
-                  <span className="font-medium text-foreground block mb-1">
-                    即将到来的执行时间：
+                </div>
+              ) : (
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-mono text-muted-foreground/80">
+                    Cron 规则: <code className="rounded bg-muted px-1 py-0.5">{cron}</code>
                   </span>
-                  <div className="grid grid-cols-2 gap-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedCron(true)}
+                    className="text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    自定义表达式 ⚙️
+                  </button>
+                </div>
+              )}
+
+              {/* 接下来执行时间：大白话预览展示，消除理解门槛 */}
+              {nextRuns.length > 0 && (
+                <div className="rounded-md border border-border/50 bg-muted/30 p-2.5 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1.5 mb-1.5 font-medium text-foreground">
+                    <ClockIcon className="size-3 text-muted-foreground" />
+                    <span>预计接下来的执行时间：</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] font-mono">
                     {nextRuns.map((time, idx) => (
-                      <span key={idx}>
-                        • {time.toISOString().slice(0, 19).replace('T', ' ')}
+                      <span key={idx} className="text-muted-foreground flex items-center gap-1">
+                        <span className="size-1 rounded-full bg-primary/70 shrink-0" />
+                        {time.toLocaleString('zh-CN', {
+                          month: '2-digit',
+                          day: '2-digit',
+                          weekday: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        })}
                       </span>
                     ))}
                   </div>
