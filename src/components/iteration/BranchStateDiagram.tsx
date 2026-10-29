@@ -337,7 +337,7 @@ export default function BranchStateDiagram({
       </div>
       <div
         ref={measureRef}
-        className="h-[640px] w-full overflow-hidden rounded-md border border-border/70 bg-background"
+        className="h-[560px] w-full overflow-hidden rounded-md border border-border/70 bg-background"
       >
         <ReactFlow
           key={containerWidth ? Math.round(containerWidth / 20) : 'initial'}

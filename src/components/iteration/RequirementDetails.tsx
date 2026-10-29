@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, ClockIcon, CopyIcon, DatabaseIcon,
+  ArrowLeftIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, DatabaseIcon,
   ExternalLinkIcon, FolderIcon, GitBranchIcon, GitForkIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MoreHorizontalIcon,
   MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, SparklesIcon, UserIcon, XIcon,
 } from 'lucide-react';
@@ -19,8 +19,6 @@ import { useUi } from '@/store/ui';
 import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -45,6 +43,7 @@ import { RequirementDetailsSkeleton } from './requirement/requirement-skeleton';
 import { ChildrenCard } from './requirement/children-card';
 import { LinkedRepoCard } from './requirement/linked-repo-card';
 import { LinkRepoModal } from './requirement/link-repo-modal';
+import { BranchStateDiagramModal } from './requirement/branch-state-diagram-modal';
 import { DetailAssigneePopover, DetailStatusPopover, RequirementProperties } from './requirement/requirement-properties';
 import { RequirementActivity } from './requirement/requirement-activity';
 
@@ -60,8 +59,6 @@ export interface RequirementDetailsBackToListProps {
   onBackToList?: () => void;
 }
 
-/** 分支同步状态图（教学用静态图）：默认折叠，展开时才加载 React Flow 代码（lazy chunk） */
-const BranchStateDiagram = lazy(() => import('./BranchStateDiagram'));
 /** 两段式仓库推荐：默认云效仓库池至少给出这么多条高置信结果即收手，不再扩到其他仓库 */
 const MIN_SUFFICIENT_REPOS = 1;
 
@@ -278,6 +275,7 @@ export function RequirementDetails({
     : settings?.watchedRepos ?? [];
   const [savingRepos, setSavingRepos] = useState(false);
   const [isLinkRepoModalOpen, setIsLinkRepoModalOpen] = useState(false);
+  const [isBranchDiagramModalOpen, setIsBranchDiagramModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
 
   const [recommendingRepos, setRecommendingRepos] = useState(false);
@@ -1088,6 +1086,16 @@ export function RequirementDetails({
                       </>
                     )}
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsBranchDiagramModalOpen(true)}
+                    className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="打开需求分支同步状态拓扑图谱"
+                  >
+                    <GitForkIcon className="size-3.5" />
+                    <span>分支图谱</span>
+                  </Button>
                   <Tooltip>
                     <TooltipTrigger
                       render={(
@@ -1154,6 +1162,13 @@ export function RequirementDetails({
               onClearRecommendations={() => setRecommendedRepos([])}
               onQuickLinkRepo={handleQuickLinkRepo}
               onLinkRepo={handleLinkRepoFromModal}
+            />
+
+            <BranchStateDiagramModal
+              open={isBranchDiagramModalOpen}
+              onOpenChange={setIsBranchDiagramModalOpen}
+              requirement={{ identifier, subject }}
+              repos={syncDiagramRepos}
             />
 
             {/* 列表外框容器：参考 Ant Design / Linear 标准列表，卡片包裹 + 细线分割 */}
@@ -1363,43 +1378,6 @@ export function RequirementDetails({
                 </div>
               </div>
             )}
-
-            {/* 分支同步状态图：折叠 */}
-            <Collapsible defaultOpen={false} render={<div className="rounded-lg border border-border/70" />}>
-              <div className="flex items-start justify-between gap-3 p-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">分支同步状态图</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    以需求为根的分支树：仓库 → 基准 / 迭代 / 开发分支；绿 / 橙箭头标注各段合并状态（按真实双向比较结果）。
-                  </p>
-                </div>
-                <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
-                  <ChevronRightIcon className="transition-transform duration-200 group-data-panel-open/collapsible:rotate-90" />
-                  展开 / 收起
-                </CollapsibleTrigger>
-              </div>
-              <CollapsibleContent>
-                <div className="border-t border-border/70 p-4">
-                  <Suspense
-                    fallback={(
-                      <div className="flex h-72 w-full flex-col items-center justify-center gap-4 rounded-lg border border-border/40 bg-muted/10 p-6" aria-hidden>
-                        <Skeleton className="h-9 w-36 rounded-md" />
-                        <div className="h-6 w-px bg-border/60" />
-                        <div className="flex items-center gap-8">
-                          <Skeleton className="h-9 w-32 rounded-md" />
-                          <Skeleton className="h-9 w-32 rounded-md" />
-                        </div>
-                      </div>
-                    )}
-                  >
-                    <BranchStateDiagram
-                      requirement={{ identifier, subject }}
-                      repos={syncDiagramRepos}
-                    />
-                  </Suspense>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
           </section>
 
           {/* 子工作项与缺陷 (Linear Sub-issues 风格) */}
