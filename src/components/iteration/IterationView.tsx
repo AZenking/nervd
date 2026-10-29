@@ -753,9 +753,10 @@ export function IterationView() {
                                 </AvatarFallback>
                               </Avatar>
                               {!isMasterColumn && (
-                                <span className={cn('hidden max-w-24 truncate lg:inline', match.isAssigned && 'font-medium text-foreground')}>
-                                  {assignee}
-                                </span>
+                                <OverflowTooltip
+                                  text={assignee}
+                                  className={cn('hidden max-w-24 truncate lg:inline', match.isAssigned && 'font-medium text-foreground')}
+                                />
                               )}
                             </>
                           ) : !isMasterColumn ? (
@@ -965,7 +966,7 @@ export function IterationView() {
           titleClassName="text-sm font-semibold tracking-tight text-foreground"
           scope={(
             <SearchableSelect
-              className="w-32 text-xs"
+              className="w-28 text-xs sm:w-32"
               ariaLabel="切换迭代"
               value={iteration.name}
               onValueChange={(v) => { if (v) setIteration(v); }}
@@ -975,8 +976,8 @@ export function IterationView() {
               }))}
             />
           )}
-          toolbar={(
-            <>
+          actions={(
+            <div className="flex shrink-0 items-center gap-1.5">
               <Tabs
                 value={shownTab}
                 onValueChange={(v) => {
@@ -990,6 +991,23 @@ export function IterationView() {
                   {!isUnplanned && <TabsTrigger value="branches" className="px-2 py-0 text-[11px]">模板</TabsTrigger>}
                 </TabsList>
               </Tabs>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="刷新"
+                disabled={loadingList || revalidatingList}
+                onClick={() => {
+                  void (items.length ? revalidateList() : loadList(false));
+                  void loadIterations();
+                  refreshCi();
+                }}
+              >
+                <RefreshCwIcon className={cn('size-3.5', (loadingList || revalidatingList) && 'animate-spin')} />
+              </Button>
+            </div>
+          )}
+          toolbar={(
+            <>
               <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
                 <TabsList className="h-7">
                   {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
@@ -1001,21 +1019,6 @@ export function IterationView() {
                 <WorkitemFilterBar options={filterOptions} activeFilterCount={activeFilterCount} />
               </div>
             </>
-          )}
-          actions={(
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="刷新"
-              disabled={loadingList || revalidatingList}
-              onClick={() => {
-                void (items.length ? revalidateList() : loadList(false));
-                void loadIterations();
-                refreshCi();
-              }}
-            >
-              <RefreshCwIcon className={cn('size-3.5', (loadingList || revalidatingList) && 'animate-spin')} />
-            </Button>
           )}
         />
 
@@ -1099,8 +1102,8 @@ export function IterationView() {
             }))}
           />
         )}
-        toolbar={(
-          <>
+        actions={(
+          <div className="flex shrink-0 items-center gap-2">
             <Tabs
               value={shownTab}
               onValueChange={(v) => {
@@ -1135,6 +1138,25 @@ export function IterationView() {
                 )}
               </TabsList>
             </Tabs>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="刷新"
+              data-workspace-refresh
+              disabled={loadingList || revalidatingList}
+              onClick={() => {
+                // 手动刷新覆盖本页全部数据源：工作项 + 迭代 + 各仓库 CI（双缓冲平滑更新，杜绝列表坍塌与闪烁）
+                void (items.length ? revalidateList() : loadList(false));
+                void loadIterations();
+                refreshCi();
+              }}
+            >
+              <RefreshCwIcon className={cn('size-4', (loadingList || revalidatingList) && 'animate-spin')} />
+            </Button>
+          </div>
+        )}
+        toolbar={(
+          <>
             {viewTab === 'workitems' && (
               <>
                 <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
@@ -1171,23 +1193,6 @@ export function IterationView() {
               </span>
             )}
           </>
-        )}
-        actions={(
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="刷新"
-            data-workspace-refresh
-            disabled={loadingList || revalidatingList}
-            onClick={() => {
-              // 手动刷新覆盖本页全部数据源：工作项 + 迭代 + 各仓库 CI（双缓冲平滑更新，杜绝列表坍塌与闪烁）
-              void (items.length ? revalidateList() : loadList(false));
-              void loadIterations();
-              refreshCi();
-            }}
-          >
-            <RefreshCwIcon className={cn('size-4', (loadingList || revalidatingList) && 'animate-spin')} />
-          </Button>
         )}
       />
 
