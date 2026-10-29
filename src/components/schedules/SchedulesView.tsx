@@ -186,7 +186,7 @@ export function SchedulesView() {
               onClick={() => setGlobalPaused(!globalPaused)}
               className={cn(
                 'text-xs',
-                globalPaused && 'bg-amber-600 hover:bg-amber-700 text-white',
+                globalPaused && 'bg-sig-run hover:bg-sig-run/90 text-primary-foreground',
               )}
             >
               <ClockIcon className="mr-1.5 size-3.5" />

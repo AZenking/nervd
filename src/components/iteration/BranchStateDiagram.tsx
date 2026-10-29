@@ -138,7 +138,7 @@ const BADGE_CLASS: Record<Tone, string> = {
 
 const nodeTypes = { root: RootNode, repo: RepoNode, branch: BranchNode };
 
-const EDGE_GRAY = '#8a8f98';
+const EDGE_GRAY = 'var(--sig-idle, #8a8f98)';
 
 function treeEdge(id: string, source: string, target: string): Edge {
   return {
@@ -149,14 +149,14 @@ function treeEdge(id: string, source: string, target: string): Edge {
 }
 
 function mergeEdge(id: string, source: string, target: string, state: MergeState | undefined, label: string): Edge {
-  const color = state?.tone === 'ok' ? '#30a46c' : state?.tone === 'warn' ? '#d9730d' : EDGE_GRAY;
+  const color = state?.tone === 'ok' ? 'var(--sig-ok, #30a46c)' : state?.tone === 'warn' ? 'var(--sig-run, #d9730d)' : EDGE_GRAY;
   return {
     id, source, sourceHandle: 'stl', target, targetHandle: 'tbl',
     label: state ? `${label}：${state.label}` : label,
     labelStyle: { fill: color, fontSize: 11, fontWeight: 600 },
     labelBgPadding: [4, 2],
     labelBgBorderRadius: 4,
-    labelBgStyle: { fill: 'rgba(255, 255, 255, 0.95)' },
+    labelBgStyle: { fill: 'var(--card, rgba(255, 255, 255, 0.95))' },
     style: { stroke: color, strokeWidth: 1.6 },
     markerEnd: { type: MarkerType.ArrowClosed, color },
   };
