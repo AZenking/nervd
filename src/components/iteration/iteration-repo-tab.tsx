@@ -14,7 +14,7 @@ import {
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import type { RepoSummary } from '@/types';
-import { buildRunParameter, ciProviderLabel, ciStatusText } from '@/lib/ci';
+import { buildRunParameter, ciProviderLabel, ciStatusInfo, ciStatusText } from '@/lib/ci';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -68,11 +68,10 @@ export function IterationRepoCard({
 
   const runs = isBound ? snapshot?.runs ?? [] : [];
 
-  // 判断是否有正在运行中的 Job（RUNNING / WAITING / QUEUED）
+  // 判断是否有正在运行中的 Job（RUNNING / WAITING / QUEUED / BUILDING 等）
   const runningRun = runs.find((r) => {
-    const s = (r.status || '').toUpperCase();
-    return s === 'RUNNING' || s === 'WAITING' || s === 'QUEUED';
-  }) || (snapshot?.status?.toUpperCase() === 'RUNNING' ? runs[0] : undefined);
+    return ciStatusInfo(r.status).tone === 'run';
+  }) || (ciStatusInfo(snapshot?.status).tone === 'run' ? runs[0] : undefined);
 
   const isRunning = Boolean(runningRun);
   const latestRun = runs[0];
@@ -411,9 +410,8 @@ export function IterationRepoTab({
       const snapshot = repoCiByRepo[item.repo.id]?.snapshot;
       const runs = snapshot?.runs ?? [];
       const hasRunning = runs.some((r) => {
-        const s = (r.status || '').toUpperCase();
-        return s === 'RUNNING' || s === 'WAITING' || s === 'QUEUED';
-      }) || snapshot?.status?.toUpperCase() === 'RUNNING';
+        return ciStatusInfo(r.status).tone === 'run';
+      }) || ciStatusInfo(snapshot?.status).tone === 'run';
       if (hasRunning) count += 1;
     }
     return count;

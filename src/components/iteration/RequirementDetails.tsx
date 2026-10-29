@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, ClockIcon, CopyIcon, DatabaseIcon,
+  ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, ClockIcon, CopyIcon, DatabaseIcon,
   ExternalLinkIcon, FolderIcon, GitBranchIcon, GitForkIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MoreHorizontalIcon,
-  MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, SlidersHorizontalIcon, UserIcon, XIcon,
+  MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, SparklesIcon, UserIcon, XIcon,
 } from 'lucide-react';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
@@ -20,7 +20,6 @@ import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -32,6 +31,7 @@ import { EmptyHint } from '../empty-hint';
 import { OverflowTooltip } from '../overflow-tooltip';
 import type { BranchSyncRepo } from './BranchStateDiagram';
 import { RichDescription } from './rich-description';
+import { richTextToPlain } from '@/lib/richtext';
 import { ChildDetailDrawer } from './child-detail-drawer';
 import { SectionHeader } from '../section-header';
 import { StatusIcon } from '../status-icon';
@@ -189,6 +189,13 @@ export function RequirementDetails({
         : typeof (wi.creator as any).id === 'string' ? (wi.creator as any).id : undefined)
       : (typeof wi.creator === 'string' && wi.creator ? wi.creator : undefined));
 
+  const creator = (wi.creator ?? {}) as Record<string, unknown>;
+  const creatorId = typeof creator.id === 'string' ? creator.id
+    : typeof creator.identifier === 'string' ? creator.identifier : undefined;
+  const creatorName = (typeof creator.name === 'string' && creator.name)
+    || (typeof creator.displayName === 'string' && creator.displayName)
+    || '';
+
   // 汇总候选处理人：当前登录用户、父需求负责人、创建人、参与人、已有子项负责人及当前迭代成员
   const candidateAssignees = useMemo(() => {
     const map = new Map<string, { id: string; name: string; role?: string }>();
@@ -198,11 +205,6 @@ export function RequirementDetails({
     if (parentAssigneeId && assignedToName) {
       map.set(parentAssigneeId, { id: parentAssigneeId, name: assignedToName, role: '需求负责人' });
     }
-    const creator = (wi.creator ?? {}) as Record<string, unknown>;
-    const creatorId = typeof creator.id === 'string' ? creator.id
-      : typeof creator.identifier === 'string' ? creator.identifier : undefined;
-    const creatorName = typeof creator.name === 'string' ? creator.name
-      : typeof creator.displayName === 'string' ? creator.displayName : undefined;
     if (creatorId && creatorName && !map.has(creatorId)) {
       map.set(creatorId, { id: creatorId, name: creatorName, role: '创建人' });
     }
@@ -293,6 +295,7 @@ export function RequirementDetails({
     setActiveChildId(null);
     setRecommendedRepos([]);
     setIsLinkRepoModalOpen(false);
+    setRepoFilter('all');
   }, [selectedId]);
 
   const copyIdentifier = () => {
@@ -370,6 +373,91 @@ export function RequirementDetails({
           ? repoBranchRules[effectiveRepoIds[0]].templateName
           : configuredBaselineCount + ' 个仓库已选择模板';
 
+  const linkedRepos = repositories.filter((r) => effectiveRepoIds.includes(r.id));
+  const [repoFilter, setRepoFilter] = useState<'all' | 'pending_merge' | 'active' | 'merged'>('all');
+  const branchesByRepoId = new Map(
+    (trace?.repositories ?? []).map((repository) =>
+      [repository.repoId, repository.branches.map((branch) => branch.name)] as const,
+    ),
+  );
+  const mergeRequestsByRepoId = new Map(
+    (trace?.repositories ?? []).map((repository) =>
+      [repository.repoId, repository.mergeRequests] as const,
+    ),
+  );
+
+  // 待合入：存在开放中的 MR（包含待合入、审查中等活跃 MR）
+  const pendingMergeCount = useMemo(() => {
+    return linkedRepos.filter((repo) => {
+      const mrs = mergeRequestsByRepoId.get(repo.id) ?? [];
+      return mrs.some((mr) => {
+        const state = mr.state?.toLowerCase();
+        return state !== 'merged' && state !== 'closed';
+      });
+    }).length;
+  }, [linkedRepos, mergeRequestsByRepoId]);
+
+  // 进行中：有开发分支活动或活跃 MR
+  const activeCount = useMemo(() => {
+    return linkedRepos.filter((repo) => {
+      const mrs = mergeRequestsByRepoId.get(repo.id) ?? [];
+      const hasActiveMr = mrs.some((mr) => {
+        const state = mr.state?.toLowerCase();
+        return state !== 'merged' && state !== 'closed';
+      });
+      const branches = branchesByRepoId.get(repo.id) ?? [];
+      return hasActiveMr || branches.length > 0;
+    }).length;
+  }, [linkedRepos, mergeRequestsByRepoId, branchesByRepoId]);
+
+  // 已合入：存在已成功合入的 MR，且没有未合入的活跃 MR
+  const mergedCount = useMemo(() => {
+    return linkedRepos.filter((repo) => {
+      const mrs = mergeRequestsByRepoId.get(repo.id) ?? [];
+      const hasActiveMr = mrs.some((mr) => {
+        const state = mr.state?.toLowerCase();
+        return state !== 'merged' && state !== 'closed';
+      });
+      if (hasActiveMr) return false;
+      return mrs.some((mr) => mr.state?.toLowerCase() === 'merged');
+    }).length;
+  }, [linkedRepos, mergeRequestsByRepoId]);
+
+  const filteredLinkedRepos = useMemo(() => {
+    if (repoFilter === 'pending_merge') {
+      return linkedRepos.filter((repo) => {
+        const mrs = mergeRequestsByRepoId.get(repo.id) ?? [];
+        return mrs.some((mr) => {
+          const state = mr.state?.toLowerCase();
+          return state !== 'merged' && state !== 'closed';
+        });
+      });
+    }
+    if (repoFilter === 'active') {
+      return linkedRepos.filter((repo) => {
+        const mrs = mergeRequestsByRepoId.get(repo.id) ?? [];
+        const hasActiveMr = mrs.some((mr) => {
+          const state = mr.state?.toLowerCase();
+          return state !== 'merged' && state !== 'closed';
+        });
+        const branches = branchesByRepoId.get(repo.id) ?? [];
+        return hasActiveMr || branches.length > 0;
+      });
+    }
+    if (repoFilter === 'merged') {
+      return linkedRepos.filter((repo) => {
+        const mrs = mergeRequestsByRepoId.get(repo.id) ?? [];
+        const hasActiveMr = mrs.some((mr) => {
+          const state = mr.state?.toLowerCase();
+          return state !== 'merged' && state !== 'closed';
+        });
+        if (hasActiveMr) return false;
+        return mrs.some((mr) => mr.state?.toLowerCase() === 'merged');
+      });
+    }
+    return linkedRepos;
+  }, [linkedRepos, repoFilter, mergeRequestsByRepoId, branchesByRepoId]);
+
   if (!selectedId) {
     return (
       <EmptyHint
@@ -383,18 +471,6 @@ export function RequirementDetails({
   if (loadingDetail) {
     return <RequirementDetailsSkeleton embedded={embedded} />;
   }
-
-  const linkedRepos = repositories.filter((r) => effectiveRepoIds.includes(r.id));
-  const branchesByRepoId = new Map(
-    (trace?.repositories ?? []).map((repository) =>
-      [repository.repoId, repository.branches.map((branch) => branch.name)] as const,
-    ),
-  );
-  const mergeRequestsByRepoId = new Map(
-    (trace?.repositories ?? []).map((repository) =>
-      [repository.repoId, repository.mergeRequests] as const,
-    ),
-  );
 
   // 分支同步状态图数据：有模板规则的仓库（开发分支未匹配到时也出占位节点，与行内 BranchDivergenceCheck 同源）
   const syncDiagramRepos: BranchSyncRepo[] = isRequirement && iterationId
@@ -462,9 +538,7 @@ export function RequirementDetails({
       const watched = settings?.watchedRepos ?? [];
       const watchedSet = new Set(watched);
       const unlinked = repositories.filter((r) => !effectiveRepoIds.includes(r.id));
-      const descriptionText = typeof wi.description === 'string'
-        ? wi.description
-        : typeof wi.content === 'string' ? wi.content : '';
+      const descriptionText = richTextToPlain(wi.description ?? wi.content);
       const selectedRow = items.find((item) => item.workitemId === selectedId);
       // 共现只统计真正同迭代（sprint）的工作项；store.items 是全量已加载列表
       const iterationItems = selectedRow?.sprintId
@@ -525,7 +599,6 @@ export function RequirementDetails({
             || scoreOf(b.repoId) - scoreOf(a.repoId))
           .slice(0, 3),
       );
-      setIsLinkRepoModalOpen(true);
       if (res.length === 0) {
         setToast({ text: '未找到明显匹配的代码仓库，请手动选择关联', kind: 'info' });
       } else if (primarySufficient) {
@@ -806,6 +879,39 @@ export function RequirementDetails({
                 <span>{effectiveRepoIds.length} 个仓库</span>
               </button>
 
+              {/* 迭代基准 Chip */}
+              {iterationBranchValue && iterationBranchValue !== '—' && (
+                <div
+                  className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none font-mono"
+                  title={`迭代基准规则/模板：${iterationBranchValue}`}
+                >
+                  <GitBranchIcon className="size-3.5 text-muted-foreground shrink-0" />
+                  <OverflowTooltip text={iterationBranchValue} className="truncate" />
+                </div>
+              )}
+
+              {/* 更新时间 Chip */}
+              {updatedAt && (
+                <div
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-muted-foreground select-none font-mono"
+                  title={`最后更新时间：${String(updatedAt).replace('T', ' ')}`}
+                >
+                  <ClockIcon className="size-3.5 text-muted-foreground shrink-0" />
+                  <span>{String(updatedAt).slice(0, 16).replace('T', ' ')}</span>
+                </div>
+              )}
+
+              {/* 创建人 Chip（若与处理人不同） */}
+              {creatorName && creatorName !== assignedToName && (
+                <div
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-muted-foreground select-none"
+                  title={`创建人：${creatorName}`}
+                >
+                  <UserIcon className="size-3.5 text-muted-foreground shrink-0" />
+                  <span>创建: {creatorName}</span>
+                </div>
+              )}
+
               {/* 父需求 Chip */}
               {parent && (
                 <button
@@ -821,158 +927,6 @@ export function RequirementDetails({
                   <span className="truncate">{parent.identifier}</span>
                 </button>
               )}
-
-              {/* 全部属性 Popover（Linear 式属性检视器） */}
-              <Popover>
-                <PopoverTrigger
-                  render={(
-                    <button
-                      type="button"
-                      className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:border-border/80 hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      title="查看与管理全部属性"
-                    >
-                      <SlidersHorizontalIcon className="size-3.5 shrink-0" />
-                      <span>属性</span>
-                      <ChevronDownIcon className="size-3 text-muted-foreground/60 shrink-0" />
-                    </button>
-                  )}
-                />
-                <PopoverContent
-                  align="end"
-                  side="bottom"
-                  sideOffset={6}
-                  className="w-80 p-0 rounded-lg border border-border/80 bg-popover shadow-level-2 overflow-hidden"
-                >
-                  <div className="flex items-center justify-between border-b border-border/60 px-3.5 py-2.5 bg-muted/30">
-                    <div className="flex items-center gap-2">
-                      <SlidersHorizontalIcon className="size-3.5 text-primary" />
-                      <span className="text-xs font-medium text-foreground">全部属性</span>
-                    </div>
-                    {identifier && (
-                      <span className="font-mono text-[11px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
-                        {identifier}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-col p-2 gap-0.5">
-                    {/* 状态 */}
-                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
-                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
-                        <StatusIcon status={statusName} className="size-3.5 shrink-0" />
-                        <span>状态</span>
-                      </span>
-                      <DetailStatusPopover
-                        status={statusName}
-                        statusId={statusId}
-                        workitemId={selectedId ?? undefined}
-                        variant="cell"
-                      />
-                    </div>
-
-                    {/* 处理人 */}
-                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
-                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
-                        <UserIcon className="size-3.5 shrink-0" />
-                        <span>处理人</span>
-                      </span>
-                      <DetailAssigneePopover
-                        assignedToName={assignedToName}
-                        workitemId={selectedId}
-                        candidateAssignees={candidateAssignees}
-                        variant="cell"
-                      />
-                    </div>
-
-                    {/* 类型 */}
-                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
-                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
-                        <LayersIcon className="size-3.5 shrink-0" />
-                        <span>类型</span>
-                      </span>
-                      <span className="text-foreground font-medium">
-                        {category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}
-                      </span>
-                    </div>
-
-                    {/* 所属父需求 */}
-                    {parent && (
-                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
-                        <span className="flex items-center gap-2 text-muted-foreground shrink-0">
-                          <GitForkIcon className="size-3.5 shrink-0" />
-                          <span>所属父需求</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (onSelectParent) onSelectParent(parent.workitemId);
-                            else openWorkitem(parent.workitemId, parent);
-                          }}
-                          className="font-mono text-xs text-primary hover:underline cursor-pointer truncate max-w-44 text-right"
-                          title={`${parent.identifier} ${parent.subject || ''}`}
-                        >
-                          {parent.identifier}
-                        </button>
-                      </div>
-                    )}
-
-                    {/* 项目空间 */}
-                    {spaceName && (
-                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
-                        <span className="flex items-center gap-2 text-muted-foreground shrink-0">
-                          <FolderIcon className="size-3.5 shrink-0" />
-                          <span>项目空间</span>
-                        </span>
-                        <OverflowTooltip text={spaceName} className="text-foreground max-w-44 truncate text-right font-medium" />
-                      </div>
-                    )}
-
-                    {/* 所属迭代 */}
-                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
-                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
-                        <CalendarIcon className="size-3.5 shrink-0" />
-                        <span>所属迭代</span>
-                      </span>
-                      <OverflowTooltip text={iterationName || '未关联迭代'} className="text-foreground max-w-44 truncate text-right font-medium" />
-                    </div>
-
-                    {/* 关联仓库 */}
-                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
-                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
-                        <DatabaseIcon className="size-3.5 shrink-0" />
-                        <span>关联仓库</span>
-                      </span>
-                      <span className="text-foreground font-mono">{effectiveRepoIds.length} 个</span>
-                    </div>
-
-                    {/* 迭代基准 */}
-                    {iterationBranchValue && iterationBranchValue !== '—' && (
-                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
-                        <span className="flex items-center gap-2 text-muted-foreground shrink-0">
-                          <GitBranchIcon className="size-3.5 shrink-0" />
-                          <span>迭代基准</span>
-                        </span>
-                        <OverflowTooltip
-                          text={iterationBranchValue}
-                          className="font-mono text-foreground max-w-44 truncate text-right"
-                        />
-                      </div>
-                    )}
-
-                    {/* 更新时间 */}
-                    {updatedAt && (
-                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
-                        <span className="flex items-center gap-2 text-muted-foreground shrink-0">
-                          <ClockIcon className="size-3.5 shrink-0" />
-                          <span>更新时间</span>
-                        </span>
-                        <span className="font-mono text-foreground">
-                          {String(updatedAt).slice(0, 16).replace('T', ' ')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
             </div>
           )}
         />
@@ -1114,12 +1068,26 @@ export function RequirementDetails({
               count={`· ${effectiveRepoIds.length}`}
               action={(
                 <div className="flex items-center gap-1.5">
-                  {recommendingRepos && (
-                    <Loader2Icon
-                      className="size-3.5 animate-spin text-primary"
-                      aria-label="AI 推荐仓库中…"
-                    />
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={recommendingRepos}
+                    onClick={() => void handleRecommendRepos()}
+                    className="h-7 gap-1.5 text-xs text-primary hover:bg-primary/10 cursor-pointer"
+                    title="让 AI 依据需求文本与提交历史，智能推荐关联仓库"
+                  >
+                    {recommendingRepos ? (
+                      <>
+                        <Loader2Icon className="size-3.5 animate-spin" />
+                        <span>推荐中…</span>
+                      </>
+                    ) : (
+                      <>
+                        <SparklesIcon className="size-3.5" />
+                        <span>AI 推荐仓库</span>
+                      </>
+                    )}
+                  </Button>
                   <Tooltip>
                     <TooltipTrigger
                       render={(
@@ -1188,46 +1156,213 @@ export function RequirementDetails({
               onLinkRepo={handleLinkRepoFromModal}
             />
 
-            <div className="flex flex-col gap-3.5">
-              {linkedRepos.map((repo) => {
-                const rule = repoBranchRules[repo.id];
-                const baselineCheck = baselineChecks[repo.id];
-                return (
-                  <LinkedRepoCard
-                    key={repo.id}
-                    repo={repo}
-                    identifier={identifier}
-                    subject={subject}
-                    iterationId={iterationId}
-                    placeholderIteration={placeholderIteration}
-                    branchRule={rule}
-                    mergeRequests={mergeRequestsByRepoId.get(repo.id) ?? []}
-                    matchedBranches={branchesByRepoId.get(repo.id) ?? []}
-                    loadingBranches={traceLoading && !branchesByRepoId.has(repo.id)}
-                    traceAvailable={branchesByRepoId.has(repo.id)}
-                    templateId={selectedId ? settings?.workitemRepoBranchTemplates?.[selectedId]?.[String(repo.id)] : undefined}
-                    templates={fusedTemplates}
-                    templateEnabled={Boolean(isRequirement && iterationId)}
-                    baselineBranch={rule?.baselineBranch}
-                    baselineState={rule
-                      ? baselineCheck?.branch === rule.baselineBranch ? baselineCheck.state : 'loading'
-                      : undefined}
-                    refreshSignal={codeAreaRefreshSignal}
-                    onRetryBaseline={() => setBaselineRetry((value) => value + 1)}
-                    onTemplateChange={(templateId) => void saveRepoTemplate(repo.id, templateId)}
-                    onUnlinkRepo={effectiveRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}
-                  />
-                );
-              })}
-              {!linkedRepos.length && (
-                <EmptyHint
-                  icon={InboxIcon}
-                  title="未关联云效仓库"
-                  description="可在上方「关联仓库」选择后添加，或在设置中指定默认云效仓库"
-                  className="rounded-xl border border-dashed py-8"
-                />
-              )}
-            </div>
+            {/* 列表外框容器：参考 Ant Design / Linear 标准列表，卡片包裹 + 细线分割 */}
+            {linkedRepos.length > 0 ? (
+              <div className="flex flex-col gap-2.5">
+                {/* 状态分类 Filter Tabs（仓库 >= 2 时展示） */}
+                {linkedRepos.length >= 2 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="inline-flex items-center rounded-md bg-muted/60 p-0.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setRepoFilter('all')}
+                        className={cn(
+                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
+                          repoFilter === 'all'
+                            ? 'bg-background text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        全部 {linkedRepos.length}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRepoFilter('pending_merge')}
+                        className={cn(
+                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
+                          repoFilter === 'pending_merge'
+                            ? 'bg-background text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        待合入 {pendingMergeCount}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRepoFilter('active')}
+                        className={cn(
+                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
+                          repoFilter === 'active'
+                            ? 'bg-background text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        进行中 {activeCount}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRepoFilter('merged')}
+                        className={cn(
+                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
+                          repoFilter === 'merged'
+                            ? 'bg-background text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        已合入 {mergedCount}
+                      </button>
+                    </div>
+
+                    <span className="text-[11px] text-muted-foreground">
+                      共 {filteredLinkedRepos.length} 个仓库
+                    </span>
+                  </div>
+                )}
+
+                {/* 仓库列表容器 */}
+                <div className="flex flex-col gap-3">
+                  {filteredLinkedRepos.map((repo) => {
+                    const rule = repoBranchRules[repo.id];
+                    const baselineCheck = baselineChecks[repo.id];
+                    return (
+                      <LinkedRepoCard
+                        key={repo.id}
+                        repo={repo}
+                        identifier={identifier}
+                        subject={subject}
+                        iterationId={iterationId}
+                        placeholderIteration={placeholderIteration}
+                        branchRule={rule}
+                        mergeRequests={mergeRequestsByRepoId.get(repo.id) ?? []}
+                        matchedBranches={branchesByRepoId.get(repo.id) ?? []}
+                        loadingBranches={traceLoading && !branchesByRepoId.has(repo.id)}
+                        traceAvailable={branchesByRepoId.has(repo.id)}
+                        templateId={selectedId ? settings?.workitemRepoBranchTemplates?.[selectedId]?.[String(repo.id)] : undefined}
+                        templates={fusedTemplates}
+                        templateEnabled={Boolean(isRequirement && iterationId)}
+                        baselineBranch={rule?.baselineBranch}
+                        baselineState={rule
+                          ? baselineCheck?.branch === rule.baselineBranch ? baselineCheck.state : 'loading'
+                          : undefined}
+                        refreshSignal={codeAreaRefreshSignal}
+                        onRetryBaseline={() => setBaselineRetry((value) => value + 1)}
+                        onTemplateChange={(templateId) => void saveRepoTemplate(repo.id, templateId)}
+                        onUnlinkRepo={effectiveRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}
+                      />
+                    );
+                  })}
+                  {filteredLinkedRepos.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-border/70 bg-muted/10 py-8 text-center text-xs text-muted-foreground">
+                      当前筛选条件下暂无关联仓库
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <EmptyHint
+                icon={InboxIcon}
+                title="未关联云效仓库"
+                description="可在上方「关联仓库」选择后添加，或点击下方让 AI 智能分析推荐"
+                className="rounded-xl border border-dashed py-8"
+                action={(
+                  <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={recommendingRepos}
+                      onClick={() => void handleRecommendRepos()}
+                      className="text-xs gap-1.5 cursor-pointer text-primary border-primary/30 hover:bg-primary/10"
+                    >
+                      {recommendingRepos ? (
+                        <Loader2Icon className="size-3.5 animate-spin" />
+                      ) : (
+                        <SparklesIcon className="size-3.5" />
+                      )}
+                      <span>{recommendingRepos ? 'AI 正在智能分析推荐…' : 'AI 智能推荐关联仓库'}</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsLinkRepoModalOpen(true)}
+                      className="text-xs gap-1 cursor-pointer"
+                    >
+                      <PlusIcon className="size-3.5" />
+                      <span>手动选择仓库</span>
+                    </Button>
+                  </div>
+                )}
+              />
+            )}
+
+            {/* AI 推荐结果展示卡片区（直接在关联仓库正下方呈现） */}
+            {recommendedRepos.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-lg border border-primary/25 bg-primary/5 p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-primary flex items-center gap-1.5">
+                    <SparklesIcon className="size-3.5" />
+                    <span>AI 智能推荐的相关代码仓库 ({recommendedRepos.length})</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRecommendedRepos([])}
+                    className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                  >
+                    清空推荐
+                  </button>
+                </div>
+
+                <div className={cn('grid gap-2.5', embedded ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3')}>
+                  {recommendedRepos.map((rec) => {
+                    const targetRepo = repositories.find((r) => r.id === rec.repoId);
+                    const repoName = targetRepo?.name
+                      || (typeof rec.repoName === 'string' && rec.repoName.includes('/') ? rec.repoName.split('/').pop() : rec.repoName)
+                      || '未知仓库';
+                    const repoPath = targetRepo?.pathWithNamespace || rec.repoName;
+
+                    return (
+                      <div
+                        key={rec.repoId}
+                        className="flex flex-col justify-between gap-2.5 rounded-md border border-primary/20 bg-card p-3 transition-colors hover:border-primary/50 shadow-xs"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <GitBranchIcon className="size-3.5 shrink-0 text-primary" />
+                              <span className="font-semibold text-xs text-foreground truncate" title={repoName}>
+                                {repoName}
+                              </span>
+                            </div>
+                            {rec.confidence === 'high' && (
+                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded font-medium shrink-0">
+                                高置信
+                              </span>
+                            )}
+                          </div>
+                          {repoPath && repoPath !== repoName && (
+                            <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground" title={repoPath}>
+                              {repoPath}
+                            </span>
+                          )}
+                          <p className="mt-1.5 text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                            {rec.reason}
+                          </p>
+                        </div>
+                        <div className="flex justify-end pt-1.5 border-t border-border/40">
+                          <Button
+                            size="xs"
+                            disabled={savingRepos}
+                            onClick={() => void handleQuickLinkRepo(rec.repoId)}
+                            className="text-xs h-6 px-2.5 cursor-pointer"
+                          >
+                            直接关联
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* 分支同步状态图：折叠 */}
             <Collapsible defaultOpen={false} render={<div className="rounded-lg border border-border/70" />}>
@@ -1286,7 +1421,7 @@ export function RequirementDetails({
                   parentWorkitemId={selectedId ?? ''}
                   parentIdentifier={identifier}
                   parentSubject={subject}
-                  parentDescription={typeof wi.description === 'string' ? wi.description : typeof wi.content === 'string' ? wi.content : undefined}
+                  parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
                   parentAssigneeId={parentAssigneeId}
                   parentAssigneeName={assignedToName}
                   candidateAssignees={candidateAssignees}
@@ -1303,7 +1438,7 @@ export function RequirementDetails({
                   parentWorkitemId={selectedId ?? ''}
                   parentIdentifier={identifier}
                   parentSubject={subject}
-                  parentDescription={typeof wi.description === 'string' ? wi.description : typeof wi.content === 'string' ? wi.content : undefined}
+                  parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
                   parentAssigneeId={parentAssigneeId}
                   parentAssigneeName={assignedToName}
                   candidateAssignees={candidateAssignees}

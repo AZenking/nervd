@@ -1,6 +1,7 @@
 import * as api from '../lib/api';
 import type { TracePipelineRun } from '../lib/api';
 import { matchesWorkitem } from '../lib/link';
+import { richTextToPlain } from '../lib/richtext';
 import { workitemRepoIds } from '../lib/workitem-repos';
 import type { BranchInfo, Category, CommitSummary, MrSummary, Settings, TraceResult } from '../types';
 
@@ -83,7 +84,7 @@ export function mapMergeRequests(value: unknown, identifier: string, pattern: st
     const sourceBranch =
       asString(pick(request, 'sourceBranch')) || asString(pick(request, 'source_branch'));
     const description =
-      asString(pick(request, 'description')) || asString(pick(request, 'desc'));
+      richTextToPlain(pick(request, 'description') ?? pick(request, 'desc'));
 
     // 匹配规则：MR 标题匹配、源分支名匹配、或描述中提及该工作项
     const titleMatched = Boolean(

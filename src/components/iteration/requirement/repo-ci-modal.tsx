@@ -19,9 +19,10 @@ export interface RepoCiModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   repo: RepoSummary;
+  onSuccess?: (binding: RepoCiBinding | null) => void;
 }
 
-export function RepoCiModal({ open, onOpenChange, repo }: RepoCiModalProps) {
+export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModalProps) {
   const {
     settings,
     pipelines,
@@ -66,6 +67,7 @@ export function RepoCiModal({ open, onOpenChange, repo }: RepoCiModalProps) {
         kind: 'ok',
       });
       onOpenChange(false);
+      onSuccess?.(binding);
     } catch (err) {
       setToast({
         text: `保存 CI 关联失败：${humanizeError(err)}`,
@@ -82,6 +84,7 @@ export function RepoCiModal({ open, onOpenChange, repo }: RepoCiModalProps) {
       await saveRepoCiBinding(repo.id, null);
       setToast({ text: `已取消「${repo.name}」的 CI 关联`, kind: 'ok' });
       onOpenChange(false);
+      onSuccess?.(null);
     } catch (err) {
       setToast({ text: `取消 CI 关联失败：${humanizeError(err)}`, kind: 'fail' });
     } finally {

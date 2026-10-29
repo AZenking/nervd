@@ -14,7 +14,7 @@ import { useUi, type BuildWorkbenchTarget } from '@/store/ui';
 import type { CiRunSummary, RepoSummary } from '@/types';
 import { buildRunParameter, ciProviderLabel, ciStatusText } from '@/lib/ci';
 import { errorLog, humanizeError } from '@/lib/error-format';
-import { formatDuration } from '@/lib/format';
+import { formatCompactDateTime, formatDateTime, formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
@@ -96,11 +96,16 @@ function RunRow({
   return (
     <tr className="border-b border-border/50 last:border-0">
       <td className="px-3 py-3 align-top">
-        <div className="font-mono text-xs text-foreground">#{run.runId}</div>
+        <div className="font-mono text-xs text-foreground font-medium">#{run.runId}</div>
+        {run.startTime && (
+          <div className="mt-0.5 text-[11px] text-muted-foreground font-mono" title={`开始时间：${formatDateTime(run.startTime)}`}>
+            {formatCompactDateTime(run.startTime)}
+          </div>
+        )}
         {run.trigger && (
           <OverflowTooltip
             text={run.trigger}
-            className="mt-1 max-w-36 truncate text-[11px] text-muted-foreground"
+            className="mt-0.5 max-w-36 truncate text-[11px] text-muted-foreground"
           />
         )}
       </td>

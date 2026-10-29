@@ -15,7 +15,7 @@ import { useUi } from '@/store/ui';
 import { toast } from '@/components/ui/toast';
 import * as api from '@/lib/api';
 import { aiSummarizeComments, aiGenerateCommentDraft } from '@/lib/ai-api';
-import { markdownToHtml, sanitizeForYunxiao } from '@/lib/richtext';
+import { extractRichHtml, markdownToHtml, sanitizeForYunxiao } from '@/lib/richtext';
 import type { AiCommentSummary } from '@/types/ai';
 
 export interface RequirementActivityProps {
@@ -289,8 +289,7 @@ export function RequirementActivity({
                 ?? c.creator
                 ?? '—',
             );
-            const rawContent = String(c.content ?? '');
-            const richHtml = markdownToHtml(rawContent);
+            const richHtml = extractRichHtml(c.content) || markdownToHtml(String(c.content ?? ''));
 
             return (
               <article key={i} className="relative flex items-start gap-3">

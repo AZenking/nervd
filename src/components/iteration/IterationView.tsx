@@ -50,7 +50,7 @@ import { hasWorkspaceOverlay, isEditing } from '@/lib/workspace-actions';
 
 /** 每页渲染的分支行数：需求过多时全量渲染会卡，列表分页消化 */
 const PAGE_SIZE = 30;
-const ROW_PREVIEW_DELAY_MS = 220;
+const ROW_PREVIEW_DELAY_MS = 140;
 
 /** 工作项行类型：直接从 app store 的 items 元素推导，避免再引一层 lib/api */
 type WorkitemItem = ReturnType<typeof useApp.getState>['items'][number];
@@ -1048,8 +1048,11 @@ export function IterationView() {
         </aside>
 
         {/* 右侧 Detail 详情区 */}
-        <main data-testid="split-detail" className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden bg-background">
-          <div className="flex-1 min-h-0 overflow-y-auto">
+        <main
+          data-testid="split-detail"
+          className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden bg-background animate-detail-enter will-change-transform"
+        >
+          <div key={splitWorkitemId ?? 'empty'} className="flex-1 min-h-0 overflow-y-auto animate-content-fade">
             <RequirementDetails
               {...detailPaneProps}
               onClose={closeDetailPane}
@@ -1065,7 +1068,10 @@ export function IterationView() {
   // 单栏详情态（窄窗口 <760 且详情打开）：列表卸载，仅渲染全宽详情 + 顶部「返回列表」；
   // 筛选/分页/多选/光标/折叠均在 state/store 中自然保留，列表滚动位置经 savedListScrollTopRef 恢复。
   const singleColumnDetailView = (
-    <div className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden bg-background">
+    <div
+      key={splitWorkitemId ?? 'empty'}
+      className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden bg-background animate-detail-enter will-change-transform"
+    >
       <RequirementDetails
         {...detailPaneProps}
         onBackToList={closeDetailPane}

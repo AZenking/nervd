@@ -56,8 +56,8 @@ export function WorkitemPeekDrawer({
       }}
       swipeDirection="right"
     >
-      <DrawerContent className="w-[100vw] sm:w-[min(58rem,92vw)] data-[swipe-axis=x]:sm:[--drawer-content-width:min(58rem,92vw)] p-0">
-        <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
+      <DrawerContent className="w-[100vw] sm:w-[min(58rem,92vw)] data-[swipe-axis=x]:sm:[--drawer-content-width:min(58rem,92vw)] p-0 duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)]">
+        <div key={workitemId ?? 'empty'} className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto animate-content-fade">
           {workitemId && (
             <RequirementDetails
               embedded

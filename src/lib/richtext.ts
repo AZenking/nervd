@@ -57,7 +57,9 @@ function walkJsonML(node: unknown, out: string[]): void {
     out.push('\n');
     return;
   }
-  if ((tag === 'p' || tag === 'li' || tag.startsWith('h')) && out.length && !out[out.length - 1].endsWith('\n')) {
+  if ((tag === 'p' || tag.startsWith('h')) && out.length && !out[out.length - 1].endsWith('\n')) {
+    out.push('\n\n');
+  } else if (tag === 'li' && out.length && !out[out.length - 1].endsWith('\n')) {
     out.push('\n');
   }
   for (let i = start; i < node.length; i++) walkJsonML(node[i], out);
@@ -132,9 +134,17 @@ function resolveRichDoc(raw: unknown): RichDoc | null {
   let v = raw;
   if (typeof v === 'string') {
     const s = v.trim();
-    if (!s.startsWith('{') && !s.startsWith('["')) return null;
+    // 允许以 { 或 [" 或字符串包裹的 \" 开头
+    if (!s.startsWith('{') && !s.startsWith('["') && !s.startsWith('"')) return null;
     try {
       v = JSON.parse(s);
+      // 支持可能存在的双重 JSON 序列化（例如网关层二次编码或 JSON 字符串嵌套）
+      if (typeof v === 'string') {
+        const s2 = v.trim();
+        if (s2.startsWith('{') || s2.startsWith('["')) {
+          v = JSON.parse(s2);
+        }
+      }
     } catch {
       return null;
     }
@@ -199,23 +209,116 @@ export function extractRichImageUrls(raw: unknown): RichImage[] {
 }
 
 /**
+ * 若文本仅被单层 <p>...</p> 包裹，但内部包含多行换行且无其他块级元素，
+ * 则将其解包为普通多行文本，以便进入 markdownToHtml 的列表与段落精细解析。
+ */
+function unwrapSingleParagraph(str: string): string {
+  const trimmed = str.trim();
+  const m = trimmed.match(/^<p(?:\s+[^>]*)?>([\s\S]*)<\/p>$/i);
+  if (m) {
+    const inner = m[1];
+    // 仅当包含裸换行符且无其他块级元素时，说明是伪富文本包裹的多行文本，才解包进行精细排版
+    if (inner.includes('\n') && !/<(p|div|ul|ol|h[1-6]|table|blockquote|pre)\b/i.test(inner)) {
+      return inner;
+    }
+  }
+  return str;
+}
+
+/**
+ * 规范化已有 HTML 标签内的换行符：
+ * 避免浏览器在正常模式下将 <p> 或 <div> 内的原生 \n 折叠为空格，丢失用户输入的换行
+ */
+function normalizeHtmlNewlines(html: string): string {
+  const preBlocks: string[] = [];
+  const safe = html.replace(/<pre\b[^>]*>[\s\S]*?<\/pre>/gi, (m) => {
+    const idx = preBlocks.length;
+    preBlocks.push(m);
+    return `\u0000PREBLOCK_${idx}\u0000`;
+  });
+
+  const normalized = safe.replace(/<(p|div|li)(?:\s+[^>]*)?>([\s\S]*?)<\/\1>/gi, (match, tag, inner: string) => {
+    if (inner.includes('\n')) {
+      return `<${tag}>${inner.replace(/\r?\n/g, '<br/>')}</${tag}>`;
+    }
+    return match;
+  });
+
+  return normalized.replace(/\u0000PREBLOCK_(\d+)\u0000/g, (_, idx) => preBlocks[Number(idx)]);
+}
+
+/** JsonML 节点直接递归转换为语义化 HTML */
+export function jsonMLToHtml(node: unknown): string {
+  if (typeof node === 'string') {
+    return node;
+  }
+  if (!Array.isArray(node) || typeof node[0] !== 'string') return '';
+  const tag = node[0];
+  const attrs = isRecord(node[1]) ? node[1] : {};
+  const start = isRecord(node[1]) ? 2 : 1;
+  const children: string[] = [];
+  for (let i = start; i < node.length; i++) {
+    const c = jsonMLToHtml(node[i]);
+    if (c) children.push(c);
+  }
+  const inner = children.join('');
+
+  if (tag === 'root') return inner;
+  if (tag === 'p') {
+    return `<p>${inner.replace(/\r?\n/g, '<br/>')}</p>`;
+  }
+  if (tag === 'span') {
+    let res = inner;
+    if (attrs.bold) res = `<strong>${res}</strong>`;
+    if (attrs.italic) res = `<em>${res}</em>`;
+    if (attrs.code) res = `<code>${res}</code>`;
+    if (attrs.strikethrough) res = `<del>${res}</del>`;
+    return res;
+  }
+  if (tag === 'img') {
+    const src = typeof attrs.src === 'string' ? attrs.src : '';
+    const name = typeof attrs.name === 'string' ? attrs.name : '图片';
+    return `<img src="${src}" alt="${name}" />`;
+  }
+  if (tag === 'br') return '<br/>';
+  if (
+    ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code', 'strong', 'em', 'del', 'table', 'tr', 'td', 'th'].includes(tag)
+  ) {
+    return `<${tag}>${inner}</${tag}>`;
+  }
+  return inner;
+}
+
+/**
  * 将 Markdown 格式文本转换为标准 HTML（供 Tiptap 和富文本展示组件渲染）
  * 若传入文本已是结构化 HTML，直接返回原内容。
  */
 export function markdownToHtml(md: string): string {
   if (!md) return '';
-  const trimmed = md.trim();
-  // 已是 HTML 格式则直接透传
+  const unwrapped = unwrapSingleParagraph(md);
+  const trimmed = unwrapped.trim();
+
+  // 已是纯粹 HTML 格式且不包含裸换行，则直接透传
   if (
-    (trimmed.startsWith('<') && trimmed.endsWith('>')) ||
-    /<\/(p|div|span|h[1-6]|ul|ol|li|strong|em|code|pre|blockquote|table)>/i.test(trimmed)
+    ((trimmed.startsWith('<') && trimmed.endsWith('>')) ||
+      /<\/(p|div|span|h[1-6]|ul|ol|li|strong|em|code|pre|blockquote|table)>/i.test(trimmed)) &&
+    !trimmed.includes('\n')
   ) {
     return trimmed;
   }
 
+  // 若是包含多标签的结构化 HTML，规范化段落换行后返回
+  if (
+    trimmed.startsWith('<') &&
+    trimmed.endsWith('>') &&
+    /<(p|div|ul|ol|h[1-6]|table|blockquote)\b/i.test(trimmed)
+  ) {
+    return normalizeHtmlNewlines(trimmed);
+  }
+
   // 1. 保护代码块 ```...```
   const codeBlocks: string[] = [];
-  const text = md.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/gi, (_, _lang, code) => {
+  const text = trimmed.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/gi, (_, _lang, code) => {
     const idx = codeBlocks.length;
     const escaped = code.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     codeBlocks.push(`<pre><code>${escaped}</code></pre>`);
@@ -268,7 +371,12 @@ export function markdownToHtml(md: string): string {
       return `\u0000INLINECODE_${idx}\u0000`;
     });
 
-    // 2. 粗体 & 斜体 & 删除线
+    // 2. 关键研发追溯元数据高亮：分支/Commit/MR/PR (等宽字体展示，对齐 AGENTS.md 规范)
+    s = s.replace(/(?:^|\b)((?:分支|branch|仓库|repo|commit|mr|pr)[：:])\s*([!#]?[a-zA-Z0-9_\-./@]+)/gi, (_, label, val) => {
+      return `<strong>${label}</strong> <code>${val}</code>`;
+    });
+
+    // 3. 粗体 & 斜体 & 删除线
     s = s.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
@@ -276,10 +384,10 @@ export function markdownToHtml(md: string): string {
     s = s.replace(/_([^_]+)_/g, '<em>$1</em>');
     s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
 
-    // 3. 链接
+    // 4. 链接
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
-    // 4. 还原行内代码
+    // 5. 还原行内代码
     s = s.replace(/\u0000INLINECODE_(\d+)\u0000/g, (_, idx) => codes[Number(idx)]);
 
     return s;
@@ -328,8 +436,8 @@ export function markdownToHtml(md: string): string {
       flushQuote();
     }
 
-    // 无序列表 (- 或 *)
-    const ulMatch = line.match(/^[-*]\s+(.*)$/);
+    // 无序列表 (- 或 * 或 + 或 • 或 · 或 ◆ 或 ■)
+    const ulMatch = line.match(/^[-*+•·◆■]\s+(.*)$/);
     if (ulMatch) {
       flushParagraph();
       flushQuote();
@@ -342,8 +450,8 @@ export function markdownToHtml(md: string): string {
       continue;
     }
 
-    // 有序列表 (1. , 2. )
-    const olMatch = line.match(/^\d+\.\s+(.*)$/);
+    // 有序列表 (1. 或 1、或 1) 或 (1) 或 1． 或 一、)
+    const olMatch = line.match(/^(?:(?:\d+[.、．\)]|[(（]\d+[)）]|(?:[一二三四五六七八九十]+[、.]))\s*|\d+\.\s+)(.*)$/);
     if (olMatch) {
       flushParagraph();
       flushQuote();
@@ -353,6 +461,13 @@ export function markdownToHtml(md: string): string {
         htmlParts.push('<ol>');
       }
       htmlParts.push(`<li>${parseInline(olMatch[1])}</li>`);
+      continue;
+    }
+
+    // 小节/清单引言 (以中文冒号 ： 或英文冒号 : 结尾的简短行，如 "本次交付（流程配置部分，已验证通过）：")
+    if (/^[^：:\n]{2,30}[：:]$/.test(line)) {
+      flushAll();
+      htmlParts.push(`<p><strong>${parseInline(line)}</strong></p>`);
       continue;
     }
 
@@ -383,21 +498,54 @@ function isVisuallyEmptyHtml(html: string): boolean {
     .length === 0;
 }
 
-/** 描述字段（unknown）→ HTML 字符串（用于富文本编辑器渲染与回填）；视觉为空返回 '' */
+/**
+ * 描述字段（unknown）→ HTML 字符串（用于富文本编辑器渲染与回填）；视觉为空返回 ''
+ * 具备对云效富文本结构的深度容错：
+ * 1. 若 htmlValue 实际上是纯文本或仅有换行，自动升级为语义化 HTML（识别中英文列表、分支标签与小节引言）
+ * 2. 若 htmlValue 被外层单个 <p> 包裹但内部是多行文本，解包并按段落/列表精准解析
+ * 3. 若已有完整 HTML，对标签内裸换行规范化为 <br/>，杜绝浏览器坍塌为空格
+ * 4. 若无 htmlValue 但有 jsonMLValue，直接遍历 AST 输出标准 HTML
+ */
 export function extractRichHtml(raw: unknown): string {
   const doc = resolveRichDoc(raw);
-  if (doc?.htmlValue && typeof doc.htmlValue === 'string' && !isVisuallyEmptyHtml(doc.htmlValue)) {
-    return doc.htmlValue;
+  if (doc?.htmlValue && typeof doc.htmlValue === 'string') {
+    if (isVisuallyEmptyHtml(doc.htmlValue)) return '';
+
+    // 检测是否真包含 HTML 标签
+    const hasTags = /<[a-z][\s\S]*>/i.test(doc.htmlValue);
+    if (!hasTags) {
+      const html = markdownToHtml(doc.htmlValue);
+      return isVisuallyEmptyHtml(html) ? '' : html;
+    }
+
+    // 若是被单层 <p> 包裹但内部含多行换行的伪富文本，解包后重新排版
+    const unwrapped = unwrapSingleParagraph(doc.htmlValue);
+    if (unwrapped !== doc.htmlValue && !/<[a-z][\s\S]*>/i.test(unwrapped)) {
+      const html = markdownToHtml(unwrapped);
+      return isVisuallyEmptyHtml(html) ? '' : html;
+    }
+
+    // 已有真实 HTML 标签：规范化段落内的裸换行
+    const normalized = normalizeHtmlNewlines(doc.htmlValue);
+    return isVisuallyEmptyHtml(normalized) ? '' : normalized;
   }
+
+  if (doc?.jsonMLValue) {
+    const fromJson = jsonMLToHtml(parseJsonML(doc.jsonMLValue));
+    if (fromJson && !isVisuallyEmptyHtml(fromJson)) return fromJson;
+  }
+
   if (typeof raw === 'string') {
     const html = markdownToHtml(raw);
     return isVisuallyEmptyHtml(html) ? '' : html;
   }
+
   const plain = richTextToPlain(raw);
   if (plain) {
     const html = markdownToHtml(plain);
     return isVisuallyEmptyHtml(html) ? '' : html;
   }
+
   return '';
 }
 

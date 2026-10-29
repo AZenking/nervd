@@ -1,38 +1,47 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowRightIcon,
+  CheckCircle2Icon,
   CheckIcon,
-  ChevronDownIcon,
+  ChevronRightIcon,
   GitBranchIcon,
   GitForkIcon,
   GitPullRequestIcon,
+  HistoryIcon,
   InfoIcon,
-  MoreHorizontalIcon,
+  Loader2Icon,
   PlusIcon,
   RefreshCwIcon,
   Settings2Icon,
+  UnlinkIcon,
   WorkflowIcon,
+  XCircleIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { errorLog, humanizeError } from '@/lib/error-format';
-import { ciStatusText } from '@/lib/ci';
+import { ciStatusInfo, ciStatusText } from '@/lib/ci';
+import { formatDateTime, formatDuration, formatRelativeTime } from '@/lib/format';
 import { useApp } from '@/store/app';
 import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
 import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CopyButton } from '@/components/ui/copy-button';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { BuildWorkbenchTrigger, openBuildWorkbenchFromTrigger } from '@/components/build-workbench';
+import type { BuildWorkbenchTarget } from '@/store/ui';
 import { WriteOpButton } from '@/components/WriteOpButton';
 import { BranchDivergenceCheck, useBranchDivergence } from '../BranchDivergenceCheck';
-import { JenkinsBuildDialog } from '../JenkinsBuildDialog';
 import { CreateMrDialog } from './create-mr-dialog';
 import { RepoCiModal } from './repo-ci-modal';
 import { MrInlineItem } from './mr-inline-item';
@@ -40,6 +49,7 @@ import { IterationDevDivergence } from './iteration-dev-divergence';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import {
+  getMrStatusInfo,
   type IterationBaselineCheck,
   type ResolvedRepoBranchRule,
 } from './types';
@@ -74,6 +84,22 @@ export interface LinkedRepoCardProps {
 }
 
 /** 需求关联仓库的紧凑摘要；分支与交付细节默认收拢。 */
+const REPO_PALETTES = [
+  'from-indigo-500/20 to-purple-500/30 text-indigo-500 dark:text-indigo-400 border-indigo-500/20',
+  'from-sky-500/20 to-blue-500/30 text-sky-500 dark:text-sky-400 border-sky-500/20',
+  'from-amber-500/20 to-orange-500/30 text-amber-500 dark:text-amber-400 border-amber-500/20',
+  'from-emerald-500/20 to-teal-500/30 text-emerald-500 dark:text-emerald-400 border-emerald-500/20',
+  'from-rose-500/20 to-pink-500/30 text-rose-500 dark:text-rose-400 border-rose-500/20',
+];
+
+function getRepoPalette(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+  }
+  return REPO_PALETTES[Math.abs(hash) % REPO_PALETTES.length];
+}
+
 export function LinkedRepoCard({
   repo,
   identifier,
@@ -128,10 +154,10 @@ export function LinkedRepoCard({
   const [branchCreating, setBranchCreating] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [ciModalOpen, setCiModalOpen] = useState(false);
+  const [autoOpenWorkbenchOnBind, setAutoOpenWorkbenchOnBind] = useState(false);
   const [traceRefreshState, setTraceRefreshState] = useState<RepoTraceState | null>(null);
-  const [pendingFocus, setPendingFocus] = useState<'template' | 'build' | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<'template' | null>(null);
   const [pendingMrScrollId, setPendingMrScrollId] = useState<number | null>(null);
-  const buildActionRef = useRef<HTMLDivElement>(null);
 
   const divergence = useBranchDivergence(
     repo.id,
@@ -141,7 +167,6 @@ export function LinkedRepoCard({
   );
 
   const templateSelectId = 'repo-branch-template-' + repo.id;
-  const buildTarget = { kind: 'repo' as const, repoId: repo.id, title: repo.name };
 
   useEffect(() => {
     let active = true;
@@ -189,8 +214,6 @@ export function LinkedRepoCard({
     const frame = window.requestAnimationFrame(() => {
       if (pendingFocus === 'template') {
         document.getElementById(templateSelectId)?.focus();
-      } else {
-        buildActionRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
       }
       setPendingFocus(null);
     });
@@ -256,6 +279,19 @@ export function LinkedRepoCard({
     },
   });
 
+  const targetBranch = delivery.isAllMerged
+    ? (operationBaseBranch || 'master')
+    : developerBranchState === 'exists'
+      ? developerBranch
+      : (operationBaseBranch || 'master');
+
+  const buildTarget: BuildWorkbenchTarget = {
+    kind: 'repo',
+    repoId: repo.id,
+    title: repo.name,
+    defaultBranch: targetBranch,
+  };
+
   const extraMatchedBranches = matchedBranches.filter((branch) => branch !== developerBranch);
   const latestRun = latestCiRun(snapshot?.runs ?? []);
   const actualJenkinsBranch = snapshot?.provider === 'jenkins' && ciBinding?.provider === 'jenkins'
@@ -267,14 +303,22 @@ export function LinkedRepoCard({
       ? (actualJenkinsBranch ? '分支 ' + actualJenkinsBranch : '分支未记录')
       : undefined;
   const latestCiStatus = ciStatusText(latestRun?.status ?? snapshot?.status, null);
+  const runTimeSuffix = latestRun?.startTime
+    ? ` · ${formatDateTime(latestRun.startTime)}`
+    : '';
+  const runDurationSuffix = latestRun?.durationMs != null && latestRun.durationMs > 0
+    ? ` · 耗时 ${formatDuration(latestRun.durationMs)}`
+    : '';
   const ciSummary = entry?.error
     ? 'CI 查询失败' + (latestRun
-      ? ' · 上次 #' + latestRun.runId + ' · ' + (ciScope ?? '分支未记录') + ' · ' + latestCiStatus
+      ? ' · 上次 #' + latestRun.runId + ' · ' + (ciScope ?? '分支未记录') + ' · ' + latestCiStatus + runTimeSuffix + runDurationSuffix
       : '')
     : snapshot
       ? 'CI ' + (latestRun ? '#' + latestRun.runId : '暂无运行')
         + ' · ' + (ciScope ?? '分支未记录')
         + ' · ' + latestCiStatus
+        + runTimeSuffix
+        + runDurationSuffix
       : entry?.loading
         ? 'CI 查询中'
         : ciBinding
@@ -305,11 +349,6 @@ export function LinkedRepoCard({
 
   const handleConfigureRule = () => {
     setPendingFocus('template');
-    setDetailsOpen(true);
-  };
-
-  const handleRevealBuild = () => {
-    setPendingFocus('build');
     setDetailsOpen(true);
   };
 
@@ -464,28 +503,13 @@ export function LinkedRepoCard({
   };
 
   const renderBuildAction = () => {
-    if (ciBinding?.provider === 'flow') {
+    if (ciBinding) {
       return (
         <BuildWorkbenchTrigger
           target={buildTarget}
           label="发起构建"
-          title={'触发流水线 ' + ciBinding.pipelineName}
+          title={ciBinding.provider === 'flow' ? '触发流水线 ' + ciBinding.pipelineName : '为 ' + repo.name + ' 发起构建'}
           variant="outline"
-        />
-      );
-    }
-    if (ciBinding?.provider === 'jenkins') {
-      return (
-        <JenkinsBuildDialog
-          repoId={repo.id}
-          repoName={repo.name}
-          defaultBranch={delivery.isAllMerged
-            ? (operationBaseBranch || 'master')
-            : developerBranchState === 'exists'
-              ? developerBranch
-              : (operationBaseBranch || 'master')}
-          buttonLabel="发起构建"
-          buttonVariant="outline"
         />
       );
     }
@@ -494,7 +518,10 @@ export function LinkedRepoCard({
         type="button"
         size="sm"
         variant="outline"
-        onClick={() => setCiModalOpen(true)}
+        onClick={() => {
+          setAutoOpenWorkbenchOnBind(false);
+          setCiModalOpen(true);
+        }}
         className="h-7 text-xs gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
       >
         <PlusIcon className="size-3.5" />
@@ -547,11 +574,30 @@ export function LinkedRepoCard({
           </Button>
         );
       case 'build':
+        if (!ciBinding) {
+          return (
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              onClick={() => {
+                setAutoOpenWorkbenchOnBind(true);
+                setCiModalOpen(true);
+              }}
+              title="代码已合入，请关联 CI 流水线并准备发起构建"
+            >
+              <WorkflowIcon data-icon="inline-start" />
+              关联 CI 并构建
+            </Button>
+          );
+        }
         return (
-          <Button type="button" size="sm" variant="default" onClick={handleRevealBuild}>
-            <GitBranchIcon data-icon="inline-start" />
-            发起构建
-          </Button>
+          <BuildWorkbenchTrigger
+            target={buildTarget}
+            label="发起构建"
+            title={ciBinding.provider === 'flow' ? '触发流水线 ' + ciBinding.pipelineName : '为 ' + repo.name + ' 发起构建'}
+            variant="default"
+          />
         );
       case 'retry':
         return (
@@ -584,109 +630,453 @@ export function LinkedRepoCard({
     }
   };
 
+  const renderBranchStatusColumn = () => {
+    if (developerBranchState === 'loading' || traceState === 'loading') {
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2Icon className="size-3 animate-spin shrink-0 text-primary" />
+          <span className="truncate">查询分支…</span>
+        </div>
+      );
+    }
+    if (developerBranchState === 'missing') {
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="size-2 rounded-full bg-muted-foreground/60 shrink-0" />
+          <span className="truncate">未创建需求分支</span>
+        </div>
+      );
+    }
+    if (developerBranchState === 'error') {
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-destructive">
+          <span className="size-2 rounded-full bg-destructive shrink-0" />
+          <span className="truncate">分支查询失败</span>
+        </div>
+      );
+    }
+    if (divergence.check.status === 'ready') {
+      const devOnly = divergence.check.developmentOnly ?? 0;
+      const baseOnly = divergence.check.baselineOnly ?? 0;
+      if (devOnly > 0) {
+        return (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+            <span className="truncate">超前 {devOnly} 提交</span>
+            {baseOnly > 0 && (
+              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-normal truncate" title={`落后基准 ${baseOnly} 提交`}>
+                / 需合入 {baseOnly}
+              </span>
+            )}
+          </div>
+        );
+      }
+      if (baseOnly > 0) {
+        return (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+            <span className="size-2 rounded-full bg-amber-500 shrink-0" />
+            <span className="truncate">落后基准 {baseOnly} 提交</span>
+          </div>
+        );
+      }
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+          <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+          <span className="truncate">与基准已对齐</span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+        <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+        <span className="truncate">需求分支已就绪</span>
+      </div>
+    );
+  };
+
+  const renderMrStatusColumn = () => {
+    // 1. 存在进行中的合并请求 (Active MR)
+    if (targetActiveMr) {
+      const statusInfo = getMrStatusInfo(
+        targetActiveMr.state,
+        (targetActiveMr as { hasConflict?: boolean }).hasConflict,
+      );
+      return (
+        <button
+          type="button"
+          onClick={() => handleViewMr(targetActiveMr)}
+          className="group inline-flex items-center gap-1.5 text-xs text-left cursor-pointer transition-colors max-w-full"
+          title={`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label}`}
+        >
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20 group-hover:bg-primary/20 shrink-0">
+            !{targetActiveMr.localId}
+          </span>
+          <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium border shrink-0', statusInfo.badgeClass)}>
+            {statusInfo.label}
+          </span>
+        </button>
+      );
+    }
+
+    const devOnly = divergence.check.status === 'ready' ? (divergence.check.developmentOnly ?? 0) : 0;
+
+    // 2. 无活跃 MR，但存在未合入的提交（分支超前基准）
+    if (developerBranchState === 'exists' && devOnly > 0) {
+      return (
+        <div className="flex items-center gap-1.5 text-xs">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 shrink-0">
+            待合入 ({devOnly} 提交)
+          </span>
+          <button
+            type="button"
+            onClick={() => setCreateMrOpen(true)}
+            className="text-[11px] text-primary hover:underline cursor-pointer shrink-0"
+            title="代码已就绪，点击发起 MR 合入基准分支"
+          >
+            发起 MR
+          </button>
+        </div>
+      );
+    }
+
+    // 3. 历史 MR 已合入，且无未合入的新提交
+    const matchingMergedMr = historyMrs.find((mr) =>
+      mr.state?.toLowerCase() === 'merged'
+        && developerBranch
+        && mr.sourceBranch === developerBranch
+        && mr.targetBranch === operationBaseBranch,
+    );
+    if (matchingMergedMr) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleViewMr(matchingMergedMr)}
+          className="group inline-flex items-center gap-1.5 text-xs text-left cursor-pointer transition-colors max-w-full"
+          title={`历史合并请求 !${matchingMergedMr.localId} 已成功合入，点击查看详情`}
+        >
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 shrink-0">
+            !{matchingMergedMr.localId}
+          </span>
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+            已合入
+          </span>
+        </button>
+      );
+    }
+    if (hasMatchingMergedMr) {
+      return (
+        <div className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+            已合入
+          </span>
+        </div>
+      );
+    }
+
+    // 4. 分支已存在且与基准完全一致（暂无变动）
+    if (developerBranchState === 'exists') {
+      return (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground border border-border/40 shrink-0">
+            已对齐
+          </span>
+          <span className="text-[11px] text-muted-foreground truncate">暂无待合变动</span>
+        </div>
+      );
+    }
+
+    // 5. 需求分支尚未创建
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span>— 暂无 MR</span>
+      </div>
+    );
+  };
+
+  const renderCiStatusColumn = () => {
+    if (entry?.loading) {
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2Icon className="size-3 animate-spin shrink-0 text-primary" />
+          <span className="truncate">查询 CI…</span>
+        </div>
+      );
+    }
+    if (!ciBinding) {
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            setAutoOpenWorkbenchOnBind(false);
+            setCiModalOpen(true);
+          }}
+          className="group inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+          title="点击关联流水线"
+        >
+          <span>— 未关联 CI</span>
+          <PlusIcon className="size-3 opacity-60 group-hover:opacity-100" />
+        </button>
+      );
+    }
+    if (latestRun) {
+      const ciInfo = ciStatusInfo(latestRun.status);
+      const isSuccess = ciInfo.tone === 'ok';
+      const isFailed = ciInfo.tone === 'fail';
+      const isRunning = ciInfo.tone === 'run';
+
+      const providerLabel = snapshot?.provider === 'jenkins' ? 'Jenkins' : 'Flow';
+
+      const timeText = latestRun.startTime
+        ? formatRelativeTime(latestRun.startTime)
+        : '';
+      const durationText = latestRun.durationMs != null && latestRun.durationMs > 0
+        ? `耗时 ${formatDuration(latestRun.durationMs)}`
+        : '';
+
+      return (
+        <button
+          type="button"
+          onClick={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
+          className="group inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs cursor-pointer text-left max-w-full"
+          title={`${ciSummary}，点击查看构建记录`}
+        >
+          <div className="flex items-center gap-1 min-w-0 shrink-0">
+            {isSuccess && <CheckCircle2Icon className="size-3.5 text-emerald-500 shrink-0" />}
+            {isFailed && <XCircleIcon className="size-3.5 text-destructive shrink-0" />}
+            {isRunning && <Loader2Icon className="size-3.5 text-amber-500 animate-spin shrink-0" />}
+            {!isSuccess && !isFailed && !isRunning && <span className="size-2 rounded-full bg-muted-foreground shrink-0" />}
+
+            <span className="font-mono text-[11px] font-medium text-foreground/90 group-hover:text-primary shrink-0">
+              {providerLabel} #{latestRun.runId}
+            </span>
+            <span className={cn(
+              'text-[11px] font-medium shrink-0',
+              isSuccess && 'text-emerald-600 dark:text-emerald-400',
+              isFailed && 'text-destructive',
+              isRunning && 'text-amber-600 dark:text-amber-400',
+              !isSuccess && !isFailed && !isRunning && 'text-muted-foreground',
+            )}>
+              {ciInfo.label}
+            </span>
+          </div>
+
+          {(timeText || durationText) && (
+            <span className="inline-flex items-center gap-1 text-[10.5px] text-muted-foreground font-mono truncate">
+              {timeText && <span>· {timeText}</span>}
+              {durationText && <span>({durationText})</span>}
+            </span>
+          )}
+        </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => setCiModalOpen(true)}
+        className="text-xs text-muted-foreground hover:text-foreground cursor-pointer truncate"
+        title="该仓库暂无运行记录，点击查看配置"
+      >
+        暂无运行记录
+      </button>
+    );
+  };
+
+  const palette = getRepoPalette(repo.name);
+
   return (
-    <div className="flex flex-col gap-2.5 border-b border-border/60 py-3 last:border-b-0">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <GitBranchIcon className="size-4 shrink-0 text-primary" aria-hidden="true" />
-          <OverflowTooltip
-            text={repo.name}
-            className="max-w-64 min-w-0 truncate text-sm font-semibold tracking-tight text-foreground"
-          />
+    <article
+      data-testid={`linked-repo-card-${repo.id}`}
+      className={cn(
+        'group relative flex flex-col rounded-lg border border-border/80 bg-card shadow-2xs transition-all duration-150',
+        'hover:border-border hover:shadow-xs overflow-hidden',
+        detailsOpen && 'border-border ring-1 ring-border/50',
+      )}
+    >
+      {/* Tier 1: 仓库主行（图标、名称、命名空间、分支交付拓扑与操作） */}
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3.5">
+        {/* 左侧：展开折叠图标 + 仓库图标 + 仓库名称与分支拓扑 */}
+        <div className="flex min-w-[240px] flex-1 items-center gap-2.5">
+          {/* 左侧详情展开/收起图标按钮 */}
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((prev) => !prev)}
+            className={cn(
+              'flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-all hover:bg-muted hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+              detailsOpen && 'bg-muted/70 text-foreground',
+            )}
+            title={detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}
+            aria-label={detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}
+            aria-expanded={detailsOpen}
+          >
+            <ChevronRightIcon
+              className={cn(
+                'size-3.5 transition-transform duration-200',
+                detailsOpen && 'rotate-90 text-primary',
+              )}
+            />
+          </button>
+
+          <div
+            className={cn(
+              'flex size-9.5 shrink-0 items-center justify-center rounded-lg border bg-gradient-to-br shadow-xs',
+              palette,
+            )}
+            aria-hidden="true"
+          >
+            <GitBranchIcon className="size-4" />
+          </div>
+
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <OverflowTooltip
+                text={repo.name}
+                className="text-sm font-semibold tracking-tight text-foreground"
+              />
+              {repo.pathWithNamespace && (
+                <span
+                  className="truncate font-mono text-[11px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded border border-border/40 max-w-72"
+                  title={repo.pathWithNamespace}
+                >
+                  {repo.pathWithNamespace}
+                </span>
+              )}
+            </div>
+
+            {/* 分支拓扑示意 */}
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-[11px] text-muted-foreground shrink-0">交付分支:</span>
+              <div className="inline-flex min-w-0 items-center gap-1 rounded bg-muted/60 px-2 py-0.5 border border-border/40 font-mono text-[11px]">
+                <OverflowTooltip
+                  text={developerBranch || '未配置需求分支'}
+                  className={cn(
+                    'max-w-44 sm:max-w-64 truncate font-medium',
+                    developerBranchState === 'missing'
+                      ? 'text-amber-700 dark:text-amber-400 font-medium'
+                      : 'text-foreground/90 font-medium',
+                  )}
+                />
+                <ArrowRightIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <OverflowTooltip
+                  text={operationBaseBranch || '未配置目标基准'}
+                  className="max-w-44 sm:max-w-64 truncate font-medium text-primary"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        {/* 右侧动作列（主操作 + 更多下拉） */}
+        <div className="flex shrink-0 items-center gap-2">
           {renderPrimaryAction()}
+
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label="更多仓库操作" />}>
-              <MoreHorizontalIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={() => setDetailsOpen(true)}>
-                展开分支与交付详情
-              </DropdownMenuItem>
+            <DropdownMenuTrigger render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                aria-label="更多仓库操作"
+              >
+                <span>更多</span>
+              </Button>
+            } />
+            <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuItem onClick={() => void handleRefreshSingleRepo()} disabled={cardRefreshing}>
-                <RefreshCwIcon className={cn('mr-2 size-3.5', cardRefreshing && 'animate-spin')} />
-                刷新此仓库数据
+                <RefreshCwIcon className={cn('size-3.5', cardRefreshing && 'animate-spin')} />
+                <span>刷新数据</span>
               </DropdownMenuItem>
+              {ciBinding && (
+                <DropdownMenuItem
+                  onClick={() => openBuildWorkbenchFromTrigger(buildTarget, 'parameters')}
+                >
+                  <WorkflowIcon className="size-3.5" />
+                  <span>发起构建…</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
                 disabled={!snapshot?.runs.length}
               >
-                查看 CI 运行记录
+                <HistoryIcon className="size-3.5" />
+                <span>构建记录</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setCiModalOpen(true)}>
-                <WorkflowIcon className="mr-2 size-3.5" />
-                {ciBinding ? '修改关联的 CI 流水线…' : '关联 CI 流水线…'}
+              <DropdownMenuItem
+                onClick={() => {
+                  setAutoOpenWorkbenchOnBind(false);
+                  setCiModalOpen(true);
+                }}
+              >
+                <Settings2Icon className="size-3.5" />
+                <span>{ciBinding ? '修改流水线…' : '关联流水线…'}</span>
               </DropdownMenuItem>
               {developerBranch && (
                 <DropdownMenuItem onClick={() => setCreateMrOpen(true)}>
-                  <GitPullRequestIcon className="mr-2 size-3.5" />
-                  自定义创建 MR…
+                  <GitPullRequestIcon className="size-3.5" />
+                  <span>创建 MR…</span>
                 </DropdownMenuItem>
               )}
               {onUnlinkRepo && (
-                <DropdownMenuItem
-                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                  onClick={() => onUnlinkRepo(repo.id)}
-                >
-                  取消关联此仓库
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => onUnlinkRepo(repo.id)}
+                  >
+                    <UnlinkIcon className="size-3.5" />
+                    <span>取消关联</span>
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-xs">
-        <div className="flex min-w-0 max-w-full items-center gap-1 font-mono text-foreground/85">
-          <OverflowTooltip
-            text={developerBranch || '需求分支未配置'}
-            className="max-w-64 truncate"
-          />
-          <ArrowRightIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <OverflowTooltip
-            text={operationBaseBranch || '目标基准未配置'}
-            className="max-w-64 truncate text-primary/90"
-          />
+      {/* Tier 2: 交付状态与指标条 (Status Strip) */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-border/50 bg-muted/20 px-4 py-2.5 text-xs">
+        {/* 分支状态 */}
+        <div className="flex min-w-[130px] flex-1 items-center gap-2">
+          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">分支状态:</span>
+          <div className="min-w-0 flex-1">{renderBranchStatusColumn()}</div>
         </div>
-        <span
-          className={cn(
-            'min-w-0 truncate',
-            delivery.tone === 'success' && 'text-emerald-600 dark:text-emerald-400',
-            delivery.tone === 'warning' && 'text-amber-700 dark:text-amber-400',
-            delivery.tone === 'danger' && 'text-destructive',
-            delivery.tone === 'active' && 'text-primary',
-            delivery.tone === 'neutral' && 'text-muted-foreground',
-          )}
-          title={delivery.detail}
-        >
-          {delivery.conclusion}
-        </span>
-        <OverflowTooltip
-          text={ciSummary}
-          className="min-w-0 max-w-full truncate font-mono text-[11px] text-muted-foreground"
-        />
+
+        {/* 合并请求 (MR) */}
+        <div className="flex min-w-[140px] flex-1 items-center gap-2">
+          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">合并请求:</span>
+          <div className="min-w-0 flex-1">{renderMrStatusColumn()}</div>
+        </div>
+
+        {/* 最近构建 (CI) */}
+        <div className="flex min-w-[180px] flex-1 items-center gap-2">
+          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">最近构建:</span>
+          <div className="min-w-0 flex-1">{renderCiStatusColumn()}</div>
+        </div>
       </div>
 
+      {/* 下沉展开折叠面板 */}
       <Collapsible
         open={detailsOpen}
         onOpenChange={(open) => setDetailsOpen(open)}
         className="min-w-0"
       >
-        <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 rounded-sm py-1 pl-6 pr-1 text-left text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span>分支与交付详情</span>
-            <span className="truncate font-normal">
-              {activeMrs.length ? '· ' + activeMrs.length + ' 个进行中的 MR' : ''}
-              {historyMrs.length ? '· ' + historyMrs.length + ' 条历史 MR' : ''}
-            </span>
-          </span>
-          <ChevronDownIcon className="size-3.5 shrink-0 transition-transform group-data-panel-open/collapsible:rotate-180" aria-hidden="true" />
-        </CollapsibleTrigger>
-
-        <CollapsibleContent className="mt-2 min-w-0 border-t border-border/50 pt-3">
-          <div className="flex flex-col gap-3 pl-6">
+        <CollapsibleContent className="border-t border-border/50 bg-muted/20 px-4 py-3.5 transition-all">
+          <div className="flex flex-col gap-3">
+            {/* 展开面板顶栏 */}
+            <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
+              <span className="text-xs font-semibold text-foreground">
+                分支与交付详情 · {repo.name}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={() => setDetailsOpen(false)}
+              >
+                收起详情
+              </Button>
+            </div>
             {/* 分支元数据与规则网格 (2x2 Grid) */}
             <section className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2 text-xs" aria-label="分支与交付信息">
               {/* 需求分支 */}
@@ -899,7 +1289,10 @@ export function LinkedRepoCard({
                 {ciBinding ? (
                   <button
                     type="button"
-                    onClick={() => setCiModalOpen(true)}
+                    onClick={() => {
+                      setAutoOpenWorkbenchOnBind(false);
+                      setCiModalOpen(true);
+                    }}
                     className="group inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground hover:text-foreground cursor-pointer truncate max-w-48"
                     title="点击修改关联的 CI 流水线"
                   >
@@ -909,7 +1302,10 @@ export function LinkedRepoCard({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setCiModalOpen(true)}
+                    onClick={() => {
+                      setAutoOpenWorkbenchOnBind(false);
+                      setCiModalOpen(true);
+                    }}
                     className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer transition-colors"
                     title="该仓库尚未关联 CI，点击就地配置云效 Flow 或 Jenkins"
                   >
@@ -917,8 +1313,14 @@ export function LinkedRepoCard({
                     <span>未关联 CI · 点击配置</span>
                   </button>
                 )}
+                {latestRun?.startTime && (
+                  <span className="hidden sm:inline text-[11px] text-muted-foreground font-mono truncate max-w-64" title={`构建时间：${formatDateTime(latestRun.startTime)}`}>
+                    · 上次构建 {formatRelativeTime(latestRun.startTime)}
+                    {latestRun.durationMs != null && latestRun.durationMs > 0 ? ` (${formatDuration(latestRun.durationMs)})` : ''}
+                  </span>
+                )}
               </div>
-              <div ref={buildActionRef} className="flex shrink-0 items-center">
+              <div className="flex shrink-0 items-center">
                 {renderBuildAction()}
               </div>
             </section>
@@ -930,6 +1332,12 @@ export function LinkedRepoCard({
         open={ciModalOpen}
         onOpenChange={setCiModalOpen}
         repo={repo}
+        onSuccess={(saved) => {
+          if (saved && autoOpenWorkbenchOnBind) {
+            openBuildWorkbenchFromTrigger(buildTarget, 'parameters');
+            setAutoOpenWorkbenchOnBind(false);
+          }
+        }}
       />
 
       <CreateMrDialog
@@ -949,7 +1357,7 @@ export function LinkedRepoCard({
         }}
         onNavigateToMr={(localId) => handleViewMr({ localId })}
       />
-    </div>
+    </article>
   );
 }
 

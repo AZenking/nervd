@@ -26,6 +26,7 @@ import { WriteOpButton } from '@/components/WriteOpButton';
 import { useApp } from '@/store/app';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
+import { getMrStatusInfo } from './types';
 
 export interface MrInlineItemProps {
   mr: MrSummary;
@@ -65,6 +66,7 @@ export function MrInlineItem({
   const isMerged = mrState === 'merged';
   const isClosed = mrState === 'closed';
   const isOpen = !isMerged && !isClosed;
+  const statusInfo = getMrStatusInfo(mr.state, (mr as unknown as Record<string, unknown>).hasConflict as boolean | undefined);
 
   const totalAdditions = diffs.reduce((acc, f) => acc + f.additions, 0);
   const totalDeletions = diffs.reduce((acc, f) => acc + f.deletions, 0);
@@ -189,19 +191,11 @@ export function MrInlineItem({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {isMerged ? (
-            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-              <CheckIcon className="size-3" />已合并
-            </span>
-          ) : isClosed ? (
-            <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              已关闭
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-              <GitPullRequestIcon className="size-3" />进行中
-            </span>
-          )}
+          <span className={cn('inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border', statusInfo.badgeClass)}>
+            {statusInfo.tone === 'emerald' && <CheckIcon className="size-3" />}
+            {statusInfo.tone === 'amber' && <GitPullRequestIcon className="size-3" />}
+            {statusInfo.label}
+          </span>
           <ChevronDownIcon
             className={cn(
               'size-3.5 text-muted-foreground transition-transform duration-200',

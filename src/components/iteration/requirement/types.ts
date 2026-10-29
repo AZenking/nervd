@@ -81,6 +81,78 @@ export const STATUS_OPTIONS = [
   { name: '已关闭', label: '已关闭' },
 ] as const;
 
+export interface MrStatusInfo {
+  label: string;
+  tone: 'amber' | 'emerald' | 'sky' | 'rose' | 'muted';
+  badgeClass: string;
+}
+
+/**
+ * 统一归一化合并请求 (MR) 状态：
+ * - 待合入 (amber): opened / open / to_be_merged / reopened / approved
+ * - 审查中 (sky): under_review / reviewing / review
+ * - 有冲突 (rose): conflict / conflicted / hasConflict
+ * - 已合入 (emerald): merged
+ * - 已关闭 (muted): closed
+ */
+export function getMrStatusInfo(stateStr?: string, hasConflict?: boolean): MrStatusInfo {
+  const s = (stateStr ?? '').trim().toLowerCase();
+  if (hasConflict || s === 'conflict' || s === 'conflicted') {
+    return {
+      label: '有冲突',
+      tone: 'rose',
+      badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+    };
+  }
+  if (s === 'merged') {
+    return {
+      label: '已合入',
+      tone: 'emerald',
+      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    };
+  }
+  if (s === 'closed') {
+    return {
+      label: '已关闭',
+      tone: 'muted',
+      badgeClass: 'bg-muted text-muted-foreground border-border/40',
+    };
+  }
+  if (s === 'under_review' || s === 'reviewing' || s === 'review') {
+    return {
+      label: '审查中',
+      tone: 'sky',
+      badgeClass: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
+    };
+  }
+  if (s === 'approved') {
+    return {
+      label: '已通过·待合入',
+      tone: 'amber',
+      badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+    };
+  }
+  if (s === 'to_be_merged' || s === 'opened' || s === 'open' || s === 'reopened' || s === 'pending') {
+    return {
+      label: '待合入',
+      tone: 'amber',
+      badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+    };
+  }
+  if (s) {
+    return {
+      label: stateStr || '待合入',
+      tone: 'amber',
+      badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+    };
+  }
+  return {
+    label: '待合入',
+    tone: 'amber',
+    badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+  };
+}
+
 export interface RequirementDetailsProps {
   embedded?: boolean;
   parentWorkitem?: { workitemId: string; identifier: string; subject?: string } | null;

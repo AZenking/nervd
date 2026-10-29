@@ -14,12 +14,75 @@ export function ciProviderLabel(binding?: RepoCiBinding | null): string {
       : '未绑定 CI';
 }
 
-/** CI 状态展示值：快照缺失时按「加载中 / 查询失败 / —」兜底（全工程统一口径，含查询失败分支） */
+export type CiStatusTone = 'ok' | 'run' | 'fail' | 'idle';
+
+export interface CiStatusInfo {
+  label: string;
+  tone: CiStatusTone;
+}
+
+/**
+ * CI / 流水线构建运行状态规范枚举字典
+ * 覆盖 Jenkins（building, success, failure, aborted, unstable 等）
+ * 以及阿里云效 Flow（RUNNING, SUCCESS, FAIL, CANCELED, WAITING 等）
+ */
+export const CI_STATUS_MAP: Record<string, CiStatusInfo> = {
+  // 运行 / 排队态 (tone: 'run')
+  RUNNING: { label: '运行中', tone: 'run' },
+  IN_PROGRESS: { label: '运行中', tone: 'run' },
+  BUILDING: { label: '构建中', tone: 'run' },
+  WAITING: { label: '等待中', tone: 'run' },
+  PENDING: { label: '等待中', tone: 'run' },
+  QUEUED: { label: '排队中', tone: 'run' },
+
+  // 成功态 (tone: 'ok')
+  SUCCESS: { label: '成功', tone: 'ok' },
+  FINISH: { label: '成功', tone: 'ok' },
+  PASSED: { label: '成功', tone: 'ok' },
+
+  // 失败 / 异常态 (tone: 'fail')
+  FAIL: { label: '失败', tone: 'fail' },
+  FAILURE: { label: '失败', tone: 'fail' },
+  FAILED: { label: '失败', tone: 'fail' },
+  ERROR: { label: '失败', tone: 'fail' },
+  UNSTABLE: { label: '不稳定', tone: 'fail' },
+  TIMEOUT: { label: '超时', tone: 'fail' },
+
+  // 中止 / 取消 / 空闲态 (tone: 'idle')
+  CANCELED: { label: '已取消', tone: 'idle' },
+  CANCELLED: { label: '已取消', tone: 'idle' },
+  ABORTED: { label: '已中止', tone: 'idle' },
+  PAUSED: { label: '已暂停', tone: 'idle' },
+  SKIPPED: { label: '已跳过', tone: 'idle' },
+  TERMINATED: { label: '已终止', tone: 'idle' },
+  NOT_BUILT: { label: '未构建', tone: 'idle' },
+  OTHER: { label: '其他', tone: 'idle' },
+};
+
+/**
+ * 解析 CI 状态元数据（语义分组与中文名）
+ */
+export function ciStatusInfo(status?: string | null): CiStatusInfo {
+  const raw = (status ?? '').trim();
+  if (!raw || raw === '—') return { label: '—', tone: 'idle' };
+  const matched = CI_STATUS_MAP[raw.toUpperCase()];
+  if (matched) return matched;
+  // 中文关键词兜底（失败/成功优先判定，避免「构建失败」被「构建」误判为运行态）
+  if (/失败|错误|阻塞|异常|不稳定|超时/.test(raw)) return { label: raw, tone: 'fail' };
+  if (/完成|成功|通过/.test(raw)) return { label: raw, tone: 'ok' };
+  if (/进行|运行|处理中|构建|开启|加载|排队|等待/.test(raw)) return { label: raw, tone: 'run' };
+  return { label: raw, tone: 'idle' };
+}
+
+/** CI 状态展示值：转为中文枚举（RUNNING → 运行中，SUCCESS → 成功等），缺失时按「加载中 / 查询失败 / —」兜底（全工程统一口径） */
 export function ciStatusText(
   status: string | null | undefined,
   entry?: { loading?: boolean; error?: string | null } | null,
 ): string {
-  return status ?? (entry?.loading ? '加载中' : entry?.error ? '查询失败' : '—');
+  if (entry?.loading) return '加载中';
+  if (entry?.error) return '查询失败';
+  const info = ciStatusInfo(status);
+  return info.label;
 }
 
 /** Jenkins 参数名推断：分支类（branch/branchname/gitref/scmref 等） */

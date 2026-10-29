@@ -19,13 +19,14 @@ import { StatusBadge, connectionStatus } from './StatusBadge';
 import { StatusIcon } from './status-icon';
 import { OverflowTooltip } from './overflow-tooltip';
 import { WorkitemPeekDrawer } from './workitem-peek-drawer';
+import { ciStatusInfo } from '@/lib/ci';
 
 /** 运行状态归一：与 StatusBadge 同一套语义分组 */
 const runGroup = (status?: string): RunStatus => {
-  const s = (status ?? '').toUpperCase();
-  if (s === 'RUNNING' || s === 'WAITING') return 'RUNNING';
-  if (s === 'SUCCESS') return 'SUCCESS';
-  if (s === 'FAIL' || s === 'CANCELED') return 'FAIL';
+  const tone = ciStatusInfo(status).tone;
+  if (tone === 'run') return 'RUNNING';
+  if (tone === 'ok') return 'SUCCESS';
+  if (tone === 'fail') return 'FAIL';
   return 'OTHER';
 };
 

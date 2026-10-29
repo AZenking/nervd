@@ -82,7 +82,7 @@ describe('RepoCiBindingFields', () => {
     expect(host.textContent).toContain('流水线包含完整仓库标识');
   });
 
-  it('绑定为 Jenkins 时展示实例选择与 Job 路径输入框', async () => {
+  it('绑定为 Jenkins 时展示实例选择与 Job 下拉选择框', async () => {
     const onChange = vi.fn();
     const binding: RepoCiBinding = {
       provider: 'jenkins',
@@ -104,8 +104,8 @@ describe('RepoCiBindingFields', () => {
 
     expect(host.textContent).toContain('Jenkins 实例');
     expect(host.textContent).toContain('Job 全路径');
-    const input = host.querySelector<HTMLInputElement>('input[aria-label="Jenkins Job 全路径"]');
-    expect(input).not.toBeNull();
-    expect(input?.value).toBe('frontend/nervd');
+    const trigger = host.querySelector('[aria-label="Jenkins Job 全路径"]');
+    expect(trigger).not.toBeNull();
+    expect(host.textContent).toContain('frontend/nervd');
   });
 });
