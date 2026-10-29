@@ -74,7 +74,8 @@ export function RichEditor({
     editorProps: {
       attributes: {
         class: cn(
-          'outline-none focus:outline-none min-h-[4rem] text-sm leading-relaxed text-foreground/90 selection:bg-primary/20',
+          'outline-none focus:outline-none text-sm leading-relaxed text-foreground/90 selection:bg-primary/20',
+          editable ? 'min-h-[4rem]' : 'min-h-0',
           '[&_p]:mb-2 [&_p:last-child]:mb-0',
           '[&_h1]:text-lg [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-foreground',
           '[&_h2]:text-base [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h2]:text-foreground',
@@ -90,15 +91,18 @@ export function RichEditor({
         ),
       },
       handleKeyDown: (_, event) => {
+        if (event.isComposing) return false;
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
           if (onSubmit) {
             event.preventDefault();
+            event.stopPropagation();
             onSubmit();
             return true;
           }
         }
         if (event.key === 'Escape' && onCancel) {
           event.preventDefault();
+          event.stopPropagation();
           onCancel();
           return true;
         }

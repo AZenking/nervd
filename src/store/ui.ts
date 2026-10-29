@@ -5,7 +5,7 @@
 // 设置页互切/离开时若设置草稿有未保存修改，则拦截为 pendingView 由 Shell 弹确认（UX A1）。
 import { flushSync } from 'react-dom';
 import { create } from 'zustand';
-import type { IterationSummary } from '../types';
+import type { Category, IterationSummary } from '../types';
 import { useApp } from './app';
 import { useSettingsDraft } from './settings-draft';
 
@@ -101,6 +101,28 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
 
 export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings' | 'schedules' | 'local-tasks';
 export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security' | 'ai' | 'about';
+export type IterationViewTab = 'workitems' | 'repos' | 'branches';
+
+/** 迭代列表的可恢复交互上下文，由 IterationView 同步当前本地状态。 */
+export interface IterationListContext {
+  pageIndex: number;
+  cursorWorkitemId: string | null;
+  collapsedStatuses: string[];
+  selectedWorkitemIds: string[];
+  splitWorkitemId: string | null;
+  splitParentWorkitemId: string | null;
+  viewTab: IterationViewTab;
+}
+
+const DEFAULT_ITERATION_LIST_CONTEXT: IterationListContext = {
+  pageIndex: 1,
+  cursorWorkitemId: null,
+  collapsedStatuses: [],
+  selectedWorkitemIds: [],
+  splitWorkitemId: null,
+  splitParentWorkitemId: null,
+  viewTab: 'workitems',
+};
 
 /** 主题偏好模式：跟随系统 / 深色 / 浅色 */
 export type ThemeMode = 'system' | 'dark' | 'light';
@@ -144,44 +166,176 @@ export interface WorkitemCrumb {
   subject?: string;
 }
 
-/** 导航历史快照（后退恢复用）——含搜索词与滚动位置，完整还原工作现场 */
+/** 导航历史快照——包含返回/前进及应用重启所需的可恢复上下文。 */
 interface NavSnapshot {
   view: WorkspaceView;
   settingsSection: SettingsSection;
   iterationKey: string;
+  category: Category;
+  filters: WorkitemFilters;
   selectedId: string | null;
   chain: WorkitemCrumb[];
   listSearch: string;
+  listContext: IterationListContext;
   scrollTop: number;
 }
 
 const HISTORY_LIMIT = 30;
+const NAVIGATION_STORAGE_KEY = 'nervd-navigation';
+const NAVIGATION_STORAGE_VERSION = 1;
 const isSettingsView = (v: WorkspaceView) => v === 'full-settings';
+
+interface PersistedNavigation {
+  version: typeof NAVIGATION_STORAGE_VERSION;
+  current: NavSnapshot;
+  history: NavSnapshot[];
+  forwardHistory: NavSnapshot[];
+}
+
+export type NavigationRecordParseResult =
+  | { status: 'missing' }
+  | { status: 'invalid' }
+  | { status: 'valid'; value: PersistedNavigation };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0;
+const isNullableId = (value: unknown): value is string | null =>
+  value === null || isNonEmptyString(value);
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string');
+const SETTINGS_SECTIONS: SettingsSection[] = ['connection', 'trace', 'ci', 'security', 'ai', 'about'];
+const WORKSPACE_VIEWS: WorkspaceView[] = [
+  'iteration', 'requirement', 'integration', 'overview', 'recents', 'full-settings', 'schedules', 'local-tasks',
+];
+const ITERATION_VIEW_TABS: IterationViewTab[] = ['workitems', 'repos', 'branches'];
+const CATEGORIES: Category[] = ['Req', 'Bug', 'Task'];
+
+function parseFilters(value: unknown): WorkitemFilters | null {
+  if (!isRecord(value) || !isStringArray(value.assignees) || !isStringArray(value.related) || !isStringArray(value.statuses)) {
+    return null;
+  }
+  return {
+    assignees: [...value.assignees],
+    related: [...value.related],
+    statuses: [...value.statuses],
+  };
+}
+
+function parseListContext(value: unknown): IterationListContext | null {
+  if (!isRecord(value)) return null;
+  if (!Number.isInteger(value.pageIndex) || (value.pageIndex as number) < 1) return null;
+  if (!isNullableId(value.cursorWorkitemId) || !isStringArray(value.collapsedStatuses)) return null;
+  if (!isStringArray(value.selectedWorkitemIds)) return null;
+  if (!isNullableId(value.splitWorkitemId) || !isNullableId(value.splitParentWorkitemId)) return null;
+  if (!ITERATION_VIEW_TABS.includes(value.viewTab as IterationViewTab)) return null;
+  return {
+    pageIndex: value.pageIndex as number,
+    cursorWorkitemId: value.cursorWorkitemId,
+    collapsedStatuses: [...new Set(value.collapsedStatuses)],
+    selectedWorkitemIds: [...new Set(value.selectedWorkitemIds)],
+    splitWorkitemId: value.splitWorkitemId,
+    splitParentWorkitemId: value.splitParentWorkitemId,
+    viewTab: value.viewTab as IterationViewTab,
+  };
+}
+
+function parseSnapshot(value: unknown): NavSnapshot | null {
+  if (!isRecord(value)) return null;
+  if (!WORKSPACE_VIEWS.includes(value.view as WorkspaceView)) return null;
+  if (!SETTINGS_SECTIONS.includes(value.settingsSection as SettingsSection)) return null;
+  if (!isNonEmptyString(value.iterationKey) || !isNullableId(value.selectedId)) return null;
+  if (!CATEGORIES.includes(value.category as Category)) return null;
+  if (!Array.isArray(value.chain) || !value.chain.every((item) =>
+    isRecord(item) && isNonEmptyString(item.workitemId) && isNonEmptyString(item.identifier) &&
+    (item.subject === undefined || typeof item.subject === 'string'),
+  )) return null;
+  if (!Array.isArray(value.chain) || value.chain.length > 50 || typeof value.listSearch !== 'string') return null;
+  if (typeof value.scrollTop !== 'number' || !Number.isFinite(value.scrollTop) || value.scrollTop < 0) return null;
+  const filters = parseFilters(value.filters);
+  const listContext = parseListContext(value.listContext);
+  if (!filters || !listContext) return null;
+  return {
+    view: value.view as WorkspaceView,
+    settingsSection: value.settingsSection as SettingsSection,
+    iterationKey: value.iterationKey,
+    category: value.category as Category,
+    filters,
+    selectedId: value.selectedId,
+    chain: value.chain.map((item) => ({
+      workitemId: item.workitemId as string,
+      identifier: item.identifier as string,
+      ...(typeof item.subject === 'string' ? { subject: item.subject } : {}),
+    })),
+    listSearch: value.listSearch,
+    listContext,
+    scrollTop: value.scrollTop,
+  };
+}
+
+/** 校验已持久化导航记录；数据 ID 不与当前尚未加载的远端列表比对。 */
+export function parseNavigationRecord(serialized: string | null): NavigationRecordParseResult {
+  if (serialized === null) return { status: 'missing' };
+  try {
+    const value: unknown = JSON.parse(serialized);
+    if (!isRecord(value) || value.version !== NAVIGATION_STORAGE_VERSION) return { status: 'invalid' };
+    const current = parseSnapshot(value.current);
+    if (!current || !Array.isArray(value.history) || !Array.isArray(value.forwardHistory)) return { status: 'invalid' };
+    if (value.history.length > HISTORY_LIMIT || value.forwardHistory.length > HISTORY_LIMIT) return { status: 'invalid' };
+    const history = value.history.map(parseSnapshot);
+    const forwardHistory = value.forwardHistory.map(parseSnapshot);
+    if (history.some((snapshot) => snapshot === null) || forwardHistory.some((snapshot) => snapshot === null)) {
+      return { status: 'invalid' };
+    }
+    return {
+      status: 'valid',
+      value: {
+        version: NAVIGATION_STORAGE_VERSION,
+        current,
+        history: history as NavSnapshot[],
+        forwardHistory: forwardHistory as NavSnapshot[],
+      },
+    };
+  } catch {
+    return { status: 'invalid' };
+  }
+}
 
 interface UiStore {
   view: WorkspaceView;
   settingsSection: SettingsSection;
   iterationKey: string;
   filters: WorkitemFilters;
+  /** 迭代列表恢复上下文；IterationView 通过 updateListContext 同步本地交互状态。 */
+  listContext: IterationListContext;
+  updateListContext(patch: Partial<IterationListContext>): void;
   /** 迭代页工作项搜索词（入导航快照，后退可恢复） */
   listSearch: string;
   setListSearch(value: string): void;
-  /** 导航历史（后退用） */
+  /** 导航后退栈 */
   history: NavSnapshot[];
+  /** 导航前进栈 */
+  forwardHistory: NavSnapshot[];
   /** 待恢复的工作区滚动位置（Shell 应用后清空） */
   restoreScroll: number | null;
+  /** App 完成 booting 后调用；从本地记录恢复详情数据，并且每个运行实例只执行一次。 */
+  restoreNavigation(): Promise<void>;
   /** 需求详情的层级链（末位 = 当前详情）；从子任务进入时为 [父, 子] */
   chain: WorkitemCrumb[];
   setView(view: WorkspaceView): void;
   setSettingsSection(section: SettingsSection): void;
   openSettings(section?: SettingsSection): void;
   setIteration(key: string): void;
+  setIterationKey(key: string): void;
   toggleFilter(kind: keyof WorkitemFilters, value: string): void;
   clearFilters(): void;
   /** 打开工作项详情：记录历史与层级链（parent 传入时形成 父 › 子 面包屑） */
   openWorkitem(workitemId: string, crumb: WorkitemCrumb, parent?: WorkitemCrumb): void;
   /** 后退一步（⌘←）；无历史时不动 */
-  back(): void;
+  back(): Promise<void>;
+  /** 前进一步（⌘]）；无前进记录时不动 */
+  forward(): Promise<void>;
   /** ⌘K 命令面板开关（Linear 式全局入口：导航 / 迭代 / 工作项 / 操作） */
   commandOpen: boolean;
   setCommandOpen(open: boolean): void;
@@ -211,8 +365,110 @@ interface UiStore {
   closeBuildWorkbench(): void;
 }
 
+function cloneFilters(filters: WorkitemFilters): WorkitemFilters {
+  return {
+    assignees: [...filters.assignees],
+    related: [...filters.related],
+    statuses: [...filters.statuses],
+  };
+}
+
+function cloneListContext(context: IterationListContext): IterationListContext {
+  return {
+    ...context,
+    collapsedStatuses: [...context.collapsedStatuses],
+    selectedWorkitemIds: [...context.selectedWorkitemIds],
+  };
+}
+
+function normalizeListContext(context: IterationListContext): IterationListContext {
+  return {
+    pageIndex: Number.isInteger(context.pageIndex) && context.pageIndex >= 1 ? context.pageIndex : 1,
+    cursorWorkitemId: isNonEmptyString(context.cursorWorkitemId) ? context.cursorWorkitemId : null,
+    collapsedStatuses: [...new Set(context.collapsedStatuses.filter(isNonEmptyString))],
+    selectedWorkitemIds: [...new Set(context.selectedWorkitemIds.filter(isNonEmptyString))],
+    splitWorkitemId: isNonEmptyString(context.splitWorkitemId) ? context.splitWorkitemId : null,
+    splitParentWorkitemId: isNonEmptyString(context.splitParentWorkitemId) ? context.splitParentWorkitemId : null,
+    viewTab: ITERATION_VIEW_TABS.includes(context.viewTab) ? context.viewTab : 'workitems',
+  };
+}
+
+function workspaceScrollTop(): number {
+  if (typeof document === 'undefined') return 0;
+  const value = document.querySelector<HTMLElement>('.workspace-scroll')?.scrollTop ?? 0;
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function captureSnapshot(state: UiStore, scrollTop = workspaceScrollTop()): NavSnapshot {
+  return {
+    view: state.view,
+    settingsSection: state.settingsSection,
+    iterationKey: state.iterationKey,
+    category: useApp.getState().category,
+    filters: cloneFilters(state.filters),
+    selectedId: useApp.getState().selectedId,
+    chain: state.chain.map((crumb) => ({ ...crumb })),
+    listSearch: state.listSearch,
+    listContext: cloneListContext(state.listContext),
+    scrollTop,
+  };
+}
+
+function copySnapshot(snapshot: NavSnapshot): NavSnapshot {
+  return {
+    ...snapshot,
+    filters: cloneFilters(snapshot.filters),
+    chain: snapshot.chain.map((crumb) => ({ ...crumb })),
+    listContext: cloneListContext(snapshot.listContext),
+  };
+}
+
+function readStoredNavigation(): NavigationRecordParseResult {
+  try {
+    if (typeof localStorage === 'undefined') return { status: 'missing' };
+    return parseNavigationRecord(localStorage.getItem(NAVIGATION_STORAGE_KEY));
+  } catch {
+    // 存储不可用时继续以本次运行的内存导航工作。
+    return { status: 'missing' };
+  }
+}
+
+function persistNavigation(state: UiStore, currentScrollTop?: number): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const record: PersistedNavigation = {
+      version: NAVIGATION_STORAGE_VERSION,
+      current: captureSnapshot(state, currentScrollTop ?? workspaceScrollTop()),
+      history: state.history.map(copySnapshot),
+      forwardHistory: state.forwardHistory.map(copySnapshot),
+    };
+    localStorage.setItem(NAVIGATION_STORAGE_KEY, JSON.stringify(record));
+  } catch {
+    // 配额 / 隐私模式限制不能中断前台导航。
+  }
+}
+
+const storedNavigationAtStartup = readStoredNavigation();
+const defaultNavigationSnapshot: NavSnapshot = {
+  view: 'overview',
+  settingsSection: 'connection',
+  iterationKey: PLACEHOLDER_ITERATIONS[0].name,
+  category: 'Req',
+  filters: { assignees: [], related: [], statuses: [] },
+  selectedId: null,
+  chain: [],
+  listSearch: '',
+  listContext: cloneListContext(DEFAULT_ITERATION_LIST_CONTEXT),
+  scrollTop: 0,
+};
+const startupSnapshot = storedNavigationAtStartup.status === 'valid'
+  ? storedNavigationAtStartup.value.current
+  : storedNavigationAtStartup.status === 'invalid'
+    ? { ...defaultNavigationSnapshot, view: 'overview' as const }
+    : defaultNavigationSnapshot;
+
 /** 离开设置视图且草稿有未保存修改：无校验错误则静默保存放行，有阻断错误则弹窗确认 */
-function guardSettingsDraft(current: WorkspaceView, next: WorkspaceView | 'back'): boolean {
+function guardSettingsDraft(current: WorkspaceView, next: WorkspaceView | 'back' | 'forward'): boolean {
   if (!isSettingsView(current)) return false;
   const draft = useSettingsDraft.getState();
   if (!draft.isDirty()) return false;
@@ -227,31 +483,67 @@ function guardSettingsDraft(current: WorkspaceView, next: WorkspaceView | 'back'
 }
 
 export const useUi = create<UiStore>((set, get) => {
-  /** 把"当前状态"压入历史（在状态变更前调用）；捕获搜索词与工作区滚动位置 */
-  const pushHistory = () => {
-    const st = get();
-    const snapshot: NavSnapshot = {
-      view: st.view,
-      settingsSection: st.settingsSection,
-      iterationKey: st.iterationKey,
-      selectedId: useApp.getState().selectedId,
-      chain: st.chain,
-      listSearch: st.listSearch,
-      scrollTop: document.querySelector<HTMLElement>('.workspace-scroll')?.scrollTop ?? 0,
-    };
-    set({ history: [...st.history.slice(-(HISTORY_LIMIT - 1)), snapshot] });
+  let startupRestoreComplete = false;
+  let startupRestorePromise: Promise<void> | null = null;
+  const pushHistory = (state: UiStore) => [
+    ...state.history,
+    captureSnapshot(state),
+  ].slice(-HISTORY_LIMIT);
+  const persistCurrent = (scrollTop?: number) => persistNavigation(get(), scrollTop);
+  const restoreSnapshot = async (snapshot: NavSnapshot) => {
+    const restored = copySnapshot(snapshot);
+    set({
+      view: restored.view,
+      settingsSection: restored.settingsSection,
+      iterationKey: restored.iterationKey,
+      filters: restored.filters,
+      chain: restored.chain,
+      listSearch: restored.listSearch,
+      listContext: restored.listContext,
+      restoreScroll: restored.scrollTop,
+    });
+    let app = useApp.getState();
+    if (app.category !== restored.category) {
+      await app.setCategory(restored.category);
+      app = useApp.getState();
+    }
+    const targetId = restored.view === 'requirement'
+      ? restored.chain[restored.chain.length - 1]?.workitemId ?? restored.selectedId
+      : restored.view === 'iteration'
+        ? restored.listContext.splitWorkitemId ?? null
+        : null;
+    if (targetId && (app.selectedId !== targetId || !app.detail)) {
+      await app.select(targetId);
+    } else if (!targetId && app.selectedId !== restored.selectedId) {
+      useApp.setState({ selectedId: restored.selectedId });
+    }
   };
 
   return {
-    view: 'iteration',
-    settingsSection: 'connection',
-    iterationKey: PLACEHOLDER_ITERATIONS[0].name,
-    filters: { assignees: [], related: [], statuses: [] },
-    listSearch: '',
-    setListSearch: (value) => set({ listSearch: value }),
-    history: [],
-    restoreScroll: null,
-    chain: [],
+    view: startupSnapshot.view,
+    settingsSection: startupSnapshot.settingsSection,
+    iterationKey: startupSnapshot.iterationKey,
+    filters: cloneFilters(startupSnapshot.filters),
+    listContext: cloneListContext(startupSnapshot.listContext),
+    updateListContext: (patch) => {
+      const current = get().listContext;
+      const next = normalizeListContext({ ...current, ...patch });
+      set({ listContext: next });
+      persistCurrent();
+    },
+    listSearch: startupSnapshot.listSearch,
+    setListSearch: (value) => {
+      set({ listSearch: value });
+      persistCurrent();
+    },
+    history: storedNavigationAtStartup.status === 'valid'
+      ? storedNavigationAtStartup.value.history.map(copySnapshot)
+      : [],
+    forwardHistory: storedNavigationAtStartup.status === 'valid'
+      ? storedNavigationAtStartup.value.forwardHistory.map(copySnapshot)
+      : [],
+    restoreScroll: storedNavigationAtStartup.status === 'valid' ? startupSnapshot.scrollTop : null,
+    chain: startupSnapshot.chain.map((crumb) => ({ ...crumb })),
     commandOpen: false,
     setCommandOpen: (commandOpen) => set({ commandOpen }),
     toggleCommandMenu: () => set((st) => ({ commandOpen: !st.commandOpen })),
@@ -399,68 +691,174 @@ export const useUi = create<UiStore>((set, get) => {
       const st = get();
       if (view === st.view) return;
       if (guardSettingsDraft(st.view, view)) return;
-      pushHistory();
-      set({ view });
+      set({ view, history: pushHistory(st), forwardHistory: [], restoreScroll: null });
+      persistCurrent();
     },
-    setSettingsSection: (settingsSection) => set({ settingsSection }),
+    setSettingsSection: (settingsSection) => {
+      set({ settingsSection });
+      persistCurrent();
+    },
     openSettings: (settingsSection = 'connection') => {
       const st = get();
       if (isSettingsView(st.view)) {
         set({ settingsSection });
+        persistCurrent();
         return;
       }
-      pushHistory();
-      set({ view: 'full-settings', settingsSection });
+      set({
+        view: 'full-settings',
+        settingsSection,
+        history: pushHistory(st),
+        forwardHistory: [],
+        restoreScroll: null,
+      });
+      persistCurrent();
     },
     setIteration: (iterationKey) => {
       const st = get();
       if (iterationKey === st.iterationKey && st.view === 'iteration') return;
       if (guardSettingsDraft(st.view, 'iteration')) return;
-      pushHistory();
-      set({ iterationKey, view: 'iteration' });
+      set({
+        iterationKey,
+        view: 'iteration',
+        history: pushHistory(st),
+        forwardHistory: [],
+        restoreScroll: null,
+      });
+      persistCurrent();
     },
-    toggleFilter: (kind, value) =>
+    setIterationKey: (iterationKey) => {
+      set({ iterationKey });
+      persistCurrent();
+    },
+    toggleFilter: (kind, value) => {
       set((st) => {
         const values = st.filters[kind];
         const next = values.includes(value)
           ? values.filter((v) => v !== value)
           : [...values, value];
         return { filters: { ...st.filters, [kind]: next } };
-      }),
-    clearFilters: () => set({ filters: { assignees: [], related: [], statuses: [] } }),
+      });
+      persistCurrent();
+    },
+    clearFilters: () => {
+      set({ filters: { assignees: [], related: [], statuses: [] } });
+      persistCurrent();
+    },
     openWorkitem: (workitemId, crumb, parent) => {
       const st = get();
       const blocked = guardSettingsDraft(st.view, 'requirement');
-      // 选择与层级链先落地（只读操作）；被拦截时确认后将 setView 到详情
-      if (!blocked) pushHistory();
-      set({ chain: parent ? [parent, crumb] : [crumb] });
+      const chain = parent ? [parent, crumb] : [crumb];
+      // 选择与层级链先落地（只读操作）；被拦截时确认后将 setView 到详情。
+      set(blocked
+        ? { chain }
+        : {
+            chain,
+            view: 'requirement',
+            history: pushHistory(st),
+            forwardHistory: [],
+            restoreScroll: null,
+          });
       void useApp.getState().select(workitemId);
-      if (!blocked) set({ view: 'requirement' });
+      persistCurrent();
     },
-    back: () => {
+    back: async () => {
       const st = get();
       if (guardSettingsDraft(st.view, 'back')) return;
       const prev = st.history[st.history.length - 1];
       if (!prev) return;
       set({
         history: st.history.slice(0, -1),
-        view: prev.view,
-        settingsSection: prev.settingsSection,
-        iterationKey: prev.iterationKey,
-        chain: prev.chain,
-        // 恢复搜索词与滚动位置（Shell 应用 restoreScroll 后清空）
-        listSearch: prev.listSearch,
-        restoreScroll: prev.scrollTop,
+        forwardHistory: [...st.forwardHistory, captureSnapshot(st)].slice(-HISTORY_LIMIT),
       });
-      if (prev.view === 'requirement') {
-        const target = prev.chain[prev.chain.length - 1];
-        if (target && target.workitemId !== useApp.getState().selectedId) {
-          void useApp.getState().select(target.workitemId);
+      await restoreSnapshot(prev);
+      persistCurrent(prev.scrollTop);
+    },
+    forward: async () => {
+      const st = get();
+      if (guardSettingsDraft(st.view, 'forward')) return;
+      const next = st.forwardHistory[st.forwardHistory.length - 1];
+      if (!next) return;
+      set({
+        history: [...st.history, captureSnapshot(st)].slice(-HISTORY_LIMIT),
+        forwardHistory: st.forwardHistory.slice(0, -1),
+      });
+      await restoreSnapshot(next);
+      persistCurrent(next.scrollTop);
+    },
+    restoreNavigation: () => {
+      if (startupRestoreComplete || useApp.getState().booting) return Promise.resolve();
+      if (startupRestorePromise) return startupRestorePromise;
+      const restore = async () => {
+        const stored = readStoredNavigation();
+        if (stored.status === 'valid') {
+          set({
+            history: stored.value.history.map(copySnapshot),
+            forwardHistory: stored.value.forwardHistory.map(copySnapshot),
+          });
+          await restoreSnapshot(stored.value.current);
+          persistCurrent(stored.value.current.scrollTop);
+          startupRestoreComplete = true;
+          return;
         }
-      }
+
+        const fallback = { ...defaultNavigationSnapshot, view: 'overview' as const };
+        set({
+          view: fallback.view,
+          settingsSection: fallback.settingsSection,
+          iterationKey: fallback.iterationKey,
+          chain: [],
+          filters: cloneFilters(fallback.filters),
+          listSearch: '',
+          listContext: cloneListContext(DEFAULT_ITERATION_LIST_CONTEXT),
+          history: [],
+          forwardHistory: [],
+          restoreScroll: null,
+        });
+        const app = useApp.getState();
+        if (app.category !== fallback.category) await app.setCategory(fallback.category);
+        useApp.setState({ selectedId: null });
+        persistCurrent(0);
+        startupRestoreComplete = true;
+      };
+      startupRestorePromise = restore().catch((error: unknown) => {
+        startupRestorePromise = null;
+        throw error;
+      });
+      return startupRestorePromise;
     },
   };
 });
+
+/** App booting 完成后调用；恢复导航并在需要时加载已打开的需求详情。 */
+export function restoreNavigation(): Promise<void> {
+  return useUi.getState().restoreNavigation();
+}
+
+let scrollPersistTimer: ReturnType<typeof setTimeout> | null = null;
+const flushNavigationScroll = () => {
+  if (scrollPersistTimer) {
+    clearTimeout(scrollPersistTimer);
+    scrollPersistTimer = null;
+  }
+  persistNavigation(useUi.getState());
+};
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('scroll', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains('workspace-scroll')) return;
+    if (scrollPersistTimer) clearTimeout(scrollPersistTimer);
+    scrollPersistTimer = setTimeout(() => {
+      scrollPersistTimer = null;
+      persistNavigation(useUi.getState());
+    }, 150);
+  }, true);
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushNavigationScroll);
+  window.addEventListener('beforeunload', flushNavigationScroll);
+}
 
 /**
  * 初始化系统明暗外观监听器：

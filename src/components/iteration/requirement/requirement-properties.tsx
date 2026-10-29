@@ -1,5 +1,5 @@
 import {
-  CalendarIcon, ClockIcon, DatabaseIcon, FolderIcon, GitBranchIcon, LayersIcon, UserIcon, CheckIcon,
+  CalendarIcon, ClockIcon, DatabaseIcon, FolderIcon, GitBranchIcon, LayersIcon, UserIcon, CheckIcon, ChevronDownIcon,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CATEGORY_LABELS, type Category } from '@/types';
@@ -8,6 +8,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { useUi } from '@/store/ui';
 import { StatusIcon } from '@/components/status-icon';
 import { SearchableAssigneePopover } from './assignee-popover';
@@ -19,11 +20,13 @@ export function DetailStatusPopover({
   statusId,
   workitemId,
   variant = 'badge',
+  className,
 }: {
   status: string;
   statusId?: string;
   workitemId?: string;
   variant?: 'badge' | 'cell';
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const { statuses, loadingStatuses, fetchStatuses, changeStatus } = useWorkitemWorkflowStatuses({
@@ -40,13 +43,17 @@ export function DetailStatusPopover({
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         className={cn(
-          'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer rounded-sm hover:bg-muted/80 text-foreground',
-          variant === 'badge' ? 'border border-border/70 bg-background px-2 py-0.5 text-xs font-medium' : 'px-1.5 py-0.5 text-xs font-medium',
+          'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none',
+          variant === 'badge'
+            ? 'h-7 rounded-md border border-border/60 bg-muted/20 hover:bg-muted/60 hover:border-border/80 px-2.5 text-xs font-medium'
+            : 'rounded-sm hover:bg-muted/80 px-1.5 py-0.5 text-xs font-medium',
+          className,
         )}
         title="点击原地流转状态"
       >
-        <StatusIcon status={status} className="size-3.5" />
+        <StatusIcon status={status} className="size-3.5 shrink-0" />
         <span>{status || '未知状态'}</span>
+        {variant === 'badge' && <ChevronDownIcon className="size-3 text-muted-foreground/60 shrink-0 ml-0.5" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-36 p-1 z-50 bg-popover/95 backdrop-blur-md border border-border shadow-level-2">
         <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -79,11 +86,13 @@ export function DetailAssigneePopover({
   workitemId,
   candidateAssignees,
   variant = 'cell',
+  className,
 }: {
   assignedToName: string;
   workitemId?: string | null;
   candidateAssignees?: { id: string; name: string; role?: string }[];
   variant?: 'badge' | 'cell';
+  className?: string;
 }) {
   return (
     <SearchableAssigneePopover
@@ -93,6 +102,7 @@ export function DetailAssigneePopover({
       variant={variant}
       checkWriteOps
       align="start"
+      className={className}
     />
   );
 }
@@ -203,7 +213,10 @@ export function RequirementProperties({
                   }}
                   className="font-mono text-xs text-primary hover:underline cursor-pointer text-left truncate"
                 >
-                  {parent.identifier} {parent.subject}
+                  <OverflowTooltip
+                    text={`${parent.identifier} ${parent.subject}`}
+                    className="min-w-0 truncate font-mono text-xs text-primary"
+                  />
                 </button>
               ),
             }] : []),

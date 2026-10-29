@@ -25,6 +25,8 @@ import { toast } from '@/components/ui/toast';
 import { WriteOpButton } from '@/components/WriteOpButton';
 import { useApp } from '@/store/app';
 import { cn } from '@/lib/utils';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
+import { getMrStatusInfo } from './types';
 
 export interface MrInlineItemProps {
   mr: MrSummary;
@@ -64,6 +66,7 @@ export function MrInlineItem({
   const isMerged = mrState === 'merged';
   const isClosed = mrState === 'closed';
   const isOpen = !isMerged && !isClosed;
+  const statusInfo = getMrStatusInfo(mr.state, (mr as unknown as Record<string, unknown>).hasConflict as boolean | undefined);
 
   const totalAdditions = diffs.reduce((acc, f) => acc + f.additions, 0);
   const totalDeletions = diffs.reduce((acc, f) => acc + f.deletions, 0);
@@ -181,28 +184,18 @@ export function MrInlineItem({
           <span className="font-mono font-bold text-primary shrink-0">
             !{mr.localId}
           </span>
-          <span
-            className="truncate font-medium text-foreground hover:text-primary transition-colors"
-            title={mr.title}
-          >
-            {mr.title}
-          </span>
+          <OverflowTooltip
+            text={mr.title}
+            className="min-w-0 truncate font-medium text-foreground hover:text-primary transition-colors"
+          />
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {isMerged ? (
-            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-              <CheckIcon className="size-3" />已合并
-            </span>
-          ) : isClosed ? (
-            <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              已关闭
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-              <GitPullRequestIcon className="size-3" />进行中
-            </span>
-          )}
+          <span className={cn('inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border', statusInfo.badgeClass)}>
+            {statusInfo.tone === 'emerald' && <CheckIcon className="size-3" />}
+            {statusInfo.tone === 'amber' && <GitPullRequestIcon className="size-3" />}
+            {statusInfo.label}
+          </span>
           <ChevronDownIcon
             className={cn(
               'size-3.5 text-muted-foreground transition-transform duration-200',
@@ -219,13 +212,15 @@ export function MrInlineItem({
           <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/30 bg-background/70 px-2 py-1.5 text-[11px] font-mono">
             <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
               <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
-              <span className="truncate text-foreground font-semibold" title={mr.sourceBranch}>
-                {mr.sourceBranch}
-              </span>
+              <OverflowTooltip
+                text={mr.sourceBranch}
+                className="min-w-0 truncate text-foreground font-semibold"
+              />
               <ArrowRightIcon className="size-3 text-muted-foreground shrink-0" />
-              <span className="truncate text-primary font-semibold" title={mr.targetBranch}>
-                {mr.targetBranch}
-              </span>
+              <OverflowTooltip
+                text={mr.targetBranch}
+                className="min-w-0 truncate text-primary font-semibold"
+              />
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {mr.author?.name && (
@@ -302,9 +297,7 @@ export function MrInlineItem({
                   <div key={c.id || i} className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <code className="font-mono text-muted-foreground shrink-0">{c.shortId}</code>
-                      <span className="truncate text-foreground" title={c.title}>
-                        {c.title}
-                      </span>
+                      <OverflowTooltip text={c.title} className="min-w-0 truncate text-foreground" />
                     </div>
                     {c.authorName && (
                       <span className="text-[10px] text-muted-foreground shrink-0">{c.authorName}</span>

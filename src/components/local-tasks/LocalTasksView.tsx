@@ -10,7 +10,8 @@ import {
   Trash2Icon,
   XCircleIcon,
 } from 'lucide-react';
-import { PageHeader, STICKY_PAGE_HEADER_CLASS } from '@/components/page-header';
+import { PageHeader } from '@/components/page-header';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,7 @@ import { LocalTaskDrawer } from './LocalTaskDrawer';
 import type { LocalTask, LocalTaskStatus } from '@/types/local-task';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/format';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 /** 状态元数据 */
 const STATUS_CONFIG: Record<
@@ -100,9 +102,10 @@ export function LocalTasksView() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 顶部吸顶页头：支持原生窗口拖拽与状态过滤 */}
+      {/* 统一吸顶页头：状态分类 Tabs 与搜索并入 toolbar 槽（页头吸顶固定，正文独立滚动） */}
       <PageHeader
-        className={STICKY_PAGE_HEADER_CLASS}
+        sticky
+        navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="本地任务"
         titleBadge={
           <Badge variant="outline" className="font-mono text-xs border-primary/30 text-primary bg-primary/5">
@@ -110,58 +113,56 @@ export function LocalTasksView() {
           </Badge>
         }
         description="与云效迭代完全解耦的个人轻量工作台，基于 SQLite 持久化并联动 Codeup 仓库与分支"
-        actions={
-          <div className="flex items-center gap-2">
-            <div className="relative flex items-center">
-              <SearchIcon className="absolute left-2.5 size-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索任务、分支、仓库..."
-                className="pl-8 h-8 w-48 sm:w-64 text-xs font-mono"
-              />
+        toolbar={
+          <div className="flex w-full flex-wrap items-center justify-between gap-3">
+            <Tabs value={tabFilter} onValueChange={(v) => setTabFilter(v as 'all' | LocalTaskStatus)}>
+              <TabsList size="lg">
+                <TabsTrigger value="all" className="gap-1.5">
+                  <span>全部</span>
+                  <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                    {totalCount}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="in_progress" className="gap-1.5">
+                  <span>进行中</span>
+                  <span className="rounded-full bg-amber-500/15 text-amber-500 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                    {tasks.filter((t) => t.status === 'in_progress').length}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="todo" className="gap-1.5">
+                  <span>待办</span>
+                  <span className="rounded-full bg-slate-500/15 text-slate-400 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                    {tasks.filter((t) => t.status === 'todo').length}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="done" className="gap-1.5">
+                  <span>已完成</span>
+                  <span className="rounded-full bg-emerald-500/15 text-emerald-500 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                    {doneCount}
+                  </span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground font-mono hidden sm:inline">
+                快捷键 g t · 单手极速流转
+              </span>
+              <div className="relative flex items-center">
+                <SearchIcon className="absolute left-2.5 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="搜索任务、分支、仓库..."
+                  className="pl-8 h-8 w-48 sm:w-64 text-xs font-mono"
+                />
+              </div>
             </div>
           </div>
         }
       />
 
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        {/* 状态分类切换 Tabs */}
-        <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
-          <Tabs value={tabFilter} onValueChange={(v) => setTabFilter(v as 'all' | LocalTaskStatus)}>
-            <TabsList className="h-8 bg-muted/60 p-0.5">
-              <TabsTrigger value="all" className="px-3 py-1 text-xs gap-1.5">
-                <span>全部</span>
-                <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                  {totalCount}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="in_progress" className="px-3 py-1 text-xs gap-1.5">
-                <span>进行中</span>
-                <span className="rounded-full bg-amber-500/15 text-amber-500 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                  {tasks.filter((t) => t.status === 'in_progress').length}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="todo" className="px-3 py-1 text-xs gap-1.5">
-                <span>待办</span>
-                <span className="rounded-full bg-slate-500/15 text-slate-400 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                  {tasks.filter((t) => t.status === 'todo').length}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="done" className="px-3 py-1 text-xs gap-1.5">
-                <span>已完成</span>
-                <span className="rounded-full bg-emerald-500/15 text-emerald-500 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                  {doneCount}
-                </span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <span className="text-xs text-muted-foreground font-mono hidden sm:inline">
-            快捷键 g t · 单手极速流转
-          </span>
-        </div>
-
         {/* 快速行内创建输入行 */}
         <form onSubmit={handleQuickCreate} className="flex items-center gap-2 rounded-lg border border-border/80 bg-muted/30 px-3 py-1.5 shadow-xs transition-colors focus-within:border-primary/60 focus-within:bg-background">
           <PlusIcon className="size-4 text-muted-foreground shrink-0" />
@@ -235,14 +236,13 @@ export function LocalTasksView() {
                           </button>
 
                           {/* 任务标题 */}
-                          <span
+                          <OverflowTooltip
+                            text={task.title}
                             className={cn(
                               'flex-1 truncate text-xs font-medium',
                               task.status === 'done' && 'text-muted-foreground line-through',
                             )}
-                          >
-                            {task.title}
-                          </span>
+                          />
 
                           {/* 关联 Codeup 分支与仓库芯片（支持多仓库） */}
                           {(() => {
@@ -265,13 +265,20 @@ export function LocalTasksView() {
                                     title={`${first.repoName} -> ${first.branchName}`}
                                   >
                                     <GitBranchIcon className="size-3 text-primary" />
-                                    <span className="truncate max-w-[120px]">{first.branchName}</span>
+                                    <OverflowTooltip
+                                      text={first.branchName}
+                                      className="max-w-[120px] truncate"
+                                    />
                                   </span>
                                 )}
 
-                                <span className="text-[11px] text-muted-foreground/70 truncate max-w-[100px] hidden md:inline">
-                                  {first.repoName.split('/').pop()}
-                                </span>
+                                <OverflowTooltip
+                                  text={first.repoName}
+                                  tooltip={first.repoName}
+                                  className="hidden max-w-[100px] truncate text-[11px] text-muted-foreground/70 md:inline"
+                                >
+                                  {first.repoName.split('/').pop() || first.repoName}
+                                </OverflowTooltip>
 
                                 {extraCount > 0 && (
                                   <span

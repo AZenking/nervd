@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PencilIcon, CheckIcon, XIcon, Loader2Icon } from 'lucide-react';
 import * as api from '@/lib/api';
 import { extractRichHtml, extractRichImageUrls } from '@/lib/richtext';
@@ -44,19 +44,26 @@ export function RichDescription({
 
   const [draftHtml, setDraftHtml] = useState(initialHtml);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const currentId = useRef(workitemId);
+  currentId.current = workitemId;
 
-  // 外部 raw 更新时同步重置编辑草稿
+  // Only changing workitems discards the edit session. Optimistic raw updates must not.
   useEffect(() => {
     setDraftHtml(initialHtml);
     setIsEditing(false);
-  }, [initialHtml, workitemId]);
+  }, [workitemId]);
+
+  useEffect(() => {
+    if (!isEditing) setDraftHtml(initialHtml);
+  }, [initialHtml, isEditing]);
 
   // 当外部 isEditing 变为 true 时同步当前最新 initialHtml
   useEffect(() => {
     if (isEditing) {
       setDraftHtml(initialHtml);
     }
-  }, [isEditing, initialHtml]);
+  }, [isEditing]);
 
   // 附件图片代理加载（devops 鉴权）
   const images = useMemo(() => extractRichImageUrls(raw), [raw]);
@@ -97,25 +104,29 @@ export function RichDescription({
   };
 
   const handleCancel = () => {
+    if (savingRef.current) return;
     setDraftHtml(initialHtml);
     setIsEditing(false);
   };
 
   const handleSave = async () => {
-    if (!workitemId || saving) return;
+    if (!workitemId || savingRef.current) return;
     if (!allowWrite) {
       setToast({ text: '保存失败：未开启写操作权限', kind: 'fail' });
       return;
     }
+    savingRef.current = true;
     setSaving(true);
+    const submittedId = workitemId;
     try {
       const ok = await updateWorkitemDescriptionOptimistic(workitemId, draftHtml);
-      if (ok) {
+      if (ok && currentId.current === submittedId) {
         setToast({ text: '需求描述已保存', kind: 'ok' });
         setIsEditing(false);
         onSaved?.(draftHtml);
       }
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -126,7 +137,7 @@ export function RichDescription({
         <div className="flex flex-col gap-3 rounded-md border border-border/80 bg-background/50 p-3">
           <RichEditor
             content={draftHtml}
-            editable={true}
+            editable={!saving}
             showToolbar={true}
             autofocus={true}
             placeholder="输入需求描述，支持 Markdown 语法与快捷指令…"
@@ -213,19 +224,14 @@ export function RichDescription({
                     handleStartEdit();
                   }
                 }}
-                className="flex items-center gap-3 rounded-lg border border-dashed border-border/80 bg-muted/10 p-3.5 text-sm text-muted-foreground/80 hover:border-primary/50 hover:bg-muted/20 hover:text-foreground transition-all cursor-pointer group/placeholder focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex items-center gap-2 rounded-md border border-dashed border-border/80 px-3 py-2 text-xs text-muted-foreground/80 hover:border-primary/50 hover:bg-muted/15 hover:text-foreground transition-all cursor-pointer group/placeholder focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 title="点击添加需求描述"
               >
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground group-hover/placeholder:bg-primary/10 group-hover/placeholder:text-primary transition-colors">
-                  <PencilIcon className="size-3.5" />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="font-medium text-foreground/90 leading-tight">添加需求描述…</span>
-                  <span className="text-xs text-muted-foreground/70 truncate">支持 Markdown 快捷输入、列表、代码块与排版</span>
-                </div>
+                <PencilIcon className="size-3 shrink-0 group-hover/placeholder:text-primary transition-colors" />
+                <span>暂无描述，点击添加…</span>
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground/50 italic py-1">（无描述）</div>
+              <div className="py-0.5 text-xs text-muted-foreground/50">暂无描述</div>
             )
           )}
 

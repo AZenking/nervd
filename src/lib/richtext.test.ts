@@ -73,6 +73,83 @@ describe('extractRichHtml', () => {
     const doc = { htmlValue: '<p>富文本内容</p>' };
     expect(extractRichHtml(doc)).toBe('<p>富文本内容</p>');
   });
+
+  it('treats visually-empty rich shells as empty (no blank block)', () => {
+    // 云效空描述常见形态：空段落 / <br> / &nbsp; / 零宽字符壳，不应按有内容渲染
+    expect(extractRichHtml({ htmlValue: '<p><br></p>' })).toBe('');
+    expect(extractRichHtml({ htmlValue: '<p>&nbsp;</p><p></p>' })).toBe('');
+    expect(extractRichHtml({ htmlValue: '<p>\u200B</p><div><br/></div>' })).toBe('');
+    expect(extractRichHtml('<p><br></p>')).toBe('');
+  });
+
+  it('keeps htmlValue that only carries an image', () => {
+    const html = '<p><img src="https://yunxiao/file.png" name="截图"></p>';
+    expect(extractRichHtml({ htmlValue: html })).toBe(html);
+  });
+
+  it('optimizes dynamic Yunxiao rich text with plain text in htmlValue', () => {
+    const raw = {
+      htmlValue:
+        '\n\nmaintain-view\n\n分支:test\n本次交付（流程配置部分，已验证通过）：\n1、维修单/维保单流程配置新增「整备检测」「复检」两个节点，门店可开启整备流程并配置操作员工\n2、两个节点为开启即必须，不可跳过；整备检测与复检同开同关，复检需配合完工节点\n3、流程配置页可配置「整备检测」「复检」的操作员工与「复检后修改」员工\n4、按公司级整备业务开关控制两个节点的显示\n\n',
+      jsonMLValue: [
+        'root',
+        {},
+        ['p', {}, ['span', { 'data-type': 'text' }, ['span', { 'data-type': 'leaf' }, 'maintain-view']]],
+        [
+          'p',
+          {},
+          [
+            'span',
+            { 'data-type': 'text' },
+            [
+              'span',
+              { 'data-type': 'leaf' },
+              '分支:test\n本次交付（流程配置部分，已验证通过）：\n1、维修单/维保单流程配置新增「整备检测」「复检」两个节点，门店可开启整备流程并配置操作员工\n2、两个节点为开启即必须，不可跳过；整备检测与复检同开同关，复检需配合完工节点\n3、流程配置页可配置「整备检测」「复检」的操作员工与「复检后修改」员工\n4、按公司级整备业务开关控制两个节点的显示\n',
+            ],
+          ],
+        ],
+      ],
+    };
+
+    const html = extractRichHtml(raw);
+    // 应该被结构化解析，而不是一坨未格式化的裸文本
+    expect(html).toContain('<p>maintain-view</p>');
+    expect(html).toContain('<strong>分支:</strong> <code>test</code>');
+    expect(html).toContain('<strong>本次交付（流程配置部分，已验证通过）：</strong>');
+    expect(html).toContain('<ol>');
+    expect(html).toContain('<li>维修单/维保单流程配置新增「整备检测」「复检」两个节点，门店可开启整备流程并配置操作员工</li>');
+    expect(html).toContain('<li>两个节点为开启即必须，不可跳过；整备检测与复检同开同关，复检需配合完工节点</li>');
+    expect(html).toContain('<li>流程配置页可配置「整备检测」「复检」的操作员工与「复检后修改」员工</li>');
+    expect(html).toContain('<li>按公司级整备业务开关控制两个节点的显示</li>');
+    expect(html).toContain('</ol>');
+  });
+
+  it('unwraps single <p> tag containing multi-line text into structured elements', () => {
+    const raw = {
+      htmlValue: '<p>分支:feat/user\n1、开发完成\n2、测试通过</p>',
+    };
+    const html = extractRichHtml(raw);
+    expect(html).toContain('<strong>分支:</strong> <code>feat/user</code>');
+    expect(html).toContain('<ol>');
+    expect(html).toContain('<li>开发完成</li>');
+    expect(html).toContain('<li>测试通过</li>');
+    expect(html).toContain('</ol>');
+  });
+
+  it('handles double stringified JSON and bare jsonML fallback', () => {
+    const inner = JSON.stringify({
+      jsonMLValue: [
+        'root',
+        {},
+        ['h2', {}, '模块交付'],
+        ['p', {}, '功能正常运行'],
+      ],
+    });
+    const doubleEncoded = JSON.stringify(inner);
+    const html = extractRichHtml(doubleEncoded);
+    expect(html).toContain('<h2>模块交付</h2>');
+    expect(html).toContain('<p>功能正常运行</p>');
+  });
 });
 
 describe('sanitizeForYunxiao', () => {

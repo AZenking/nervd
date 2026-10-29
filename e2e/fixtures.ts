@@ -59,6 +59,9 @@ export const test = base.extend({
   app: [
     async ({ page }, use) => {
       await page.goto('/#workbench');
+      await page.waitForFunction(() => (window as any).__nervd_app?.getState().booting === false);
+      await page.keyboard.press('g');
+      await page.keyboard.press('i');
       await expect(page.locator(LIST)).toBeVisible();
       await expect(page.getByTestId('pagination-info')).toContainText('第 1 - 30 项', { timeout: 20_000 });
       await mockReset(page);

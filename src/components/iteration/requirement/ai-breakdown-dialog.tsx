@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toast';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { AiBreakdownTags, TAG_COLORS } from './ai-breakdown-tags';
 
 export interface AssigneeCandidate {
@@ -226,7 +227,7 @@ export function AiBreakdownDialog({
           </div>
           <DialogDescription className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
             <span className="font-mono font-medium text-foreground">{parentIdentifier}</span>
-            <span className="truncate">{parentSubject}</span>
+            <OverflowTooltip text={parentSubject} className="min-w-0 truncate" />
           </DialogDescription>
         </DialogHeader>
 
@@ -322,7 +323,7 @@ export function AiBreakdownDialog({
                         }
                       >
                         <UserIcon className="size-3 shrink-0" />
-                        <span className="truncate">{item.assigneeName || '指定人'}</span>
+                        <OverflowTooltip text={item.assigneeName || '指定人'} className="min-w-0 truncate" />
                         <ChevronDownIcon className="size-2.5 opacity-60 shrink-0" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-44 max-h-56 overflow-y-auto">
@@ -340,7 +341,7 @@ export function AiBreakdownDialog({
                                 onClick={() => updateAssignee(item.id, c.id, c.name)}
                                 className={cn('text-xs cursor-pointer flex items-center justify-between', isSelected && 'font-medium text-primary')}
                               >
-                                <span className="truncate">{c.name}</span>
+                                <OverflowTooltip text={c.name} className="min-w-0 truncate" />
                                 {c.role && (
                                   <span className="text-[10px] text-muted-foreground/70 ml-2 shrink-0">{c.role}</span>
                                 )}

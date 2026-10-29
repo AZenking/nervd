@@ -19,26 +19,26 @@ test.describe('迭代工具栏与上下文菜单', () => {
     await expect(page.getByTestId('split-detail')).toBeVisible();
   });
 
-  test('IT-011b 右键菜单：全屏打开进入独立工作台，Esc 返回', async ({ page }) => {
+  test('IT-011b 右键菜单：全屏打开进入独立工作台，Command [ 返回', async ({ page }) => {
     await activeRow(page).click({ button: 'right' });
     const menu = page.getByRole('menu');
     await expect(menu).toBeVisible();
     await menu.getByRole('menuitem', { name: /全屏打开/ }).click();
     await expect.poll(() => uiView(page)).toBe('requirement');
-    await page.keyboard.press('Escape');
+    await page.keyboard.press('Meta+[');
     await expect.poll(() => uiView(page)).toBe('iteration');
   });
 });
 
 test('TH-001 侧栏一键切换深/浅主题（html.dark 翻转）', async ({ page }) => {
   const darkBefore = await page.evaluate(() => document.documentElement.classList.contains('dark'));
-  await page.getByRole('button', { name: darkBefore ? '浅色模式' : '深色模式' }).click();
+  await page.getByRole('button', { name: /^(跟随系统.*|深色模式|浅色模式)$/ }).click();
   await expect(async () => {
     const dark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
     expect(dark).toBe(!darkBefore);
   }).toPass();
   // 再切回
-  await page.getByRole('button', { name: darkBefore ? '深色模式' : '浅色模式' }).click();
+  await page.getByRole('button', { name: /^(跟随系统.*|深色模式|浅色模式)$/ }).click();
   await expect(async () => {
     const dark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
     expect(dark).toBe(darkBefore);

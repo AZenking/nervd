@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type Key, type ReactNode } from 'react';
+import { useRef, useState, type KeyboardEvent, type Key, type ReactNode } from 'react';
 import { CheckIcon, PencilIcon, XIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CopyButton } from '@/components/ui/copy-button';
@@ -94,26 +94,46 @@ function EditControl({
 }: {
   initial: string;
   label: string;
-  onSave: (text: string) => void;
+  onSave: (text: string) => void | Promise<void>;
   onCancel: () => void;
 }) {
   const [draft, setDraft] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
-  const commit = () => {
+  const commit = async () => {
+    if (savingRef.current) return;
     const next = draft.trim();
-    if (next && next !== initial) onSave(next);
-    else onCancel();
+    if (!next || next === initial) { onCancel(); return; }
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await onSave(next);
+      onCancel();
+    } catch {
+      // The caller reports the error; retain the user's draft for retry.
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') commit();
-    if (event.key === 'Escape') onCancel();
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === 'Enter' || event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'Enter') void commit();
+      else if (!savingRef.current) onCancel();
+    }
   };
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1">
       <Input
         value={draft}
+        readOnly={saving}
+        aria-busy={saving}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={handleKeyDown}
         onFocus={(event) => event.target.select()}
@@ -121,10 +141,10 @@ function EditControl({
         aria-label={`编辑${label}`}
         className="h-7 flex-1 text-sm"
       />
-      <button type="button" aria-label="保存" title="保存（Enter）" className={ACTION_BUTTON_CLASS} onClick={commit}>
+      <button type="button" aria-label="保存" aria-disabled={saving} title="保存（Enter）" className={ACTION_BUTTON_CLASS} onClick={() => void commit()}>
         <CheckIcon className="size-3.5" />
       </button>
-      <button type="button" aria-label="取消" title="取消（Esc）" className={ACTION_BUTTON_CLASS} onClick={onCancel}>
+      <button type="button" aria-label="取消" aria-disabled={saving} title="取消（Esc）" className={ACTION_BUTTON_CLASS} onClick={() => { if (!savingRef.current) onCancel(); }}>
         <XIcon className="size-3.5" />
       </button>
     </div>
@@ -146,6 +166,7 @@ function DescriptionCell({
   last?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
   const text = resolveText(item);
   const copySource = typeof item.copyable === 'string' ? item.copyable : text;
   const showCopy = Boolean(item.copyable) && copySource !== '';
@@ -157,6 +178,7 @@ function DescriptionCell({
       {showCopy && <CopyButton text={copySource} />}
       {showEdit && (
         <button
+          ref={editButtonRef}
           type="button"
           aria-label="编辑"
           title="编辑"
@@ -173,11 +195,13 @@ function DescriptionCell({
     <EditControl
       initial={text}
       label={label}
-      onSave={(next) => {
+      onSave={(next) => item.editable?.onSave(next)}
+      onCancel={() => {
         setEditing(false);
-        void item.editable?.onSave(next);
+        requestAnimationFrame(() => {
+          if (editButtonRef.current?.isConnected) editButtonRef.current.focus({ preventScroll: true });
+        });
       }}
-      onCancel={() => setEditing(false)}
     />
   ) : (
     <>

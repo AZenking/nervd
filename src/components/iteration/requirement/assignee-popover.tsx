@@ -7,6 +7,7 @@ import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface AssigneeOption {
   id: string;
@@ -172,7 +173,10 @@ export function SearchableAssigneePopover({
           ) : (
             <UserIcon className="size-3.5 text-muted-foreground/60" />
           )}
-          <span className="hidden sm:inline truncate max-w-20">{assignedToName || placeholder}</span>
+          <OverflowTooltip
+            text={assignedToName || placeholder}
+            className="hidden max-w-20 sm:inline truncate"
+          />
         </button>
       );
     }
@@ -195,7 +199,7 @@ export function SearchableAssigneePopover({
           ) : (
             <UserIcon className="size-3 text-muted-foreground shrink-0" />
           )}
-          <span className="truncate">{assignedToName || placeholder}</span>
+          <OverflowTooltip text={assignedToName || placeholder} className="truncate" />
           <ChevronDownIcon className="size-3 text-muted-foreground opacity-60 shrink-0" />
         </button>
       );
@@ -208,8 +212,10 @@ export function SearchableAssigneePopover({
         type="button"
         onClick={handleTriggerClick}
         className={cn(
-          'group/assignee inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer rounded-sm hover:bg-muted/80 text-foreground',
-          isBadge ? 'border border-border/70 bg-background px-2 py-0.5 text-xs font-medium' : 'px-1.5 py-0.5 text-xs font-medium',
+          'group/assignee inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none',
+          isBadge
+            ? 'h-7 rounded-md border border-border/60 bg-muted/20 hover:bg-muted/60 hover:border-border/80 px-2.5 text-xs font-medium'
+            : 'rounded-sm hover:bg-muted/80 px-1.5 py-0.5 text-xs font-medium',
           updating && 'pointer-events-none opacity-60',
           disabled && 'pointer-events-none opacity-50',
           className,
@@ -217,16 +223,19 @@ export function SearchableAssigneePopover({
         title="点击更改负责人"
       >
         {updating ? (
-          <Spinner className="size-3.5" />
+          <Spinner className="size-3.5 shrink-0" />
         ) : assignedToName ? (
           <Avatar className="size-4 shrink-0">
             <AvatarFallback className="text-[9px]">{assignedToName.charAt(0)}</AvatarFallback>
           </Avatar>
         ) : (
-          <UserIcon className="size-3.5 text-muted-foreground/60" />
+          <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
         )}
-        <span className="truncate">{assignedToName || placeholder}</span>
-        <ChevronDownIcon className="size-3 text-muted-foreground opacity-60 transition-transform group-hover/assignee:opacity-100" />
+        <OverflowTooltip
+          text={assignedToName || placeholder}
+          className={cn('truncate', isBadge ? 'max-w-28' : 'max-w-24')}
+        />
+        <ChevronDownIcon className="size-3 text-muted-foreground/60 shrink-0 ml-0.5 transition-transform group-hover/assignee:opacity-100" />
       </button>
     );
   };
@@ -296,7 +305,7 @@ export function SearchableAssigneePopover({
                     <Avatar className="size-4 shrink-0">
                       <AvatarFallback className="text-[9px]">{c.name.charAt(0)}</AvatarFallback>
                     </Avatar>
-                    <span className="truncate">{c.name}</span>
+                    <OverflowTooltip text={c.name} className="min-w-0 truncate" />
                     {c.role && (
                       <span className="text-[10px] text-muted-foreground/80 shrink-0">({c.role})</span>
                     )}

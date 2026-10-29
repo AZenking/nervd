@@ -198,7 +198,7 @@ export async function runTaskNow(
     }),
   }));
 
-  // 桌面通知与前台 Toast
+  // 桌面通知与前台 Toast（执行成功不弹 Toast，仅在失败时向用户弹窗告警）
   const shouldNotify =
     (status === 'success' && task.notifyOnSuccess) ||
     (status === 'failed' && task.notifyOnFailure);
@@ -208,11 +208,15 @@ export async function runTaskNow(
     const notifBody = (errorMessage || details || '任务运行完毕').slice(0, 120);
 
     void sendSystemNotification(notifTitle, notifBody);
-    toast.add({
-      title: notifTitle,
-      description: notifBody,
-      type: status === 'success' ? 'success' : 'error',
-    });
+
+    // 定时任务执行成功无需前台 Toast 干扰，仅在失败时提醒
+    if (status === 'failed') {
+      toast.add({
+        title: notifTitle,
+        description: notifBody,
+        type: 'error',
+      });
+    }
   }
 }
 

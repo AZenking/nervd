@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface DiffFileTreeProps {
   diffs: FileDiffItem[];
@@ -232,9 +233,13 @@ function TreeNodeItem({
             <FolderIcon className="size-3.5 text-muted-foreground shrink-0" />
           )}
 
-          <span className="truncate font-mono text-[11px] font-medium flex-1">
+          <OverflowTooltip
+            text={node.path}
+            tooltip={node.path}
+            className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium"
+          >
             {node.name}
-          </span>
+          </OverflowTooltip>
 
           <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0 px-1 rounded bg-muted/40 tabular-nums">
             {node.fileCount}
@@ -278,7 +283,6 @@ function TreeNodeItem({
           : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground',
       )}
       style={{ paddingLeft: `${Math.max(6, level * 12 + 6)}px` }}
-      title={node.path}
     >
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
         {file?.newFile ? (
@@ -296,9 +300,13 @@ function TreeNodeItem({
           />
         )}
 
-        <span className="truncate font-mono text-[11px] leading-tight">
+        <OverflowTooltip
+          text={node.path}
+          tooltip={node.path}
+          className="min-w-0 truncate font-mono text-[11px] leading-tight"
+        >
           {node.name}
-        </span>
+        </OverflowTooltip>
       </div>
 
       {/* 变动统计 (+X / -Y) */}

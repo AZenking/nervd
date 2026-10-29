@@ -19,6 +19,7 @@ import { useLocalTasksStore } from '@/store/local-tasks';
 import type { LocalTaskPriority, LocalTaskRepoLink, LocalTaskStatus } from '@/types/local-task';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/format';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { CreateTaskBranchDialog } from './CreateTaskBranchDialog';
 
 interface LocalTaskDrawerProps {
@@ -254,9 +255,10 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
                       className="flex items-center gap-2 rounded-md border border-border/60 bg-background/80 p-2 text-xs"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="font-medium text-foreground truncate" title={link.repoName}>
-                          {link.repoName}
-                        </div>
+                        <OverflowTooltip
+                          text={link.repoName}
+                          className="font-medium text-foreground truncate"
+                        />
                       </div>
 
                       <div className="relative flex items-center w-44 sm:w-52 shrink-0">

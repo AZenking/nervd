@@ -1,42 +1,21 @@
-import { useRef, useState } from 'react';
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { NavCollapsibleGroup } from './nav-group';
 import { StatusIcon } from '../status-icon';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { useApp } from '@/store/app';
 import { useUi, iterationsOrFallback } from '@/store/ui';
 
-/** 迭代名：truncate + 仅在溢出时显示全名 Tooltip */
-function IterationName({ name }: { name: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [overflowed, setOverflowed] = useState(false);
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span
-            ref={ref}
-            className="min-w-0 flex-1 truncate text-left"
-            onMouseEnter={() => {
-              const el = ref.current;
-              if (el) setOverflowed(el.scrollWidth > el.clientWidth);
-            }}
-          />
-        }
-      >
-        {name}
-      </TooltipTrigger>
-      {overflowed && (
-        <TooltipContent side="right" className="max-w-72 break-words">
-          {name}
-        </TooltipContent>
-      )}
-    </Tooltip>
-  );
+/** 迭代名：truncate + 仅在溢出时显示统一 Tooltip */
+function IterationName({ name, showOverflowTooltip }: { name: string; showOverflowTooltip: boolean }) {
+  const className = 'min-w-0 flex-1 truncate text-left';
+  return showOverflowTooltip
+    ? <OverflowTooltip text={name} className={className} />
+    : <span className={className}>{name}</span>;
 }
 
 /**
@@ -46,9 +25,11 @@ function IterationName({ name }: { name: string }) {
  */
 export function NavProjects() {
   const { iterationKey, setIteration, setView, view } = useUi();
+  const { isMobile, state } = useSidebar();
   const {
     iterations: realIterations, loadingIterations,
   } = useApp();
+  const useSidebarTooltip = state === 'collapsed' && !isMobile;
 
   const iterations = iterationsOrFallback(realIterations);
   const today = new Date().toISOString().slice(0, 10);
@@ -71,7 +52,7 @@ export function NavProjects() {
           return (
             <SidebarMenuItem key={iteration.id || iteration.name}>
               <SidebarMenuButton
-                tooltip={iteration.name}
+                tooltip={useSidebarTooltip ? iteration.name : undefined}
                 isActive={isCurrentView}
                 className="group/menu-button"
                 onClick={() => {
@@ -80,7 +61,7 @@ export function NavProjects() {
                 }}
               >
                 <StatusIcon status={effectiveStatus} />
-                <IterationName name={iteration.name} />
+                <IterationName name={iteration.name} showOverflowTooltip={!useSidebarTooltip} />
                 {isOngoing && (
                   <span className="ml-auto text-[10px] text-muted-foreground/80 font-normal group-data-[collapsible=icon]:hidden">
                     当前

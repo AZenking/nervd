@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "nervd",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "identifier": "dev.nervd.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -15,7 +15,7 @@
         "title": "nervd",
         "width": 1360,
         "height": 860,
-        "minWidth": 1080,
+        "minWidth": 800,
         "minHeight": 640,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,

@@ -16,8 +16,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '../searchable-select';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SettingsGroup } from './settings-group';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 /** Jenkins 实例管理卡（读写设置草稿；测试连接 / 验证 Job 的瞬态结果显示在卡内） */
 export function JenkinsInstancesCard() {
@@ -137,7 +138,7 @@ export function JenkinsInstancesCard() {
                 {testResult && (
                   <span
                     className={cn(
-                      'min-w-0 flex-1 truncate text-xs',
+                      'min-w-0 flex-1 whitespace-normal break-words text-xs',
                       testSuccess && 'text-emerald-600 dark:text-emerald-400',
                       testFail && 'text-destructive',
                       !testSuccess && !testFail && 'text-muted-foreground',
@@ -228,20 +229,21 @@ export function RepoCiBindingsCard() {
               显示已归档（{archivedCount}）
             </Label>
           )}
-          <ToggleGroup
-            variant="outline"
-            size="sm"
-            spacing={0}
-            value={boundOnly ? ['bound'] : ['all']}
-            onValueChange={(v) => setBoundOnly(v.includes('bound'))}
+          <Tabs
+            value={boundOnly ? 'bound' : 'all'}
+            onValueChange={(v) => {
+              if (v) setBoundOnly(v === 'bound');
+            }}
           >
-            <ToggleGroupItem value="bound" className="text-xs">
-              已绑定 {boundCount}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="all" className="text-xs">
-              全部 {scoped.length}
-            </ToggleGroupItem>
-          </ToggleGroup>
+            <TabsList size="xs">
+              <TabsTrigger value="bound">
+                已绑定 {boundCount}
+              </TabsTrigger>
+              <TabsTrigger value="all">
+                全部 {scoped.length}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       )}
       {visibleRepos.map((repo) => {
@@ -260,7 +262,7 @@ export function RepoCiBindingsCard() {
         return (
           <div key={repo.id} className="flex flex-col gap-2.5 border-b border-border/50 px-4 py-3.5 last:border-b-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
+              <OverflowTooltip text={label} className="min-w-0 flex-1 truncate font-mono text-xs" />
               <Badge variant={binding ? 'secondary' : 'outline'}>{binding ? '已绑定' : '未绑定'}</Badge>
               <SearchableSelect
                 className="w-32 text-xs"
@@ -326,7 +328,11 @@ export function RepoCiBindingsCard() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="button" variant="outline" size="sm" disabled={!canVerifyJob || !binding.connectionId || !binding.jobFullName.trim()} onClick={() => void verifyJenkinsJob(repo.id, binding)}>验证 Job</Button>
-                  {ciResults[`repo-${repo.id}`] && <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{ciResults[`repo-${repo.id}`]}</span>}
+                    {ciResults[`repo-${repo.id}`] && (
+                      <span className="min-w-0 flex-1 whitespace-normal break-words text-xs text-muted-foreground">
+                        {ciResults[`repo-${repo.id}`]}
+                      </span>
+                    )}
                 </div>
               </>
             )}

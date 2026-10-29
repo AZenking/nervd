@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { comparisonCommits } from './BranchDivergenceCheck';
@@ -76,19 +77,31 @@ function RootNode({ data }: NodeProps<RootNodeT>) {
       <Handle id="tt" type="target" position={Position.Top} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
       <div className="font-mono text-[11px] text-muted-foreground">{data.identifier}</div>
-      <div className="mt-0.5 line-clamp-2 text-sm font-medium leading-5 text-foreground">{data.subject || data.identifier}</div>
+      <OverflowTooltip
+        text={data.subject || data.identifier}
+        multiline
+        lineClamp={2}
+        as="div"
+        className="mt-0.5 text-sm font-medium leading-5 text-foreground"
+      />
     </div>
   );
 }
 
 function RepoNode({ data }: NodeProps<RepoNodeT>) {
   return (
-    <div className="w-[300px] rounded-lg border border-border bg-card px-3 py-2 shadow-sm" title={data.fullName}>
+    <div className="w-[300px] rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
       <Handle id="tt" type="target" position={Position.Top} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="ttr" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="sbr" type="source" position={Position.Bottom} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
-      <div className="truncate text-sm font-medium text-foreground">{data.name}</div>
+      <OverflowTooltip
+        text={data.name}
+        tooltip={data.fullName}
+        className="truncate text-sm font-medium text-foreground"
+      >
+        {data.name}
+      </OverflowTooltip>
     </div>
   );
 }
@@ -114,17 +127,16 @@ function BranchNode({ data }: NodeProps<BranchNodeT>) {
           {data.kind}
         </span>
         {data.stateLabel && (
-          <span
+          <OverflowTooltip
+            text={data.stateLabel}
             className={`inline-block max-w-[170px] truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4 ${BADGE_CLASS[data.stateTone ?? 'muted']}`}
-            title={data.stateLabel}
-          >
-            {data.stateLabel}
-          </span>
+          />
         )}
       </div>
-      <div className="mt-1 truncate font-mono text-[11px] leading-4 text-foreground/85" title={data.name}>
-        {data.name}
-      </div>
+      <OverflowTooltip
+        text={data.name}
+        className="mt-1 truncate font-mono text-[11px] leading-4 text-foreground/85"
+      />
     </div>
   );
 }
@@ -138,7 +150,7 @@ const BADGE_CLASS: Record<Tone, string> = {
 
 const nodeTypes = { root: RootNode, repo: RepoNode, branch: BranchNode };
 
-const EDGE_GRAY = '#8a8f98';
+const EDGE_GRAY = 'var(--sig-idle, #8a8f98)';
 
 function treeEdge(id: string, source: string, target: string): Edge {
   return {
@@ -149,14 +161,14 @@ function treeEdge(id: string, source: string, target: string): Edge {
 }
 
 function mergeEdge(id: string, source: string, target: string, state: MergeState | undefined, label: string): Edge {
-  const color = state?.tone === 'ok' ? '#30a46c' : state?.tone === 'warn' ? '#d9730d' : EDGE_GRAY;
+  const color = state?.tone === 'ok' ? 'var(--sig-ok, #30a46c)' : state?.tone === 'warn' ? 'var(--sig-run, #d9730d)' : EDGE_GRAY;
   return {
     id, source, sourceHandle: 'stl', target, targetHandle: 'tbl',
     label: state ? `${label}：${state.label}` : label,
     labelStyle: { fill: color, fontSize: 11, fontWeight: 600 },
     labelBgPadding: [4, 2],
     labelBgBorderRadius: 4,
-    labelBgStyle: { fill: 'rgba(255, 255, 255, 0.95)' },
+    labelBgStyle: { fill: 'var(--card, rgba(255, 255, 255, 0.95))' },
     style: { stroke: color, strokeWidth: 1.6 },
     markerEnd: { type: MarkerType.ArrowClosed, color },
   };
@@ -325,7 +337,7 @@ export default function BranchStateDiagram({
       </div>
       <div
         ref={measureRef}
-        className="h-[640px] w-full overflow-hidden rounded-md border border-border/70 bg-background"
+        className="h-[560px] w-full overflow-hidden rounded-md border border-border/70 bg-background"
       >
         <ReactFlow
           key={containerWidth ? Math.round(containerWidth / 20) : 'initial'}

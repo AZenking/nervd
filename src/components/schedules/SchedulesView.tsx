@@ -21,12 +21,14 @@ import {
   WorkflowIcon,
   XCircleIcon,
 } from 'lucide-react';
-import { PageHeader, STICKY_PAGE_HEADER_CLASS } from '@/components/page-header';
+import { PageHeader } from '@/components/page-header';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyHint } from '@/components/empty-hint';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { ScheduleEditorDialog } from './ScheduleEditorDialog';
@@ -38,6 +40,7 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import { formatCompactDateTime } from '@/lib/format';
 import type { ScheduledTask, ScheduleActionType } from '@/types/schedule';
 import { cn } from '@/lib/utils';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export function SchedulesView() {
   const tasks = useScheduleStore((s) => s.tasks);
@@ -148,9 +151,10 @@ export function SchedulesView() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 顶部标题区 */}
+      {/* 统一吸顶页头：标题区 + 过滤工具行（筛选与搜索并入 toolbar 槽，页头吸顶固定） */}
       <PageHeader
-        className={STICKY_PAGE_HEADER_CLASS}
+        sticky
+        navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="定时任务工作台"
         titleBadge={
           <Badge
@@ -184,7 +188,7 @@ export function SchedulesView() {
               onClick={() => setGlobalPaused(!globalPaused)}
               className={cn(
                 'text-xs',
-                globalPaused && 'bg-amber-600 hover:bg-amber-700 text-white',
+                globalPaused && 'bg-sig-run hover:bg-sig-run/90 text-primary-foreground',
               )}
             >
               <ClockIcon className="mr-1.5 size-3.5" />
@@ -197,75 +201,64 @@ export function SchedulesView() {
             </Button>
           </div>
         }
+        toolbar={
+          <div className="flex w-full flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-1.5 text-xs">
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => {
+                  if (v) setActiveTab(v as 'all' | 'enabled' | 'running' | 'failed');
+                }}
+              >
+                <TabsList size="sm">
+                  <TabsTrigger value="all" className="gap-1.5">
+                    <span>全部</span>
+                    <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                      {tasks.length}
+                    </span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="enabled" className="gap-1.5">
+                    <span>已启用</span>
+                    <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                      {activeCount}
+                    </span>
+                  </TabsTrigger>
+
+                  {runningCount > 0 && (
+                    <TabsTrigger value="running" className="gap-1.5 text-amber-500">
+                      <span>执行中</span>
+                      <span className="rounded-full bg-amber-500/20 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                        {runningCount}
+                      </span>
+                    </TabsTrigger>
+                  )}
+
+                  {failedCount > 0 && (
+                    <TabsTrigger value="failed" className="gap-1.5 text-destructive">
+                      <span>失败告警</span>
+                      <span className="rounded-full bg-destructive/20 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                        {failedCount}
+                      </span>
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+              </Tabs>
+            </div>
+
+            {/* 搜索框 */}
+            <div className="relative w-full sm:w-64">
+              <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜索任务名称、分支、Cron..."
+                className="h-7 pl-8 text-xs"
+              />
+            </div>
+          </div>
+        }
       />
-
-      {/* 过滤器与快速指标条 */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
-        <div className="flex items-center gap-1.5 text-xs">
-          <Button
-            variant={activeTab === 'all' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('all')}
-            className="h-7 text-xs font-medium"
-          >
-            全部
-            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.2 font-mono text-[10px]">
-              {tasks.length}
-            </span>
-          </Button>
-
-          <Button
-            variant={activeTab === 'enabled' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('enabled')}
-            className="h-7 text-xs font-medium"
-          >
-            已启用
-            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.2 font-mono text-[10px]">
-              {activeCount}
-            </span>
-          </Button>
-
-          {runningCount > 0 && (
-            <Button
-              variant={activeTab === 'running' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('running')}
-              className="h-7 text-xs font-medium text-amber-500"
-            >
-              执行中
-              <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 py-0.2 font-mono text-[10px]">
-                {runningCount}
-              </span>
-            </Button>
-          )}
-
-          {failedCount > 0 && (
-            <Button
-              variant={activeTab === 'failed' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('failed')}
-              className="h-7 text-xs font-medium text-destructive"
-            >
-              失败告警
-              <span className="ml-1.5 rounded-full bg-destructive/20 px-1.5 py-0.2 font-mono text-[10px]">
-                {failedCount}
-              </span>
-            </Button>
-          )}
-        </div>
-
-        {/* 搜索框 */}
-        <div className="relative w-full sm:w-64">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索任务名称、分支、Cron..."
-            className="h-7 pl-8 text-xs"
-          />
-        </div>
-      </div>
 
       {/* 任务列表区域 */}
       {filteredTasks.length === 0 ? (
@@ -384,9 +377,10 @@ export function SchedulesView() {
 
                   <div className="space-y-2 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-foreground text-sm tracking-tight">
-                        {task.name}
-                      </span>
+                      <OverflowTooltip
+                        text={task.name}
+                        className="min-w-0 max-w-full truncate font-semibold text-foreground text-sm tracking-tight"
+                      />
                       {/* 执行动作类型 Tag */}
                       <ActionTypeTag type={task.action.type} />
                       {/* 调度周期 Cron Tag */}
@@ -430,7 +424,7 @@ export function SchedulesView() {
                         </span>
                       )}
                       {task.lastError && (
-                        <span className="text-destructive truncate max-w-sm">
+                        <span className="max-w-sm whitespace-normal break-words text-destructive">
                           错误: {task.lastError}
                         </span>
                       )}

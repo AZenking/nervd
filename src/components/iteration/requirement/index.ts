@@ -5,3 +5,6 @@ export * from './linked-repo-card';
 export * from './requirement-properties';
 export * from './requirement-activity';
 export * from './assignee-popover';
+export * from './link-repo-modal';
+export * from './repo-ci-modal';
+export * from './repo-ci-binding-fields';

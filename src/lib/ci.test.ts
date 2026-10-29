@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ciStatusInfo,
+  ciStatusText,
   isBranchParameterName,
   isEnvironmentParameterName,
   sortJenkinsJobsWithRecommendation,
@@ -7,6 +9,61 @@ import {
 import type { JenkinsJobSummary } from '@/types';
 
 describe('ci utilities', () => {
+  describe('ciStatusInfo & ciStatusText', () => {
+    it('translates English CI status to Chinese enum labels', () => {
+      expect(ciStatusText('RUNNING')).toBe('运行中');
+      expect(ciStatusText('running')).toBe('运行中');
+      expect(ciStatusText('BUILDING')).toBe('构建中');
+      expect(ciStatusText('IN_PROGRESS')).toBe('运行中');
+      expect(ciStatusText('WAITING')).toBe('等待中');
+      expect(ciStatusText('QUEUED')).toBe('排队中');
+
+      expect(ciStatusText('SUCCESS')).toBe('成功');
+      expect(ciStatusText('FINISH')).toBe('成功');
+      expect(ciStatusText('PASSED')).toBe('成功');
+
+      expect(ciStatusText('FAIL')).toBe('失败');
+      expect(ciStatusText('FAILURE')).toBe('失败');
+      expect(ciStatusText('FAILED')).toBe('失败');
+      expect(ciStatusText('ERROR')).toBe('失败');
+      expect(ciStatusText('UNSTABLE')).toBe('不稳定');
+      expect(ciStatusText('TIMEOUT')).toBe('超时');
+
+      expect(ciStatusText('ABORTED')).toBe('已中止');
+      expect(ciStatusText('CANCELED')).toBe('已取消');
+      expect(ciStatusText('CANCELLED')).toBe('已取消');
+    });
+
+    it('falls back correctly when status is empty or loading/error', () => {
+      expect(ciStatusText(null, { loading: true })).toBe('加载中');
+      expect(ciStatusText(undefined, { error: '查询失败 500' })).toBe('查询失败');
+      expect(ciStatusText(null, null)).toBe('—');
+      expect(ciStatusText('', null)).toBe('—');
+      expect(ciStatusText('—', null)).toBe('—');
+    });
+
+    it('maps tones accurately for status badges and spinners', () => {
+      expect(ciStatusInfo('RUNNING').tone).toBe('run');
+      expect(ciStatusInfo('BUILDING').tone).toBe('run');
+      expect(ciStatusInfo('WAITING').tone).toBe('run');
+
+      expect(ciStatusInfo('SUCCESS').tone).toBe('ok');
+
+      expect(ciStatusInfo('FAILURE').tone).toBe('fail');
+      expect(ciStatusInfo('UNSTABLE').tone).toBe('fail');
+      expect(ciStatusInfo('TIMEOUT').tone).toBe('fail');
+
+      expect(ciStatusInfo('ABORTED').tone).toBe('idle');
+      expect(ciStatusInfo('CANCELED').tone).toBe('idle');
+    });
+
+    it('handles already translated Chinese status gracefully', () => {
+      expect(ciStatusInfo('运行中')).toEqual({ label: '运行中', tone: 'run' });
+      expect(ciStatusInfo('成功')).toEqual({ label: '成功', tone: 'ok' });
+      expect(ciStatusInfo('构建失败')).toEqual({ label: '构建失败', tone: 'fail' });
+    });
+  });
+
   describe('parameter name inference', () => {
     it('identifies branch parameter names correctly', () => {
       expect(isBranchParameterName('branch')).toBe(true);

@@ -14,7 +14,7 @@ import {
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import type { RepoSummary } from '@/types';
-import { buildRunParameter, ciProviderLabel, ciStatusText } from '@/lib/ci';
+import { buildRunParameter, ciProviderLabel, ciStatusInfo, ciStatusText } from '@/lib/ci';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -68,11 +68,10 @@ export function IterationRepoCard({
 
   const runs = isBound ? snapshot?.runs ?? [] : [];
 
-  // 判断是否有正在运行中的 Job（RUNNING / WAITING / QUEUED）
+  // 判断是否有正在运行中的 Job（RUNNING / WAITING / QUEUED / BUILDING 等）
   const runningRun = runs.find((r) => {
-    const s = (r.status || '').toUpperCase();
-    return s === 'RUNNING' || s === 'WAITING' || s === 'QUEUED';
-  }) || (snapshot?.status?.toUpperCase() === 'RUNNING' ? runs[0] : undefined);
+    return ciStatusInfo(r.status).tone === 'run';
+  }) || (ciStatusInfo(snapshot?.status).tone === 'run' ? runs[0] : undefined);
 
   const isRunning = Boolean(runningRun);
   const latestRun = runs[0];
@@ -120,9 +119,10 @@ export function IterationRepoCard({
             </div>
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate text-sm font-semibold tracking-tight text-foreground">
-                  {repo.pathWithNamespace || repo.name}
-                </span>
+                <OverflowTooltip
+                  text={repo.pathWithNamespace || repo.name}
+                  className="min-w-0 truncate text-sm font-semibold tracking-tight text-foreground"
+                />
                 <span className="font-mono text-[11px] text-muted-foreground/70">
                   #{repo.id}
                 </span>
@@ -134,7 +134,7 @@ export function IterationRepoCard({
                     <TooltipTrigger render={
                       <span className="inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded cursor-default max-w-44 truncate">
                         <GitBranchIcon className="size-3 shrink-0" />
-                        <span className="truncate">{suggestedBranch}</span>
+                        <span className="min-w-0 truncate">{suggestedBranch}</span>
                       </span>
                     } />
                     <TooltipContent>当前迭代推导分支：{suggestedBranch}</TooltipContent>
@@ -208,9 +208,10 @@ export function IterationRepoCard({
               <div className="flex min-w-0 items-center gap-2">
                 <Loader2Icon className="size-4 shrink-0 animate-spin text-amber-500" />
                 <span className="font-medium text-amber-500">正在构建 Job</span>
-                <span className="font-mono font-semibold text-foreground truncate max-w-64" title={runningJobName}>
-                  {runningJobName}
-                </span>
+                <OverflowTooltip
+                  text={runningJobName}
+                  className="max-w-64 truncate font-mono font-semibold text-foreground"
+                />
                 <span className="font-mono text-muted-foreground">#{runningRun.runId}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -231,17 +232,19 @@ export function IterationRepoCard({
               {runningBranch && runningBranch !== '未记录' && (
                 <div className="flex items-center gap-1 font-mono text-foreground/90">
                   <GitBranchIcon className="size-3 text-muted-foreground" />
-                  <span className="rounded bg-background/80 px-1.5 py-0.2 border border-border/50 text-[11px]">
-                    {runningBranch}
-                  </span>
+                  <OverflowTooltip
+                    text={runningBranch}
+                    className="rounded bg-background/80 px-1.5 py-0.2 border border-border/50 text-[11px]"
+                  />
                 </div>
               )}
               {runningEnvironment && runningEnvironment !== '未记录' && (
                 <div className="flex items-center gap-1 font-mono text-foreground/90">
                   <ServerIcon className="size-3 text-muted-foreground" />
-                  <span className="rounded bg-background/80 px-1.5 py-0.2 border border-border/50 text-[11px]">
-                    {runningEnvironment}
-                  </span>
+                  <OverflowTooltip
+                    text={runningEnvironment}
+                    className="rounded bg-background/80 px-1.5 py-0.2 border border-border/50 text-[11px]"
+                  />
                 </div>
               )}
               {runningRun.durationMs != null && (
@@ -269,13 +272,13 @@ export function IterationRepoCard({
               {latestBranch && latestBranch !== '未记录' && (
                 <span className="inline-flex items-center gap-1 font-mono text-[11px] text-foreground/80">
                   <GitBranchIcon className="size-3 text-muted-foreground" />
-                  <span>{latestBranch}</span>
+                  <OverflowTooltip text={latestBranch} className="min-w-0 truncate" />
                 </span>
               )}
               {latestEnvironment && latestEnvironment !== '未记录' && (
                 <span className="inline-flex items-center gap-1 font-mono text-[11px] text-foreground/80">
                   <ServerIcon className="size-3 text-muted-foreground" />
-                  <span>{latestEnvironment}</span>
+                  <OverflowTooltip text={latestEnvironment} className="min-w-0 truncate" />
                 </span>
               )}
               {latestRun.durationMs != null && (
@@ -407,9 +410,8 @@ export function IterationRepoTab({
       const snapshot = repoCiByRepo[item.repo.id]?.snapshot;
       const runs = snapshot?.runs ?? [];
       const hasRunning = runs.some((r) => {
-        const s = (r.status || '').toUpperCase();
-        return s === 'RUNNING' || s === 'WAITING' || s === 'QUEUED';
-      }) || snapshot?.status?.toUpperCase() === 'RUNNING';
+        return ciStatusInfo(r.status).tone === 'run';
+      }) || ciStatusInfo(snapshot?.status).tone === 'run';
       if (hasRunning) count += 1;
     }
     return count;
@@ -440,9 +442,10 @@ export function IterationRepoTab({
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
           <span>当前迭代</span>
           {iterationKey && (
-            <span className="font-medium text-foreground font-mono bg-muted/60 px-1.5 py-0.5 rounded">
-              {iterationKey}
-            </span>
+              <OverflowTooltip
+                text={iterationKey}
+                className="max-w-56 truncate rounded bg-muted/60 px-1.5 py-0.5 font-mono font-medium text-foreground"
+              />
           )}
           <span>共涉及 <strong className="font-semibold text-foreground font-mono">{scopedRepos.length}</strong> 个代码仓库</span>
           <span>·</span>

@@ -22,8 +22,12 @@ const NAV_ROWS: ShortcutRow[] = [
   { keys: ['g', 'c'], label: '定时任务' },
   { keys: ['g', 's'], label: '设置' },
   { keys: ['⌘K'], label: '命令面板' },
-  { keys: ['⌘←'], label: '后退' },
-  { keys: ['Esc'], label: '关闭或后退' },
+  { keys: ['⌘[', '⌘←'], label: '后退' },
+  { keys: ['⌘]'], label: '前进' },
+  { keys: ['⌘,'], label: '打开设置' },
+  { keys: ['⌘F'], label: '搜索当前视图（无搜索框时打开命令面板）' },
+  { keys: ['⌘R'], label: '刷新当前视图' },
+  { keys: ['Esc'], label: '取消选择或关闭浮层、分栏' },
 ];
 
 /** 列表组：迭代页工作项列表的光标移动与打开（实现归 IterationView，此处仅展示） */
@@ -31,7 +35,16 @@ const LIST_ROWS: ShortcutRow[] = [
   { keys: ['j', '↓'], label: '下一项' },
   { keys: ['k', '↑'], label: '上一项' },
   { keys: ['↵'], label: '打开' },
+  { keys: ['⌘A'], label: '选择当前页' },
   { keys: ['[', ']'], label: '上一页 / 下一页' },
+];
+
+/** 布局组：分栏分隔线键盘调整（实现归 ui/resizable.tsx，此处仅展示） */
+const LAYOUT_ROWS: ShortcutRow[] = [
+  { keys: ['←→'], label: '聚焦分隔线后调整分栏宽度（±8px）' },
+  { keys: ['⇧←→'], label: '大幅调整分栏宽度（±32px）' },
+  { keys: ['双击'], label: '分隔线恢复默认宽度' },
+  { keys: ['Esc'], label: '窄窗详情中返回列表' },
 ];
 
 /** 键位胶囊（与 command-menu 底部提示同款形态） */
@@ -85,6 +98,7 @@ export function ShortcutsDialog() {
           <div className="max-h-[min(480px,80vh)] overflow-y-auto">
             <ShortcutGroup title="导航" rows={NAV_ROWS} />
             <ShortcutGroup title="列表" rows={LIST_ROWS} />
+            <ShortcutGroup title="布局" rows={LAYOUT_ROWS} />
           </div>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>

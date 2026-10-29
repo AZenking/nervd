@@ -19,16 +19,39 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { PaneSeparator } from '@/components/ui/resizable';
+import { useElementWidth } from '@/hooks/use-element-width';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useLayout, SIDEBAR_PANE, NARROW_CONTAINER_WIDTH } from '@/store/layout';
 import { useGlobalCiScheduler } from '@/hooks/use-ci-polling';
 import { useScheduleRunner } from '@/hooks/use-schedule-runner';
 import { useEventListener } from '@/hooks/use-event-listener';
 import { useApp } from '@/store/app';
+import { listen } from '@tauri-apps/api/event';
+import { hasWorkspaceOverlay, isEditing, performWorkspaceAction } from '@/lib/workspace-actions';
 
 /** g 前缀序列的等待窗口（Linear g+letter：g 后 1200ms 内的下一键才生效） */
 const G_SEQUENCE_TIMEOUT_MS = 1200;
 
 /** Base UI 弹层（AlertDialog.Popup 是 role="alertdialog"，Dialog.Popup 是 role="dialog"）都在 DOM 里即视为有浮层 */
 const OPEN_DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]';
+
+/** shadcn sidebar 折叠态 cookie（ui/sidebar.tsx 内部写入）；Shell 受控模式下自读初始偏好 */
+const SIDEBAR_STATE_COOKIE = 'sidebar_state';
+const SIDEBAR_STATE_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+
+function readStoredSidebarOpen(): boolean {
+  if (typeof document === 'undefined') return true;
+  const row = document.cookie
+    .split('; ')
+    .find((c) => c.startsWith(`${SIDEBAR_STATE_COOKIE}=`));
+  return row ? row.slice(SIDEBAR_STATE_COOKIE.length + 1) === 'true' : true;
+}
+
+function persistSidebarOpen(open: boolean): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${SIDEBAR_STATE_COOKIE}=${open}; path=/; max-age=${SIDEBAR_STATE_COOKIE_MAX_AGE}`;
+}
 
 /** 焦点是否在文本可编辑控件内（输入框 / 文本域 / 可编辑区域） */
 function isEditableTarget(el: EventTarget | null): boolean {
@@ -50,6 +73,7 @@ function DirtyGuardDialog() {
     if (!dest) return;
     const ui = useUi.getState();
     if (dest === 'back') ui.back();
+    else if (dest === 'forward') ui.forward();
     else ui.setView(dest as WorkspaceView);
   }, [setPendingView]);
 
@@ -97,6 +121,46 @@ function DirtyGuardDialog() {
 export function Shell() {
   const { view } = useUi();
   const restoreScroll = useUi((s) => s.restoreScroll);
+  const loadingDetail = useApp((s) => s.loadingDetail);
+
+  // ---- 布局自适应（窄窗口侧栏自动图标化，与用户主动开合分别管理）----
+  // 容器宽度 < 1180px：侧栏自动收为图标栏；页头/侧栏入口可临时展开（会话态，不写偏好）。
+  // 放大窗口后自动清除临时展开，恢复用户持久偏好（sidebar_state cookie）。
+  const [containerRef, containerWidth] = useElementWidth<HTMLDivElement>();
+  const sidebarWidth = useLayout((s) => s.sidebarWidth);
+  const setSidebarWidth = useLayout((s) => s.setSidebarWidth);
+  const resetSidebarWidth = useLayout((s) => s.resetSidebarWidth);
+  const isMobile = useIsMobile();
+  const [userSidebarOpen, setUserSidebarOpen] = useState(readStoredSidebarOpen);
+  const [navTemporarilyExpanded, setNavTemporarilyExpanded] = useState(false);
+  const containerNarrow = containerWidth > 0 && containerWidth < NARROW_CONTAINER_WIDTH;
+  const sidebarOpen = navTemporarilyExpanded || (!containerNarrow && userSidebarOpen);
+
+  // 宽容器下校正 cookie 回用户偏好（窄窗临时展开会被 ui/sidebar.tsx 内部写入污染）
+  useEffect(() => {
+    if (containerNarrow) return;
+    if (navTemporarilyExpanded) setNavTemporarilyExpanded(false);
+    persistSidebarOpen(userSidebarOpen);
+  }, [containerNarrow, userSidebarOpen, navTemporarilyExpanded]);
+
+  const handleSidebarOpenChange = useCallback((open: boolean) => {
+    if (containerNarrow) {
+      // 窄窗：入口展开是临时态，不覆盖用户偏好
+      setNavTemporarilyExpanded(open);
+      return;
+    }
+    setNavTemporarilyExpanded(false);
+    setUserSidebarOpen(open);
+    persistSidebarOpen(open);
+  }, [containerNarrow]);
+
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    const unlisten = listen<string>('workspace-command', (event) => {
+      performWorkspaceAction(event.payload);
+    });
+    return () => { void unlisten.then((dispose) => dispose()); };
+  }, []);
 
   // 挂载全局自适应 CI 轮询调度器（覆盖总览、迭代、需求详情全视图，活跃态 4s / 空闲态 60s）
   useGlobalCiScheduler();
@@ -126,13 +190,36 @@ export function Shell() {
   }, []);
 
   useEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.defaultPrevented || e.isComposing) return;
     const ui = useUi.getState();
     const el = e.target as HTMLElement | null;
 
     // ① ⌘/Ctrl 组合键：保持原有行为（⌘K 面板 / ⌘← 后退）；任何组合键都不触发下方单键序列
     if (e.metaKey || e.ctrlKey) {
       resetGSequence();
+      if (e.key.toLowerCase() === 'k' && ui.commandOpen && !e.altKey && !e.shiftKey) {
+        if ('__TAURI_INTERNALS__' in window && /Mac/i.test(navigator.platform)) return;
+        e.preventDefault();
+        ui.setCommandOpen(false);
+        return;
+      }
+      if (e.altKey || e.shiftKey || hasWorkspaceOverlay()) return;
+      const command = ({ '[': 'back', ']': 'forward', f: 'find', r: 'refresh' } as Record<string, string>)[e.key.toLowerCase()];
+      if (command) {
+        // macOS accelerators are delivered by the native menu event exactly once.
+        if ('__TAURI_INTERNALS__' in window && /Mac/i.test(navigator.platform)) return;
+        const handled = performWorkspaceAction(command);
+        if (handled || command === 'refresh') e.preventDefault();
+        return;
+      }
+      if (e.key === ',') {
+        if ('__TAURI_INTERNALS__' in window && /Mac/i.test(navigator.platform)) return;
+        e.preventDefault();
+        ui.openSettings('connection');
+        return;
+      }
       if (e.key.toLowerCase() === 'k') {
+        if ('__TAURI_INTERNALS__' in window && /Mac/i.test(navigator.platform)) return;
         e.preventDefault();
         // 快捷键面板或关于面板开着时先收起，避免两个浮层叠开
         if (ui.shortcutsOpen) ui.setShortcutsOpen(false);
@@ -142,7 +229,7 @@ export function Shell() {
       }
       if (e.key === 'ArrowLeft') {
         // 输入控件内保留光标移动语义
-        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+        if (isEditing(el)) return;
         if (!ui.history.length) return;
         e.preventDefault();
         ui.back();
@@ -156,11 +243,11 @@ export function Shell() {
 
     // ② 浮层打开（命令面板 / 快捷键面板 / 关于面板 / 任意 Base UI 弹层）或焦点在输入控件：
     //    全局单键一律让路（Esc 由 Base UI 自行关闭浮层），并复位 g 序列
-    if (ui.commandOpen || ui.shortcutsOpen || ui.aboutOpen || document.querySelector(OPEN_DIALOG_SELECTOR)) {
+    if (ui.commandOpen || ui.shortcutsOpen || ui.aboutOpen || hasWorkspaceOverlay()) {
       resetGSequence();
       return;
     }
-    if (isEditableTarget(el) || el?.tagName === 'SELECT') {
+    if (isEditing(el)) {
       resetGSequence();
       return;
     }
@@ -189,10 +276,7 @@ export function Shell() {
       return;
     }
 
-    // ⑤ Esc 后退：仅 requirement / full-settings 有层级可退（iteration/overview 即根视图）
-    if (e.key === 'Escape') {
-      if (ui.view === 'requirement' || ui.view === 'full-settings') ui.back();
-    }
+    // Esc dismisses transient UI; full-page navigation uses Back / ⌘[.
   });
 
   // 组件卸载时安全清理 g 序列计时器
@@ -202,19 +286,43 @@ export function Shell() {
 
   // 后退恢复工作区滚动位置（应用一次后清空，避免前向导航被旧值干扰）
   useEffect(() => {
-    if (restoreScroll == null) return;
-    const el = document.querySelector<HTMLElement>('.workspace-scroll');
-    if (el) el.scrollTop = restoreScroll;
-    useUi.setState({ restoreScroll: null });
-  }, [restoreScroll, view]);
+    if (restoreScroll == null || view === 'iteration' || (view === 'requirement' && loadingDetail)) return;
+    const frame = requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>('.workspace-scroll');
+      if (!el) return;
+      el.scrollTop = restoreScroll;
+      useUi.setState({ restoreScroll: null });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [restoreScroll, view, loadingDetail]);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider
+      ref={containerRef}
+      className="relative"
+      style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
+      open={sidebarOpen}
+      onOpenChange={handleSidebarOpenChange}
+    >
       <AppSidebar />
+      {/* 侧栏右缘拖动分隔线：1px 可见线 + 透明命中区；键盘可调、双击恢复默认 256px。
+          仅在展开态渲染（图标栏模式下宽度拖动无意义），移动端走抽屉不渲染。 */}
+      {!isMobile && sidebarOpen && (
+        <PaneSeparator
+          aria-label={`调整侧栏宽度，${SIDEBAR_PANE.min} 到 ${SIDEBAR_PANE.max} 像素`}
+          className="z-20"
+          style={{ left: 'calc(var(--sidebar-width) - 4px)' }}
+          value={sidebarWidth}
+          min={SIDEBAR_PANE.min}
+          max={SIDEBAR_PANE.max}
+          onChange={setSidebarWidth}
+          onReset={resetSidebarWidth}
+        />
+      )}
       {/* Linear 浮动主卡：inset 变体自带 m-2 圆角（ui/sidebar.tsx），这里只管裁切 */}
       <SidebarInset className="overflow-hidden">
         <div className="flex h-full min-h-0">
-          <section className="flex min-w-0 flex-1 flex-col h-full min-h-0 overflow-hidden">
+          <section data-workspace-content className="flex min-w-0 flex-1 flex-col h-full min-h-0 overflow-hidden">
             {view === 'iteration' ? (
               <IterationView />
             ) : (

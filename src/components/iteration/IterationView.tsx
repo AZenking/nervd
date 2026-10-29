@@ -15,15 +15,18 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { PaneSeparator } from '@/components/ui/resizable';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
+import { useLayout, LIST_PANE, DETAIL_PANE_MIN, SINGLE_COLUMN_WORKSPACE_WIDTH } from '@/store/layout';
 import { useShallow } from 'zustand/react/shallow';
 import {
   useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters, buildWorkitemFilterOptions, UNPLANNED_ITERATION,
 } from '@/store/ui';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { SearchableSelect } from '../searchable-select';
-import { STICKY_PAGE_HEADER_CLASS } from '../page-header';
+import { PageHeader } from '../page-header';
 import { EmptyHint } from '../empty-hint';
 import { OverflowTooltip } from '../overflow-tooltip';
 import { statusMeta } from '../StatusBadge';
@@ -31,6 +34,8 @@ import { StatusIcon, STATUS_TONE_ORDER } from '../status-icon';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useCiPolling } from '@/hooks/use-ci-polling';
 import { useBatchSelection } from '@/hooks/use-batch-selection';
+import { useElementWidth } from '@/hooks/use-element-width';
+import type { WorkitemChild } from '@/lib/api';
 import { WorkitemFilterBar } from './workitem-filter-menu';
 import { IterationBranches } from './IterationBranches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
@@ -41,9 +46,11 @@ import { FloatingBatchBar } from './floating-batch-bar';
 import { KeyboardPagination } from './keyboard-pagination';
 import { IterationRepoTab } from './iteration-repo-tab';
 import { matchWorkitemUser } from '@/lib/workitem-highlight';
+import { hasWorkspaceOverlay, isEditing } from '@/lib/workspace-actions';
 
 /** 每页渲染的分支行数：需求过多时全量渲染会卡，列表分页消化 */
 const PAGE_SIZE = 30;
+const ROW_PREVIEW_DELAY_MS = 140;
 
 /** 工作项行类型：直接从 app store 的 items 元素推导，避免再引一层 lib/api */
 type WorkitemItem = ReturnType<typeof useApp.getState>['items'][number];
@@ -121,9 +128,17 @@ function RowStatusDropdown({ item }: { item: WorkitemItem }) {
  * 列表区不再有卡片边框容器：全宽裸行 + 状态分组折叠，操作逻辑对齐 Linear（j/k/Enter 与悬停跟随光标）。
  */
 export function IterationView() {
-  const { iterationKey, setIteration, openWorkitem, filters } = useUi();
   const {
-    items, repositories, category, setCategory, loadingList, loadList, nextToken,
+    iterationKey,
+    setIteration,
+    openWorkitem,
+    filters,
+    listContext,
+    updateListContext,
+    restoreScroll,
+  } = useUi();
+  const {
+    items, repositories, category, setCategory, loadingList, listFetchedAt, loadList, nextToken,
     iterations: realIterations, loadingIterations, loadIterations,
     settings,
     currentUser, workitemHighlight,
@@ -135,6 +150,7 @@ export function IterationView() {
       category: s.category,
       setCategory: s.setCategory,
       loadingList: s.loadingList,
+      listFetchedAt: s.listFetchedAt,
       loadList: s.loadList,
       nextToken: s.nextToken,
       iterations: s.iterations,
@@ -192,25 +208,42 @@ export function IterationView() {
   }, [scoped, settings, repositories]);
 
   // 分页（需求过多时全量渲染会卡）：每页 30 条，状态分组按当前页切片计算
-  const [pageIndex, setPageIndex] = useState(1);
+  const [pageIndex, setPageIndex] = useState(() => listContext.pageIndex);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = useMemo(
     () => filtered.slice((pageIndex - 1) * PAGE_SIZE, pageIndex * PAGE_SIZE),
     [filtered, pageIndex],
   );
 
+  useEffect(() => {
+    updateListContext({ pageIndex });
+  }, [pageIndex, updateListContext]);
+
+  useEffect(() => {
+    if (listFetchedAt != null && !loadingList && !nextToken && pageIndex > totalPages) {
+      setPageIndex(totalPages);
+    }
+  }, [listFetchedAt, loadingList, nextToken, pageIndex, totalPages]);
+
   // 补拉防护：限制连续自动补拉深度，防止需求少的小迭代把全空间成百上千条工作项瀑布式抽干
   const backfillRoundRef = useRef(0);
   const prevScopedCountRef = useRef(scoped.length);
   const zeroYieldStreakRef = useRef(0);
 
-  // 类别 / 迭代 / 筛选变化时回到第一页，并重置补拉计数器
+  // 类别 / 迭代 / 筛选真正变化时回到第一页；首次挂载保留导航恢复的页码。
+  const filterScopeKey = JSON.stringify(filters);
+  const previousListScopeRef = useRef({ category, iterationKey, filterScopeKey });
   useEffect(() => {
+    const previous = previousListScopeRef.current;
+    if (previous.category === category
+      && previous.iterationKey === iterationKey
+      && previous.filterScopeKey === filterScopeKey) return;
+    previousListScopeRef.current = { category, iterationKey, filterScopeKey };
     setPageIndex(1);
     backfillRoundRef.current = 0;
     zeroYieldStreakRef.current = 0;
     prevScopedCountRef.current = scoped.length;
-  }, [category, iterationKey, activeFilterCount]);
+  }, [category, filterScopeKey, iterationKey, scoped.length]);
 
   // 当用户主动翻页时，也给当前新页重置补拉轮数
   useEffect(() => {
@@ -252,7 +285,7 @@ export function IterationView() {
   const groups = useMemo(() => groupByStatus(pageItems), [pageItems]);
 
   // 折叠状态：status 原文集合（折叠的组不渲染数据行）
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(listContext.collapsedStatuses));
   const toggleGroup = useCallback((status: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -261,6 +294,10 @@ export function IterationView() {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    updateListContext({ collapsedStatuses: [...collapsed] });
+  }, [collapsed, updateListContext]);
 
   // 扁平可见行序 = 分组渲染顺序拼接（折叠组不占行）；id → 扁平索引供 data-active / 悬停换算
   const flatIds = useMemo(
@@ -271,30 +308,70 @@ export function IterationView() {
   const itemById = useMemo(() => new Map(filtered.map((it) => [rowKeyOf(it), it])), [filtered]);
 
   // 详情分栏选中的工作项 ID；null 表示分栏收起（全宽列表形态）
-  const [splitWorkitemId, setSplitWorkitemId] = useState<string | null>(null);
-  const [splitParentWorkitemId, setSplitParentWorkitemId] = useState<string | null>(null);
+  const [splitWorkitemId, setSplitWorkitemId] = useState<string | null>(() => listContext.splitWorkitemId);
+  const [splitParentWorkitemId, setSplitParentWorkitemId] = useState<string | null>(() => listContext.splitParentWorkitemId);
 
   // 顶层视图 Tab：工作项（默认）/ 关联仓库与 CI / 分支模板
-  const [viewTab, setViewTab] = useState<'workitems' | 'repos' | 'branches'>('workitems');
+  const [viewTab, setViewTab] = useState<'workitems' | 'repos' | 'branches'>(() => listContext.viewTab);
+  useEffect(() => {
+    updateListContext({ splitWorkitemId, splitParentWorkitemId, viewTab });
+  }, [splitWorkitemId, splitParentWorkitemId, updateListContext, viewTab]);
   // 未规划虚拟迭代无分支模板（保存静默失败），强制回落工作项 tab
   const shownTab = isUnplanned && viewTab === 'branches' ? 'workitems' : viewTab;
 
+  // ---- 布局自适应（窄窗口单栏切换 / 分栏宽度接入）----
+  // 测量的是本视图根容器（= 扣除侧栏后的工作区宽度），三种渲染分支共用，测量节点常驻不随分支卸载。
+  const [measureRef, workspaceWidth] = useElementWidth<HTMLDivElement>();
+  /** 工作区宽度低于 760 → 单栏形态（首帧未测量完成时不触发，避免挂载闪烁） */
+  const singleColumn = workspaceWidth > 0 && workspaceWidth < SINGLE_COLUMN_WORKSPACE_WIDTH;
+  /** 单栏 + 详情打开：仅渲染全宽详情 + 「返回列表」，列表卸载但现场（筛选/分页/多选/光标/折叠/滚动）保留 */
+  const singleColumnDetail = singleColumn && splitWorkitemId != null;
+
+  // 分栏宽度偏好：store/layout 持久化；展示期钳制见 effectiveListWidth，窗口收窄绝不写回偏好
+  const listWidth = useLayout((s) => s.listWidth);
+  const setListWidth = useLayout((s) => s.setListWidth);
+  const resetListWidth = useLayout((s) => s.resetListWidth);
+
+  /**
+   * 分栏展示宽度：偏好值仅在展示期钳制到 [min, min(max, 工作区 - 详情最小宽)]。
+   * 窗口收窄只限制当前展示尺寸，绝不写回偏好（onChange/onReset 之外的路径不得触碰 listWidth）；
+   * 首帧未测量（workspaceWidth === 0）时按上限钳制，避免闪现极窄 master。
+   */
+  const effectiveListWidth = Math.min(
+    Math.max(listWidth, LIST_PANE.min),
+    Math.max(
+      LIST_PANE.min,
+      workspaceWidth > 0 ? Math.min(LIST_PANE.max, workspaceWidth - DETAIL_PANE_MIN) : LIST_PANE.max,
+    ),
+  );
+
+  const previewClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelPreviewClick = useCallback(() => {
+    if (previewClickTimer.current !== null) {
+      clearTimeout(previewClickTimer.current);
+      previewClickTimer.current = null;
+    }
+  }, []);
+  useEffect(() => cancelPreviewClick, [cancelPreviewClick]);
+
   /** 打开工作项详情分栏：行点击 / Enter / 右键菜单就地展开 Master-Detail 两栏 */
   const openDetail = useCallback((item: WorkitemItem) => {
+    cancelPreviewClick();
     setSplitWorkitemId(item.workitemId);
     setSplitParentWorkitemId(null);
     void useApp.getState().select(item.workitemId);
-  }, []);
+  }, [cancelPreviewClick]);
 
   /** 在独立工作台全屏打开（转入完整页面） */
   const openInWorkbench = useCallback((item: WorkitemItem) => {
+    cancelPreviewClick();
     setSplitWorkitemId(null);
     openWorkitem(item.workitemId, {
       workitemId: item.workitemId,
       identifier: item.identifier,
       subject: item.subject,
     });
-  }, [openWorkitem]);
+  }, [openWorkitem, cancelPreviewClick]);
 
   /** 复制文本到剪贴板并 toast 反馈 */
   const { copy: copyWithToast } = useClipboard();
@@ -303,9 +380,17 @@ export function IterationView() {
   const {
     selectedIds,
     toggle: toggleSelect,
+    selectOnly,
+    setAnchor: setSelectionAnchor,
+    selectRange,
+    selectAll,
     clear: clearSelection,
     hasSelected,
-  } = useBatchSelection();
+  } = useBatchSelection(listContext.selectedWorkitemIds);
+
+  useEffect(() => {
+    updateListContext({ selectedWorkitemIds: [...selectedIds] });
+  }, [selectedIds, updateListContext]);
 
   // 行右键上下文菜单：{行数据, 视口坐标}；受控 DropdownMenu 以隐藏零尺寸 trigger 锚定到该坐标
   const [ctxMenu, setCtxMenu] = useState<{ item: WorkitemItem; x: number; y: number } | null>(null);
@@ -313,9 +398,35 @@ export function IterationView() {
   // 键盘光标：扁平可见行索引；ref 镜像供 keydown 闭包读取（避免逐键重绑监听器）
   const [cursor, setCursor] = useState(0);
   const cursorRef = useRef(0);
+  const cursorInitializedRef = useRef(false);
+  const pendingCursorIndexRef = useRef<number | null>(null);
   const isKeyboardNavRef = useRef(false);
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
   const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const pendingRestoreScrollRef = useRef(restoreScroll);
+  const didRestoreScrollRef = useRef(false);
+
+  // ---- 列表现场滚动的本地保存 / 恢复（单栏详情态与跨阈值切换共用）----
+  // 保存走 onScroll（用户/程序真实滚动时即时记录）：ref cleanup 时机太晚——分支切换当帧容器内容已被
+  // 换成（更矮的）详情骨架，浏览器先一步把 scrollTop 钳到新 maxScroll，存到的就是被钳后的值。
+  // 列表重挂载且数据就绪后一次性恢复（pendingLocal… 消费即清零，绝不与用户后续滚动打架）。
+  const savedListScrollTopRef = useRef<number | null>(null);
+  const pendingLocalScrollRestoreRef = useRef<number | null>(null);
+  const [listMountEpoch, setListMountEpoch] = useState(0);
+  const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    savedListScrollTopRef.current = e.currentTarget.scrollTop;
+  }, []);
+  const attachListScroll = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return undefined;
+    listScrollRef.current = el;
+    if (savedListScrollTopRef.current != null) {
+      pendingLocalScrollRestoreRef.current = savedListScrollTopRef.current;
+    }
+    setListMountEpoch((epoch) => epoch + 1);
+    return () => {
+      listScrollRef.current = null;
+    };
+  }, []);
 
   /** 局限在直接父滚动容器内平稳使目标行可见，彻底规避原生 scrollIntoView 引起的祖先容器全局跳动 */
   const scrollRowIntoView = useCallback((rowId: string) => {
@@ -348,10 +459,66 @@ export function IterationView() {
     });
   }, []);
 
-  // 过滤结果（搜索词 / 筛选 / 类别 / 折叠）变化时，光标收敛到合法区间（静默校正，不扰动滚动）
+  // 初次取得数据时按稳定工作项 ID 恢复光标；之后只随当前可见行收敛，不反复读取旧 ID。
   useEffect(() => {
-    applyCursor((prev) => (flatIds.length ? Math.min(prev, flatIds.length - 1) : 0));
-  }, [flatIds, applyCursor]);
+    if (!cursorInitializedRef.current && (listFetchedAt == null || loadingList)) return;
+    const restoredIndex = !cursorInitializedRef.current && listContext.cursorWorkitemId
+      ? flatIds.indexOf(listContext.cursorWorkitemId)
+      : -1;
+    const nextCursor = restoredIndex >= 0
+      ? restoredIndex
+      : (flatIds.length ? Math.min(cursorRef.current, flatIds.length - 1) : 0);
+    cursorInitializedRef.current = true;
+    if (nextCursor !== cursor) {
+      pendingCursorIndexRef.current = nextCursor;
+      applyCursor(nextCursor);
+    } else {
+      pendingCursorIndexRef.current = null;
+    }
+  }, [cursor, flatIds, applyCursor, listContext.cursorWorkitemId, listFetchedAt, loadingList]);
+
+  useEffect(() => {
+    if (!cursorInitializedRef.current || listFetchedAt == null || (!flatIds.length && loadingList)) return;
+    if (pendingCursorIndexRef.current !== null && cursor !== pendingCursorIndexRef.current) return;
+    pendingCursorIndexRef.current = null;
+    const focusedItem = itemById.get(flatIds[cursor]);
+    updateListContext({ cursorWorkitemId: focusedItem?.workitemId ?? null });
+  }, [cursor, flatIds, itemById, listFetchedAt, loadingList, updateListContext]);
+
+  // Shell 对迭代页保留 restoreScroll；等恢复页已有可见数据后再应用并消费。
+  useEffect(() => {
+    const pendingScrollTop = pendingRestoreScrollRef.current;
+    const container = listScrollRef.current;
+    if (pendingScrollTop == null || didRestoreScrollRef.current || !container || listFetchedAt == null || loadingList) return;
+    if (pageIndex > totalPages || (!pageItems.length && nextToken)) return;
+
+    container.scrollTop = pendingScrollTop;
+    pendingRestoreScrollRef.current = null;
+    didRestoreScrollRef.current = true;
+    if (useUi.getState().restoreScroll === pendingScrollTop) {
+      useUi.setState({ restoreScroll: null });
+    }
+  }, [listFetchedAt, loadingList, nextToken, pageIndex, pageItems.length, totalPages]);
+
+  // 列表容器重挂载（单栏返回列表 / 跨越 760 阈值 / 全宽↔分栏切换）后恢复卸载前滚动位置：
+  // 数据未就绪时挂起等待，恢复成功即消费，一次性生效。恢复后短时间内（≤24 帧 ≈ 400ms）粘性重申
+  // 目标偏移：重挂载瞬间字体加载/布局收敛会触发浏览器滚动锚定，把刚恢复的偏移再拽偏几个像素。
+  useEffect(() => {
+    const target = pendingLocalScrollRestoreRef.current;
+    const container = listScrollRef.current;
+    if (target == null || !container || listFetchedAt == null || loadingList) return;
+    if (pageIndex > totalPages || (!pageItems.length && nextToken)) return;
+    pendingLocalScrollRestoreRef.current = null;
+    container.scrollTop = target;
+    let frames = 0;
+    const reassert = () => {
+      if (listScrollRef.current !== container) return;
+      frames += 1;
+      if (container.scrollTop !== target) container.scrollTop = target;
+      if (frames < 24) requestAnimationFrame(reassert);
+    };
+    requestAnimationFrame(reassert);
+  }, [listMountEpoch, listFetchedAt, loadingList, nextToken, pageIndex, pageItems.length, totalPages]);
 
   // 仅在用户键盘按键主动切换光标时跟随滚动；数据加载、补拉追加、筛选收敛绝对不触发滚动
   useEffect(() => {
@@ -384,10 +551,18 @@ export function IterationView() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+      if (e.defaultPrevented || e.isComposing) return;
+      if (isEditing(e.target)) return;
       if (useUi.getState().commandOpen) return;
       if (ctxMenu) return;
+      if (hasWorkspaceOverlay()) return;
+
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        selectAll(flatIds, flatIds[cursorRef.current]);
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       if (e.key === 'Escape') {
         if (hasSelected) {
@@ -397,13 +572,8 @@ export function IterationView() {
         }
         if (splitWorkitemId) {
           e.preventDefault();
-          if (splitParentWorkitemId) {
-            setSplitWorkitemId(splitParentWorkitemId);
-            setSplitParentWorkitemId(null);
-            void useApp.getState().select(splitParentWorkitemId);
-          } else {
-            setSplitWorkitemId(null);
-          }
+          setSplitWorkitemId(null);
+          setSplitParentWorkitemId(null);
           return;
         }
       }
@@ -433,12 +603,13 @@ export function IterationView() {
         if (target?.closest('button, a, [role="button"]')) return;
         const item = itemById.get(flatIds[cursorRef.current]);
         if (!item) return;
+        e.preventDefault();
         openDetail(item);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [flatIds, itemById, openDetail, applyCursor, ctxMenu, totalPages, splitWorkitemId, hasSelected, clearSelection, toggleSelect]);
+  }, [flatIds, itemById, openDetail, applyCursor, ctxMenu, totalPages, splitWorkitemId, hasSelected, clearSelection, toggleSelect, selectAll]);
 
   // 工作项列表区块（全宽 / 分栏左侧两用）
   const renderWorkitemList = (isMasterColumn: boolean) => (
@@ -490,11 +661,28 @@ export function IterationView() {
                         data-active={isActive}
                         data-testid="workitem-row"
                         data-identifier={item.identifier ?? ''}
-                        onClick={() => {
+                        onClick={(e) => {
+                          cancelPreviewClick();
                           applyCursor(flatIndexById.get(rowId) ?? 0);
-                          openDetail(item);
+                          const isMultiSelectClick = e.metaKey || e.ctrlKey;
+                          if (e.shiftKey) {
+                            selectRange(flatIds, item.workitemId, isMultiSelectClick);
+                            return;
+                          }
+                          if (isMultiSelectClick) {
+                            toggleSelect(item.workitemId);
+                            return;
+                          }
+                          clearSelection();
+                          setSelectionAnchor(item.workitemId);
+                          // Keep the row mounted long enough for a native double-click.
+                          previewClickTimer.current = setTimeout(() => openDetail(item), ROW_PREVIEW_DELAY_MS);
+                        }}
+                        onDoubleClick={() => {
+                          openInWorkbench(item);
                         }}
                         onKeyDown={(e) => {
+                          if (e.defaultPrevented || e.nativeEvent.isComposing) return;
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             applyCursor(flatIndexById.get(rowId) ?? 0);
@@ -504,6 +692,7 @@ export function IterationView() {
                         onContextMenu={(e) => {
                           e.preventDefault();
                           applyCursor(flatIndexById.get(rowId) ?? 0);
+                          if (!selectedIds.has(item.workitemId)) selectOnly(item.workitemId);
                           setCtxMenu({ item, x: e.clientX, y: e.clientY });
                         }}
                         className={cn(
@@ -564,9 +753,10 @@ export function IterationView() {
                                 </AvatarFallback>
                               </Avatar>
                               {!isMasterColumn && (
-                                <span className={cn('hidden max-w-24 truncate lg:inline', match.isAssigned && 'font-medium text-foreground')}>
-                                  {assignee}
-                                </span>
+                                <OverflowTooltip
+                                  text={assignee}
+                                  className={cn('hidden max-w-24 truncate lg:inline', match.isAssigned && 'font-medium text-foreground')}
+                                />
                               )}
                             </>
                           ) : !isMasterColumn ? (
@@ -640,6 +830,16 @@ export function IterationView() {
     </div>
   );
 
+  const copyContextSelection = (field: 'identifier' | 'subject', singleItemMessage: string) => {
+    if (!ctxMenu) return;
+    const targets = selectedIds.has(ctxMenu.item.workitemId)
+      ? items.filter((item) => selectedIds.has(item.workitemId))
+      : [ctxMenu.item];
+    const copiedText = targets.map((item) => item[field]).filter(Boolean).join('\n');
+    const successMessage = targets.length > 1 ? `已复制 ${targets.length} 项` : singleItemMessage;
+    void copyWithToast(copiedText, successMessage);
+  };
+
   // 右键上下文菜单
   const contextMenuNode = (
     <DropdownMenu
@@ -680,12 +880,12 @@ export function IterationView() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => { if (ctxMenu) copyWithToast(ctxMenu.item.identifier, '已复制编号'); }}
+          onClick={() => copyContextSelection('identifier', '已复制编号')}
         >
           复制编号
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => { if (ctxMenu) copyWithToast(ctxMenu.item.subject, '已复制标题'); }}
+          onClick={() => copyContextSelection('subject', '已复制标题')}
         >
           复制标题
         </DropdownMenuItem>
@@ -696,180 +896,77 @@ export function IterationView() {
   // 底部浮动批量操作条（Linear 式 Floating Batch Bar）
   const batchBarNode = <FloatingBatchBar selectedIds={selectedIds} onClear={clearSelection} />;
 
-  // 分栏模式：Master 列表在左，Detail 详情在右，两栏独立滚动
-  if (splitWorkitemId) {
-    return (
-      <div className="flex h-full min-h-0 w-full overflow-hidden bg-background">
-        {/* 左侧 Master 列表列 */}
-        <aside data-testid="split-master" className="flex flex-col w-[360px] md:w-[380px] lg:w-[420px] shrink-0 border-r border-border/70 h-full min-h-0 bg-background">
-          <header className="shrink-0 border-b border-border/70 bg-background px-3.5 pt-7 pb-2.5 flex flex-col gap-2">
-            <div className="flex min-h-8 items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <h1 className="text-sm font-semibold tracking-tight text-foreground shrink-0">迭代</h1>
-                <Tabs
-                  value={shownTab}
-                  onValueChange={(v) => {
-                    setViewTab(v as 'workitems' | 'repos' | 'branches');
-                    if (v !== 'workitems') setSplitWorkitemId(null);
-                  }}
-                >
-                  <TabsList className="h-6 bg-muted/60 p-0.5">
-                    <TabsTrigger value="workitems" className="px-2 py-0 text-[11px]">工作项</TabsTrigger>
-                    <TabsTrigger value="repos" className="px-2 py-0 text-[11px]">涉及仓库</TabsTrigger>
-                    {!isUnplanned && <TabsTrigger value="branches" className="px-2 py-0 text-[11px]">模板</TabsTrigger>}
-                  </TabsList>
-                </Tabs>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <SearchableSelect
-                  className="w-32 text-xs"
-                  ariaLabel="切换迭代"
-                  value={iteration.name}
-                  onValueChange={(v) => { if (v) setIteration(v); }}
-                  items={iterations.map((it) => ({
-                    label: `${it.name} · ${it.state}`,
-                    value: it.name,
-                  }))}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="刷新"
-                  disabled={loadingList || revalidatingList}
-                  onClick={() => {
-                    void (items.length ? revalidateList() : loadList(false));
-                    void loadIterations();
-                    refreshCi();
-                  }}
-                >
-                  <RefreshCwIcon className={cn('size-3.5', (loadingList || revalidatingList) && 'animate-spin')} />
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
-                <TabsList className="h-7">
-                  {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
-                    <TabsTrigger key={c} value={c} className="px-2 py-0.5 text-xs">{CATEGORY_LABELS[c]}</TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <WorkitemFilterBar options={filterOptions} activeFilterCount={activeFilterCount} />
-              </div>
-            </div>
-          </header>
+  /** 分栏/单栏详情共用的「在工作台全屏打开」：转入独立工作台并收起分栏 */
+  const openCurrentDetailInWorkbench = () => {
+    const currentItem = itemById.get(splitWorkitemId ?? '');
+    if (currentItem) {
+      setSplitParentWorkitemId(null);
+      openInWorkbench(currentItem);
+    } else if (splitWorkitemId) {
+      const detailWi = useApp.getState().detail?.workitem as Record<string, unknown> | undefined;
+      const parentItem = splitParentWorkitemId ? itemById.get(splitParentWorkitemId) : undefined;
+      const id = splitWorkitemId;
+      const ident = (typeof detailWi?.identifier === 'string' && detailWi.identifier) || '';
+      const subj = (typeof detailWi?.subject === 'string' && detailWi.subject) || '';
+      setSplitWorkitemId(null);
+      setSplitParentWorkitemId(null);
+      openWorkitem(
+        id,
+        { workitemId: id, identifier: ident, subject: subj },
+        parentItem ? { workitemId: parentItem.workitemId, identifier: parentItem.identifier, subject: parentItem.subject } : undefined,
+      );
+    }
+  };
 
-          {/* 列表独立滚动容器 */}
-          <div ref={listScrollRef} className="workspace-scroll flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-5">
-            {renderWorkitemList(true)}
-          </div>
-        </aside>
+  /** 收起详情态回到列表（Esc / 关闭按钮 / 单栏「返回列表」共用）：只清分栏选择，列表其余现场不动 */
+  const closeDetailPane = useCallback(() => {
+    setSplitWorkitemId(null);
+    setSplitParentWorkitemId(null);
+  }, []);
 
-        {/* 右侧 Detail 详情区 */}
-        <main data-testid="split-detail" className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden bg-background">
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <RequirementDetails
-              embedded
-              parentWorkitem={splitParentWorkitemId ? itemById.get(splitParentWorkitemId) : null}
-              onOpenWorkbench={() => {
-                const currentItem = itemById.get(splitWorkitemId ?? '');
-                if (currentItem) {
-                  setSplitParentWorkitemId(null);
-                  openInWorkbench(currentItem);
-                } else if (splitWorkitemId) {
-                  const detailWi = useApp.getState().detail?.workitem as Record<string, unknown> | undefined;
-                  const parentItem = splitParentWorkitemId ? itemById.get(splitParentWorkitemId) : undefined;
-                  const id = splitWorkitemId;
-                  const ident = (typeof detailWi?.identifier === 'string' && detailWi.identifier) || '';
-                  const subj = (typeof detailWi?.subject === 'string' && detailWi.subject) || '';
-                  setSplitWorkitemId(null);
-                  setSplitParentWorkitemId(null);
-                  openWorkitem(
-                    id,
-                    { workitemId: id, identifier: ident, subject: subj },
-                    parentItem ? { workitemId: parentItem.workitemId, identifier: parentItem.identifier, subject: parentItem.subject } : undefined,
-                  );
-                }
-              }}
-              onClose={() => {
-                setSplitWorkitemId(null);
-                setSplitParentWorkitemId(null);
-              }}
-              onSelectChild={(child) => {
-                setSplitParentWorkitemId(splitWorkitemId);
-                setSplitWorkitemId(child.workitemId);
-                void useApp.getState().select(child.workitemId);
-              }}
-              onSelectParent={(parentId) => {
-                setSplitWorkitemId(parentId);
-                setSplitParentWorkitemId(null);
-                void useApp.getState().select(parentId);
-              }}
-            />
-          </div>
-        </main>
+  /** 钻取子工作项：详情切换为子项并记录父级（Esc / 面包屑逐层退回） */
+  const handleSelectChild = useCallback((child: WorkitemChild) => {
+    setSplitParentWorkitemId(splitWorkitemId);
+    setSplitWorkitemId(child.workitemId);
+    void useApp.getState().select(child.workitemId);
+  }, [splitWorkitemId]);
 
-        {contextMenuNode}
-        {batchBarNode}
-      </div>
-    );
-  }
+  /** 从子项详情退回父需求 */
+  const handleSelectParent = useCallback((parentId: string) => {
+    setSplitWorkitemId(parentId);
+    setSplitParentWorkitemId(null);
+    void useApp.getState().select(parentId);
+  }, []);
 
-  // 全宽模式：居中单栏浏览形态
-  return (
-    <div ref={listScrollRef} className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10">
-      {/* sticky 页头（Linear 无大标题形态）：行1 = 页面标题 + 视图 Tabs + 迭代切换/刷新；行2 = 视图工具栏 */}
-      <header
-        data-tauri-drag-region
-        className={cn(STICKY_PAGE_HEADER_CLASS, 'select-none')}
+  /** 详情面板公共 props（分栏 / 单栏详情共用；单栏形态额外注入 onBackToList） */
+  const detailPaneProps = {
+    embedded: true,
+    parentWorkitem: splitParentWorkitemId ? itemById.get(splitParentWorkitemId) : null,
+    onOpenWorkbench: openCurrentDetailInWorkbench,
+    onSelectChild: handleSelectChild,
+    onSelectParent: handleSelectParent,
+  };
+
+  // 分栏模式：Master 列表在左（宽度可拖），Detail 详情在右，两栏独立滚动
+  const splitView = (
+    <div className="flex h-full min-h-0 w-full overflow-hidden bg-background">
+      {/* 左侧 Master 列表列：宽度 = 偏好值展示期钳制（窗口收窄只限制展示尺寸，不写回偏好） */}
+      <aside
+        data-testid="split-master"
+        style={{ width: effectiveListWidth }}
+        className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-border/70 bg-background"
       >
-        <div className="flex min-h-9 items-center justify-between gap-3" data-tauri-drag-region>
-          <div className="flex items-center gap-3" data-tauri-drag-region>
-            <h1 className="text-sm font-semibold tracking-tight text-foreground select-none cursor-default">
-              迭代
-            </h1>
-            <div className="h-3.5 w-px bg-border/70" />
-            <div data-no-drag>
-              <Tabs
-                  value={shownTab}
-                onValueChange={(v) => {
-                  setViewTab(v as 'workitems' | 'repos' | 'branches');
-                  if (v !== 'workitems') setSplitWorkitemId(null);
-                }}
-              >
-                <TabsList className="h-7 bg-muted/60 p-0.5">
-                  <TabsTrigger value="workitems" className="px-2.5 py-0.5 text-xs gap-1.5">
-                    <span>工作项</span>
-                    <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                      {filtered.length}
-                    </span>
-                  </TabsTrigger>
-                  <TabsTrigger value="repos" className="px-2.5 py-0.5 text-xs gap-1.5">
-                    <span>涉及仓库</span>
-                    {scopedRepoCount > 0 && (
-                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                        {scopedRepoCount}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                  {!isUnplanned && (
-                    <TabsTrigger value="branches" className="px-2.5 py-0.5 text-xs gap-1.5">
-                      <span>分支模板</span>
-                      {templateCount > 0 && (
-                        <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
-                          {templateCount}
-                        </span>
-                      )}
-                    </TabsTrigger>
-                  )}
-                </TabsList>
-              </Tabs>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2" data-no-drag>
+          {/* master 页头（PageHeader v2 compact）：navigation=侧栏开关｜title=迭代｜scope=迭代切换｜
+            toolbar=视图 Tabs + 类别 Tabs + 筛选｜actions=刷新。master 不在滚动容器内，不用 sticky。 */}
+        <PageHeader
+          density="compact"
+          className="shrink-0 border-b border-border/70 bg-background px-3.5 pt-7 pb-2.5"
+          navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
+          title="迭代"
+          titleClassName="text-sm font-semibold tracking-tight text-foreground"
+          scope={(
             <SearchableSelect
-              className="w-44 text-xs"
+              className="w-28 text-xs sm:w-32"
               ariaLabel="切换迭代"
               value={iteration.name}
               onValueChange={(v) => { if (v) setIteration(v); }}
@@ -878,10 +975,180 @@ export function IterationView() {
                 value: it.name,
               }))}
             />
+          )}
+          actions={(
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Tabs
+                value={shownTab}
+                onValueChange={(v) => {
+                  setViewTab(v as 'workitems' | 'repos' | 'branches');
+                  if (v !== 'workitems') setSplitWorkitemId(null);
+                }}
+              >
+                <TabsList size="xs">
+                  <TabsTrigger value="workitems">工作项</TabsTrigger>
+                  <TabsTrigger value="repos">涉及仓库</TabsTrigger>
+                  {!isUnplanned && <TabsTrigger value="branches">模板</TabsTrigger>}
+                </TabsList>
+              </Tabs>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="刷新"
+                disabled={loadingList || revalidatingList}
+                onClick={() => {
+                  void (items.length ? revalidateList() : loadList(false));
+                  void loadIterations();
+                  refreshCi();
+                }}
+              >
+                <RefreshCwIcon className={cn('size-3.5', (loadingList || revalidatingList) && 'animate-spin')} />
+              </Button>
+            </div>
+          )}
+          toolbar={(
+            <>
+              <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
+                <TabsList size="sm">
+                  {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
+                    <TabsTrigger key={c} value={c}>{CATEGORY_LABELS[c]}</TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <WorkitemFilterBar options={filterOptions} activeFilterCount={activeFilterCount} />
+              </div>
+            </>
+          )}
+        />
+
+          {/* 列表独立滚动容器 */}
+          <div
+            ref={attachListScroll}
+            onScroll={handleListScroll}
+            className="workspace-scroll flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-5"
+          >
+            {renderWorkitemList(true)}
+          </div>
+
+          {/* 分隔线：PaneSeparator 默认绝对定位自带头部 left 锚点约定，此处改为填充外层 8px 命中区
+              （外层以 -right-1 居中于 aside 右缘 border 上）；data-testid 包装层由本组件提供。 */}
+          <div data-testid="list-pane-separator" className="absolute inset-y-0 -right-1 z-10 w-2">
+            <PaneSeparator
+              aria-label="调整工作项列表宽度，280 到 480 像素"
+              value={listWidth}
+              min={LIST_PANE.min}
+              max={LIST_PANE.max}
+              onChange={setListWidth}
+              onReset={resetListWidth}
+              growDirection="right"
+              className="relative inset-auto ml-0 h-full w-full"
+            />
+          </div>
+        </aside>
+
+        {/* 右侧 Detail 详情区 */}
+        <main
+          data-testid="split-detail"
+          className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden bg-background animate-detail-enter will-change-transform"
+        >
+          <div key={splitWorkitemId ?? 'empty'} className="flex-1 min-h-0 overflow-y-auto animate-content-fade">
+            <RequirementDetails
+              {...detailPaneProps}
+              onClose={closeDetailPane}
+            />
+          </div>
+        </main>
+
+        {contextMenuNode}
+        {batchBarNode}
+      </div>
+  );
+
+  // 单栏详情态（窄窗口 <760 且详情打开）：列表卸载，仅渲染全宽详情 + 顶部「返回列表」；
+  // 筛选/分页/多选/光标/折叠均在 state/store 中自然保留，列表滚动位置经 savedListScrollTopRef 恢复。
+  const singleColumnDetailView = (
+    <div
+      key={splitWorkitemId ?? 'empty'}
+      className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden bg-background animate-detail-enter will-change-transform"
+    >
+      <RequirementDetails
+        {...detailPaneProps}
+        onBackToList={closeDetailPane}
+      />
+      {contextMenuNode}
+      {batchBarNode}
+    </div>
+  );
+
+  // 全宽模式：居中单栏浏览形态（单栏窄窗下页头 compact 化）
+  const fullWidthView = (
+    <div
+      ref={attachListScroll}
+      onScroll={handleListScroll}
+      className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10"
+    >
+      {/* 页头（PageHeader v2 sticky）：navigation=侧栏开关｜title=迭代｜scope=迭代切换｜actions=刷新；
+          toolbar=视图 Tabs + 类别 Tabs + 筛选（或仓库/模板行提示）。单栏窄窗 density compact 收紧留白。 */}
+      <PageHeader
+        sticky
+        density={singleColumn ? 'compact' : 'regular'}
+        navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
+        title="迭代"
+        titleClassName="text-sm font-semibold tracking-tight text-foreground"
+        scope={(
+          <SearchableSelect
+            className="w-44 text-xs"
+            ariaLabel="切换迭代"
+            value={iteration.name}
+            onValueChange={(v) => { if (v) setIteration(v); }}
+            items={iterations.map((it) => ({
+              label: `${it.name} · ${it.state}`,
+              value: it.name,
+            }))}
+          />
+        )}
+        actions={(
+          <div className="flex shrink-0 items-center gap-2">
+            <Tabs
+              value={shownTab}
+              onValueChange={(v) => {
+                setViewTab(v as 'workitems' | 'repos' | 'branches');
+                if (v !== 'workitems') setSplitWorkitemId(null);
+              }}
+            >
+              <TabsList size="sm">
+                <TabsTrigger value="workitems" className="gap-1.5">
+                  <span>工作项</span>
+                  <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                    {filtered.length}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="repos" className="gap-1.5">
+                  <span>涉及仓库</span>
+                  {scopedRepoCount > 0 && (
+                    <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                      {scopedRepoCount}
+                    </span>
+                  )}
+                </TabsTrigger>
+                {!isUnplanned && (
+                  <TabsTrigger value="branches" className="gap-1.5">
+                    <span>分支模板</span>
+                    {templateCount > 0 && (
+                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                        {templateCount}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </Tabs>
             <Button
               variant="ghost"
               size="icon-sm"
               aria-label="刷新"
+              data-workspace-refresh
               disabled={loadingList || revalidatingList}
               onClick={() => {
                 // 手动刷新覆盖本页全部数据源：工作项 + 迭代 + 各仓库 CI（双缓冲平滑更新，杜绝列表坍塌与闪烁）
@@ -893,46 +1160,47 @@ export function IterationView() {
               <RefreshCwIcon className={cn('size-4', (loadingList || revalidatingList) && 'animate-spin')} />
             </Button>
           </div>
-        </div>
-
-        {viewTab === 'workitems' && (
-          <div className="flex items-center gap-3 pt-1" data-no-drag>
-            <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
-              <TabsList>
-                {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
-                  <TabsTrigger key={c} value={c}>{CATEGORY_LABELS[c]}</TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-            <span className="min-w-0 truncate text-xs text-muted-foreground">{toolSummary}</span>
-            {/* 筛选组（自侧栏迁入）：处理人 / 关联人 / 状态多选，命中时给清除入口 */}
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              <WorkitemFilterBar options={filterOptions} activeFilterCount={activeFilterCount} />
-            </div>
-          </div>
         )}
-
-        {viewTab === 'repos' && (
-          <div className="flex items-center justify-between gap-3 pt-1 text-xs text-muted-foreground" data-no-drag>
-            <span>本迭代工作项实际涉及的代码仓库，可手动选择分支与环境触发验证，并实时监控构建 Job</span>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => useUi.getState().openSettings('ci')}
-              className="gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Link2Icon className="size-3" />
-              <span>配置 CI 绑定</span>
-            </Button>
-          </div>
+        toolbar={(
+          <>
+            {viewTab === 'workitems' && (
+              <>
+                <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
+                  <TabsList size="sm">
+                    {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
+                      <TabsTrigger key={c} value={c}>{CATEGORY_LABELS[c]}</TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+                <span className="min-w-0 truncate text-xs text-muted-foreground">{toolSummary}</span>
+                {/* 筛选组（自侧栏迁入）：处理人 / 关联人 / 状态多选，命中时给清除入口 */}
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  <WorkitemFilterBar options={filterOptions} activeFilterCount={activeFilterCount} />
+                </div>
+              </>
+            )}
+            {viewTab === 'repos' && (
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span className="min-w-0 truncate">本迭代工作项实际涉及的代码仓库，可手动选择分支与环境触发验证，并实时监控构建 Job</span>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => useUi.getState().openSettings('ci')}
+                  className="gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Link2Icon className="size-3" />
+                  <span>配置 CI 绑定</span>
+                </Button>
+              </div>
+            )}
+            {shownTab === 'branches' && (
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                针对各仓库定义的分支生成规则模板，保存在本机供需求仓库选用
+              </span>
+            )}
+          </>
         )}
-
-        {shownTab === 'branches' && (
-          <div className="flex items-center justify-between gap-3 pt-1 text-xs text-muted-foreground">
-            <span>针对各仓库定义的分支生成规则模板，保存在本机供需求仓库选用</span>
-          </div>
-        )}
-      </header>
+      />
 
       {/* 页头贴左全宽，正文居中限宽 */}
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
@@ -943,6 +1211,14 @@ export function IterationView() {
 
       {contextMenuNode}
       {batchBarNode}
+    </div>
+  );
+
+  // 根容器：常驻测量节点（全宽 / 分栏 / 单栏三种形态共用），跨越 760 阈值或开关详情只切换渲染分支，
+  // 绝不 reset 状态、不重建数据请求。
+  return (
+    <div ref={measureRef} className="relative flex h-full min-h-0 w-full flex-col overflow-hidden">
+      {singleColumnDetail ? singleColumnDetailView : splitWorkitemId ? splitView : fullWidthView}
     </div>
   );
 }

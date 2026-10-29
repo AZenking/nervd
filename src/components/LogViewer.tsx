@@ -4,7 +4,6 @@ import {
   ArrowDownIcon,
   ArrowLeftIcon,
   CheckCircle2Icon,
-  ChevronDownIcon,
   CopyIcon,
   GitCommitIcon,
   Loader2Icon,
@@ -17,7 +16,17 @@ import {
 } from 'lucide-react';
 import { useApp } from '../store/app';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceDescription,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from '@/components/ui/trace';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Drawer,
@@ -27,6 +36,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { humanizeError } from '@/lib/error-format';
 import { cn } from '@/lib/utils';
 import {
@@ -35,40 +45,49 @@ import {
   type ProcessedLogLine,
 } from '@/lib/log-highlighter';
 import { buildLogAccordionSections } from '@/lib/log-accordion';
+import { updateLogFollowState, type LogScrollMetrics } from '@/lib/log-follow';
 import type { CiStageItem } from '@/lib/api';
 
 type FilterMode = 'all' | 'error' | 'warning' | 'stage';
 
+function toTraceStatus(status: string): 'running' | 'error' | 'pending' | 'success' {
+  const s = status.toUpperCase();
+  if (s === 'SUCCESS') return 'success';
+  if (s === 'IN_PROGRESS' || s === 'RUNNING' || s === 'QUEUED') return 'running';
+  if (s === 'FAILED' || s === 'FAILURE' || s === 'FAIL') return 'error';
+  return 'pending';
+}
+
 function StageStatusIcon({ status }: { status: string }) {
   const s = status.toUpperCase();
   if (s === 'SUCCESS') {
-    return <CheckCircle2Icon className="size-3.5 text-emerald-500 shrink-0" />;
+    return <CheckCircle2Icon className="size-3.5 text-sig-ok shrink-0" />;
   }
   if (s === 'IN_PROGRESS' || s === 'RUNNING') {
-    return <Loader2Icon className="size-3.5 text-amber-500 animate-spin shrink-0" />;
+    return <Loader2Icon className="size-3.5 text-sig-run animate-spin shrink-0" />;
   }
   if (s === 'FAILED' || s === 'FAILURE' || s === 'FAIL') {
-    return <XCircleIcon className="size-3.5 text-red-500 shrink-0" />;
+    return <XCircleIcon className="size-3.5 text-destructive shrink-0" />;
   }
   if (s === 'ABORTED' || s === 'CANCELED') {
-    return <MinusCircleIcon className="size-3.5 text-zinc-400 shrink-0" />;
+    return <MinusCircleIcon className="size-3.5 text-muted-foreground shrink-0" />;
   }
   if (s.includes('PAUSE')) {
     return <PauseCircleIcon className="size-3.5 text-purple-400 shrink-0" />;
   }
-  return <div className="size-2 rounded-full bg-zinc-400 shrink-0" />;
+  return <div className="size-2 rounded-full bg-muted-foreground/60 shrink-0" />;
 }
 
 function stageStatusBadgeClass(status: string): string {
   const s = status.toUpperCase();
   if (s === 'SUCCESS') {
-    return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20';
+    return 'border-sig-ok/25 bg-sig-ok/10 text-sig-ok hover:bg-sig-ok/20';
   }
   if (s === 'IN_PROGRESS' || s === 'RUNNING') {
-    return 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20';
+    return 'border-sig-run/30 bg-sig-run/10 text-sig-run hover:bg-sig-run/20';
   }
   if (s === 'FAILED' || s === 'FAILURE' || s === 'FAIL') {
-    return 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20';
+    return 'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20';
   }
   return 'border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60';
 }
@@ -89,7 +108,11 @@ export function LogViewerContent({
   onClose?: () => void;
 } = {}) {
   const { logView, closeLogs, refreshRepoCiLogs, setToast } = useApp();
+  const contentRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(true);
+  const followTargetKeyRef = useRef<string | null>(null);
+  const previousScrollMetricsRef = useRef<LogScrollMetrics | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [wrapLines, setWrapLines] = useState<boolean>(true);
   const [openSectionId, setOpenSectionId] = useState<string | null>(null);
@@ -143,6 +166,21 @@ export function LogViewerContent({
     : null;
 
   useEffect(() => {
+    if (followTargetKeyRef.current === accordionTargetKey) return;
+    followTargetKeyRef.current = accordionTargetKey;
+    followLatestRef.current = true;
+
+    const viewport = contentRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+    if (viewport) {
+      previousScrollMetricsRef.current = {
+        scrollTop: viewport.scrollTop,
+        scrollHeight: viewport.scrollHeight,
+        clientHeight: viewport.clientHeight,
+      };
+    }
+  }, [accordionTargetKey]);
+
+  useEffect(() => {
     if (!logView) {
       accordionTargetKeyRef.current = null;
       setOpenSectionId(null);
@@ -162,13 +200,42 @@ export function LogViewerContent({
     }
   }, [openSectionId, visibleSections]);
 
+  useEffect(() => {
+    const viewport = contentRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+    if (!viewport) return;
+
+    previousScrollMetricsRef.current = {
+      scrollTop: viewport.scrollTop,
+      scrollHeight: viewport.scrollHeight,
+      clientHeight: viewport.clientHeight,
+    };
+
+    const handleScroll = () => {
+      const previous = previousScrollMetricsRef.current;
+      const current: LogScrollMetrics = {
+        scrollTop: viewport.scrollTop,
+        scrollHeight: viewport.scrollHeight,
+        clientHeight: viewport.clientHeight,
+      };
+
+      followLatestRef.current = updateLogFollowState(followLatestRef.current, previous, current);
+      previousScrollMetricsRef.current = current;
+    };
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    return () => viewport.removeEventListener('scroll', handleScroll);
+  }, [accordionTargetKey]);
+
   // 自动滚动到底部（仅在全量展示且处于实时追加模式时）
   useEffect(() => {
-    if (logView && filterMode === 'all' && logView.hasMore) {
-      requestAnimationFrame(() => {
+    if (logView && filterMode === 'all' && logView.hasMore && followLatestRef.current) {
+      const frame = requestAnimationFrame(() => {
         const vp = bodyRef.current?.closest('[data-slot="scroll-area-viewport"]');
-        vp?.scrollTo({ top: vp.scrollHeight, behavior: 'smooth' });
+        if (followLatestRef.current) {
+          vp?.scrollTo({ top: vp.scrollHeight, behavior: 'auto' });
+        }
       });
+      return () => cancelAnimationFrame(frame);
     }
   }, [lines.length, logView?.hasMore, filterMode, logView]);
 
@@ -206,7 +273,7 @@ export function LogViewerContent({
   };
 
   return (
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div ref={contentRef} className="flex min-h-0 flex-1 flex-col">
         {/* 页头区 */}
         <DrawerHeader className="border-b border-border/70 px-5 py-3 shrink-0">
           <div className="flex w-full items-center justify-between gap-4">
@@ -225,8 +292,11 @@ export function LogViewerContent({
               )}
               <TerminalIcon className="size-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <DrawerTitle className="text-left text-sm font-semibold text-foreground truncate">
-                  {logView?.title ?? fallbackTitle ?? '构建日志'}
+                <DrawerTitle className="min-w-0 text-left text-sm font-semibold text-foreground">
+                  <OverflowTooltip
+                    text={logView?.title ?? fallbackTitle ?? '构建日志'}
+                    className="block max-w-full truncate"
+                  />
                 </DrawerTitle>
                 <DrawerDescription className="text-xs text-muted-foreground font-mono mt-0.5 text-left flex items-center gap-2">
                   <span>{logView?.repoId ? `仓库 #${logView.repoId} · 构建运行实时日志` : '流水线运行日志'}</span>
@@ -270,44 +340,37 @@ export function LogViewerContent({
         {/* 过滤工具栏与快速跳转 */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-muted/10 px-5 py-2 text-xs">
           <div className="flex items-center gap-1">
-            <Button
-              variant={filterMode === 'all' ? 'secondary' : 'ghost'}
-              size="xs"
-              onClick={() => setFilterMode('all')}
-              className="h-6.5 text-[11px] px-2"
+            <Tabs
+              value={filterMode}
+              onValueChange={(v) => {
+                if (v) setFilterMode(v as FilterMode);
+              }}
             >
-              全部 ({stats.totalLines})
-            </Button>
-            <Button
-              variant={filterMode === 'error' ? 'destructive' : 'ghost'}
-              size="xs"
-              onClick={() => setFilterMode('error')}
-              className={cn(
-                'h-6.5 text-[11px] px-2',
-                stats.errorCount > 0 && filterMode !== 'error' && 'text-red-500 hover:bg-red-500/10',
-              )}
-            >
-              错误 ({stats.errorCount})
-            </Button>
-            <Button
-              variant={filterMode === 'warning' ? 'secondary' : 'ghost'}
-              size="xs"
-              onClick={() => setFilterMode('warning')}
-              className={cn(
-                'h-6.5 text-[11px] px-2',
-                stats.warningCount > 0 && filterMode !== 'warning' && 'text-amber-500 hover:bg-amber-500/10',
-              )}
-            >
-              警告 ({stats.warningCount})
-            </Button>
-            <Button
-              variant={filterMode === 'stage' ? 'secondary' : 'ghost'}
-              size="xs"
-              onClick={() => setFilterMode('stage')}
-              className="h-6.5 text-[11px] px-2"
-            >
-              步骤与命令
-            </Button>
+              <TabsList size="xs">
+                <TabsTrigger value="all">
+                  全部 ({stats.totalLines})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="error"
+                  className={cn(
+                    stats.errorCount > 0 && filterMode !== 'error' && 'text-red-500 hover:text-red-600',
+                  )}
+                >
+                  错误 ({stats.errorCount})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="warning"
+                  className={cn(
+                    stats.warningCount > 0 && filterMode !== 'warning' && 'text-amber-500 hover:text-amber-600',
+                  )}
+                >
+                  警告 ({stats.warningCount})
+                </TabsTrigger>
+                <TabsTrigger value="stage">
+                  步骤与命令
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           {stats.firstErrorLine && (
@@ -345,105 +408,117 @@ export function LogViewerContent({
           ) : (
             <div
               ref={bodyRef}
-              className={cn(
-                'space-y-2 p-3',
-              )}
+              className="space-y-3 p-4"
             >
               <div className="flex items-center gap-1.5 px-1 text-xs font-semibold text-foreground">
                 <GitCommitIcon className="size-3.5 text-primary" aria-hidden="true" />
-                <span>日志阶段</span>
+                <span>流水线步骤追溯 (Trace)</span>
                 <span className="font-mono text-[11px] text-muted-foreground">({logSections.length})</span>
-                <span className="ml-1 text-[11px] font-normal text-muted-foreground">展开后查看阶段日志</span>
+                <span className="ml-1 text-[11px] font-normal text-muted-foreground">展开步骤查看阶段日志</span>
               </div>
 
-              {visibleSections.map(({ section, lines: sectionLines }) => {
-                const isOpen = openSectionId === section.id;
-                return (
-                  <Collapsible
-                    key={section.id}
-                    open={isOpen}
-                    onOpenChange={(nextOpen) => setOpenSectionId(nextOpen ? section.id : null)}
-                    className="overflow-hidden rounded-md border border-border/70 bg-background/40"
-                  >
-                    <CollapsibleTrigger
+              <Trace className="gap-2.5">
+                {visibleSections.map(({ section, lines: sectionLines }) => {
+                  const isOpen = openSectionId === section.id;
+                  const traceStatus = toTraceStatus(section.status);
+
+                  return (
+                    <TraceCollapsible
+                      key={section.id}
+                      open={isOpen}
+                      onOpenChange={(nextOpen) => setOpenSectionId(nextOpen ? section.id : null)}
                       className={cn(
-                        'flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-                        isOpen ? 'bg-muted/60' : 'bg-muted/20 hover:bg-muted/50',
+                        'rounded-lg border border-border/70 transition-colors',
+                        isOpen ? 'bg-card/90 shadow-2xs' : 'bg-card/40 hover:bg-card/70',
                       )}
                     >
-                      <ChevronDownIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-180')} aria-hidden="true" />
-                      <StageStatusIcon status={section.status} />
-                      <span className="min-w-0 flex-1 truncate font-medium text-foreground">{section.name}</span>
-                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
-                        {section.lines.length} 行
-                      </span>
-                      {section.errorCount > 0 && (
-                        <span className="shrink-0 rounded-sm bg-red-500/10 px-1.5 py-0.5 font-mono text-[10px] text-red-600 dark:text-red-400">
-                          {section.errorCount} 错误
-                        </span>
-                      )}
-                      {section.warningCount > 0 && (
-                        <span className="hidden shrink-0 rounded-sm bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600 dark:text-amber-400 sm:inline-flex">
-                          {section.warningCount} 警告
-                        </span>
-                      )}
-                      {section.durationMillis != null && section.durationMillis > 0 && (
-                        <span className={cn('hidden shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] sm:inline-flex', stageStatusBadgeClass(section.status))}>
-                          {formatStageDuration(section.durationMillis)}
-                        </span>
-                      )}
-                    </CollapsibleTrigger>
+                      <TraceCollapsibleTrigger>
+                        <TraceLine status={traceStatus}>
+                          <TraceIcon>
+                            <StageStatusIcon status={section.status} />
+                          </TraceIcon>
+                          <TraceTitle className="text-xs font-semibold">
+                            {section.name}
+                          </TraceTitle>
+                          <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                            {section.lines.length} 行
+                          </span>
+                          {section.errorCount > 0 && (
+                            <span className="shrink-0 rounded-sm bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-destructive">
+                              {section.errorCount} 错误
+                            </span>
+                          )}
+                          {section.warningCount > 0 && (
+                            <span className="hidden shrink-0 rounded-sm bg-sig-run/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-sig-run sm:inline-flex">
+                              {section.warningCount} 警告
+                            </span>
+                          )}
+                          {section.durationMillis != null && section.durationMillis > 0 && (
+                            <TraceDescription
+                              className={cn(
+                                'hidden rounded border px-1.5 py-0.5 text-[10px] sm:inline-flex ml-auto',
+                                stageStatusBadgeClass(section.status),
+                              )}
+                            >
+                              {formatStageDuration(section.durationMillis)}
+                            </TraceDescription>
+                          )}
+                        </TraceLine>
+                      </TraceCollapsibleTrigger>
 
-                    <CollapsibleContent>
-                      {sectionLines.length === 0 ? (
-                        <div className="border-t border-border/60 px-4 py-6 text-center font-mono text-xs text-muted-foreground">
-                          {filterMode === 'all' ? '（该阶段暂未输出日志）' : '（当前筛选下无匹配日志）'}
-                        </div>
-                      ) : (
-                        <div className={cn(
-                          'border-t border-border/60 py-2 font-mono text-[12px] leading-snug select-text',
-                          wrapLines ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto',
-                        )}>
-                          {sectionLines.map((line: ProcessedLogLine) => {
-                            const isError = line.severity === 'error';
-                            const isWarning = line.severity === 'warning';
-                            const isStage = line.severity === 'stage';
-                            const isCommand = line.severity === 'command';
+                      <TraceCollapsibleContent>
+                        {sectionLines.length === 0 ? (
+                          <div className="py-4 text-center font-mono text-xs text-muted-foreground">
+                            {filterMode === 'all' ? '（该阶段暂未输出日志）' : '（当前筛选下无匹配日志）'}
+                          </div>
+                        ) : (
+                          <div
+                            className={cn(
+                              'my-1 rounded-md border border-border/60 bg-background/70 py-2 font-mono text-[12px] leading-snug select-text shadow-2xs',
+                              wrapLines ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto',
+                            )}
+                          >
+                            {sectionLines.map((line: ProcessedLogLine) => {
+                              const isError = line.severity === 'error';
+                              const isWarning = line.severity === 'warning';
+                              const isStage = line.severity === 'stage';
+                              const isCommand = line.severity === 'command';
 
-                            return (
-                              <div
-                                key={line.lineNumber}
-                                ref={(el) => {
-                                  if (el) lineRefs.current.set(line.lineNumber, el);
-                                  else lineRefs.current.delete(line.lineNumber);
-                                }}
-                                className={cn(
-                                  'flex items-start px-3 py-0.5 transition-colors hover:bg-muted/40',
-                                  isError && 'bg-red-500/10 text-red-600 dark:text-red-300 border-l-2 border-red-500 pl-2.5 font-medium',
-                                  isWarning && 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-l-2 border-amber-500 pl-2.5',
-                                  isStage && 'bg-sky-500/10 text-sky-600 dark:text-sky-300 border-l-2 border-sky-500 pl-2.5 font-medium',
-                                  isCommand && 'text-purple-600 dark:text-purple-300 font-medium',
-                                )}
-                              >
-                                <span className="w-12 shrink-0 pr-3 text-right select-none font-mono text-[11px] text-muted-foreground/40 tabular-nums">
-                                  {line.lineNumber}
-                                </span>
-                                <span className="flex-1 min-w-0">
-                                  {line.spans.map((span, sIdx) => (
-                                    <span key={sIdx} className={span.className} style={span.style}>
-                                      {span.text}
-                                    </span>
-                                  ))}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </CollapsibleContent>
-                  </Collapsible>
-                );
-              })}
+                              return (
+                                <div
+                                  key={line.lineNumber}
+                                  ref={(el) => {
+                                    if (el) lineRefs.current.set(line.lineNumber, el);
+                                    else lineRefs.current.delete(line.lineNumber);
+                                  }}
+                                  className={cn(
+                                    'flex items-start px-3 py-0.5 transition-colors hover:bg-muted/40',
+                                    isError && 'bg-destructive/10 text-destructive border-l-2 border-destructive pl-2.5 font-medium',
+                                    isWarning && 'bg-sig-run/10 text-sig-run border-l-2 border-sig-run pl-2.5',
+                                    isStage && 'bg-sky-500/10 text-sky-600 dark:text-sky-300 border-l-2 border-sky-500 pl-2.5 font-medium',
+                                    isCommand && 'text-purple-600 dark:text-purple-300 font-medium',
+                                  )}
+                                >
+                                  <span className="w-12 shrink-0 pr-3 text-right select-none font-mono text-[11px] text-muted-foreground/40 tabular-nums">
+                                    {line.lineNumber}
+                                  </span>
+                                  <span className="flex-1 min-w-0">
+                                    {line.spans.map((span, sIdx) => (
+                                      <span key={sIdx} className={span.className} style={span.style}>
+                                        {span.text}
+                                      </span>
+                                    ))}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </TraceCollapsibleContent>
+                    </TraceCollapsible>
+                  );
+                })}
+              </Trace>
             </div>
           )}
         </ScrollArea>

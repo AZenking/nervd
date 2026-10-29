@@ -14,9 +14,9 @@ import { statusMeta, type StatusTone } from './StatusBadge';
 /** 进行中：左半充圆（Linear In Progress 图形） */
 function HalfCircle({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 14 14" className={className} fill="none" aria-hidden="true">
-      <circle cx="7" cy="7" r="5.75" stroke="#f2c94c" strokeWidth="1.5" />
-      <path d="M7 1.25 A5.75 5.75 0 0 0 7 12.75 Z" fill="#f2c94c" />
+    <svg viewBox="0 0 14 14" className={cn('text-sig-run', className)} fill="none" aria-hidden="true">
+      <circle cx="7" cy="7" r="5.75" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M7 1.25 A5.75 5.75 0 0 0 7 12.75 Z" fill="currentColor" />
     </svg>
   );
 }
@@ -25,10 +25,11 @@ function HalfCircle({ className }: { className?: string }) {
 function DoneCircle({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 14 14" className={className} aria-hidden="true">
-      <circle cx="7" cy="7" r="6" fill="#5e6ad2" />
+      <circle cx="7" cy="7" r="6" className="fill-primary" />
       <path
         d="M4.4 7.3 L6.1 9 L9.6 5.3"
-        stroke="#ffffff"
+        stroke="currentColor"
+        className="text-primary-foreground"
         strokeWidth="1.5"
         fill="none"
         strokeLinecap="round"
@@ -42,10 +43,11 @@ function DoneCircle({ className }: { className?: string }) {
 function FailCircle({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 14 14" className={className} aria-hidden="true">
-      <circle cx="7" cy="7" r="6" fill="#e5484d" />
+      <circle cx="7" cy="7" r="6" className="fill-sig-fail" />
       <path
         d="M5 5 L9 9 M9 5 L5 9"
-        stroke="#ffffff"
+        stroke="currentColor"
+        className="text-destructive-foreground"
         strokeWidth="1.5"
         strokeLinecap="round"
       />
@@ -55,7 +57,7 @@ function FailCircle({ className }: { className?: string }) {
 
 const TONE_ICON: Record<StatusTone, (props: { className?: string }) => React.ReactNode> = {
   idle: ({ className }) => (
-    <CircleDashedIcon className={cn('text-[#95a2b3]', className)} strokeWidth={2} />
+    <CircleDashedIcon className={cn('text-sig-idle', className)} strokeWidth={2} />
   ),
   run: ({ className }) => <HalfCircle className={className} />,
   ok: ({ className }) => <DoneCircle className={className} />,

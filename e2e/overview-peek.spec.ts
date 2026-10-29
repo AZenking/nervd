@@ -20,7 +20,7 @@ test('OV-001 最近更新点击 Peek 抽屉就地展开，全屏打开进入独�
   await page.getByRole('button', { name: '在工作台全屏打开' }).click();
   await expect.poll(() => uiView(page)).toBe('requirement');
 
-  // Esc 逐层退回总览
-  await page.keyboard.press('Escape');
+  // 完整页面使用导航后退，Esc 仅用于临时界面
+  await page.keyboard.press('Meta+[');
   await expect.poll(() => uiView(page)).toBe('overview');
 });

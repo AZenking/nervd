@@ -15,6 +15,7 @@ import { DiffFileTree } from './diff-file-tree';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface CodeDiffViewerProps {
   diffs: FileDiffItem[];
@@ -214,9 +215,10 @@ export function CodeDiffViewer({
               )}
             </Button>
 
-            <span className="font-mono text-[11px] text-muted-foreground truncate max-w-[280px]">
-              {activeFilePath || `${diffs.length} 个文件变动`}
-            </span>
+            <OverflowTooltip
+              text={activeFilePath || `${diffs.length} 个文件变动`}
+              className="max-w-[280px] truncate font-mono text-[11px] text-muted-foreground"
+            />
           </div>
 
           <div className="flex items-center gap-1">
@@ -341,17 +343,16 @@ function DiffItemCard({
             <FileCodeIcon className="size-3.5 text-primary shrink-0" />
           )}
 
-          <span
-            className="truncate font-mono font-medium text-foreground text-[11px]"
-            title={filePath}
-          >
-            {filePath}
-          </span>
+          <OverflowTooltip
+            text={filePath}
+            className="min-w-0 truncate font-mono font-medium text-foreground text-[11px]"
+          />
 
           {file.renamedFile && file.oldPath !== file.newPath && (
-            <span className="text-[10px] text-muted-foreground font-mono truncate">
-              (重命名自 {file.oldPath})
-            </span>
+            <OverflowTooltip
+              text={`重命名自 ${file.oldPath}`}
+              className="min-w-0 truncate text-[10px] text-muted-foreground font-mono"
+            />
           )}
         </div>
 

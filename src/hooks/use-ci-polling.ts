@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { useApp } from '@/store/app';
 import type { RepoSummary } from '@/types';
+import { ciStatusInfo } from '@/lib/ci';
 
 export const ACTIVE_CI_INTERVAL_MS = 4_000;
 export const IDLE_CI_INTERVAL_MS = 60_000;
@@ -16,8 +17,8 @@ export function isCiStateActive(): boolean {
   const state = useApp.getState();
   if (Date.now() < state.ciActiveUntil) return true;
   return Object.values(state.repoCiByRepo).some((entry) => {
-    const status = (entry.snapshot?.status ?? entry.snapshot?.runs?.[0]?.status)?.toUpperCase();
-    return status === 'RUNNING' || status === 'WAITING' || status === 'QUEUED';
+    const status = entry.snapshot?.status ?? entry.snapshot?.runs?.[0]?.status;
+    return ciStatusInfo(status).tone === 'run';
   });
 }
 

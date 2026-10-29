@@ -33,6 +33,10 @@ export function FloatingBatchBar({
   if (selectedIds.size === 0) return null;
 
   const handleStatusSelect = (statusName: string) => {
+    if (!useApp.getState().settings?.allowWriteOps) {
+      useApp.getState().setToast({ text: '当前为只读模式，请前往设置开启写操作', kind: 'fail' });
+      return;
+    }
     const ids = Array.from(selectedIds);
     if (onBatchStatusChange) {
       onBatchStatusChange(statusName, ids);

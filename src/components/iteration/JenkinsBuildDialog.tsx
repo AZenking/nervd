@@ -32,6 +32,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WriteOpButton, WriteOpGatedTrigger } from '@/components/WriteOpButton';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SearchableSelect, type SearchableSelectOption } from '../searchable-select';
 import { openBuildWorkbenchFromTrigger } from '@/components/build-workbench/actions';
 
@@ -148,7 +149,7 @@ function ParameterField({
                     onClick={() => onChange(b)}
                     className="font-mono text-xs cursor-pointer flex items-center justify-between gap-2"
                   >
-                    <span className="truncate">{b}</span>
+                    <OverflowTooltip text={b} className="min-w-0 truncate" />
                     <div className="flex items-center gap-1 shrink-0 font-sans">
                       {b === defaultBranch && (
                         <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-500/10 px-1 py-0.2 rounded">

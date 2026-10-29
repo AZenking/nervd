@@ -453,8 +453,13 @@ export function ChildDetailDrawer({
             </div>
           </div>
 
-          <DrawerTitle className="mt-2.5 text-base sm:text-lg font-semibold tracking-tight text-foreground line-clamp-2">
-            {child?.subject || child?.identifier || '工作项详情'}
+          <DrawerTitle className="mt-2.5 min-w-0 text-base sm:text-lg font-semibold tracking-tight text-foreground">
+            <OverflowTooltip
+              as="span"
+              lineClamp={2}
+              text={child?.subject || child?.identifier || '工作项详情'}
+              className="block max-w-full"
+            />
           </DrawerTitle>
           <DrawerDescription className="sr-only">
             {child?.identifier} {categoryLabel} 详情与描述

@@ -7,7 +7,7 @@ import { SettingsView } from './components/SettingsView';
 import { StartupSplash } from './components/StartupSplash';
 import { dismissSplashScreen } from './lib/splash';
 import { useApp } from './store/app';
-import { useUi, initThemeListener } from './store/ui';
+import { useUi, initThemeListener, restoreNavigation, type SettingsSection, type WorkspaceView } from './store/ui';
 import { useUpdater } from './store/updater';
 import { useWindowDrag } from './hooks/use-window-drag';
 import type { JenkinsBuildEvent, PipelineRunEvent, SettingsView as SettingsViewType } from './types';
@@ -94,6 +94,7 @@ export default function App() {
 
   useEffect(() => {
     if (booting) return;
+    restoreNavigation();
     void dismissSplashScreen();
 
     // 启动 4 秒后在后台静默检查更新一次（避免首屏与核心初始化网络争用）
@@ -154,7 +155,9 @@ export default function App() {
       useUi.getState().setAboutOpen(true);
     });
     const unSettings = listen<string | undefined>('open-settings', (e) => {
-      useUi.getState().openSettings((e.payload as any) || 'about');
+      const section = e.payload;
+      const sections: SettingsSection[] = ['connection', 'trace', 'ci', 'security', 'ai', 'about'];
+      useUi.getState().openSettings(sections.includes(section as SettingsSection) ? section as SettingsSection : 'connection');
     });
     const unCommand = listen('open-command', () => {
       useUi.getState().setCommandOpen(true);
@@ -163,8 +166,9 @@ export default function App() {
       useUi.getState().setShortcutsOpen(true);
     });
     const unNav = listen<string>('navigate-view', (e) => {
-      if (e.payload) {
-        useUi.getState().setView(e.payload as any);
+      const views: WorkspaceView[] = ['iteration', 'requirement', 'integration', 'overview', 'recents', 'full-settings', 'schedules', 'local-tasks'];
+      if (views.includes(e.payload as WorkspaceView)) {
+        useUi.getState().setView(e.payload as WorkspaceView);
       }
     });
 
