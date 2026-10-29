@@ -1,0 +1,54 @@
+# git-cliff configuration for nervd
+# https://git-cliff.org/docs/configuration
+
+[changelog]
+# Header of the changelog
+header = """
+# Changelog
+
+All notable changes to **nervd** will be documented in this file.
+See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
+
+"""
+# Template for each release
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}](https://github.com/AZenking/nervd/releases/tag/{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [unreleased]
+{% endif %}\
+{% for entry in commits | commit_groups(groups=commit_parsers_groups) %}
+    ### {{ entry.group | striptags | trim | upper_first }}
+    {% for commit in entry.commits %}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/AZenking/nervd/commit/{{ commit.id }}))\
+    {% endfor %}
+{% endfor %}
+"""
+trim = true
+render_always = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+commit_parsers = [
+    { message = "^feat", group = "<!-- 0 -->🚀 Features" },
+    { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^perf", group = "<!-- 2 -->⚡ Performance" },
+    { message = "^style", group = "<!-- 3 -->🎨 UI & Styling" },
+    { message = "^refactor", group = "<!-- 4 -->♻️ Refactor" },
+    { message = "^doc", group = "<!-- 5 -->📚 Documentation" },
+    { message = "^test", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore\\(release\\)", skip = true },
+    { message = "^chore\\(deps.*\\)", skip = true },
+    { message = "^ci|^chore", group = "<!-- 7 -->🛠️ Build & Tooling" },
+    { message = "^revert", group = "<!-- 8 -->◀️ Revert" },
+]
+protect_breaking_commits = true
+filter_commits = false
+sort_commits = "oldest"
+tag_pattern = "v[0-9].*"
+topo_order = false
+topo_order_commits = true
