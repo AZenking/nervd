@@ -327,6 +327,7 @@ interface UiStore {
   setSettingsSection(section: SettingsSection): void;
   openSettings(section?: SettingsSection): void;
   setIteration(key: string): void;
+  setIterationKey(key: string): void;
   toggleFilter(kind: keyof WorkitemFilters, value: string): void;
   clearFilters(): void;
   /** 打开工作项详情：记录历史与层级链（parent 传入时形成 父 › 子 面包屑） */
@@ -724,6 +725,10 @@ export const useUi = create<UiStore>((set, get) => {
         forwardHistory: [],
         restoreScroll: null,
       });
+      persistCurrent();
+    },
+    setIterationKey: (iterationKey) => {
+      set({ iterationKey });
       persistCurrent();
     },
     toggleFilter: (kind, value) => {

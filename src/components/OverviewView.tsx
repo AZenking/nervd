@@ -1,25 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../store/app';
 import { useShallow } from 'zustand/react/shallow';
-import { useUi } from '../store/ui';
+import { useUi, iterationsOrFallback, visibleIterations, scopedItems } from '../store/ui';
 import type { RunStatus } from '../types';
 import { CATEGORY_LABELS } from '../types';
-import { DatabaseIcon, Link2Icon, RefreshCwIcon, WorkflowIcon } from 'lucide-react';
+import { RefreshCwIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stat, StatBand } from '@/components/ui/stat';
 import { cn } from '@/lib/utils';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { PageHeader } from './page-header';
-import { EmptyHint } from './empty-hint';
 import { SectionHeader } from './section-header';
-import { PipelineCard } from './PipelineCard';
-import { RepoCiCard } from './RepoCiCard';
 import { StatusBadge, connectionStatus } from './StatusBadge';
 import { StatusIcon } from './status-icon';
 import { OverflowTooltip } from './overflow-tooltip';
 import { WorkitemPeekDrawer } from './workitem-peek-drawer';
 import { ciStatusInfo } from '@/lib/ci';
+import { calculateIterationProgress } from '@/lib/iteration-period';
+import { CycleHeaderBanner } from './overview/cycle-header-banner';
+import { ActiveBuildsBar } from './overview/active-builds-bar';
+import { HealthDistributionCard } from './overview/health-distribution';
 
 /** 运行状态归一：与 StatusBadge 同一套语义分组 */
 const runGroup = (status?: string): RunStatus => {
@@ -30,14 +31,21 @@ const runGroup = (status?: string): RunStatus => {
   return 'OTHER';
 };
 
-/** 与 loadPipelines 保持一致：只为前 10 条流水线拉取运行记录 */
-const PIPELINE_WALL_LIMIT = 10;
-
 export function OverviewView() {
   const {
-    settings, connection, category, items, pipelines, runsByPipeline,
-    repositories, repoCiByRepo, loadList, loadPipelines, loadRepoCi,
-    loadingList, loadingPipelines,
+    settings,
+    connection,
+    category,
+    items,
+    pipelines,
+    runsByPipeline,
+    repoCiByRepo,
+    iterations,
+    loadingList,
+    loadList,
+    loadPipelines,
+    loadRepoCi,
+    loadIterations,
   } = useApp(
     useShallow((s) => ({
       settings: s.settings,
@@ -46,33 +54,63 @@ export function OverviewView() {
       items: s.items,
       pipelines: s.pipelines,
       runsByPipeline: s.runsByPipeline,
-      repositories: s.repositories,
       repoCiByRepo: s.repoCiByRepo,
+      iterations: s.iterations,
+      loadingList: s.loadingList,
       loadList: s.loadList,
       loadPipelines: s.loadPipelines,
       loadRepoCi: s.loadRepoCi,
-      loadingList: s.loadingList,
-      loadingPipelines: s.loadingPipelines,
+      loadIterations: s.loadIterations,
     })),
   );
+
+  const iterationKey = useUi((s) => s.iterationKey);
+  const setIteration = useUi((s) => s.setIteration);
+  const setIterationKey = useUi((s) => s.setIterationKey);
   const openWorkitem = useUi((s) => s.openWorkitem);
-  const openSettings = useUi((s) => s.openSettings);
   const watched = settings?.watchedRepos ?? [];
 
-  // 进入总览时刷新：工作项列表（当前类别）+ 流水线运行 + 默认云效仓库 CI
+  // 进入总览时并发刷新：工作项列表 + 迭代列表 + 流水线 + 监控仓库 CI
   useEffect(() => {
     void loadList();
+    void loadIterations();
     void loadPipelines();
     void Promise.all(watched.map((repoId) => loadRepoCi(repoId)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings?.watchedRepos]);
 
-  // ---- 统计 ----
+  // 计算可用迭代与当前迭代
+  const visible = useMemo(
+    () => visibleIterations(iterationsOrFallback(iterations)),
+    [iterations],
+  );
+
+  const currentIteration = useMemo(() => {
+    return (
+      visible.find((it) => it.name === iterationKey) ||
+      visible.find((it) => it.state === '进行中') ||
+      visible[0] ||
+      null
+    );
+  }, [visible, iterationKey]);
+
+  // 当前迭代的工作项与完成度分析
+  const iterationItems = useMemo(() => {
+    if (!currentIteration) return items;
+    return scopedItems(items, currentIteration.name, iterations);
+  }, [items, currentIteration, iterations]);
+
+  const iterationBreakdown = useMemo(
+    () => calculateIterationProgress(iterationItems),
+    [iterationItems],
+  );
+
+  // ---- 全局统计 ----
   const workitemStats = useMemo(() => {
-    const assignees = new Set(items.map((i) => i.assignedTo).filter((a): a is string => !!a && a !== '—'));
-    const byStatus = new Map<string, number>();
-    for (const it of items) byStatus.set(it.status || '—', (byStatus.get(it.status || '—') ?? 0) + 1);
-    return { total: items.length, assignees: assignees.size, byStatus };
+    const assignees = new Set(
+      items.map((i) => i.assignedTo).filter((a): a is string => !!a && a !== '—'),
+    );
+    return { total: items.length, assignees: assignees.size };
   }, [items]);
 
   const pipelineStats = useMemo(() => {
@@ -87,7 +125,9 @@ export function OverviewView() {
   }, [pipelines, runsByPipeline]);
 
   const ciStats = useMemo(() => {
-    let ok = 0, fail = 0, run = 0;
+    let ok = 0,
+      fail = 0,
+      run = 0;
     for (const repoId of watched) {
       const g = runGroup(repoCiByRepo[repoId]?.snapshot?.status);
       if (g === 'SUCCESS') ok += 1;
@@ -105,14 +145,9 @@ export function OverviewView() {
     [items],
   );
 
-  const statusRows = useMemo(
-    () => [...workitemStats.byStatus.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6),
-    [workitemStats.byStatus],
-  );
-  const statusMax = statusRows[0]?.[1] ?? 1;
-
   const refresh = () => {
     void loadList();
+    void loadIterations();
     void loadPipelines();
     void Promise.all(watched.map((repoId) => loadRepoCi(repoId)));
   };
@@ -129,11 +164,6 @@ export function OverviewView() {
     openWorkitem(id, { workitemId: id, identifier, subject });
   };
 
-  const repoName = (repoId: number) =>
-    repositories.find((r) => r.id === repoId)?.pathWithNamespace
-    ?? repositories.find((r) => r.id === repoId)?.name
-    ?? `仓库 #${repoId}`;
-
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -146,7 +176,7 @@ export function OverviewView() {
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="刷新"
+            aria-label="刷新总览数据"
             onClick={refresh}
           >
             <RefreshCwIcon />
@@ -154,8 +184,20 @@ export function OverviewView() {
         }
       />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-7 py-1">
-        {/* 统计带：hairline 分隔的 4 格（StatBand 默认列数 xs:1 / sm:2 / lg:4） */}
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 py-1">
+        {/* 1. Linear 标志性 Cycle Header 迭代周期横幅 */}
+        <CycleHeaderBanner
+          iteration={currentIteration}
+          iterations={visible}
+          breakdown={iterationBreakdown}
+          onOpenIterationWorkbench={(name) => setIteration(name)}
+          onSelectIteration={(name) => setIterationKey(name)}
+        />
+
+        {/* 2. 动态活跃构建监控带（仅当有 Jenkins 或 Flow 任务正在执行时滑出） */}
+        <ActiveBuildsBar />
+
+        {/* 3. 精炼核心指标带：hairline 分隔的 4 格 */}
         <StatBand>
           <Stat
             label="连接"
@@ -169,9 +211,9 @@ export function OverviewView() {
             />
           </Stat>
           <Stat
-            label={`工作项 · ${CATEGORY_LABELS[category]}`}
-            value={String(workitemStats.total)}
-            sub={`${workitemStats.assignees} 人认领`}
+            label={currentIteration ? `当前迭代 · ${currentIteration.name}` : `工作项 · ${CATEGORY_LABELS[category]}`}
+            value={String(iterationBreakdown.total)}
+            sub={`${iterationBreakdown.completed} 已完成 · ${iterationBreakdown.percent}%`}
           />
           <Stat
             label="流水线"
@@ -192,132 +234,37 @@ export function OverviewView() {
           <Stat
             label="仓库 CI"
             value={`${ciStats.ok + ciStats.fail + ciStats.run}/${watched.length}`}
-            sub="默认云效仓库有状态"
+            sub="默认监控仓库状态"
           >
             {ciStats.run > 0 && <><StatusBadge status="RUNNING" size="sm" /> {ciStats.run}</>}
             {ciStats.fail > 0 && <><StatusBadge status="FAIL" size="sm" /> {ciStats.fail}</>}
-            {!watched.length && <span>未配置默认云效仓库</span>}
+            {!watched.length && <span>未配置默认仓库</span>}
             {watched.length > 0 && ciStats.ok + ciStats.fail + ciStats.run === 0 && <span>暂无状态</span>}
           </Stat>
         </StatBand>
 
-        {/* 流水线墙 */}
+        {/* 4. 工作项速览双栏：健康度语义柱状图 + 最近更新无边框裸行 */}
         <section className="flex flex-col gap-3">
           <SectionHeader
-            title="流水线"
-            count={pipelines.length}
-            hint={`最近 ${Math.min(pipelines.length, PIPELINE_WALL_LIMIT)} 条含运行记录`}
+            title={`工作项速览 · ${CATEGORY_LABELS[category]}`}
+            count={workitemStats.total}
+            hint="点击右侧条目就地滑出详情抽屉"
           />
-          <div className="grid gap-3 md:grid-cols-2">
-            {loadingPipelines && !pipelines.length ? (
-              [0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex flex-col gap-3 rounded-lg border border-border bg-card px-5 py-4" aria-hidden>
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="size-3.5 rounded-full" />
-                    <Skeleton className="h-4 w-40 rounded" />
-                    <Skeleton className="ml-auto h-7 w-12 rounded" />
-                    <Skeleton className="h-7 w-12 rounded" />
-                  </div>
-                  <div className="flex items-center gap-2 border-t border-border pt-2.5">
-                    <Skeleton className="h-3.5 w-16 rounded" />
-                    <Skeleton className="h-3.5 w-24 rounded" />
-                  </div>
-                </div>
-              ))
-            ) : (
-              pipelines.slice(0, PIPELINE_WALL_LIMIT).map((p) => (
-                <PipelineCard
-                  key={p.pipelineId}
-                  pipelineId={p.pipelineId}
-                  pipelineName={p.pipelineName}
-                  runs={runsByPipeline[p.pipelineId] ?? []}
-                />
-              ))
-            )}
-            {!loadingPipelines && !pipelines.length && (
-              <EmptyHint
-                icon={WorkflowIcon}
-                title="无流水线"
-                description="绑定云效 Flow 流水线或 Jenkins Job 后，构建状态会汇入这里"
-                action={
-                  <Button variant="outline" size="sm" onClick={() => openSettings('ci')}>
-                    <Link2Icon data-icon="inline-start" />
-                    去绑定 CI
-                  </Button>
-                }
-                className="md:col-span-2"
-              />
-            )}
-          </div>
-        </section>
+          <div className="flex flex-col gap-4 lg:flex-row">
+            {/* 左栏：生命周期语义排序的状态分布图谱 */}
+            <HealthDistributionCard
+              items={iterationItems}
+              loading={loadingList}
+              title={currentIteration ? `状态分布 · ${currentIteration.name}` : '状态分布'}
+            />
 
-        {/* 默认云效仓库 CI */}
-        <section className="flex flex-col gap-3">
-          <SectionHeader title="仓库 CI" count={watched.length} hint="设置中的默认云效仓库" />
-          <div className="grid gap-3 md:grid-cols-2">
-            {watched.length > 0 && watched.every((repoId) => repoCiByRepo[repoId]?.loading && !repoCiByRepo[repoId]?.snapshot) ? (
-              watched.map((repoId) => (
-                <div key={repoId} className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5" aria-hidden>
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="size-3.5 rounded-full" />
-                    <Skeleton className="h-4 w-36 rounded" />
-                    <Skeleton className="ml-auto h-4 w-16 rounded" />
-                  </div>
-                  <div className="mt-2 flex flex-col gap-2">
-                    <Skeleton className="h-4 w-3/4 rounded" />
-                    <Skeleton className="h-3.5 w-1/2 rounded" />
-                  </div>
-                </div>
-              ))
-            ) : (
-              watched.map((repoId) => (
-                <RepoCiCard key={repoId} repoId={repoId} repoName={repoName(repoId)} />
-              ))
-            )}
-            {!watched.length && (
-              <EmptyHint
-                icon={DatabaseIcon}
-                title="未配置默认云效仓库"
-                description="可在「设置 → 追溯与云效仓库」中选择"
-                className="md:col-span-2"
-              />
-            )}
-          </div>
-        </section>
-
-        {/* 工作项速览 */}
-        <section className="flex flex-col gap-3">
-          <SectionHeader title={`工作项速览 · ${CATEGORY_LABELS[category]}`} count={workitemStats.total} hint="点击进入工作台" />
-          <div className="flex flex-col gap-3 lg:flex-row">
-            <div className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-lg border border-border bg-card p-5">
-              <div className="text-[13px] font-medium text-muted-foreground">状态分布</div>
-              {loadingList && !items.length ? (
-                <div className="flex flex-col gap-3 py-1" aria-hidden>
-                  {[0, 1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <Skeleton className="size-3.5 rounded-full shrink-0" />
-                      <Skeleton className="h-3.5 w-16 shrink-0" />
-                      <Skeleton className="h-2 flex-1 rounded-full" />
-                      <Skeleton className="h-3.5 w-6 shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                statusRows.map(([status, count]) => (
-                  <div key={status} className="flex items-center gap-3 text-xs">
-                    <StatusIcon status={status} className="size-3.5 shrink-0" />
-                    <span className="w-20 shrink-0 truncate text-foreground">{status}</span>
-                    <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-foreground/70" style={{ width: `${(count / statusMax) * 100}%` }} />
-                    </div>
-                    <span className="w-6 shrink-0 text-right font-mono text-muted-foreground">{count}</span>
-                  </div>
-                ))
-              )}
-              {!loadingList && !statusRows.length && <div className="py-4 text-center text-xs text-muted-foreground">暂无工作项</div>}
-            </div>
+            {/* 右栏：最近更新裸行（Border-less Raw Rows） */}
             <div className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border border-border bg-card p-5">
-              <div className="text-[13px] font-medium text-muted-foreground">最近更新</div>
+              <div className="flex items-center justify-between text-[13px] font-medium">
+                <span className="font-semibold tracking-tight text-foreground">最近更新</span>
+                <span className="text-xs text-muted-foreground">共 {items.length} 项</span>
+              </div>
+
               {loadingList && !items.length ? (
                 <div className="flex flex-col gap-1.5 py-1" aria-hidden>
                   {[0, 1, 2, 3, 4].map((i) => (
@@ -329,32 +276,35 @@ export function OverviewView() {
                     </div>
                   ))}
                 </div>
+              ) : recentItems.length > 0 ? (
+                <div className="flex flex-col gap-0.5 pt-1">
+                  {recentItems.map((it) => (
+                    <Button
+                      key={it.workitemId || it.identifier}
+                      type="button"
+                      variant="ghost"
+                      className={cn(
+                        'h-auto w-full justify-start gap-2.5 rounded px-2.5 py-2 text-xs font-normal transition-colors hover:bg-muted/60',
+                        it.workitemId === drawerWorkitemId && 'bg-accent font-medium',
+                      )}
+                      onClick={() => openDetail(it)}
+                    >
+                      <StatusIcon status={it.status} className="size-3.5 shrink-0" />
+                      <span className="shrink-0 font-mono text-muted-foreground">{it.identifier}</span>
+                      <OverflowTooltip text={it.subject} className="min-w-0 flex-1 truncate text-foreground" />
+                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{it.updatedAt?.slice(0, 10) ?? ''}</span>
+                    </Button>
+                  ))}
+                </div>
               ) : (
-                recentItems.map((it) => (
-                  <Button
-                    key={it.workitemId || it.identifier}
-                    type="button"
-                    variant="ghost"
-                    className={cn(
-                      'h-auto w-full justify-start gap-2 rounded px-2 py-1.5 text-xs font-normal transition-colors',
-                      it.workitemId === drawerWorkitemId && 'bg-accent font-medium',
-                    )}
-                    onClick={() => openDetail(it)}
-                  >
-                    <StatusIcon status={it.status} className="size-3.5 shrink-0" />
-                    <span className="shrink-0 font-mono text-muted-foreground">{it.identifier}</span>
-                    <OverflowTooltip text={it.subject} className="min-w-0 flex-1 truncate text-foreground" />
-                    <span className="shrink-0 text-muted-foreground">{it.updatedAt?.slice(0, 10) ?? ''}</span>
-                  </Button>
-                ))
+                <div className="py-6 text-center text-xs text-muted-foreground">暂无工作项</div>
               )}
-              {!loadingList && !recentItems.length && <div className="py-4 text-center text-xs text-muted-foreground">暂无工作项</div>}
             </div>
           </div>
         </section>
       </div>
 
-      {/* 需求详情抽屉（Linear Peek View）：就地滑出，保留总览仪表盘上下文 */}
+      {/* Linear Peek View 抽屉：点击最近更新条目就地滑出，保留总览大盘底层上下文 */}
       <WorkitemPeekDrawer
         workitemId={drawerWorkitemId}
         onClose={() => setDrawerWorkitemId(null)}

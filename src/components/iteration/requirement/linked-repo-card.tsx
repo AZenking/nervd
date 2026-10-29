@@ -826,18 +826,11 @@ export function LinkedRepoCard({
 
       const providerLabel = snapshot?.provider === 'jenkins' ? 'Jenkins' : 'Flow';
 
-      const timeText = latestRun.startTime
-        ? formatRelativeTime(latestRun.startTime)
-        : '';
-      const durationText = latestRun.durationMs != null && latestRun.durationMs > 0
-        ? `耗时 ${formatDuration(latestRun.durationMs)}`
-        : '';
-
       return (
         <button
           type="button"
           onClick={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
-          className="group inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs cursor-pointer text-left max-w-full"
+          className="group inline-flex items-center gap-1.5 text-xs cursor-pointer text-left max-w-full truncate"
           title={`${ciSummary}，点击查看构建记录`}
         >
           <div className="flex items-center gap-1 min-w-0 shrink-0">
@@ -859,13 +852,6 @@ export function LinkedRepoCard({
               {ciInfo.label}
             </span>
           </div>
-
-          {(timeText || durationText) && (
-            <span className="inline-flex items-center gap-1 text-[10.5px] text-muted-foreground font-mono truncate">
-              {timeText && <span>· {timeText}</span>}
-              {durationText && <span>({durationText})</span>}
-            </span>
-          )}
         </button>
       );
     }
