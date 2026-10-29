@@ -1,6 +1,7 @@
 import { MoreHorizontalIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,8 @@ import {
  * - 主行：navigation（SidebarTrigger / 返回 / 面包屑）｜title（min-w-0 + truncate）｜scope（min-w-0
  *   max-w-[40%] truncate）｜flex-1 空隙｜actions（主要操作，永不收入「更多」）｜secondaryActions
  *   （宽屏内联，容器查询阈值以下收入「更多」菜单）；
+ * - 主行永不换行（flex-nowrap）：空间不足时先截断标题与范围，操作区保持固定宽度、
+ *   完整可达，避免长标题把整组按钮挤到第二行；
  * - toolbar 行：筛选与分类控件，位于页头底部（吸顶时保持可见，正文在下方独立滚动）；
  * - 降级顺序：先截断标题与范围名称，再把次要操作收入「更多」（页头根 @container +
  *   Tailwind v4 容器查询 @[520px] 变体），主要操作始终保持可达；
@@ -157,6 +160,11 @@ export function PageHeader({
     </div>
   );
 
+  // 仅为原始字符串加溢出提示；调用方传入的 ReactNode 可能已经包含
+  // Tooltip/OverflowTooltip（例如需求详情标题），避免重复嵌套浮层。
+  const isPlainText = (value: React.ReactNode): value is string | number =>
+    typeof value === 'string' || typeof value === 'number';
+
   // —— breadcrumb 模式（legacy）：独立详情页 / 面包屑导航调用方（RequirementDetails 等），
   //    结构保持与历史版本一致，仅追加 navigation / toolbar / secondaryActions 槽位支持 ——
   if (breadcrumb) {
@@ -170,7 +178,7 @@ export function PageHeader({
             {breadcrumb}
           </div>
           {(actions != null || hasSecondary) && (
-            <div className="flex shrink-0 flex-wrap items-center gap-2" data-no-drag>
+            <div className="flex shrink-0 flex-nowrap items-center gap-2" data-no-drag>
               {actions}
               {hasSecondary && <PageHeaderSecondaryActions items={secondaryActions ?? []} />}
             </div>
@@ -197,14 +205,25 @@ export function PageHeader({
     <header data-tauri-drag-region className={rootClassName}>
       {eyebrow && <p className="eyebrow select-none cursor-default" data-tauri-drag-region>{eyebrow}</p>}
       <div
-        className={cn('flex min-w-0 flex-wrap items-center gap-2.5', compact ? 'min-h-8' : 'min-h-9')}
+        className={cn('flex min-w-0 flex-nowrap items-center gap-2.5', compact ? 'min-h-8' : 'min-h-9')}
         data-tauri-drag-region
       >
         {navigation != null && (
           <div className="flex shrink-0 items-center gap-2" data-no-drag>{navigation}</div>
         )}
-        <div className="flex min-w-0 items-center gap-2" data-tauri-drag-region>
-          <h1 className={cn('min-w-0 truncate select-none cursor-default', titleClassName)}>{title}</h1>
+        <div
+          className={cn('flex min-w-0 items-center gap-2', scope == null ? 'flex-1' : 'flex-initial max-w-[60%]')}
+          data-tauri-drag-region
+        >
+          {isPlainText(title) ? (
+            <OverflowTooltip
+              as="h1"
+              text={String(title)}
+              className={cn('min-w-0 truncate select-none cursor-default', titleClassName)}
+            />
+          ) : (
+            <h1 className={cn('min-w-0 truncate select-none cursor-default', titleClassName)}>{title}</h1>
+          )}
           {titleBadge != null && <div className="shrink-0" data-no-drag>{titleBadge}</div>}
         </div>
         {scope != null && (
@@ -215,15 +234,22 @@ export function PageHeader({
             >
               /
             </span>
-            <span className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default">
-              {scope}
-            </span>
+            {isPlainText(scope) ? (
+              <OverflowTooltip
+                text={String(scope)}
+                className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default"
+              />
+            ) : (
+              <span className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default">
+                {scope}
+              </span>
+            )}
           </div>
         )}
         {/* 弹性空隙：basis 0，空间不足时先压缩标题（title 已 min-w-0 truncate） */}
-        <div className="min-w-0 flex-1" data-tauri-drag-region />
+        {scope != null && <div className="min-w-0 flex-1" data-tauri-drag-region />}
         {actions != null && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2" data-no-drag>{actions}</div>
+          <div className="flex shrink-0 flex-nowrap items-center gap-2" data-no-drag>{actions}</div>
         )}
         {hasSecondary && <PageHeaderSecondaryActions items={secondaryActions ?? []} />}
       </div>

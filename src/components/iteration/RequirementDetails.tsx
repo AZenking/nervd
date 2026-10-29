@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, CopyIcon, DatabaseIcon,
-  ExternalLinkIcon, GitBranchIcon, InboxIcon, Loader2Icon, Maximize2Icon, MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, SparklesIcon, UserIcon, XIcon,
+  ExternalLinkIcon, InboxIcon, Loader2Icon, Maximize2Icon, MoreHorizontalIcon,
+  MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, UserIcon, XIcon,
 } from 'lucide-react';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
@@ -18,10 +19,11 @@ import { useUi } from '@/store/ui';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Field, FieldLabel } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { SearchableSelect, type SearchableSelectOption } from '../searchable-select';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { PageHeader, STICKY_PAGE_HEADER_CLASS } from '../page-header';
 import { AppBreadcrumb } from '../nav/app-breadcrumb';
 import { EmptyHint } from '../empty-hint';
@@ -40,6 +42,7 @@ import {
 import { RequirementDetailsSkeleton } from './requirement/requirement-skeleton';
 import { ChildrenCard } from './requirement/children-card';
 import { LinkedRepoCard } from './requirement/linked-repo-card';
+import { LinkRepoModal } from './requirement/link-repo-modal';
 import { DetailAssigneePopover, DetailStatusPopover, RequirementProperties } from './requirement/requirement-properties';
 import { RequirementActivity } from './requirement/requirement-activity';
 
@@ -269,10 +272,8 @@ export function RequirementDetails({
   const effectiveRepoIds = hasRepoOverride
     ? settings?.workitemRepos[selectedId!] ?? []
     : settings?.watchedRepos ?? [];
-  const [linkDraft, setLinkDraft] = useState('');
-  const [linkDraftTemplateId, setLinkDraftTemplateId] = useState('');
   const [savingRepos, setSavingRepos] = useState(false);
-  const [showAddRepo, setShowAddRepo] = useState(false);
+  const [isLinkRepoModalOpen, setIsLinkRepoModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
 
   const [recommendingRepos, setRecommendingRepos] = useState(false);
@@ -289,6 +290,7 @@ export function RequirementDetails({
     setDrawerChild(null);
     setActiveChildId(null);
     setRecommendedRepos([]);
+    setIsLinkRepoModalOpen(false);
   }, [selectedId]);
 
   const copyIdentifier = () => {
@@ -413,32 +415,29 @@ export function RequirementDetails({
       })
     : [];
 
-  const linkRepository = () => {
-    if (!selectedId || !linkDraft) return;
-    const repo = repositories.find((r) => (r.pathWithNamespace || r.name) === linkDraft);
-    if (!repo || effectiveRepoIds.includes(repo.id)) return;
+  const handleLinkRepoFromModal = async (repoPath: string, templateId?: string): Promise<boolean> => {
+    if (!selectedId || !repoPath) return false;
+    const repo = repositories.find((r) => (r.pathWithNamespace || r.name) === repoPath);
+    if (!repo || effectiveRepoIds.includes(repo.id)) return false;
     setSavingRepos(true);
-    void (async () => {
-      let repoLinked = false;
-      try {
-        await saveWorkitemRepos(selectedId, [...effectiveRepoIds, repo.id]);
-        repoLinked = true;
-        if (iterationId && linkDraftTemplateId) {
-          await saveWorkitemRepoBranchTemplate(selectedId, repo.id, linkDraftTemplateId);
-        }
-        setToast({ text: `已关联云效仓库 ${linkDraft}${linkDraftTemplateId ? ' 并应用分支模板' : ''}`, kind: 'ok' });
-        setLinkDraft('');
-        setLinkDraftTemplateId('');
-        setShowAddRepo(false);
-      } catch (error) {
-        setToast({
-          text: (repoLinked ? '仓库已关联，但分支模板保存失败' : '云效仓库关联保存失败') + '：' + humanizeError(error),
-          kind: 'fail',
-        });
-      } finally {
-        setSavingRepos(false);
+    let repoLinked = false;
+    try {
+      await saveWorkitemRepos(selectedId, [...effectiveRepoIds, repo.id]);
+      repoLinked = true;
+      if (iterationId && templateId) {
+        await saveWorkitemRepoBranchTemplate(selectedId, repo.id, templateId);
       }
-    })();
+      setToast({ text: `已关联云效仓库 ${repoPath}${templateId ? ' 并应用分支模板' : ''}`, kind: 'ok' });
+      return true;
+    } catch (error) {
+      setToast({
+        text: (repoLinked ? '仓库已关联，但分支模板保存失败' : '云效仓库关联保存失败') + '：' + humanizeError(error),
+        kind: 'fail',
+      });
+      return false;
+    } finally {
+      setSavingRepos(false);
+    }
   };
 
   const handleRecommendRepos = async () => {
@@ -511,7 +510,7 @@ export function RequirementDetails({
             || scoreOf(b.repoId) - scoreOf(a.repoId))
           .slice(0, 3),
       );
-      setShowAddRepo(true);
+      setIsLinkRepoModalOpen(true);
       if (res.length === 0) {
         setToast({ text: '未找到明显匹配的代码仓库，请手动选择关联', kind: 'info' });
       } else if (primarySufficient) {
@@ -572,6 +571,19 @@ export function RequirementDetails({
       .catch((e) => {
         errorLog('repo-unlink', e);
         setToast({ text: `取消关联云效仓库失败：${humanizeError(e)}`, kind: 'fail' });
+      })
+      .finally(() => setSavingRepos(false));
+  };
+
+  /** 恢复使用设置中的默认云效仓库（清除本需求的单独覆盖） */
+  const handleResetRepos = () => {
+    if (!selectedId) return;
+    setSavingRepos(true);
+    void saveWorkitemRepos(selectedId, null)
+      .then(() => setToast({ text: '已恢复默认云效仓库', kind: 'ok' }))
+      .catch((e) => {
+        errorLog('repo-link-save', e);
+        setToast({ text: `云效仓库关联保存失败：${humanizeError(e)}`, kind: 'fail' });
       })
       .finally(() => setSavingRepos(false));
   };
@@ -640,24 +652,44 @@ export function RequirementDetails({
           titleClassName="flex min-w-0 items-center gap-2.5 select-text cursor-text"
           actions={(
             <>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => void handleRefreshDetail()}
-                title="刷新当前工作项（含讨论、子任务与追溯）"
-                aria-label="刷新工作项"
-              >
-                <RefreshCwIcon className={cn('size-3.5', (refreshing || traceLoading) && 'animate-spin')} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={handleOpenInYunxiao}
-                title="在云效中打开"
-                aria-label="在云效中打开"
-              >
-                <ExternalLinkIcon className="size-3.5" />
-              </Button>
+              {/* 宽面板（页头 @container ≥520px）：刷新 / 云效直出图标；窄面板收入「更多」菜单，全屏与关闭常驻 */}
+              <span className="hidden items-center gap-2 @[520px]:flex">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => void handleRefreshDetail()}
+                  title="刷新工作项及追溯"
+                  aria-label="刷新工作项及追溯"
+                >
+                  <RefreshCwIcon className={cn('size-3.5', refreshing && 'animate-spin')} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={handleOpenInYunxiao}
+                  title="在云效中打开"
+                  aria-label="在云效中打开"
+                >
+                  <ExternalLinkIcon className="size-3.5" />
+                </Button>
+              </span>
+              <span className="flex items-center @[520px]:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label="更多操作" />}>
+                    <MoreHorizontalIcon className="size-3.5" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem disabled={refreshing} onClick={() => void handleRefreshDetail()}>
+                      <RefreshCwIcon className={cn('size-3.5 mr-2', refreshing && 'animate-spin')} />
+                      <span>刷新工作项及追溯</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleOpenInYunxiao}>
+                      <ExternalLinkIcon className="size-3.5 mr-2" />
+                      <span>在云效中打开</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </span>
               {onOpenWorkbench && (
                 <Button
                   variant="ghost"
@@ -724,9 +756,10 @@ export function RequirementDetails({
                 size="sm"
                 onClick={() => void handleRefreshDetail()}
                 className="gap-1.5"
-                title="刷新当前工作项（含讨论、子任务与追溯）"
+                title="刷新工作项及追溯"
+                aria-label="刷新工作项及追溯"
               >
-                <RefreshCwIcon className={cn('size-3.5', (refreshing || traceLoading) && 'animate-spin')} />
+                <RefreshCwIcon className={cn('size-3.5', refreshing && 'animate-spin')} />
                 <span>刷新详情</span>
               </Button>
             </div>
@@ -757,7 +790,10 @@ export function RequirementDetails({
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
             <CalendarIcon className="size-3.5 text-muted-foreground" />
-            <span className="text-foreground">{iterationName || '未关联迭代'}</span>
+            <OverflowTooltip
+              text={iterationName || '未关联迭代'}
+              className="max-w-56 truncate text-foreground"
+            />
           </div>
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
@@ -792,7 +828,7 @@ export function RequirementDetails({
               {spaceName && (
                 <div className="flex items-center justify-between gap-3">
                   <span>空间</span>
-                  <span className="text-foreground">{spaceName}</span>
+                  <OverflowTooltip text={spaceName} className="max-w-56 truncate text-foreground" />
                 </div>
               )}
               {updatedAt && (
@@ -804,7 +840,10 @@ export function RequirementDetails({
               {iterationBranchValue && iterationBranchValue !== '—' && (
                 <div className="flex items-center justify-between gap-3">
                   <span>迭代基准</span>
-                  <span className="min-w-0 break-all text-right font-mono text-foreground">{iterationBranchValue}</span>
+                  <OverflowTooltip
+                    text={iterationBranchValue}
+                    className="min-w-0 max-w-56 truncate text-right font-mono text-foreground"
+                  />
                 </div>
               )}
             </CollapsibleContent>
@@ -892,205 +931,85 @@ export function RequirementDetails({
 
           {/* 关联云效仓库与代码操作 (Linear Integrations 风格) */}
           <section className="flex flex-col gap-3">
+            {/* 标题简化为「关联仓库 · n」；常驻 刷新全部 / 关联仓库(+Modal)，更多操作收入菜单 */}
             <SectionHeader
-              title="关联云效仓库与代码操作"
-              count={`${effectiveRepoIds.length} 个仓库`}
-              hint={hasRepoOverride
-                ? '此需求使用单独配置的云效仓库；可在列表中配置模板并创建开发分支或 MR'
-                : '当前使用设置中的默认云效仓库；保存选择后将覆盖默认值'}
+              title="关联仓库"
+              count={`· ${effectiveRepoIds.length}`}
               action={(
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={refreshingCodeArea || traceLoading}
-                    onClick={() => void handleRefreshCodeArea()}
-                    className="h-8 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    title="重新从云效拉取关联仓库的分支、合并请求、Commit 及分支落差"
-                  >
-                    <RefreshCwIcon
-                      className={cn(
-                        'size-3.5 mr-1',
-                        (refreshingCodeArea || traceLoading) && 'animate-spin text-primary',
-                      )}
+                <div className="flex items-center gap-1.5">
+                  {recommendingRepos && (
+                    <Loader2Icon
+                      className="size-3.5 animate-spin text-primary"
+                      aria-label="AI 推荐仓库中…"
                     />
-                    {refreshingCodeArea || traceLoading ? '刷新中…' : '刷新代码与 MR'}
-                  </Button>
-                  {hasRepoOverride && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={savingRepos}
-                      onClick={() => {
-                        if (!selectedId) return;
-                        setSavingRepos(true);
-                        void saveWorkitemRepos(selectedId, null)
-                          .then(() => setToast({ text: '已恢复默认云效仓库', kind: 'ok' }))
-                          .catch((e) => { errorLog('repo-link-save', e); setToast({ text: `云效仓库关联保存失败：${humanizeError(e)}`, kind: 'fail' }); })
-                          .finally(() => setSavingRepos(false));
-                      }}
-                    >
-                      恢复默认
-                    </Button>
                   )}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={(
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={refreshingCodeArea || traceLoading}
+                          onClick={() => void handleRefreshCodeArea()}
+                          aria-label="刷新全部关联仓库"
+                        />
+                      )}
+                    >
+                      <RefreshCwIcon
+                        className={cn(
+                          'size-3.5',
+                          (refreshingCodeArea || traceLoading) && 'animate-spin text-primary',
+                        )}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>刷新全部关联仓库</TooltipContent>
+                  </Tooltip>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    disabled={recommendingRepos}
-                    onClick={() => void handleRecommendRepos()}
-                    className="h-8 text-xs text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    {recommendingRepos ? (
-                      <>
-                        <Loader2Icon className="size-3.5 mr-1 animate-spin" />
-                        AI 推荐中…
-                      </>
-                    ) : (
-                      <>
-                        <SparklesIcon className="size-3.5 mr-1" />
-                        AI 推荐仓库
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant={showAddRepo ? 'secondary' : 'outline'}
-                    size="sm"
-                    onClick={() => setShowAddRepo((v) => !v)}
+                    className="h-7 gap-1.5 text-xs cursor-pointer"
+                    onClick={() => setIsLinkRepoModalOpen(true)}
                   >
                     <PlusIcon data-icon="inline-start" />
-                    {showAddRepo ? '收起表单' : '关联仓库'}
+                    <span>关联仓库</span>
                   </Button>
+                  {hasRepoOverride && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label="更多仓库操作" />}>
+                        <MoreHorizontalIcon className="size-3.5" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem
+                          disabled={savingRepos}
+                          title="清除本需求的仓库覆盖，恢复使用设置中的默认云效仓库"
+                          onClick={handleResetRepos}
+                        >
+                          <RotateCcwIcon className="size-3.5 mr-2" />
+                          <span>恢复默认仓库</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               )}
             />
 
-            {/* 按需展开的添加仓库表单 */}
-            {showAddRepo && (
-              <div className="@container flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-3.5">
-                {/* AI 推荐结果展示 */}
-                {recommendedRepos.length > 0 && (
-                  <div className="flex flex-col gap-2 pb-3 border-b border-border/60">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-primary flex items-center gap-1.5">
-                        <SparklesIcon className="size-3.5" />
-                        AI 智能推荐的相关代码仓库：
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setRecommendedRepos([])}
-                        className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
-                      >
-                        清空推荐
-                      </button>
-                    </div>
-                    <div className={cn('grid gap-2', embedded ? 'grid-cols-1' : 'grid-cols-1 @lg:grid-cols-2')}>
-                      {recommendedRepos.map((rec) => {
-                        const targetRepo = repositories.find((r) => r.id === rec.repoId);
-                        const repoName = targetRepo?.name
-                          || (rec.repoName.includes('/') ? rec.repoName.split('/').pop() : rec.repoName)
-                          || '未知仓库';
-                        const repoPath = targetRepo?.pathWithNamespace || rec.repoName;
-
-                        return (
-                          <div
-                            key={rec.repoId}
-                            className="flex items-start justify-between gap-3 rounded-md border border-primary/25 bg-background p-2.5 transition-colors hover:border-primary/50 shadow-2xs"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <GitBranchIcon className="size-3.5 shrink-0 text-primary" />
-                                <span className="font-semibold text-xs text-foreground tracking-tight truncate" title={repoName}>
-                                  {repoName}
-                                </span>
-                              </div>
-                              {repoPath && repoPath !== repoName && (
-                                <Tooltip>
-                                  <TooltipTrigger
-                                    render={
-                                      <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground cursor-help" />
-                                    }
-                                  >
-                                    {repoPath}
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-md break-all font-mono text-[11px]">
-                                    {repoPath}
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                              <p className="mt-1.5 text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                                {rec.reason}
-                              </p>
-                            </div>
-                            <Button
-                              size="xs"
-                              disabled={savingRepos}
-                              onClick={() => void handleQuickLinkRepo(rec.repoId)}
-                              className="shrink-0 text-xs mt-0.5"
-                            >
-                              关联
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <div
-                  className={cn(
-                    'grid gap-3',
-                    embedded
-                      ? 'grid-cols-1'
-                      : isRequirement && iterationId
-                        ? 'grid-cols-1 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] @2xl:items-end'
-                        : 'grid-cols-1 @lg:grid-cols-[minmax(0,1fr)_auto] @lg:items-end',
-                  )}
-                >
-                  <Field className="min-w-0">
-                    <FieldLabel>添加云效仓库</FieldLabel>
-                    <SearchableSelect
-                      value={linkDraft || null}
-                      onValueChange={(v) => setLinkDraft(v ?? '')}
-                      items={repositories
-                        .filter((r) => !effectiveRepoIds.includes(r.id))
-                        .map((r): SearchableSelectOption<string> => ({ label: r.pathWithNamespace || r.name, value: r.pathWithNamespace || r.name }))}
-                      placeholder="搜索并选择云效仓库"
-                    />
-                  </Field>
-                  {isRequirement && iterationId && (
-                    <Field className="min-w-0">
-                      <FieldLabel>应用分支模板</FieldLabel>
-                      <SearchableSelect
-                        value={linkDraftTemplateId || '__none'}
-                        onValueChange={(value) => setLinkDraftTemplateId(value && value !== '__none' ? value : '')}
-                        items={[
-                          { label: '不应用模板', value: '__none' },
-                          ...fusedTemplates.map((template): SearchableSelectOption<string> => {
-                            const scopeTag = template.scope === 'iteration' ? ' (迭代专属)' : ' (全局)';
-                            return {
-                              label: `${template.name}${scopeTag}`,
-                              value: template.id,
-                            };
-                          }),
-                        ]}
-                      />
-                      {!fusedTemplates.length && (
-                        <p className="text-xs text-muted-foreground">请先在全局设置或当前迭代页创建分支模板。</p>
-                      )}
-                    </Field>
-                  )}
-                  <div className={cn('flex items-end', embedded && 'pt-1')}>
-                    <Button
-                      onClick={linkRepository}
-                      disabled={!linkDraft || savingRepos}
-                      className={cn('shrink-0', embedded ? 'w-full' : 'w-full @2xl:w-auto')}
-                    >
-                      确认关联
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
+            <LinkRepoModal
+              open={isLinkRepoModalOpen}
+              onOpenChange={setIsLinkRepoModalOpen}
+              repositories={repositories}
+              effectiveRepoIds={effectiveRepoIds}
+              fusedTemplates={fusedTemplates}
+              iterationId={iterationId}
+              isRequirement={isRequirement}
+              savingRepos={savingRepos}
+              recommendingRepos={recommendingRepos}
+              recommendedRepos={recommendedRepos}
+              onRecommendRepos={handleRecommendRepos}
+              onClearRecommendations={() => setRecommendedRepos([])}
+              onQuickLinkRepo={handleQuickLinkRepo}
+              onLinkRepo={handleLinkRepoFromModal}
+            />
 
             <div className="flex flex-col gap-3.5">
               {linkedRepos.map((repo) => {
