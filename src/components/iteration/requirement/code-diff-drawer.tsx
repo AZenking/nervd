@@ -13,6 +13,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface CodeDiffDrawerProps {
   open: boolean;
@@ -49,8 +50,11 @@ export function CodeDiffDrawer({
             <div className="flex flex-col gap-1 min-w-0">
               <div className="flex items-center gap-2">
                 <FileDiffIcon className="size-4 text-primary shrink-0" />
-                <DrawerTitle className="text-sm font-semibold truncate text-foreground">
-                  {title} · 代码变更
+                <DrawerTitle className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+                  <OverflowTooltip
+                    text={`${title} · 代码变更`}
+                    className="block max-w-full truncate"
+                  />
                 </DrawerTitle>
                 <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                   {diffs.length} 个文件变动

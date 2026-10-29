@@ -908,31 +908,31 @@ export function ScheduleEditorDialog({
                 onValueChange={(val) => handleFreqModeSelect(val as FreqMode)}
                 className="w-full space-y-2.5"
               >
-                <TabsList className="w-full grid grid-cols-4 bg-muted/60 p-0.5 rounded-lg h-8 border-0 shadow-none">
+                <TabsList size="lg" className="w-full grid grid-cols-4 rounded-lg">
                   <TabsTrigger
                     value="preset"
-                    className="text-xs h-7 rounded-md px-1 sm:px-2 min-w-0 transition-all text-muted-foreground hover:text-foreground data-active:bg-background data-active:text-foreground data-active:shadow-xs data-active:border-transparent font-normal data-active:font-medium"
+                    className="min-w-0"
                   >
                     <SparklesIcon className="size-3 mr-1 text-primary shrink-0" />
                     <span className="truncate">常用推荐</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="interval"
-                    className="text-xs h-7 rounded-md px-1 sm:px-2 min-w-0 transition-all text-muted-foreground hover:text-foreground data-active:bg-background data-active:text-foreground data-active:shadow-xs data-active:border-transparent font-normal data-active:font-medium"
+                    className="min-w-0"
                   >
                     <ClockIcon className="size-3 mr-1 text-blue-500 shrink-0" />
                     <span className="truncate">循环间隔</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="daily"
-                    className="text-xs h-7 rounded-md px-1 sm:px-2 min-w-0 transition-all text-muted-foreground hover:text-foreground data-active:bg-background data-active:text-foreground data-active:shadow-xs data-active:border-transparent font-normal data-active:font-medium"
+                    className="min-w-0"
                   >
                     <CalendarClockIcon className="size-3 mr-1 text-amber-500 shrink-0" />
                     <span className="truncate">固定时间</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="cron"
-                    className="text-xs h-7 rounded-md px-1 sm:px-2 min-w-0 transition-all text-muted-foreground hover:text-foreground data-active:bg-background data-active:text-foreground data-active:shadow-xs data-active:border-transparent font-normal data-active:font-medium"
+                    className="min-w-0"
                   >
                     <TerminalIcon className="size-3 mr-1 text-purple-500 shrink-0" />
                     <span className="truncate">Cron 专家</span>

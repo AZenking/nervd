@@ -224,19 +224,14 @@ export function RichDescription({
                     handleStartEdit();
                   }
                 }}
-                className="flex items-center gap-3 rounded-lg border border-dashed border-border/80 bg-muted/10 p-3.5 text-sm text-muted-foreground/80 hover:border-primary/50 hover:bg-muted/20 hover:text-foreground transition-all cursor-pointer group/placeholder focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex items-center gap-2 rounded-md border border-dashed border-border/80 px-3 py-2 text-xs text-muted-foreground/80 hover:border-primary/50 hover:bg-muted/15 hover:text-foreground transition-all cursor-pointer group/placeholder focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 title="点击添加需求描述"
               >
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground group-hover/placeholder:bg-primary/10 group-hover/placeholder:text-primary transition-colors">
-                  <PencilIcon className="size-3.5" />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="font-medium text-foreground/90 leading-tight">添加需求描述…</span>
-                  <span className="text-xs text-muted-foreground/70 truncate">支持 Markdown 快捷输入、列表、代码块与排版</span>
-                </div>
+                <PencilIcon className="size-3 shrink-0 group-hover/placeholder:text-primary transition-colors" />
+                <span>暂无描述，点击添加…</span>
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground/50 italic py-1">（无描述）</div>
+              <div className="py-0.5 text-xs text-muted-foreground/50">暂无描述</div>
             )
           )}
 

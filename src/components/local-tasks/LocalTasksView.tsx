@@ -22,6 +22,7 @@ import { LocalTaskDrawer } from './LocalTaskDrawer';
 import type { LocalTask, LocalTaskStatus } from '@/types/local-task';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/format';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 /** 状态元数据 */
 const STATUS_CONFIG: Record<
@@ -115,26 +116,26 @@ export function LocalTasksView() {
         toolbar={
           <div className="flex w-full flex-wrap items-center justify-between gap-3">
             <Tabs value={tabFilter} onValueChange={(v) => setTabFilter(v as 'all' | LocalTaskStatus)}>
-              <TabsList className="h-8 bg-muted/60 p-0.5">
-                <TabsTrigger value="all" className="px-3 py-1 text-xs gap-1.5">
+              <TabsList size="lg">
+                <TabsTrigger value="all" className="gap-1.5">
                   <span>全部</span>
                   <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
                     {totalCount}
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="in_progress" className="px-3 py-1 text-xs gap-1.5">
+                <TabsTrigger value="in_progress" className="gap-1.5">
                   <span>进行中</span>
                   <span className="rounded-full bg-amber-500/15 text-amber-500 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
                     {tasks.filter((t) => t.status === 'in_progress').length}
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="todo" className="px-3 py-1 text-xs gap-1.5">
+                <TabsTrigger value="todo" className="gap-1.5">
                   <span>待办</span>
                   <span className="rounded-full bg-slate-500/15 text-slate-400 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
                     {tasks.filter((t) => t.status === 'todo').length}
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="done" className="px-3 py-1 text-xs gap-1.5">
+                <TabsTrigger value="done" className="gap-1.5">
                   <span>已完成</span>
                   <span className="rounded-full bg-emerald-500/15 text-emerald-500 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
                     {doneCount}
@@ -235,14 +236,13 @@ export function LocalTasksView() {
                           </button>
 
                           {/* 任务标题 */}
-                          <span
+                          <OverflowTooltip
+                            text={task.title}
                             className={cn(
                               'flex-1 truncate text-xs font-medium',
                               task.status === 'done' && 'text-muted-foreground line-through',
                             )}
-                          >
-                            {task.title}
-                          </span>
+                          />
 
                           {/* 关联 Codeup 分支与仓库芯片（支持多仓库） */}
                           {(() => {
@@ -265,13 +265,20 @@ export function LocalTasksView() {
                                     title={`${first.repoName} -> ${first.branchName}`}
                                   >
                                     <GitBranchIcon className="size-3 text-primary" />
-                                    <span className="truncate max-w-[120px]">{first.branchName}</span>
+                                    <OverflowTooltip
+                                      text={first.branchName}
+                                      className="max-w-[120px] truncate"
+                                    />
                                   </span>
                                 )}
 
-                                <span className="text-[11px] text-muted-foreground/70 truncate max-w-[100px] hidden md:inline">
-                                  {first.repoName.split('/').pop()}
-                                </span>
+                                <OverflowTooltip
+                                  text={first.repoName}
+                                  tooltip={first.repoName}
+                                  className="hidden max-w-[100px] truncate text-[11px] text-muted-foreground/70 md:inline"
+                                >
+                                  {first.repoName.split('/').pop() || first.repoName}
+                                </OverflowTooltip>
 
                                 {extraCount > 0 && (
                                   <span

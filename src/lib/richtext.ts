@@ -369,18 +369,34 @@ export function markdownToHtml(md: string): string {
   return result;
 }
 
-/** 描述字段（unknown）→ HTML 字符串（用于富文本编辑器渲染与回填） */
+/**
+ * HTML 是否「视觉为空」：剥掉标签后仅剩空白 / &nbsp; / 零宽字符，且无图片。
+ * 云效空描述常为 `<p><br></p>`、`<p>&nbsp;</p>` 之类的富文本壳，
+ * 若按「有内容」渲染会撑出一大块空白，必须按空处理（由调用方给紧凑占位）。
+ */
+function isVisuallyEmptyHtml(html: string): boolean {
+  if (/<img\b/i.test(html)) return false;
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;|&#160;/gi, '')
+    .replace(/[\s\u200B-\u200D\uFEFF]/g, '')
+    .length === 0;
+}
+
+/** 描述字段（unknown）→ HTML 字符串（用于富文本编辑器渲染与回填）；视觉为空返回 '' */
 export function extractRichHtml(raw: unknown): string {
   const doc = resolveRichDoc(raw);
-  if (doc?.htmlValue && typeof doc.htmlValue === 'string') {
+  if (doc?.htmlValue && typeof doc.htmlValue === 'string' && !isVisuallyEmptyHtml(doc.htmlValue)) {
     return doc.htmlValue;
   }
   if (typeof raw === 'string') {
-    return markdownToHtml(raw);
+    const html = markdownToHtml(raw);
+    return isVisuallyEmptyHtml(html) ? '' : html;
   }
   const plain = richTextToPlain(raw);
   if (plain) {
-    return markdownToHtml(plain);
+    const html = markdownToHtml(plain);
+    return isVisuallyEmptyHtml(html) ? '' : html;
   }
   return '';
 }

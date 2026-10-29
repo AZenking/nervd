@@ -128,11 +128,11 @@ export function AiReleaseNotesDialog({
         {/* 顶部控制栏 */}
         <div className="flex items-center justify-between border-y border-border/60 py-2 shrink-0 bg-muted/20 -mx-5 px-5">
           <Tabs value={tab} onValueChange={(v) => setTab(v as 'preview' | 'source')}>
-            <TabsList className="h-7 bg-muted/50 p-0.5">
-              <TabsTrigger value="preview" className="h-6 text-xs px-2.5">
+            <TabsList size="sm">
+              <TabsTrigger value="preview">
                 格式化预览
               </TabsTrigger>
-              <TabsTrigger value="source" className="h-6 text-xs px-2.5">
+              <TabsTrigger value="source">
                 Markdown 源码
               </TabsTrigger>
             </TabsList>

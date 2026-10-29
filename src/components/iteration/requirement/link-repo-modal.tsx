@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   SparklesIcon,
   GitBranchIcon,
@@ -7,9 +7,12 @@ import {
   PlusIcon,
   InfoIcon,
 } from 'lucide-react';
-import type { RepoSummary } from '@/types';
+import type { RepoSummary, RepoCiBinding } from '@/types';
 import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
 import type { AiRepoRecommendation } from '@/types/ai';
+import { useApp } from '@/store/app';
+import { matchPipelineForRepo } from '@/lib/pipeline-match';
+import { RepoCiBindingFields } from './repo-ci-binding-fields';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,7 +42,11 @@ export interface LinkRepoModalProps {
   onRecommendRepos: () => Promise<void>;
   onClearRecommendations: () => void;
   onQuickLinkRepo: (repoId: number) => Promise<void>;
-  onLinkRepo: (repoPath: string, templateId?: string) => Promise<boolean>;
+  onLinkRepo: (
+    repoPath: string,
+    templateId?: string,
+    ciBinding?: RepoCiBinding | null,
+  ) => Promise<boolean>;
 }
 
 export function LinkRepoModal({
@@ -58,17 +65,50 @@ export function LinkRepoModal({
   onQuickLinkRepo,
   onLinkRepo,
 }: LinkRepoModalProps) {
+  const { settings, pipelines, loadingPipelines, loadPipelines } = useApp();
   const [selectedRepoPath, setSelectedRepoPath] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [selectedCiBinding, setSelectedCiBinding] = useState<RepoCiBinding | null>(null);
   const [linkingRepoId, setLinkingRepoId] = useState<number | null>(null);
+
+  const selectedRepo = useMemo(
+    () => repositories.find((r) => (r.pathWithNamespace || r.name) === selectedRepoPath),
+    [repositories, selectedRepoPath],
+  );
+
+  const matchResult = useMemo(
+    () => (selectedRepo ? matchPipelineForRepo(selectedRepo.name, pipelines) : { bestMatch: null, score: 0 }),
+    [selectedRepo, pipelines],
+  );
 
   useEffect(() => {
     if (!open) {
       setSelectedRepoPath('');
       setSelectedTemplateId('');
+      setSelectedCiBinding(null);
       setLinkingRepoId(null);
     }
   }, [open]);
+
+  // 当选中的仓库切换时，初始化/预选 CI 绑定
+  useEffect(() => {
+    if (!selectedRepo) {
+      setSelectedCiBinding(null);
+      return;
+    }
+    const existing = settings?.repoCiBindings?.[String(selectedRepo.id)];
+    if (existing) {
+      setSelectedCiBinding(existing);
+    } else if (matchResult.bestMatch) {
+      setSelectedCiBinding({
+        provider: 'flow',
+        pipelineId: matchResult.bestMatch.pipelineId,
+        pipelineName: matchResult.bestMatch.pipelineName,
+      });
+    } else {
+      setSelectedCiBinding(null);
+    }
+  }, [selectedRepo?.id, settings?.repoCiBindings]);
 
   const availableRepos = repositories.filter((r) => !effectiveRepoIds.includes(r.id));
 
@@ -77,6 +117,7 @@ export function LinkRepoModal({
     const ok = await onLinkRepo(
       selectedRepoPath,
       selectedTemplateId && selectedTemplateId !== '__none' ? selectedTemplateId : undefined,
+      selectedCiBinding,
     );
     if (ok) {
       onOpenChange(false);
@@ -291,6 +332,22 @@ export function LinkRepoModal({
                 </Field>
               ) : null}
             </div>
+
+            {/* CI 流水线关联配置 */}
+            {selectedRepo && (
+              <RepoCiBindingFields
+                repoName={selectedRepo.name}
+                binding={selectedCiBinding}
+                onChange={setSelectedCiBinding}
+                pipelines={pipelines}
+                jenkinsConnections={settings?.jenkinsConnections ?? []}
+                loadingPipelines={loadingPipelines}
+                onRefreshPipelines={loadPipelines}
+                recommendedPipeline={matchResult.bestMatch}
+                recommendReason={matchResult.reason}
+                disabled={savingRepos}
+              />
+            )}
           </div>
         </div>
 

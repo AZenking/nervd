@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../store/app';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Trace,
   TraceCollapsible,
@@ -35,6 +36,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { humanizeError } from '@/lib/error-format';
 import { cn } from '@/lib/utils';
 import {
@@ -290,8 +292,11 @@ export function LogViewerContent({
               )}
               <TerminalIcon className="size-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <DrawerTitle className="text-left text-sm font-semibold text-foreground truncate">
-                  {logView?.title ?? fallbackTitle ?? '构建日志'}
+                <DrawerTitle className="min-w-0 text-left text-sm font-semibold text-foreground">
+                  <OverflowTooltip
+                    text={logView?.title ?? fallbackTitle ?? '构建日志'}
+                    className="block max-w-full truncate"
+                  />
                 </DrawerTitle>
                 <DrawerDescription className="text-xs text-muted-foreground font-mono mt-0.5 text-left flex items-center gap-2">
                   <span>{logView?.repoId ? `仓库 #${logView.repoId} · 构建运行实时日志` : '流水线运行日志'}</span>
@@ -335,44 +340,37 @@ export function LogViewerContent({
         {/* 过滤工具栏与快速跳转 */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-muted/10 px-5 py-2 text-xs">
           <div className="flex items-center gap-1">
-            <Button
-              variant={filterMode === 'all' ? 'secondary' : 'ghost'}
-              size="xs"
-              onClick={() => setFilterMode('all')}
-              className="h-6.5 text-[11px] px-2"
+            <Tabs
+              value={filterMode}
+              onValueChange={(v) => {
+                if (v) setFilterMode(v as FilterMode);
+              }}
             >
-              全部 ({stats.totalLines})
-            </Button>
-            <Button
-              variant={filterMode === 'error' ? 'destructive' : 'ghost'}
-              size="xs"
-              onClick={() => setFilterMode('error')}
-              className={cn(
-                'h-6.5 text-[11px] px-2',
-                stats.errorCount > 0 && filterMode !== 'error' && 'text-red-500 hover:bg-red-500/10',
-              )}
-            >
-              错误 ({stats.errorCount})
-            </Button>
-            <Button
-              variant={filterMode === 'warning' ? 'secondary' : 'ghost'}
-              size="xs"
-              onClick={() => setFilterMode('warning')}
-              className={cn(
-                'h-6.5 text-[11px] px-2',
-                stats.warningCount > 0 && filterMode !== 'warning' && 'text-amber-500 hover:bg-amber-500/10',
-              )}
-            >
-              警告 ({stats.warningCount})
-            </Button>
-            <Button
-              variant={filterMode === 'stage' ? 'secondary' : 'ghost'}
-              size="xs"
-              onClick={() => setFilterMode('stage')}
-              className="h-6.5 text-[11px] px-2"
-            >
-              步骤与命令
-            </Button>
+              <TabsList size="xs">
+                <TabsTrigger value="all">
+                  全部 ({stats.totalLines})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="error"
+                  className={cn(
+                    stats.errorCount > 0 && filterMode !== 'error' && 'text-red-500 hover:text-red-600',
+                  )}
+                >
+                  错误 ({stats.errorCount})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="warning"
+                  className={cn(
+                    stats.warningCount > 0 && filterMode !== 'warning' && 'text-amber-500 hover:text-amber-600',
+                  )}
+                >
+                  警告 ({stats.warningCount})
+                </TabsTrigger>
+                <TabsTrigger value="stage">
+                  步骤与命令
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           {stats.firstErrorLine && (

@@ -8,6 +8,7 @@ import { RefreshCwIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StatusBadge } from './StatusBadge';
 import { BuildWorkbenchTrigger, openRepoBuildLogs } from './build-workbench';
+import { OverflowTooltip } from './overflow-tooltip';
 
 function when(timestamp?: number): string {
   if (!timestamp) return '时间未知';
@@ -41,9 +42,10 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
     <section className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-muted/40">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={snapshot?.status} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-tight text-foreground">
-          {snapshot?.name ?? 'CI 未配置'}
-        </span>
+        <OverflowTooltip
+          text={snapshot?.name ?? 'CI 未配置'}
+          className="min-w-0 flex-1 truncate text-sm font-medium tracking-tight text-foreground"
+        />
         {snapshot && <span className="text-xs text-muted-foreground">{PROVIDER_LABELS[snapshot.provider.toUpperCase()] ?? snapshot.provider}</span>}
         <Tooltip>
           <TooltipTrigger

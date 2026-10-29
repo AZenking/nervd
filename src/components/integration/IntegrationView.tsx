@@ -29,6 +29,7 @@ import { PageHeader } from '../page-header';
 import { EmptyHint } from '../empty-hint';
 import { WorkitemPeekDrawer } from '../workitem-peek-drawer';
 import { AiReleaseNotesDialog } from './ai-release-notes-dialog';
+import { OverflowTooltip } from '../overflow-tooltip';
 
 /**
  * 集成分支视图（纯查看，零写操作）：
@@ -424,10 +425,10 @@ export function IntegrationView() {
               />
             </div>
             {branchPhase === 'ready' && (
-              <span className="min-w-0 truncate text-xs text-muted-foreground">
-                {repoName} · 命中 {matchedBranches.length} 条
-                {matchedBranches.length > PAGE_SIZE && ` (第 ${page}/${totalPages} 页)`}
-              </span>
+              <OverflowTooltip
+                text={`${repoName} · 命中 ${matchedBranches.length} 条${matchedBranches.length > PAGE_SIZE ? ` (第 ${page}/${totalPages} 页)` : ''}`}
+                className="min-w-0 truncate text-xs text-muted-foreground"
+              />
             )}
           </>
         }
@@ -490,12 +491,15 @@ export function IntegrationView() {
             {/* 仓库分组横带（Linear 组头形态） */}
             <div className="flex h-8 items-center gap-2 rounded-md bg-muted/70 px-3">
               <FolderIcon className="size-3.5 text-muted-foreground" />
-              <span className="min-w-0 truncate text-[13px] font-medium">{repoName}</span>
+              <OverflowTooltip text={repoName} className="min-w-0 truncate text-[13px] font-medium" />
               <span className="text-xs text-muted-foreground tabular-nums">
                 共 {matchedBranches.length} 条
               </span>
               <span className="ml-auto flex items-center gap-3 text-xs text-muted-foreground font-mono">
-                <span>基准 {debouncedBase}</span>
+                <OverflowTooltip
+                  text={`基准 ${debouncedBase}`}
+                  className="max-w-40 truncate"
+                />
                 {totalPages > 1 && (
                   <div className="flex items-center gap-1 font-sans">
                     <span className="text-[11px] tabular-nums">
@@ -582,12 +586,14 @@ export function IntegrationView() {
                     className="group flex h-11 w-full items-center gap-2 rounded-lg px-3 transition-colors hover:bg-muted/60"
                   >
                     <GitBranchIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="w-64 shrink-0 truncate font-mono text-xs text-foreground">
-                      {row.name}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-                      {row.commitMessage || '—'}
-                    </span>
+                    <OverflowTooltip
+                      text={row.name}
+                      className="w-64 shrink-0 truncate font-mono text-xs text-foreground"
+                    />
+                    <OverflowTooltip
+                      text={row.commitMessage || '—'}
+                      className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground"
+                    />
 
                     {/* 领先 / 落后基准（比对中展示微动画，比对完成即时呈现） */}
                     <span

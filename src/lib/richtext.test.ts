@@ -73,6 +73,19 @@ describe('extractRichHtml', () => {
     const doc = { htmlValue: '<p>富文本内容</p>' };
     expect(extractRichHtml(doc)).toBe('<p>富文本内容</p>');
   });
+
+  it('treats visually-empty rich shells as empty (no blank block)', () => {
+    // 云效空描述常见形态：空段落 / <br> / &nbsp; / 零宽字符壳，不应按有内容渲染
+    expect(extractRichHtml({ htmlValue: '<p><br></p>' })).toBe('');
+    expect(extractRichHtml({ htmlValue: '<p>&nbsp;</p><p></p>' })).toBe('');
+    expect(extractRichHtml({ htmlValue: '<p>\u200B</p><div><br/></div>' })).toBe('');
+    expect(extractRichHtml('<p><br></p>')).toBe('');
+  });
+
+  it('keeps htmlValue that only carries an image', () => {
+    const html = '<p><img src="https://yunxiao/file.png" name="截图"></p>';
+    expect(extractRichHtml({ htmlValue: html })).toBe(html);
+  });
 });
 
 describe('sanitizeForYunxiao', () => {

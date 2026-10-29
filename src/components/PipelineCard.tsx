@@ -4,6 +4,7 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { StatusBadge } from './StatusBadge';
 import { formatDateTime } from '../lib/format';
 import { BuildWorkbenchTrigger, openPipelineRunLogs } from './build-workbench';
+import { OverflowTooltip } from './overflow-tooltip';
 
 const TRIGGER: Record<number, string> = { 1: '手动', 2: '定时', 3: '代码', 5: '流水线', 6: 'WEBHOOK' };
 
@@ -16,7 +17,10 @@ export function PipelineCard({
     <div className="rounded-lg border border-border bg-card px-5 py-4 transition-colors hover:bg-muted/40">
       <div className="flex items-center gap-2">
         <StatusBadge status={latest?.status} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-tight text-foreground">{pipelineName}</span>
+        <OverflowTooltip
+          text={pipelineName}
+          className="min-w-0 flex-1 truncate text-sm font-medium tracking-tight text-foreground"
+        />
         <BuildWorkbenchTrigger
           target={{ kind: 'pipeline', pipelineId, title: pipelineName }}
           label="运行"

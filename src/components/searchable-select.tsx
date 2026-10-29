@@ -12,6 +12,7 @@ import {
   ComboboxValue,
 } from '@/components/ui/combobox';
 import { cn } from '@/lib/utils';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface SearchableSelectOption<V extends string | number | null> {
   label: string;
@@ -108,16 +109,16 @@ function VirtualComboboxList<T extends SearchableSelectOption<any>>({
                 value={item.value}
                 index={actualIndex}
                 disabled={item.disabled}
-                title={item.label}
+                aria-label={item.label}
                 className={item.className}
               >
                 {item.badge ? (
                   <span className="flex items-center justify-between gap-2 w-full min-w-0">
-                    <span className="truncate">{item.label}</span>
+                    <OverflowTooltip text={item.label} className="min-w-0 flex-1 truncate" />
                     <span className="shrink-0">{item.badge}</span>
                   </span>
                 ) : (
-                  item.label
+                  <OverflowTooltip text={item.label} className="block min-w-0 max-w-full truncate" />
                 )}
               </ComboboxItem>
             );
@@ -228,16 +229,23 @@ export function SearchableSelect<V extends string | number | null>({
           className,
         )}
       >
-        <span
-          className={cn(
-            'flex min-w-0 flex-1 items-center truncate',
-            !selected && !showRawValue && 'text-muted-foreground',
-          )}
-        >
-          {showRawValue
-            ? String(value)
-            : <ComboboxValue placeholder={placeholder} />}
-        </span>
+        {selected || showRawValue ? (
+          <OverflowTooltip
+            text={selected?.label ?? String(value)}
+            className={cn(
+              'flex min-w-0 flex-1 items-center truncate',
+              !selected && showRawValue && 'text-foreground',
+            )}
+          >
+            {showRawValue
+              ? String(value)
+              : selected?.label}
+          </OverflowTooltip>
+        ) : (
+          <span className="flex min-w-0 flex-1 items-center truncate text-muted-foreground">
+            <ComboboxValue placeholder={placeholder} />
+          </span>
+        )}
       </ComboboxTrigger>
       <ComboboxContent
         className={cn(
@@ -257,16 +265,16 @@ export function SearchableSelect<V extends string | number | null>({
                   key={String(item.value)}
                   value={item.value}
                   disabled={item.disabled}
-                  title={item.label}
+                  aria-label={item.label}
                   className={item.className}
                 >
                   {item.badge ? (
                     <span className="flex items-center justify-between gap-2 w-full min-w-0">
-                      <span className="truncate">{item.label}</span>
+                      <OverflowTooltip text={item.label} className="min-w-0 flex-1 truncate" />
                       <span className="shrink-0">{item.badge}</span>
                     </span>
                   ) : (
-                    item.label
+                    <OverflowTooltip text={item.label} className="block min-w-0 max-w-full truncate" />
                   )}
                 </ComboboxItem>
               )}

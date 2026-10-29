@@ -985,10 +985,10 @@ export function IterationView() {
                   if (v !== 'workitems') setSplitWorkitemId(null);
                 }}
               >
-                <TabsList className="h-6 bg-muted/60 p-0.5">
-                  <TabsTrigger value="workitems" className="px-2 py-0 text-[11px]">工作项</TabsTrigger>
-                  <TabsTrigger value="repos" className="px-2 py-0 text-[11px]">涉及仓库</TabsTrigger>
-                  {!isUnplanned && <TabsTrigger value="branches" className="px-2 py-0 text-[11px]">模板</TabsTrigger>}
+                <TabsList size="xs">
+                  <TabsTrigger value="workitems">工作项</TabsTrigger>
+                  <TabsTrigger value="repos">涉及仓库</TabsTrigger>
+                  {!isUnplanned && <TabsTrigger value="branches">模板</TabsTrigger>}
                 </TabsList>
               </Tabs>
               <Button
@@ -1009,9 +1009,9 @@ export function IterationView() {
           toolbar={(
             <>
               <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
-                <TabsList className="h-7">
+                <TabsList size="sm">
                   {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
-                    <TabsTrigger key={c} value={c} className="px-2 py-0.5 text-xs">{CATEGORY_LABELS[c]}</TabsTrigger>
+                    <TabsTrigger key={c} value={c}>{CATEGORY_LABELS[c]}</TabsTrigger>
                   ))}
                 </TabsList>
               </Tabs>
@@ -1111,14 +1111,14 @@ export function IterationView() {
                 if (v !== 'workitems') setSplitWorkitemId(null);
               }}
             >
-              <TabsList className="h-7 bg-muted/60 p-0.5">
-                <TabsTrigger value="workitems" className="px-2.5 py-0.5 text-xs gap-1.5">
+              <TabsList size="sm">
+                <TabsTrigger value="workitems" className="gap-1.5">
                   <span>工作项</span>
                   <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
                     {filtered.length}
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="repos" className="px-2.5 py-0.5 text-xs gap-1.5">
+                <TabsTrigger value="repos" className="gap-1.5">
                   <span>涉及仓库</span>
                   {scopedRepoCount > 0 && (
                     <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
@@ -1127,7 +1127,7 @@ export function IterationView() {
                   )}
                 </TabsTrigger>
                 {!isUnplanned && (
-                  <TabsTrigger value="branches" className="px-2.5 py-0.5 text-xs gap-1.5">
+                  <TabsTrigger value="branches" className="gap-1.5">
                     <span>分支模板</span>
                     {templateCount > 0 && (
                       <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
@@ -1160,7 +1160,7 @@ export function IterationView() {
             {viewTab === 'workitems' && (
               <>
                 <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
-                  <TabsList>
+                  <TabsList size="sm">
                     {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
                       <TabsTrigger key={c} value={c}>{CATEGORY_LABELS[c]}</TabsTrigger>
                     ))}

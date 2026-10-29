@@ -13,6 +13,7 @@ import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { hasWorkspaceOverlay, isEditing } from '@/lib/workspace-actions';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export function RecentsView() {
   const items = useRecentWorkitems((s) => s.items);
@@ -133,9 +134,10 @@ export function RecentsView() {
                   <span className="font-mono font-bold tracking-tight text-primary shrink-0">
                     {item.identifier}
                   </span>
-                  <span className="truncate font-medium text-foreground group-hover:text-primary transition-colors">
-                    {item.subject}
-                  </span>
+                  <OverflowTooltip
+                    text={item.subject}
+                    className="min-w-0 truncate font-medium text-foreground group-hover:text-primary transition-colors"
+                  />
                 </div>
 
                 {/* 右侧：类别徽标 + 30s+ 标记 + 访问时间 + 操作 */}
@@ -146,9 +148,10 @@ export function RecentsView() {
                     </span>
                   )}
                   {item.spaceName && (
-                    <span className="text-[11px] text-muted-foreground max-w-28 truncate hidden md:inline">
-                      {item.spaceName}
-                    </span>
+                    <OverflowTooltip
+                      text={item.spaceName}
+                      className="hidden max-w-28 truncate text-[11px] text-muted-foreground md:inline"
+                    />
                   )}
                   <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-mono text-amber-600 dark:text-amber-400">
                     <ClockIcon className="size-2.5" />

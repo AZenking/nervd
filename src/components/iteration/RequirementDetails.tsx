@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronRightIcon, CopyIcon, DatabaseIcon,
-  ExternalLinkIcon, InboxIcon, Loader2Icon, Maximize2Icon, MoreHorizontalIcon,
-  MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, UserIcon, XIcon,
+  ArrowLeftIcon, CalendarIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, ClockIcon, CopyIcon, DatabaseIcon,
+  ExternalLinkIcon, FolderIcon, GitBranchIcon, GitForkIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MoreHorizontalIcon,
+  MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, SlidersHorizontalIcon, UserIcon, XIcon,
 } from 'lucide-react';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
@@ -16,9 +16,11 @@ import { cn } from '@/lib/utils';
 import { useRecentTracker } from '@/hooks/use-recent-tracker';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
-import { CATEGORY_LABELS, type Category } from '@/types';
+import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
+import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -75,8 +77,8 @@ export function RequirementDetails({
 }: RequirementDetailsProps & RequirementDetailsBackToListProps = {}) {
   const {
     selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
-    iterations, trace, traceLoading, currentUser,
-    saveWorkitemRepos, saveWorkitemRepoBranchTemplate, setToast, reloadCurrentDetail, loadTrace,
+    iterations, trace, traceLoading, currentUser, pipelines,
+    saveWorkitemRepos, saveWorkitemRepoBranchTemplate, saveRepoCiBinding, setToast, reloadCurrentDetail, loadTrace,
   } = useApp();
   const allowWrite = settings?.allowWriteOps ?? false;
   const [refreshing, setRefreshing] = useState(false);
@@ -415,7 +417,11 @@ export function RequirementDetails({
       })
     : [];
 
-  const handleLinkRepoFromModal = async (repoPath: string, templateId?: string): Promise<boolean> => {
+  const handleLinkRepoFromModal = async (
+    repoPath: string,
+    templateId?: string,
+    ciBinding?: RepoCiBinding | null,
+  ): Promise<boolean> => {
     if (!selectedId || !repoPath) return false;
     const repo = repositories.find((r) => (r.pathWithNamespace || r.name) === repoPath);
     if (!repo || effectiveRepoIds.includes(repo.id)) return false;
@@ -427,11 +433,20 @@ export function RequirementDetails({
       if (iterationId && templateId) {
         await saveWorkitemRepoBranchTemplate(selectedId, repo.id, templateId);
       }
-      setToast({ text: `已关联云效仓库 ${repoPath}${templateId ? ' 并应用分支模板' : ''}`, kind: 'ok' });
+      if (ciBinding !== undefined) {
+        await saveRepoCiBinding(repo.id, ciBinding);
+      }
+      const ciMsg = ciBinding
+        ? `，已关联 CI (${ciBinding.provider === 'flow' ? ciBinding.pipelineName : 'Jenkins'})`
+        : '';
+      setToast({
+        text: `已关联云效仓库 ${repoPath}${templateId ? ' 并应用分支模板' : ''}${ciMsg}`,
+        kind: 'ok',
+      });
       return true;
     } catch (error) {
       setToast({
-        text: (repoLinked ? '仓库已关联，但分支模板保存失败' : '云效仓库关联保存失败') + '：' + humanizeError(error),
+        text: (repoLinked ? '仓库已关联，但后续配置保存失败' : '云效仓库关联保存失败') + '：' + humanizeError(error),
         kind: 'fail',
       });
       return false;
@@ -538,11 +553,24 @@ export function RequirementDetails({
       if (iterationId && tId) {
         await saveWorkitemRepoBranchTemplate(selectedId, repo.id, tId);
       }
-      setToast({ text: `已成功关联仓库 ${repo.pathWithNamespace || repo.name}`, kind: 'ok' });
+      let ciMsg = '';
+      const existingBinding = settings?.repoCiBindings?.[String(repoId)];
+      if (!existingBinding && pipelines.length > 0) {
+        const match = matchPipelineForRepo(repo.name, pipelines);
+        if (match.bestMatch) {
+          await saveRepoCiBinding(repo.id, {
+            provider: 'flow',
+            pipelineId: match.bestMatch.pipelineId,
+            pipelineName: match.bestMatch.pipelineName,
+          });
+          ciMsg = `，并智能关联流水线「${match.bestMatch.pipelineName}」`;
+        }
+      }
+      setToast({ text: `已成功关联仓库 ${repo.pathWithNamespace || repo.name}${ciMsg}`, kind: 'ok' });
       setRecommendedRepos((prev) => prev.filter((r) => r.repoId !== repoId));
     } catch (error) {
       setToast({
-        text: (repoLinked ? '仓库已关联，但分支模板保存失败' : '云效仓库关联保存失败') + '：' + humanizeError(error),
+        text: (repoLinked ? '仓库已关联，但后续配置保存失败' : '云效仓库关联保存失败') + '：' + humanizeError(error),
         kind: 'fail',
       });
     } finally {
@@ -589,7 +617,7 @@ export function RequirementDetails({
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className={cn('flex min-w-0 flex-col', embedded ? 'gap-0' : 'gap-6')}>
       {embedded ? (
         <PageHeader
           density="compact"
@@ -714,6 +742,239 @@ export function RequirementDetails({
               )}
             </>
           )}
+          toolbar={(
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 w-full text-xs">
+              {/* 状态 Chip */}
+              <DetailStatusPopover
+                status={statusName}
+                statusId={statusId}
+                workitemId={selectedId ?? undefined}
+                variant="badge"
+              />
+
+              {/* 负责人 Chip */}
+              <DetailAssigneePopover
+                assignedToName={assignedToName}
+                workitemId={selectedId}
+                candidateAssignees={candidateAssignees}
+                variant="badge"
+              />
+
+              {/* 类型 Chip */}
+              <div
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none"
+                title={`工作项类型：${category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}`}
+              >
+                <LayersIcon className="size-3.5 text-muted-foreground shrink-0" />
+                <span>{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</span>
+              </div>
+
+              {/* 项目空间 Chip */}
+              {spaceName && (
+                <div
+                  className="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none"
+                  title={`项目空间：${spaceName}`}
+                >
+                  <FolderIcon className="size-3.5 text-muted-foreground shrink-0" />
+                  <OverflowTooltip text={spaceName} className="truncate" />
+                </div>
+              )}
+
+              {/* 所属迭代 Chip */}
+              <div
+                className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none"
+                title={`所属迭代：${iterationName || '未关联迭代'}`}
+              >
+                <CalendarIcon className="size-3.5 text-muted-foreground shrink-0" />
+                <OverflowTooltip
+                  text={iterationName || '未关联迭代'}
+                  className="truncate"
+                />
+              </div>
+
+              {/* 关联仓库 Chip */}
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('linked-repos-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 transition-colors hover:bg-muted/60 hover:border-border/80 hover:text-foreground cursor-pointer"
+                title={`已关联 ${effectiveRepoIds.length} 个代码仓库，点击定位至仓库区块`}
+              >
+                <DatabaseIcon className="size-3.5 text-muted-foreground shrink-0" />
+                <span>{effectiveRepoIds.length} 个仓库</span>
+              </button>
+
+              {/* 父需求 Chip */}
+              {parent && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onSelectParent) onSelectParent(parent.workitemId);
+                    else openWorkitem(parent.workitemId, parent);
+                  }}
+                  className="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10 hover:border-primary/50 cursor-pointer font-mono"
+                  title={`所属父需求：${parent.identifier} ${parent.subject || ''}`}
+                >
+                  <GitForkIcon className="size-3.5 shrink-0" />
+                  <span className="truncate">{parent.identifier}</span>
+                </button>
+              )}
+
+              {/* 全部属性 Popover（Linear 式属性检视器） */}
+              <Popover>
+                <PopoverTrigger
+                  render={(
+                    <button
+                      type="button"
+                      className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:border-border/80 hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      title="查看与管理全部属性"
+                    >
+                      <SlidersHorizontalIcon className="size-3.5 shrink-0" />
+                      <span>属性</span>
+                      <ChevronDownIcon className="size-3 text-muted-foreground/60 shrink-0" />
+                    </button>
+                  )}
+                />
+                <PopoverContent
+                  align="end"
+                  side="bottom"
+                  sideOffset={6}
+                  className="w-80 p-0 rounded-lg border border-border/80 bg-popover shadow-level-2 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between border-b border-border/60 px-3.5 py-2.5 bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontalIcon className="size-3.5 text-primary" />
+                      <span className="text-xs font-medium text-foreground">全部属性</span>
+                    </div>
+                    {identifier && (
+                      <span className="font-mono text-[11px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+                        {identifier}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col p-2 gap-0.5">
+                    {/* 状态 */}
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
+                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
+                        <StatusIcon status={statusName} className="size-3.5 shrink-0" />
+                        <span>状态</span>
+                      </span>
+                      <DetailStatusPopover
+                        status={statusName}
+                        statusId={statusId}
+                        workitemId={selectedId ?? undefined}
+                        variant="cell"
+                      />
+                    </div>
+
+                    {/* 处理人 */}
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
+                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
+                        <UserIcon className="size-3.5 shrink-0" />
+                        <span>处理人</span>
+                      </span>
+                      <DetailAssigneePopover
+                        assignedToName={assignedToName}
+                        workitemId={selectedId}
+                        candidateAssignees={candidateAssignees}
+                        variant="cell"
+                      />
+                    </div>
+
+                    {/* 类型 */}
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
+                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
+                        <LayersIcon className="size-3.5 shrink-0" />
+                        <span>类型</span>
+                      </span>
+                      <span className="text-foreground font-medium">
+                        {category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}
+                      </span>
+                    </div>
+
+                    {/* 所属父需求 */}
+                    {parent && (
+                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
+                        <span className="flex items-center gap-2 text-muted-foreground shrink-0">
+                          <GitForkIcon className="size-3.5 shrink-0" />
+                          <span>所属父需求</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onSelectParent) onSelectParent(parent.workitemId);
+                            else openWorkitem(parent.workitemId, parent);
+                          }}
+                          className="font-mono text-xs text-primary hover:underline cursor-pointer truncate max-w-44 text-right"
+                          title={`${parent.identifier} ${parent.subject || ''}`}
+                        >
+                          {parent.identifier}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* 项目空间 */}
+                    {spaceName && (
+                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
+                        <span className="flex items-center gap-2 text-muted-foreground shrink-0">
+                          <FolderIcon className="size-3.5 shrink-0" />
+                          <span>项目空间</span>
+                        </span>
+                        <OverflowTooltip text={spaceName} className="text-foreground max-w-44 truncate text-right font-medium" />
+                      </div>
+                    )}
+
+                    {/* 所属迭代 */}
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
+                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
+                        <CalendarIcon className="size-3.5 shrink-0" />
+                        <span>所属迭代</span>
+                      </span>
+                      <OverflowTooltip text={iterationName || '未关联迭代'} className="text-foreground max-w-44 truncate text-right font-medium" />
+                    </div>
+
+                    {/* 关联仓库 */}
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
+                      <span className="flex items-center gap-2 text-muted-foreground shrink-0">
+                        <DatabaseIcon className="size-3.5 shrink-0" />
+                        <span>关联仓库</span>
+                      </span>
+                      <span className="text-foreground font-mono">{effectiveRepoIds.length} 个</span>
+                    </div>
+
+                    {/* 迭代基准 */}
+                    {iterationBranchValue && iterationBranchValue !== '—' && (
+                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
+                        <span className="flex items-center gap-2 text-muted-foreground shrink-0">
+                          <GitBranchIcon className="size-3.5 shrink-0" />
+                          <span>迭代基准</span>
+                        </span>
+                        <OverflowTooltip
+                          text={iterationBranchValue}
+                          className="font-mono text-foreground max-w-44 truncate text-right"
+                        />
+                      </div>
+                    )}
+
+                    {/* 更新时间 */}
+                    {updatedAt && (
+                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-muted/50 transition-colors text-xs">
+                        <span className="flex items-center gap-2 text-muted-foreground shrink-0">
+                          <ClockIcon className="size-3.5 shrink-0" />
+                          <span>更新时间</span>
+                        </span>
+                        <span className="font-mono text-foreground">
+                          {String(updatedAt).slice(0, 16).replace('T', ' ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
         />
       ) : (
         <PageHeader
@@ -768,94 +1029,11 @@ export function RequirementDetails({
         />
       )}
 
-      {/* 嵌入分栏模式下的紧凑元数据条（替代占用整列的右属性栏，释放横向空间） */}
-      {embedded && (
-        <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/50 bg-muted/20 px-5 py-2 text-xs text-muted-foreground">
-          <DetailStatusPopover
-            status={statusName}
-            statusId={statusId}
-            workitemId={selectedId ?? undefined}
-            variant="badge"
-          />
-          <span className="text-border">|</span>
-          <div className="flex items-center gap-1.5">
-            <UserIcon className="size-3.5 text-muted-foreground" />
-            <DetailAssigneePopover
-              assignedToName={assignedToName}
-              workitemId={selectedId}
-              candidateAssignees={candidateAssignees}
-              variant="cell"
-            />
-          </div>
-          <span className="text-border">|</span>
-          <div className="flex items-center gap-1.5">
-            <CalendarIcon className="size-3.5 text-muted-foreground" />
-            <OverflowTooltip
-              text={iterationName || '未关联迭代'}
-              className="max-w-56 truncate text-foreground"
-            />
-          </div>
-          <span className="text-border">|</span>
-          <div className="flex items-center gap-1.5">
-            <DatabaseIcon className="size-3.5 text-muted-foreground" />
-            <span>{effectiveRepoIds.length} 个仓库</span>
-          </div>
-          <Collapsible className="ml-auto">
-            <CollapsibleTrigger className="rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-              更多属性
-              <ChevronRightIcon className="ml-1 inline-block size-3 transition-transform group-data-panel-open/collapsible:rotate-90" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="absolute right-5 z-30 mt-2 flex min-w-64 flex-col gap-2 rounded-lg border border-border/70 bg-popover p-3 text-xs text-muted-foreground shadow-level-2">
-              <div className="flex items-center justify-between gap-3">
-                <span>类型</span>
-                <span className="text-foreground">{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</span>
-              </div>
-              {parent && (
-                <div className="flex items-center justify-between gap-3">
-                  <span>父需求</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onSelectParent) onSelectParent(parent.workitemId);
-                      else openWorkitem(parent.workitemId, parent);
-                    }}
-                    className="font-mono text-primary hover:underline cursor-pointer"
-                  >
-                    {parent.identifier}
-                  </button>
-                </div>
-              )}
-              {spaceName && (
-                <div className="flex items-center justify-between gap-3">
-                  <span>空间</span>
-                  <OverflowTooltip text={spaceName} className="max-w-56 truncate text-foreground" />
-                </div>
-              )}
-              {updatedAt && (
-                <div className="flex items-center justify-between gap-3 font-mono">
-                  <span className="font-sans">更新时间</span>
-                  <span className="text-foreground">{String(updatedAt).slice(0, 16).replace('T', ' ')}</span>
-                </div>
-              )}
-              {iterationBranchValue && iterationBranchValue !== '—' && (
-                <div className="flex items-center justify-between gap-3">
-                  <span>迭代基准</span>
-                  <OverflowTooltip
-                    text={iterationBranchValue}
-                    className="min-w-0 max-w-56 truncate text-right font-mono text-foreground"
-                  />
-                </div>
-              )}
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-      )}
-
       {/* 正文容器：embedded 下全宽单列呼吸感布局，非 embedded 下保留 xl:grid 右属性栏 */}
       <div className={cn(
         'mx-auto flex w-full flex-col gap-8 pb-12',
         embedded
-          ? 'max-w-full px-5 py-2'
+          ? 'max-w-full px-5 pt-5 pb-12'
           : 'max-w-7xl xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start xl:gap-10 px-5 py-2',
       )}>
         {/* 左主列：无卡片白框，纯粹呼吸感的 Linear 画布 */}
@@ -902,7 +1080,6 @@ export function RequirementDetails({
           <section className="flex flex-col gap-3">
             <SectionHeader
               title="描述"
-              hint="来自云效的图文描述与内联附件"
               action={
                 selectedId && allowWrite && !isEditingDesc ? (
                   <Button
@@ -930,7 +1107,7 @@ export function RequirementDetails({
           </section>
 
           {/* 关联云效仓库与代码操作 (Linear Integrations 风格) */}
-          <section className="flex flex-col gap-3">
+          <section id="linked-repos-section" className="flex flex-col gap-3">
             {/* 标题简化为「关联仓库 · n」；常驻 刷新全部 / 关联仓库(+Modal)，更多操作收入菜单 */}
             <SectionHeader
               title="关联仓库"

@@ -162,7 +162,10 @@ export function OverviewView() {
             sub={settings?.allowWriteOps ? '可写' : '只读'}
           >
             <StatusBadge status={connectionStatus(connection)} />
-            <span className="truncate">{settings?.organizationId || '未配置组织'}</span>
+            <OverflowTooltip
+              text={settings?.organizationId || '未配置组织'}
+              className="min-w-0 truncate"
+            />
           </Stat>
           <Stat
             label={`工作项 · ${CATEGORY_LABELS[category]}`}

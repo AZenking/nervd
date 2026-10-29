@@ -264,7 +264,7 @@ export function SettingsView({
             className="flex-col gap-6 sm:flex-row sm:gap-8"
           >
             {/* Linear 式竖向菜单：无边框底色，激活项 accent 底 */}
-            <TabsList className="h-fit w-full shrink-0 flex-col items-stretch gap-0.5 rounded-none border-0 bg-transparent p-0 sm:w-48">
+            <TabsList variant="ghost" className="h-fit w-full shrink-0 flex-col items-stretch gap-0.5 rounded-none border-0 p-0 sm:w-48">
               {SETTINGS_SECTIONS.map((section) => {
                 const errorCount = getSectionErrorCount(section.value, fieldErrors);
                 return (
