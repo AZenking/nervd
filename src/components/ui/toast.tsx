@@ -33,7 +33,7 @@ function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
     <ToastPrimitive.Root
       data-slot="toast"
       className={cn(
-        "group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom rounded-lg bg-[#26282d] text-[13px] text-white shadow-level-2 will-change-transform outline-none select-none before:absolute before:top-1/2 before:left-0 before:h-[calc(100%-12px)] before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-transparent before:content-[''] data-[type=success]:before:bg-[#30a46c] data-[type=error]:before:bg-[#e5484d] data-[type=info]:before:bg-[#8a8f98] data-[type=warning]:before:bg-[#f2994a] focus-visible:ring-2 focus-visible:ring-white/30",
+        "group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom rounded-lg border border-border bg-card text-[13px] text-card-foreground shadow-lg will-change-transform outline-none select-none before:absolute before:top-1/2 before:left-0 before:h-[calc(100%-12px)] before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-transparent before:content-[''] data-[type=success]:before:bg-[#30a46c] data-[type=error]:before:bg-destructive data-[type=info]:before:bg-muted-foreground data-[type=warning]:before:bg-[#f2994a] focus-visible:ring-2 focus-visible:ring-ring/30",
         "[--gap:0.75rem] [--height:var(--toast-frontmost-height,var(--toast-height))] [--offset-y:calc(var(--toast-offset-y)*-1+calc(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))]",
         "h-(--height) [transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))] [transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
         "after:absolute after:top-full after:left-0 after:h-[calc(var(--gap)+1px)] after:w-full after:content-['']",
@@ -72,7 +72,7 @@ function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
   return (
     <ToastPrimitive.Title
       data-slot="toast-title"
-      className={cn("text-[13px] font-medium text-white", className)}
+      className={cn("text-[13px] font-medium text-foreground", className)}
       {...props}
     />
   )
@@ -85,7 +85,7 @@ function ToastDescription({
   return (
     <ToastPrimitive.Description
       data-slot="toast-description"
-      className={cn("text-[13px] text-white/60 whitespace-pre-line break-words", className)}
+      className={cn("text-[13px] text-muted-foreground whitespace-pre-line break-words", className)}
       {...props}
     />
   )
@@ -101,7 +101,7 @@ function ToastAction({
       data-slot="toast-action"
       render={render}
       className={cn(
-        "shrink-0 border-white/20 bg-transparent text-white/80 hover:bg-white/10 hover:text-white",
+        "shrink-0 border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground text-xs",
         className
       )}
       {...props}
@@ -121,7 +121,7 @@ function ToastClose({
       aria-label="Close toast"
       render={render}
       className={cn(
-        "relative shrink-0 text-white/60 after:absolute after:-inset-2 after:content-[''] hover:bg-white/10 hover:text-white",
+        "relative shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:bg-muted hover:text-foreground",
         className
       )}
       {...props}
@@ -138,19 +138,19 @@ function ToastIcon({ type }: { type: string | undefined }) {
 
   if (type === "success") {
     icon = (
-      <CircleCheckIcon aria-hidden="true" />
+      <CircleCheckIcon className="text-emerald-500 dark:text-emerald-400" aria-hidden="true" />
     )
   }
 
   if (type === "info") {
     icon = (
-      <InfoIcon aria-hidden="true" />
+      <InfoIcon className="text-muted-foreground" aria-hidden="true" />
     )
   }
 
   if (type === "warning") {
     icon = (
-      <TriangleAlertIcon aria-hidden="true" />
+      <TriangleAlertIcon className="text-amber-500 dark:text-amber-400" aria-hidden="true" />
     )
   }
 
@@ -162,7 +162,7 @@ function ToastIcon({ type }: { type: string | undefined }) {
 
   if (type === "loading") {
     icon = (
-      <Loader2Icon className="animate-spin" aria-hidden="true" />
+      <Loader2Icon className="animate-spin text-muted-foreground" aria-hidden="true" />
     )
   }
 
