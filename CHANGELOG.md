@@ -3,6 +3,11 @@
 All notable changes to **nervd** will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.4.1](https://github.com/AZenking/nervd/releases/tag/v0.4.1) - 2026-10-30
+
+### 🚀 Features
+
+- *(quick-build)* 快速构建控制台与全局弹窗，统一入口与快捷键 ([598fed1](https://github.com/AZenking/nervd/commit/598fed156f3a46e91a09ca7d4042a4af25d3c2e7))
 ## [0.4.0](https://github.com/AZenking/nervd/releases/tag/v0.4.0) - 2026-10-29
 
 ### 🚀 Features
