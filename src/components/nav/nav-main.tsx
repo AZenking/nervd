@@ -13,6 +13,7 @@ export interface NavMainItem {
   view?: WorkspaceView;
   isActive?: boolean;
   badge?: React.ReactNode;
+  onClick?: () => void;
 }
 
 /** 主导航：Linear 式直接主菜单项，无多余折叠包裹 */
@@ -27,7 +28,8 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
               tooltip={item.title}
               isActive={item.isActive ?? (item.view != null && item.view === view)}
               onClick={() => {
-                if (item.view) setView(item.view);
+                if (item.onClick) item.onClick();
+                else if (item.view) setView(item.view);
               }}
             >
               {item.icon}

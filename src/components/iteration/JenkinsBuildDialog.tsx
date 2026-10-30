@@ -14,6 +14,7 @@ import {
   hasCachedJobs,
 } from '@/lib/jenkins-cache';
 import { useApp } from '@/store/app';
+import { useQuickBuild } from '@/store/quick-build';
 import { isBranchParameterName, isEnvironmentParameterName, sortJenkinsJobsWithRecommendation } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
 import { errorLog, humanizeError } from '@/lib/error-format';
@@ -477,6 +478,19 @@ export function JenkinsBuildParameters({
       await api.triggerJenkinsJob(repoId, connectionId, jobFullName, parameterValues);
       setToast({ text: `已触发 ${repoName} 构建：${jobFullName}`, kind: 'ok' });
       useApp.getState().markRepoCiActive(90_000);
+      useQuickBuild.getState().recordBuild(
+        {
+          id: `jenkins:${repoId}:${connectionId}:${jobFullName}`,
+          type: 'jenkins',
+          repoId,
+          repoName,
+          pipelineName: jobFullName,
+          connectionId,
+          jobFullName,
+          parameters: parameterValues,
+        },
+        parameterValues,
+      );
       void loadRepoCi(repoId);
       onSuccess?.();
     } catch (cause) {

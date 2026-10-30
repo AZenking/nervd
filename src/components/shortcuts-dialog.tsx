@@ -22,6 +22,7 @@ const NAV_ROWS: ShortcutRow[] = [
   { keys: ['g', 'c'], label: '定时任务' },
   { keys: ['g', 's'], label: '设置' },
   { keys: ['⌘K'], label: '命令面板' },
+  { keys: ['⌘B'], label: '快速构建 / 重新触发流水线' },
   { keys: ['⌘[', '⌘←'], label: '后退' },
   { keys: ['⌘]'], label: '前进' },
   { keys: ['⌘,'], label: '打开设置' },

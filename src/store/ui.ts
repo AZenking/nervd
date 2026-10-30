@@ -347,6 +347,10 @@ interface UiStore {
   /** 关于 nervd 弹窗开关 */
   aboutOpen: boolean;
   setAboutOpen(open: boolean): void;
+  /** 全局 ⌘B 快速构建弹窗开关 */
+  quickBuildOpen: boolean;
+  setQuickBuildOpen(open: boolean): void;
+  toggleQuickBuild(): void;
   /** 主题模式：跟随系统 system、深色 dark 与浅色 light */
   theme: ThemeMode;
   /** 当前实际渲染的明暗模式：'dark' | 'light' */
@@ -551,6 +555,9 @@ export const useUi = create<UiStore>((set, get) => {
     setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
     aboutOpen: false,
     setAboutOpen: (aboutOpen) => set({ aboutOpen }),
+    quickBuildOpen: false,
+    setQuickBuildOpen: (quickBuildOpen) => set({ quickBuildOpen }),
+    toggleQuickBuild: () => set((st) => ({ quickBuildOpen: !st.quickBuildOpen })),
     buildWorkbenchOpen: false,
     buildWorkbenchTarget: null,
     buildWorkbenchPage: 'runs',

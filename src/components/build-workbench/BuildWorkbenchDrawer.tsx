@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
+import { useQuickBuild } from '@/store/quick-build';
 import { useUi, type BuildWorkbenchTarget } from '@/store/ui';
 import type { CiRunSummary, RepoSummary } from '@/types';
 import { buildRunParameter, ciProviderLabel, ciStatusText } from '@/lib/ci';
@@ -301,6 +302,13 @@ function FlowParametersPage({
     try {
       await api.triggerRepoCi(target.repoId);
       markRepoCiActive(90_000);
+      useQuickBuild.getState().recordBuild({
+        id: `flow:${target.repoId}`,
+        type: 'flow',
+        repoId: target.repoId,
+        repoName: repo?.name || target.title,
+        pipelineName: binding.pipelineName || '云效 Flow 流水线',
+      });
       setToast({ text: `已触发 ${repo?.name || target.title} 的流水线`, kind: 'ok' });
       await loadRepoCi(target.repoId);
       onSuccess();

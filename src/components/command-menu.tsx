@@ -14,6 +14,7 @@ import {
   SearchIcon,
   SettingsIcon,
   SunIcon,
+  ZapIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
@@ -62,7 +63,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export function CommandMenu() {
   const open = useUi((s) => s.commandOpen);
   const setCommandOpen = useUi((s) => s.setCommandOpen);
-  const { view, setView, openSettings, setIteration, openWorkitem, theme, resolvedTheme, setTheme, toggleTheme, setAboutOpen, settingsSection } = useUi();
+  const { view, setView, openSettings, setIteration, openWorkitem, theme, resolvedTheme, setTheme, toggleTheme, setAboutOpen, setQuickBuildOpen, settingsSection } = useUi();
   const items = useApp((s) => s.items);
   const realIterations = useApp((s) => s.iterations);
   const recentItems = useRecentWorkitems((s) => s.items);
@@ -202,6 +203,15 @@ export function CommandMenu() {
       }));
 
     const actions: CommandEntry[] = [
+      {
+        id: 'action-quick-build',
+        group: '操作',
+        label: '快速构建 / 流水线触发',
+        hint: '⌘B',
+        icon: <ZapIcon className="size-4 text-amber-500" />,
+        keywords: '构建 build 触发 trigger ci flow jenkins 流水线 快速构建 重新构建',
+        run: () => setQuickBuildOpen(true),
+      },
       {
         id: 'action-about',
         group: '操作',

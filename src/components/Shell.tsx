@@ -14,6 +14,7 @@ import { LocalTasksView } from './local-tasks/LocalTasksView';
 import { CommandMenu } from './command-menu';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { AboutDialog } from './about-dialog';
+import { QuickBuildDialog } from './quick-build/quick-build-dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -224,7 +225,16 @@ export function Shell() {
         // 快捷键面板或关于面板开着时先收起，避免两个浮层叠开
         if (ui.shortcutsOpen) ui.setShortcutsOpen(false);
         if (ui.aboutOpen) ui.setAboutOpen(false);
+        if (ui.quickBuildOpen) ui.setQuickBuildOpen(false);
         ui.toggleCommandMenu();
+        return;
+      }
+      if (e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        if (ui.shortcutsOpen) ui.setShortcutsOpen(false);
+        if (ui.aboutOpen) ui.setAboutOpen(false);
+        if (ui.commandOpen) ui.setCommandOpen(false);
+        ui.toggleQuickBuild();
         return;
       }
       if (e.key === 'ArrowLeft') {
@@ -243,7 +253,7 @@ export function Shell() {
 
     // ② 浮层打开（命令面板 / 快捷键面板 / 关于面板 / 任意 Base UI 弹层）或焦点在输入控件：
     //    全局单键一律让路（Esc 由 Base UI 自行关闭浮层），并复位 g 序列
-    if (ui.commandOpen || ui.shortcutsOpen || ui.aboutOpen || hasWorkspaceOverlay()) {
+    if (ui.commandOpen || ui.shortcutsOpen || ui.aboutOpen || ui.quickBuildOpen || hasWorkspaceOverlay()) {
       resetGSequence();
       return;
     }
@@ -348,6 +358,7 @@ export function Shell() {
       <ShortcutsDialog />
       <AboutDialog />
       <CommandMenu />
+      <QuickBuildDialog />
     </SidebarProvider>
   );
 }

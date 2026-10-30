@@ -22,6 +22,7 @@ import {
   Loader2Icon,
   SearchIcon,
   SparklesIcon,
+  ZapIcon,
 } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
@@ -38,7 +39,7 @@ import { SETTINGS_SECTIONS, getSectionErrorCount } from '../settings/sections';
  * 进入设置后整体切换为设置菜单。头部干净无冗余装饰，不使用卡片式盒子。
  */
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { view, settingsSection, setSettingsSection, setView, openSettings, setAboutOpen } = useUi();
+  const { view, settingsSection, setSettingsSection, setView, openSettings, setAboutOpen, setQuickBuildOpen } = useUi();
   const { settings } = useApp();
   const fieldErrors = useSettingsDraft((s) => s.fieldErrors);
   const { hasUpdate, updateInfo, isUpdating } = useAppUpdate();
@@ -171,19 +172,63 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarTrigger aria-label="折叠/展开侧栏" className="shrink-0 opacity-60 transition-opacity hover:opacity-100" />
           </div>
         </div>
-        {/* 搜索行（Linear 同款）：固定常驻在 Header 顶层，永不随滚动条滚走 */}
+        {/* 搜索与快速构建区（Linear 同款）：常驻在 Header 顶层，永不随滚动条滚走 */}
         {!inSettings && (
-          <div className="pt-1.5 group-data-[collapsible=icon]:hidden">
-            <button
-              type="button"
-              onClick={() => useUi.getState().setCommandOpen(true)}
-              className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            >
-              <SearchIcon className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-left">搜索或跳转…</span>
-              <kbd className="shrink-0 rounded border border-border bg-background px-1 font-mono text-[11px] leading-4 text-muted-foreground">⌘K</kbd>
-            </button>
-          </div>
+          <>
+            <div className="pt-1.5 flex flex-col gap-1 group-data-[collapsible=icon]:hidden">
+              <button
+                type="button"
+                onClick={() => useUi.getState().setCommandOpen(true)}
+                className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              >
+                <SearchIcon className="size-3.5 shrink-0" />
+                <span className="min-w-0 flex-1 truncate text-left">搜索或跳转…</span>
+                <kbd className="shrink-0 rounded border border-border bg-background px-1 font-mono text-[11px] leading-4 text-muted-foreground">⌘K</kbd>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickBuildOpen(true)}
+                className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              >
+                <ZapIcon className="size-3.5 text-amber-500 shrink-0" />
+                <span className="min-w-0 flex-1 truncate text-left">快速构建…</span>
+                <kbd className="shrink-0 rounded border border-border bg-background px-1 font-mono text-[11px] leading-4 text-muted-foreground">⌘B</kbd>
+              </button>
+            </div>
+            {/* 折叠模式下的图标按钮 */}
+            <div className="pt-1.5 hidden group-data-[collapsible=icon]:flex flex-col items-center gap-1.5">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={() => useUi.getState().setCommandOpen(true)}
+                      aria-label="搜索或跳转 (⌘K)"
+                      className="flex size-7 cursor-pointer items-center justify-center rounded-md bg-sidebar-accent/50 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    />
+                  }
+                >
+                  <SearchIcon className="size-3.5" />
+                </TooltipTrigger>
+                <TooltipContent side="right">搜索或跳转 (⌘K)</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={() => setQuickBuildOpen(true)}
+                      aria-label="快速构建 (⌘B)"
+                      className="flex size-7 cursor-pointer items-center justify-center rounded-md bg-sidebar-accent/50 text-amber-500 hover:bg-sidebar-accent hover:text-amber-400"
+                    />
+                  }
+                >
+                  <ZapIcon className="size-3.5" />
+                </TooltipTrigger>
+                <TooltipContent side="right">快速构建流水线 (⌘B)</TooltipContent>
+              </Tooltip>
+            </div>
+          </>
         )}
       </SidebarHeader>
 

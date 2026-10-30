@@ -20,6 +20,7 @@ import { ciStatusInfo } from '@/lib/ci';
 import { calculateIterationProgress } from '@/lib/iteration-period';
 import { CycleHeaderBanner } from './overview/cycle-header-banner';
 import { ActiveBuildsBar } from './overview/active-builds-bar';
+import { QuickBuildConsole } from './overview/quick-build-console';
 import { HealthDistributionCard } from './overview/health-distribution';
 
 /** 运行状态归一：与 StatusBadge 同一套语义分组 */
@@ -197,7 +198,10 @@ export function OverviewView() {
         {/* 2. 动态活跃构建监控带（仅当有 Jenkins 或 Flow 任务正在执行时滑出） */}
         <ActiveBuildsBar />
 
-        {/* 3. 精炼核心指标带：hairline 分隔的 4 格 */}
+        {/* 3. 页面内嵌快速构建控制台（零弹窗：最近执行平铺 + 就地自定义参数配置与触发） */}
+        <QuickBuildConsole />
+
+        {/* 4. 精炼核心指标带：hairline 分隔的 4 格 */}
         <StatBand>
           <Stat
             label="连接"
