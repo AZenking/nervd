@@ -146,12 +146,13 @@ export async function aiBreakdownRequirement(
 要求：
 1. 只能在以下指定的维度标签中选择分类：【${tagsStr}】。
 2. 每个子任务标题必须清晰、动宾结构、表达明确的交付产物，尽量控制在 25 个汉字以内。
-3. 严格输出符合格式的 JSON 数组，严禁包含任何前缀闲聊或 Markdown 解释文字。
-4. JSON 结构规范：
+3. 为每个子任务评估预计工时 estimatedHours（单位小时，按 0.5 粒度取整，范围 0.5~40），按单个熟练工程师的纯开发/测试耗时估算，不含评审与等待。
+4. 严格输出符合格式的 JSON 数组，严禁包含任何前缀闲聊或 Markdown 解释文字。
+5. JSON 结构规范：
 [
-  { "tag": "前端", "subject": "实现退款申请弹窗与表单校验逻辑" },
-  { "tag": "后端", "subject": "提供退款申请校验与状态流转 RPC 接口" },
-  { "tag": "自测", "subject": "验证并发退款场景下幂等性与资金状态回写" }
+  { "tag": "前端", "subject": "实现退款申请弹窗与表单校验逻辑", "estimatedHours": 4 },
+  { "tag": "后端", "subject": "提供退款申请校验与状态流转 RPC 接口", "estimatedHours": 3 },
+  { "tag": "自测", "subject": "验证并发退款场景下幂等性与资金状态回写", "estimatedHours": 1.5 }
 ]${customRule ? `\n\n团队自定义规则与工程规范：\n${customRule}` : ''}`;
 
   const userPrompt = `需求标题：${subject}
@@ -171,6 +172,7 @@ ${description ? description.slice(0, 1500) : '（暂无详细描述，请根据�
   interface RawItem {
     tag?: string;
     subject?: string;
+    estimatedHours?: number;
   }
 
   const rawList = parseJsonFromLlm<RawItem[]>(responseText, []);
@@ -185,12 +187,19 @@ ${description ? description.slice(0, 1500) : '（暂无详细描述，请根据�
     }));
   }
 
-  return rawList.map((item, idx) => ({
-    id: `ai-${Date.now()}-${idx}`,
-    subject: item.subject?.trim() || `子任务 ${idx + 1}`,
-    tag: item.tag?.trim() || activeTags[0],
-    selected: true,
-  }));
+  return rawList.map((item, idx) => {
+    const hours = Number(item.estimatedHours);
+    return {
+      id: `ai-${Date.now()}-${idx}`,
+      subject: item.subject?.trim() || `子任务 ${idx + 1}`,
+      tag: item.tag?.trim() || activeTags[0],
+      selected: true,
+      // 0.5 粒度、上限 40h；非法值视为未评估，交给用户手填
+      estimatedHours: Number.isFinite(hours) && hours > 0
+        ? Math.min(40, Math.round(hours * 2) / 2)
+        : undefined,
+    };
+  });
 }
 
 /**

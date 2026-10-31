@@ -156,6 +156,11 @@ export async function createWorkitemChild(
 ): Promise<WorkitemChild> {
   return invoke('create_workitem_child', { parentWorkitemId, ...p });
 }
+
+/** 登记工作项预计工时（写操作，云效 estimatedEfforts 独立接口，单位小时） */
+export async function setWorkitemEstimatedEffort(workitemId: string, hours: number): Promise<void> {
+  return invoke('set_workitem_estimated_effort', { workitemId, hours });
+}
 /** 附件图片代理：Rust 侧校验 host 白名单 / image/* / ≤5MB，成功返回 data: URL */
 export async function proxyWorkitemFile(url: string): Promise<string> {
   return invoke('proxy_workitem_file', { url });

@@ -5,7 +5,7 @@ mod credentials;
 mod db;
 mod jenkins;
 mod poller;
-mod yunxiao;
+pub mod yunxiao;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -212,6 +212,7 @@ pub fn run() {
             commands::update_workitem,
             commands::list_workitem_types,
             commands::create_workitem_child,
+            commands::set_workitem_estimated_effort,
             commands::proxy_workitem_file,
             commands::list_repos,
             commands::list_branches,
