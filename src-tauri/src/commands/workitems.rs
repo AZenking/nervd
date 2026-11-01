@@ -788,6 +788,34 @@ pub async fn create_workitem_child(
     }))
 }
 
+/// 登记子工作项预计工时（**写操作**）：
+/// POST .../workitems/{id}/estimatedEfforts，body { spentTime }（依据云效 OpenAPI
+/// CreateEstimatedEffort 文档；工时是独立受控字段，创建工作项接口带不上）。
+/// owner 缺省由云效取当前用户，故不传。
+#[tauri::command]
+pub async fn set_workitem_estimated_effort(
+    state: State<'_, AppState>,
+    workitem_id: String,
+    hours: f64,
+) -> Result<Value, String> {
+    ensure_write(&state)?;
+    let workitem_id = workitem_id.trim().to_string();
+    if workitem_id.is_empty() {
+        return Err("工作项 ID 不能为空".into());
+    }
+    if !(hours.is_finite() && hours > 0.0 && hours <= 9999.0) {
+        return Err("预计工时必须为 0~9999 之间的正数".into());
+    }
+    let c = client_of(&state)?;
+    let org = org_of(&state)?;
+    c.post(
+        &format!("/oapi/v1/projex/organizations/{org}/workitems/{workitem_id}/estimatedEfforts"),
+        &[],
+        json!({ "spentTime": hours }),
+    )
+    .await
+}
+
 // ---------- 附件图片代理（富文本描述内联直显） ----------
 
 /// 代理响应大小上限：5MB

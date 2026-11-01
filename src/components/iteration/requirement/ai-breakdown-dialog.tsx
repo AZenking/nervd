@@ -137,6 +137,13 @@ export function AiBreakdownDialog({
     toast.add({ title: `已将勾选项指派给：${aName}`, type: 'info' });
   };
 
+  const updateHours = (id: string, raw: string) => {
+    const hours = Number(raw);
+    setItems((prev) => prev.map((i) => (i.id === id
+      ? { ...i, estimatedHours: raw.trim() === '' || !Number.isFinite(hours) || hours <= 0 ? undefined : hours }
+      : i)));
+  };
+
   const deleteItem = (id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
@@ -167,6 +174,7 @@ export function AiBreakdownDialog({
     const typeId = taskType?.id ?? '';
 
     let successCount = 0;
+    let effortFailCount = 0;
     const createdChildren: WorkitemChild[] = [];
     try {
       for (let i = 0; i < toCreate.length; i++) {
@@ -178,6 +186,14 @@ export function AiBreakdownDialog({
           assignedTo: item.assigneeId || parentAssigneeId,
           category: 'Task',
         });
+        // 工时走云效独立接口：失败不回滚已创建的子任务，只计数提示
+        if (item.estimatedHours && created.workitemId) {
+          try {
+            await api.setWorkitemEstimatedEffort(created.workitemId, item.estimatedHours);
+          } catch {
+            effortFailCount++;
+          }
+        }
         const completeChild: WorkitemChild = {
           ...created,
           category: created.category || 'Task',
@@ -193,7 +209,7 @@ export function AiBreakdownDialog({
       await onCreated();
       toast.add({
         title: '批量创建完成',
-        description: `已成功为 ${parentIdentifier} 创建 ${successCount} 个子任务`,
+        description: `已成功为 ${parentIdentifier} 创建 ${successCount} 个子任务${effortFailCount > 0 ? `（${effortFailCount} 条预计工时登记失败，可在云效补登）` : ''}`,
         type: 'success',
       });
       onOpenChange(false);
@@ -309,6 +325,22 @@ export function AiBreakdownDialog({
                       disabled={creating}
                       className="h-7 text-xs flex-1 bg-background"
                     />
+
+                    {/* AI 评估的预计工时，可手改 */}
+                    <div className="flex items-center gap-1 shrink-0" title="预计工时（小时）">
+                      <Input
+                        type="number"
+                        min={0.5}
+                        max={9999}
+                        step={0.5}
+                        value={item.estimatedHours ?? ''}
+                        onChange={(e) => updateHours(item.id, e.target.value)}
+                        placeholder="—"
+                        disabled={creating}
+                        className="h-7 w-14 text-xs font-mono tabular-nums bg-background px-1.5 text-center"
+                      />
+                      <span className="text-[11px] text-muted-foreground">h</span>
+                    </div>
 
                     {/* 选择到人：每行指派人下拉 */}
                     <DropdownMenu>

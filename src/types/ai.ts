@@ -44,6 +44,8 @@ export interface AiBreakdownItem {
   selected: boolean;
   assigneeId?: string;
   assigneeName?: string;
+  /** AI 评估的预计工时（小时，0.5 粒度）；undefined 表示未评估 */
+  estimatedHours?: number;
 }
 
 export interface AiMergeRequestDraft {

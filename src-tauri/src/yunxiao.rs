@@ -89,6 +89,12 @@ impl YunxiaoClient {
         self.req(BASE, Method::POST, path, query, Some(body)).await
     }
 
+    /// 与 post 相同，但 base 由调用方指定。仅供 E2E 验收把请求打到本地 mock；
+    /// 生产命令一律走 post()（固定 BASE）。
+    pub async fn post_abs(&self, base: &str, path: &str, body: Value) -> Result<Value, String> {
+        self.req(base, Method::POST, path, &[], Some(body)).await
+    }
+
     pub async fn put(&self, path: &str, query: &[(&str, String)], body: Value) -> Result<Value, String> {
         self.req(BASE, Method::PUT, path, query, Some(body)).await
     }

@@ -335,6 +335,14 @@ export function ChildrenCard({
           assignedTo: parentAssigneeId,
           category: 'Task',
         });
+        // 工时登记失败不阻断直创流程（与弹窗模式一致，此处静默）
+        if (item.estimatedHours && created.workitemId) {
+          try {
+            await api.setWorkitemEstimatedEffort(created.workitemId, item.estimatedHours);
+          } catch {
+            // ignore
+          }
+        }
         const completeChild: WorkitemChild = {
           ...created,
           category: created.category || 'Task',

@@ -1,0 +1,14 @@
+[
+  {
+    "kind": "create",
+    "org": "org-e2e",
+    "illegalEffortFields": [],
+    "subject": "【后端】提供退款校验接口"
+  },
+  {
+    "kind": "effort",
+    "org": "org-e2e",
+    "workitemId": "wi-40a0a224",
+    "spentTime": 3.5
+  }
+]
