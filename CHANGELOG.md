@@ -3,6 +3,11 @@
 All notable changes to **nervd** will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.4.2](https://github.com/AZenking/nervd/releases/tag/v0.4.2) - 2026-11-02
+
+### 🚀 Features
+
+- *(ai)* 需求智能拆解评估预计工时并登记到云效 ([306ce43](https://github.com/AZenking/nervd/commit/306ce43911b71e560cda60fff9b9dd7e461ffe5d))
 ## [0.4.1](https://github.com/AZenking/nervd/releases/tag/v0.4.1) - 2026-10-30
 
 ### 🚀 Features
