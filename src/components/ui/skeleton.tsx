@@ -1,10 +1,19 @@
-import { cn } from '@/lib/utils'
+import * as React from "react"
+import { Skeleton as HeroSkeleton } from "@heroui/react"
+import { cn } from "@/lib/utils"
 
-function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
+export type SkeletonProps = React.ComponentPropsWithRef<typeof HeroSkeleton>
+
+function Skeleton({
+  className,
+  animationType = "pulse",
+  ...props
+}: SkeletonProps) {
   return (
-    <div
+    <HeroSkeleton
       data-slot="skeleton"
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      animationType={animationType}
+      className={cn("rounded-md bg-muted", className)}
       {...props}
     />
   )

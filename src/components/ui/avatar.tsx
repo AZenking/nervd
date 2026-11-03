@@ -1,30 +1,41 @@
 import * as React from "react"
-import { Avatar as AvatarPrimitive } from "@base-ui/react/avatar"
-import { cn } from '@/lib/utils'
+import { Avatar as HeroAvatar, AvatarGroup as HeroAvatarGroup } from "@heroui/react"
+import { cn } from "@/lib/utils"
+
+export interface AvatarProps
+  extends Omit<React.ComponentPropsWithRef<typeof HeroAvatar>, "size"> {
+  size?: "default" | "sm" | "md" | "lg"
+}
 
 function Avatar({
   className,
   size = "default",
+  children,
   ...props
-}: AvatarPrimitive.Root.Props & {
-  size?: "default" | "sm" | "lg"
-}) {
+}: AvatarProps) {
+  const heroSize = size === "default" ? "md" : size
   return (
-    <AvatarPrimitive.Root
+    <HeroAvatar
       data-slot="avatar"
       data-size={size}
+      size={heroSize}
       className={cn(
         "group/avatar relative flex size-8 shrink-0 rounded-full select-none after:absolute after:inset-0 after:rounded-full after:border after:border-border after:mix-blend-darken data-[size=lg]:size-10 data-[size=sm]:size-6 dark:after:mix-blend-lighten",
         className
       )}
       {...props}
-    />
+    >
+      {children}
+    </HeroAvatar>
   )
 }
 
-function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
+function AvatarImage({
+  className,
+  ...props
+}: React.ComponentPropsWithRef<typeof HeroAvatar.Image>) {
   return (
-    <AvatarPrimitive.Image
+    <HeroAvatar.Image
       data-slot="avatar-image"
       className={cn(
         "aspect-square size-full rounded-full object-cover",
@@ -37,17 +48,20 @@ function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
 
 function AvatarFallback({
   className,
+  children,
   ...props
-}: AvatarPrimitive.Fallback.Props) {
+}: React.ComponentPropsWithRef<typeof HeroAvatar.Fallback>) {
   return (
-    <AvatarPrimitive.Fallback
+    <HeroAvatar.Fallback
       data-slot="avatar-fallback"
       className={cn(
         "flex size-full items-center justify-center rounded-full bg-muted text-sm text-muted-foreground group-data-[size=sm]/avatar:text-xs",
         className
       )}
       {...props}
-    />
+    >
+      {children}
+    </HeroAvatar.Fallback>
   )
 }
 
@@ -67,9 +81,12 @@ function AvatarBadge({ className, ...props }: React.ComponentProps<"span">) {
   )
 }
 
-function AvatarGroup({ className, ...props }: React.ComponentProps<"div">) {
+function AvatarGroup({
+  className,
+  ...props
+}: React.ComponentPropsWithRef<typeof HeroAvatarGroup>) {
   return (
-    <div
+    <HeroAvatarGroup
       data-slot="avatar-group"
       className={cn(
         "group/avatar-group flex -space-x-2 *:data-[slot=avatar]:ring-2 *:data-[slot=avatar]:ring-background",
@@ -83,9 +100,9 @@ function AvatarGroup({ className, ...props }: React.ComponentProps<"div">) {
 function AvatarGroupCount({
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentPropsWithRef<typeof HeroAvatarGroup.Count>) {
   return (
-    <div
+    <HeroAvatarGroup.Count
       data-slot="avatar-group-count"
       className={cn(
         "relative flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm text-muted-foreground ring-2 ring-background group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3",
@@ -95,6 +112,12 @@ function AvatarGroupCount({
     />
   )
 }
+
+Avatar.Image = AvatarImage
+Avatar.Fallback = AvatarFallback
+Avatar.Badge = AvatarBadge
+Avatar.Group = AvatarGroup
+Avatar.GroupCount = AvatarGroupCount
 
 export {
   Avatar,

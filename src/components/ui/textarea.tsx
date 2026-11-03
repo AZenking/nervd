@@ -1,17 +1,36 @@
 import * as React from "react"
+import { TextArea as HeroUITextArea } from "@heroui/react"
 import { cn } from '@/lib/utils'
 
-function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
-  return (
-    <textarea
-      data-slot="textarea"
-      className={cn(
-        "flex field-sizing-content min-h-16 w-full rounded-md border border-input bg-background px-2 py-1.5 text-[13px] transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/18 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+type BaseHeroUITextAreaProps = Omit<
+  React.ComponentPropsWithRef<typeof HeroUITextArea>,
+  "className"
+>
 
-export { Textarea }
+export type TextareaProps = BaseHeroUITextAreaProps &
+  Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, keyof BaseHeroUITextAreaProps | "className"> & {
+    className?: string
+    disabled?: boolean
+    isDisabled?: boolean
+  }
+
+const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ className, disabled, isDisabled, ...props }, ref) => {
+    return (
+      <HeroUITextArea
+        ref={ref}
+        data-slot="textarea"
+        isDisabled={isDisabled ?? disabled}
+        className={cn("min-h-16 text-[13px]", className)}
+        {...(props as any)}
+      />
+    )
+  }
+)
+Textarea.displayName = "Textarea"
+
+const TextareaWithCompound = Object.assign(Textarea, {
+  Root: HeroUITextArea.Root,
+})
+
+export { TextareaWithCompound as Textarea }

@@ -108,12 +108,27 @@ function TraceCollapsibleTrigger({
       )}
       {...props}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {children}
-      </div>
-      <TraceIcon className="text-muted-foreground transition-transform duration-200 group-aria-expanded/trace-collapsible-trigger:rotate-90 group-data-open/trace-collapsible-trigger:rotate-90 group-data-[panel-open]/trace-collapsible-trigger:rotate-90 group-data-[state=open]/trace-collapsible-trigger:rotate-90">
-        <ChevronRightIcon />
-      </TraceIcon>
+      {typeof children === "function" ? (
+        (values: any) => (
+          <>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              {children(values)}
+            </div>
+            <TraceIcon className="text-muted-foreground transition-transform duration-200 group-aria-expanded/trace-collapsible-trigger:rotate-90 group-data-open/trace-collapsible-trigger:rotate-90 group-data-[panel-open]/trace-collapsible-trigger:rotate-90 group-data-[state=open]/trace-collapsible-trigger:rotate-90">
+              <ChevronRightIcon />
+            </TraceIcon>
+          </>
+        )
+      ) : (
+        <>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {children}
+          </div>
+          <TraceIcon className="text-muted-foreground transition-transform duration-200 group-aria-expanded/trace-collapsible-trigger:rotate-90 group-data-open/trace-collapsible-trigger:rotate-90 group-data-[panel-open]/trace-collapsible-trigger:rotate-90 group-data-[state=open]/trace-collapsible-trigger:rotate-90">
+            <ChevronRightIcon />
+          </TraceIcon>
+        </>
+      )}
     </CollapsibleTrigger>
   )
 }

@@ -1,19 +1,44 @@
 "use client"
 
 import * as React from "react"
-import { Tabs as TabsPrimitive } from "@base-ui/react/tabs"
+import { Tabs as HeroTabs } from "@heroui/react"
 import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from '@/lib/utils'
+import { cn } from "@/lib/utils"
+
+export interface TabsProps
+  extends Omit<React.ComponentPropsWithRef<typeof HeroTabs>, "value" | "defaultValue"> {
+  value?: string
+  defaultValue?: string
+  onValueChange?: (value: string, event?: any) => void
+}
 
 function Tabs({
   className,
   orientation = "horizontal",
+  value,
+  defaultValue,
+  onValueChange,
+  selectedKey,
+  defaultSelectedKey,
+  onSelectionChange,
   ...props
-}: TabsPrimitive.Root.Props) {
+}: TabsProps) {
+  const resolvedSelectedKey = value !== undefined ? value : selectedKey
+  const resolvedDefaultSelectedKey = defaultValue !== undefined ? defaultValue : defaultSelectedKey
+
+  const handleSelectionChange = (key: any) => {
+    onSelectionChange?.(key)
+    onValueChange?.(String(key), { type: 'change', target: { value: String(key) } })
+  }
+
   return (
-    <TabsPrimitive.Root
+    <HeroTabs
       data-slot="tabs"
       data-orientation={orientation}
+      orientation={orientation}
+      selectedKey={resolvedSelectedKey}
+      defaultSelectedKey={resolvedDefaultSelectedKey}
+      onSelectionChange={handleSelectionChange}
       className={cn(
         "group/tabs flex gap-2 data-horizontal:flex-col",
         className
@@ -58,18 +83,22 @@ const tabsListVariants = cva(
   }
 )
 
+export interface TabsListProps
+  extends React.ComponentPropsWithRef<typeof HeroTabs.List>,
+    VariantProps<typeof tabsListVariants> {}
+
 function TabsList({
   className,
   variant = "default",
   size = "default",
   ...props
-}: TabsPrimitive.List.Props & VariantProps<typeof tabsListVariants>) {
+}: TabsListProps) {
   const resolvedVariant = variant ?? "default"
   const resolvedSize = size ?? "default"
 
   return (
     <TabsContext.Provider value={{ variant: resolvedVariant, size: resolvedSize }}>
-      <TabsPrimitive.List
+      <HeroTabs.List
         data-slot="tabs-list"
         data-variant={resolvedVariant}
         data-size={resolvedSize}
@@ -98,20 +127,42 @@ const tabsTriggerVariants = cva(
 )
 
 export interface TabsTriggerProps
-  extends TabsPrimitive.Tab.Props,
-    VariantProps<typeof tabsTriggerVariants> {}
+  extends Omit<React.ComponentPropsWithRef<typeof HeroTabs.Tab>, "id">,
+    VariantProps<typeof tabsTriggerVariants> {
+  value?: string
+  id?: string
+}
 
 function TabsTrigger({
   className,
   size,
+  value,
+  id,
+  children,
+  render,
   ...props
 }: TabsTriggerProps) {
   const context = React.useContext(TabsContext)
   const resolvedSize = size ?? context.size ?? "default"
+  const resolvedId = (id ?? value ?? "") as string
 
   return (
-    <TabsPrimitive.Tab
+    <HeroTabs.Tab
+      id={resolvedId}
       data-slot="tabs-trigger"
+      render={(renderProps: any) => {
+        const isSelected = renderProps["data-selected"] === true || renderProps["data-selected"] === "true"
+        if (render) {
+          const custom = (render as any)(renderProps)
+          if (React.isValidElement(custom)) {
+            return React.cloneElement(custom, {
+              "data-active": isSelected ? "" : undefined,
+            } as any)
+          }
+          return custom
+        }
+        return <div {...renderProps} data-active={isSelected ? "" : undefined} />
+      }}
       className={cn(
         tabsTriggerVariants({ size: resolvedSize }),
         // 1. Line 变体
@@ -124,17 +175,35 @@ function TabsTrigger({
         className
       )}
       {...props}
-    />
+    >
+      {children}
+    </HeroTabs.Tab>
   )
 }
 
-function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
+export interface TabsContentProps
+  extends Omit<React.ComponentPropsWithRef<typeof HeroTabs.Panel>, "id"> {
+  value?: string
+  id?: string
+}
+
+function TabsContent({
+  className,
+  value,
+  id,
+  children,
+  ...props
+}: TabsContentProps) {
+  const resolvedId = (id ?? value ?? "") as string
   return (
-    <TabsPrimitive.Panel
+    <HeroTabs.Panel
+      id={resolvedId}
       data-slot="tabs-content"
       className={cn("flex-1 text-sm outline-none", className)}
       {...props}
-    />
+    >
+      {children}
+    </HeroTabs.Panel>
   )
 }
 

@@ -1,19 +1,38 @@
 import * as React from "react"
-import { Input as InputPrimitive } from "@base-ui/react/input"
+import { Input as HeroUIInput } from "@heroui/react"
 import { cn } from '@/lib/utils'
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
-  return (
-    <InputPrimitive
-      type={type}
-      data-slot="input"
-      className={cn(
-        "h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 py-1 text-[13px] shadow-none transition-colors outline-none file:inline-flex file:h-5 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/18 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+type BaseHeroUIInputProps = Omit<
+  React.ComponentPropsWithRef<typeof HeroUIInput>,
+  "className" | "size"
+>
 
-export { Input }
+export type InputProps = BaseHeroUIInputProps &
+  Omit<React.InputHTMLAttributes<HTMLInputElement>, keyof BaseHeroUIInputProps | "className" | "size"> & {
+    className?: string
+    size?: number | string
+    disabled?: boolean
+    isDisabled?: boolean
+  }
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, disabled, isDisabled, ...props }, ref) => {
+    return (
+      <HeroUIInput
+        ref={ref}
+        type={type}
+        data-slot="input"
+        isDisabled={isDisabled ?? disabled}
+        className={cn("h-8 text-[13px]", className)}
+        {...(props as any)}
+      />
+    )
+  }
+)
+Input.displayName = "Input"
+
+const InputWithCompound = Object.assign(Input, {
+  Root: HeroUIInput.Root,
+})
+
+export { InputWithCompound as Input }

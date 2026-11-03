@@ -4,6 +4,7 @@
    Tailwind CSS v4 (CSS-first) + shadcn/ui (Base UI)
    ============================================================ */
 @import "tailwindcss";
+@import "@heroui/styles";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import '@fontsource/inter/400.css';

@@ -1,31 +1,88 @@
 "use client"
 
-import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
+import * as React from "react"
+import { Switch as HeroUISwitch } from "@heroui/react"
 import { cn } from '@/lib/utils'
 
-function Switch({
-  className,
-  size = "default",
-  ...props
-}: SwitchPrimitive.Root.Props & {
-  size?: "sm" | "default"
-}) {
-  return (
-    <SwitchPrimitive.Root
-      data-slot="switch"
-      data-size={size}
-      className={cn(
-        "peer group/switch relative inline-flex shrink-0 items-center rounded-full border border-transparent transition-all outline-none group-has-[:focus-visible]/field-label:border-transparent group-has-[:focus-visible]/field-label:ring-0 after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:ring-3 focus-visible:ring-ring/18 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[size=default]:h-[18.4px] data-[size=default]:w-[32px] data-[size=sm]:h-[14px] data-[size=sm]:w-[24px] dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-primary data-unchecked:bg-input dark:data-unchecked:bg-input/80 data-disabled:cursor-not-allowed data-disabled:opacity-50",
-        className
-      )}
-      {...props}
-    >
-      <SwitchPrimitive.Thumb
-        data-slot="switch-thumb"
-        className="pointer-events-none block rounded-full bg-background ring-0 transition-transform group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=default]/switch:data-checked:translate-x-[calc(100%-2px)] group-data-[size=sm]/switch:data-checked:translate-x-[calc(100%-2px)] dark:data-checked:bg-primary-foreground group-data-[size=default]/switch:data-unchecked:translate-x-0 group-data-[size=sm]/switch:data-unchecked:translate-x-0 dark:data-unchecked:bg-foreground"
-      />
-    </SwitchPrimitive.Root>
-  )
+type BaseHeroUISwitchProps = Omit<
+  React.ComponentPropsWithRef<typeof HeroUISwitch>,
+  "className" | "children" | "onChange" | "size"
+>
+
+export type SwitchProps = BaseHeroUISwitchProps & {
+  className?: string
+  checked?: boolean
+  defaultChecked?: boolean
+  onCheckedChange?: (checked: boolean) => void
+  onChange?: (checked: boolean) => void
+  disabled?: boolean
+  size?: "sm" | "default" | "md" | "lg"
+  children?: React.ReactNode
+  title?: string
+  id?: string
 }
 
-export { Switch }
+const Switch = React.forwardRef<HTMLInputElement, SwitchProps>(
+  (
+    {
+      className,
+      checked,
+      defaultChecked,
+      onCheckedChange,
+      onChange,
+      disabled,
+      isDisabled,
+      isSelected,
+      defaultSelected,
+      size = "default",
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    const effectiveSelected = isSelected ?? checked
+    const effectiveDefaultSelected = defaultSelected ?? defaultChecked
+    const effectiveDisabled = isDisabled ?? disabled
+
+    const herouiSize: "sm" | "md" | "lg" =
+      size === "default" || size === "sm" ? "sm" : (size as "md" | "lg")
+
+    const handleChange = (selected: boolean) => {
+      onChange?.(selected)
+      onCheckedChange?.(selected)
+    }
+
+    return (
+      <HeroUISwitch
+        ref={ref}
+        data-slot="switch"
+        data-size={size}
+        className={cn("inline-flex", className)}
+        isSelected={effectiveSelected}
+        defaultSelected={effectiveDefaultSelected}
+        isDisabled={effectiveDisabled}
+        size={herouiSize}
+        onChange={handleChange}
+        {...(props as any)}
+      >
+        <HeroUISwitch.Content className="p-0">
+          <HeroUISwitch.Control>
+            <HeroUISwitch.Thumb />
+          </HeroUISwitch.Control>
+          {children}
+        </HeroUISwitch.Content>
+      </HeroUISwitch>
+    )
+  }
+)
+Switch.displayName = "Switch"
+
+const SwitchWithCompound = Object.assign(Switch, {
+  Root: HeroUISwitch.Root,
+  Content: HeroUISwitch.Content,
+  Control: HeroUISwitch.Control,
+  Thumb: HeroUISwitch.Thumb,
+  Icon: HeroUISwitch.Icon,
+})
+
+export { SwitchWithCompound as Switch }

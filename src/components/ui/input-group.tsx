@@ -1,24 +1,31 @@
 import * as React from "react"
+import { InputGroup as HeroUIInputGroup } from "@heroui/react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from '@/lib/utils'
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 
-function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="input-group"
-      role="group"
-      className={cn(
-        "group/input-group relative flex h-9 w-full min-w-0 items-center rounded-md border border-input bg-background transition-colors outline-none in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0 has-disabled:bg-muted has-disabled:opacity-50 has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/18 has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-2 has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>textarea]:h-auto dark:bg-input/30 dark:has-disabled:bg-input/80 dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40 has-[>[data-align=block-end]]:[&>input]:pt-3 has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=inline-end]]:[&>input]:pr-1.5 has-[>[data-align=inline-start]]:[&>input]:pl-1.5",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+export interface InputGroupProps
+  extends React.ComponentPropsWithRef<typeof HeroUIInputGroup.Root> {}
+
+const InputGroup = React.forwardRef<HTMLDivElement, InputGroupProps>(
+  ({ className, children, ...props }, ref) => {
+    return (
+      <HeroUIInputGroup.Root
+        ref={ref}
+        data-slot="input-group"
+        className={cn(
+          "group/input-group relative flex h-9 w-full min-w-0 items-center rounded-md border border-input bg-background transition-colors outline-none in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0 has-disabled:bg-muted has-disabled:opacity-50 has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/18 has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-2 has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>textarea]:h-auto dark:bg-input/30 dark:has-disabled:bg-input/80 dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40 has-[>[data-align=block-end]]:[&>input]:pt-3 has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=inline-end]]:[&>input]:pr-1.5 has-[>[data-align=inline-start]]:[&>input]:pl-1.5",
+          className
+        )}
+        {...(props as any)}
+      >
+        {children}
+      </HeroUIInputGroup.Root>
+    )
+  }
+)
+InputGroup.displayName = "InputGroup"
 
 const inputGroupAddonVariants = cva(
   "flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-[13px] font-medium text-muted-foreground select-none group-data-[disabled=true]/input-group:opacity-50 [&>kbd]:rounded-[calc(var(--radius)-5px)] [&>svg:not([class*='size-'])]:size-4",
@@ -113,40 +120,59 @@ function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
   )
 }
 
-function InputGroupInput({
-  className,
-  ...props
-}: React.ComponentProps<"input">) {
-  return (
-    <Input
-      data-slot="input-group-control"
-      className={cn(
-        "flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+export interface InputGroupInputProps
+  extends React.ComponentPropsWithRef<typeof HeroUIInputGroup.Input> {}
 
-function InputGroupTextarea({
-  className,
-  ...props
-}: React.ComponentProps<"textarea">) {
-  return (
-    <Textarea
-      data-slot="input-group-control"
-      className={cn(
-        "flex-1 resize-none rounded-none border-0 bg-transparent py-2 shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+const InputGroupInput = React.forwardRef<HTMLInputElement, InputGroupInputProps>(
+  ({ className, ...props }, ref) => {
+    return (
+      <HeroUIInputGroup.Input
+        ref={ref}
+        data-slot="input-group-control"
+        className={cn(
+          "flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
+          className
+        )}
+        {...(props as any)}
+      />
+    )
+  }
+)
+InputGroupInput.displayName = "InputGroupInput"
+
+export interface InputGroupTextareaProps
+  extends React.ComponentPropsWithRef<typeof HeroUIInputGroup.TextArea> {}
+
+const InputGroupTextarea = React.forwardRef<HTMLTextAreaElement, InputGroupTextareaProps>(
+  ({ className, ...props }, ref) => {
+    return (
+      <HeroUIInputGroup.TextArea
+        ref={ref}
+        data-slot="input-group-control"
+        className={cn(
+          "flex-1 resize-none rounded-none border-0 bg-transparent py-2 shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
+          className
+        )}
+        {...(props as any)}
+      />
+    )
+  }
+)
+InputGroupTextarea.displayName = "InputGroupTextarea"
+
+const InputGroupWithCompound = Object.assign(InputGroup, {
+  Root: HeroUIInputGroup.Root,
+  Input: InputGroupInput,
+  TextArea: InputGroupTextarea,
+  Prefix: HeroUIInputGroup.Prefix,
+  Suffix: HeroUIInputGroup.Suffix,
+  Addon: InputGroupAddon,
+  Button: InputGroupButton,
+  Text: InputGroupText,
+})
 
 export {
-  InputGroup,
+  InputGroupWithCompound as InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupText,
