@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { statusMeta, STATUS_TONE_ORDER, StatusIcon } from '@/components/status-icon';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 export interface HealthDistributionProps {
@@ -54,18 +55,19 @@ export function HealthDistributionCard({
   }, [items]);
 
   return (
-    <div
+    <Card
       className={cn(
-        'flex min-w-0 flex-1 flex-col gap-3 rounded-lg border border-border bg-card p-5',
+        'min-w-0 flex-1',
         className,
       )}
     >
-      <div className="flex items-center justify-between text-[13px] font-medium">
-        <span className="text-foreground font-semibold tracking-tight">{title}</span>
+      <Card.Header className="flex flex-row items-center justify-between pb-0">
+        <Card.Title className="text-[13px] font-semibold tracking-tight text-foreground">{title}</Card.Title>
         <span className="font-mono text-xs text-muted-foreground">共 {total} 项</span>
-      </div>
+      </Card.Header>
 
-      {loading && !items.length ? (
+      <Card.Content>
+        {loading && !items.length ? (
         <div className="flex flex-col gap-3 py-1" aria-hidden>
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="flex items-center gap-3">
@@ -109,6 +111,7 @@ export function HealthDistributionCard({
       ) : (
         <div className="py-6 text-center text-xs text-muted-foreground">暂无工作项</div>
       )}
-    </div>
+      </Card.Content>
+    </Card>
   );
 }

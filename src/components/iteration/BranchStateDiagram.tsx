@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
@@ -73,7 +74,7 @@ type DiagramNode = RootNodeT | RepoNodeT | BranchNodeT;
 
 function RootNode({ data }: NodeProps<RootNodeT>) {
   return (
-    <div className="w-[280px] rounded-xl border border-primary/40 bg-card px-4 py-3 shadow-md">
+    <Card className="w-[280px] p-3 border-primary/40 shadow-md">
       <Handle id="tt" type="target" position={Position.Top} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
       <div className="font-mono text-[11px] text-muted-foreground">{data.identifier}</div>
@@ -84,13 +85,13 @@ function RootNode({ data }: NodeProps<RootNodeT>) {
         as="div"
         className="mt-0.5 text-sm font-medium leading-5 text-foreground"
       />
-    </div>
+    </Card>
   );
 }
 
 function RepoNode({ data }: NodeProps<RepoNodeT>) {
   return (
-    <div className="w-[300px] rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
+    <Card className="w-[300px] p-2.5 shadow-sm">
       <Handle id="tt" type="target" position={Position.Top} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="ttr" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
@@ -102,7 +103,7 @@ function RepoNode({ data }: NodeProps<RepoNodeT>) {
       >
         {data.name}
       </OverflowTooltip>
-    </div>
+    </Card>
   );
 }
 
@@ -115,7 +116,7 @@ const KIND_CLASS: Record<BranchData['kind'], string> = {
 function BranchNode({ data }: NodeProps<BranchNodeT>) {
   const dashed = data.missing;
   return (
-    <div className={`w-[300px] rounded-lg border bg-card px-3 py-2 shadow-sm ${dashed ? 'border-dashed border-border' : 'border-border'}`}>
+    <Card className={`w-[300px] p-2.5 shadow-sm ${dashed ? 'border-dashed' : ''}`}>
       <Handle id="tt" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '50%' }} isConnectable={false} />
       <Handle id="ttr" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
       <Handle id="tbl" type="target" position={Position.Bottom} style={{ ...HIDDEN_HANDLE, left: '22%' }} isConnectable={false} />
@@ -137,7 +138,7 @@ function BranchNode({ data }: NodeProps<BranchNodeT>) {
         text={data.name}
         className="mt-1 truncate font-mono text-[11px] leading-4 text-foreground/85"
       />
-    </div>
+    </Card>
   );
 }
 

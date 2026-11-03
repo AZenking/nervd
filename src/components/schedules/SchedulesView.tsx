@@ -32,6 +32,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyHint } from '@/components/empty-hint';
 import { ConfirmButton } from '@/components/ConfirmButton';
+import { Card } from '@/components/ui/card';
 import { ScheduleEditorDialog } from './ScheduleEditorDialog';
 import { ScheduleLogDrawer } from './ScheduleLogDrawer';
 import { useScheduleStore } from '@/store/schedule';
@@ -345,7 +346,7 @@ export function SchedulesView() {
           )}
         </div>
       ) : (
-        <div className="divide-y divide-border/60 rounded-lg border border-border/80 bg-card overflow-hidden">
+        <Card className="divide-y divide-border/60 p-0 overflow-hidden">
           {filteredTasks.map((task) => {
             const isRunning =
               runningIds.has(task.id) || task.lastStatus === 'running';
@@ -487,7 +488,7 @@ export function SchedulesView() {
               </div>
             );
           })}
-        </div>
+        </Card>
       )}
 
       {/* 弹窗与抽屉 */}
@@ -715,22 +716,30 @@ function TemplateCard({
   onClick: () => void;
 }) {
   return (
-    <Button
-      type="button"
-      variant="outline"
+    <Card
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="h-auto w-full flex flex-col items-start p-4 rounded-xl border-border/80 bg-card hover:bg-muted/40 hover:border-primary/50 text-left transition-all group whitespace-normal"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="cursor-pointer text-left transition-all hover:bg-muted/40 hover:border-primary/50 group"
     >
-      <div className="flex items-center gap-2 font-semibold text-foreground text-xs">
+      <Card.Header className="flex flex-row items-center gap-2 pb-0">
         {icon}
-        <span>{title}</span>
-      </div>
-      <p className="text-[11px] text-muted-foreground mt-1.5 leading-normal font-normal">
-        {description}
-      </p>
-      <span className="text-[10px] text-primary font-medium mt-3 group-hover:underline">
-        立即配置 →
-      </span>
-    </Button>
+        <Card.Title className="text-xs font-semibold">{title}</Card.Title>
+      </Card.Header>
+      <Card.Content>
+        <Card.Description className="text-[11px] leading-normal">{description}</Card.Description>
+      </Card.Content>
+      <Card.Footer className="pt-0">
+        <span className="text-[10px] text-primary font-medium group-hover:underline">
+          立即配置 →
+        </span>
+      </Card.Footer>
+    </Card>
   );
 }

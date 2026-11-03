@@ -44,6 +44,7 @@ import {
 import { RequirementDetailsSkeleton } from './requirement/requirement-skeleton';
 import { ChildrenCard } from './requirement/children-card';
 import { LinkedRepoCard } from './requirement/linked-repo-card';
+import { Card } from '@/components/ui/card';
 import { LinkRepoModal } from './requirement/link-repo-modal';
 import { BranchStateDiagramModal } from './requirement/branch-state-diagram-modal';
 import { DetailAssigneePopover, DetailStatusPopover, RequirementProperties } from './requirement/requirement-properties';
@@ -1431,9 +1432,9 @@ export function RequirementDetails({
                     const repoPath = targetRepo?.pathWithNamespace || rec.repoName;
 
                     return (
-                      <div
+                      <Card
                         key={rec.repoId}
-                        className="flex flex-col justify-between gap-2.5 rounded-md border border-primary/20 bg-card p-3 transition-colors hover:border-primary/50 shadow-xs"
+                        className="justify-between p-3 transition-colors hover:border-primary/50"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center justify-between gap-1.5">
@@ -1468,7 +1469,7 @@ export function RequirementDetails({
                             直接关联
                           </Button>
                         </div>
-                      </div>
+                      </Card>
                     );
                   })}
                 </div>

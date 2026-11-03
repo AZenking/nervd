@@ -19,6 +19,7 @@ import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { EmptyHint } from '@/components/empty-hint';
@@ -102,9 +103,9 @@ export function IterationRepoCard({
 
   return (
     <>
-      <div className={cn(
-        'group flex flex-col rounded-lg border bg-background p-4 transition-all duration-200',
-        isRunning ? 'border-amber-500/50 shadow-xs' : 'border-border/70 hover:border-border',
+      <Card className={cn(
+        'group transition-all duration-200',
+        isRunning && 'border-amber-500/50',
       )}>
         {/* 卡片头部：仓库基本信息 + CI 状态 + 触发验证 / 详情按钮 */}
         <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-border/40">
@@ -331,7 +332,7 @@ export function IterationRepoCard({
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
     </>
   );

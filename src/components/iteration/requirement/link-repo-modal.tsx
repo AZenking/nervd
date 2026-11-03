@@ -15,6 +15,7 @@ import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { RepoCiBindingFields } from './repo-ci-binding-fields';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -148,7 +149,7 @@ export function LinkRepoModal({
 
         <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col gap-6">
           {/* AI 智能推荐区域 */}
-          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 flex flex-col gap-3">
+          <Card className="border-primary/20 bg-primary/5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 min-w-0">
                 <SparklesIcon className="size-4 text-primary shrink-0" />
@@ -197,10 +198,10 @@ export function LinkRepoModal({
                   const isCurrentLinking = linkingRepoId === rec.repoId;
 
                   return (
-                    <div
+                    <Card
                       key={rec.repoId}
                       className={cn(
-                        'flex flex-col justify-between gap-2.5 rounded-lg border p-3 transition-colors shadow-2xs bg-card',
+                        'justify-between p-3 transition-colors shadow-2xs',
                         isAlreadyLinked
                           ? 'border-sig-ok/30 bg-sig-ok/5'
                           : 'border-primary/25 hover:border-primary/50',
@@ -266,7 +267,7 @@ export function LinkRepoModal({
                           </Button>
                         )}
                       </div>
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
@@ -281,7 +282,7 @@ export function LinkRepoModal({
                 <span>点击“智能分析相关仓库”，AI 将自动根据需求文本与历史提交，推荐匹配的代码仓库。</span>
               </div>
             )}
-          </div>
+          </Card>
 
           {/* 手动检索与选择关联区域 */}
           <div className="flex flex-col gap-4">

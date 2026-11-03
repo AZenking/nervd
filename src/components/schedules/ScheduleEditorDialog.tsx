@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
@@ -569,7 +570,7 @@ export function ScheduleEditorDialog({
 
           {/* 分支同步专属配置 */}
           {actionType === 'branch_merge' && (
-            <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-3">
+            <Card className="p-3 space-y-3">
               <div className="flex items-center gap-2 text-foreground font-medium text-xs">
                 <GitMergeIcon className="size-4 text-primary" />
                 <span>分支合并与策略配置</span>
@@ -820,12 +821,12 @@ export function ScheduleEditorDialog({
                   </div>
                 )}
               </div>
-            </div>
+            </Card>
           )}
 
           {/* Jenkins 配置 */}
           {actionType === 'jenkins' && (
-            <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-3">
+            <Card className="p-3 space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-medium text-muted-foreground block">
                   Jenkins 实例连接
@@ -860,12 +861,12 @@ export function ScheduleEditorDialog({
                   className="h-8 text-xs font-mono"
                 />
               </div>
-            </div>
+            </Card>
           )}
 
           {/* 云效 Flow 配置 */}
           {actionType === 'pipeline' && (
-            <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-3">
+            <Card className="p-3 space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-medium text-muted-foreground block">
                   流水线 ID (Pipeline ID)
@@ -889,7 +890,7 @@ export function ScheduleEditorDialog({
                   className="h-8 text-xs"
                 />
               </div>
-            </div>
+            </Card>
           )}
 
           {/* 执行时间与频率 */}
@@ -975,7 +976,7 @@ export function ScheduleEditorDialog({
 
                 {/* Tab 2: 循环间隔模式 (每 N 分钟/小时) */}
                 <TabsContent value="interval" className="mt-0 focus-visible:outline-none">
-                  <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2">
+                  <Card className="p-3 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-muted-foreground shrink-0">每隔</span>
                       <Input
@@ -1049,12 +1050,12 @@ export function ScheduleEditorDialog({
                         </Button>
                       ))}
                     </div>
-                  </div>
+                  </Card>
                 </TabsContent>
 
                 {/* Tab 3: 固定时间模式 (每天/工作日/周末/每周几的 HH:mm) */}
                 <TabsContent value="daily" className="mt-0 focus-visible:outline-none">
-                  <div className="rounded-md border border-border/70 bg-card/40 p-3 space-y-2.5">
+                  <Card className="p-3 space-y-2.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-muted-foreground shrink-0">在每个</span>
                       <div className="inline-flex flex-wrap rounded-md border border-border/70 bg-muted/30 p-0.5">
@@ -1145,12 +1146,12 @@ export function ScheduleEditorDialog({
                         />
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 </TabsContent>
 
                 {/* Tab 4: Cron 专家模式 */}
                 <TabsContent value="cron" className="mt-0 focus-visible:outline-none">
-                  <div className="space-y-1.5 rounded-md border border-border/70 bg-card/40 p-2.5">
+                  <Card className="space-y-1.5 p-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-medium text-muted-foreground">
                         标准 5 段式 Cron 表达式（分 时 日 月 周）
@@ -1177,7 +1178,7 @@ export function ScheduleEditorDialog({
                         <span>{cronValidation.error}</span>
                       </p>
                     )}
-                  </div>
+                  </Card>
                 </TabsContent>
               </Tabs>
 

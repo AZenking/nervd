@@ -14,6 +14,7 @@ import { type FileDiffItem, getDiffAnchorId } from './diff-utils';
 import { DiffFileTree } from './diff-file-tree';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 
@@ -305,10 +306,10 @@ function DiffItemCard({
   const anchorId = getDiffAnchorId(filePath);
 
   return (
-    <div
+    <Card
       id={anchorId}
       className={cn(
-        'flex flex-col overflow-hidden rounded-md border border-border/60 bg-card/60 text-xs shadow-xs scroll-mt-2 transition-all duration-300',
+        'overflow-hidden p-0 text-xs scroll-mt-2 transition-all duration-300',
         isHighlighted && 'ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/[0.04]',
       )}
     >
@@ -448,6 +449,6 @@ function DiffItemCard({
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

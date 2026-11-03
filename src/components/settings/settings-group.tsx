@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Card } from '@/components/ui/card';
 
 /**
  * Linear 设置页原语（严格克隆 Linear 的 settings 版式）：
@@ -30,9 +31,9 @@ export function SettingsGroup({
         </div>
         {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
       </div>
-      <div className="flex flex-col rounded-xl border border-border/60 bg-card/50">
+      <Card className="flex flex-col p-0 overflow-hidden">
         {children}
-      </div>
+      </Card>
     </section>
   );
 }

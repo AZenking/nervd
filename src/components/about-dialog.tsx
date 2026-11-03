@@ -1,4 +1,5 @@
 import { Modal } from '@heroui/react';
+import { Card } from '@/components/ui/card';
 import {
   CheckCircle2Icon,
   CopyIcon,
@@ -140,7 +141,7 @@ export function AboutDialog() {
           {/* 中间状态与诊断面板 */}
           <div className="flex flex-col gap-2.5 px-5 pb-4">
             {/* 状态徽章条 */}
-            <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/60 bg-card/40 p-3 text-xs">
+            <Card className="grid grid-cols-2 gap-2 p-3 text-xs">
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] text-muted-foreground">写操作权限</span>
                 <div className="flex items-center gap-1.5 font-medium">
@@ -165,11 +166,11 @@ export function AboutDialog() {
                   <span>macOS Keychain</span>
                 </div>
               </div>
-            </div>
+            </Card>
 
             {/* 发现新版本专属卡片 */}
             {hasUpdate && updateInfo && (
-              <div className="flex flex-col gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs">
+              <Card className="border-primary/30 bg-primary/5 p-3 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 font-medium text-foreground">
                     <SparklesIcon className="size-3.5 text-primary" />
@@ -238,7 +239,7 @@ export function AboutDialog() {
                     </Button>
                   </div>
                 )}
-              </div>
+              </Card>
             )}
 
             {/* 快速动作行 */}

@@ -4,6 +4,7 @@ import { useApp } from '@/store/app';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { BranchRuleTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -326,9 +327,9 @@ export function BranchTemplatesManager({
             {addButton}
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-border/60 bg-card">
+          <Card className="p-0 overflow-hidden">
             {listContent}
-          </div>
+          </Card>
 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/40 bg-muted/20 px-3.5 py-2 text-xs text-muted-foreground">
             <span>

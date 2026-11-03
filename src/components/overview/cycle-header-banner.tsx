@@ -11,6 +11,7 @@ import { Chip } from '@/components/ui/chip';
 import { statusMeta } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
 import { LinearSegmentedProgressBar } from './segmented-progress-bar';
+import { Card } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,9 +39,9 @@ export function CycleHeaderBanner({
   const remaining = calculateSprintRemaining(iteration?.endDate);
 
   return (
-    <div
+    <Card
       className={cn(
-        'group flex flex-col gap-3 rounded-lg border border-border bg-card/70 p-4 transition-colors hover:bg-card/90 sm:p-5',
+        'group transition-colors hover:bg-card/90',
         className,
       )}
     >
@@ -186,6 +187,6 @@ export function CycleHeaderBanner({
           )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

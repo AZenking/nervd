@@ -4,6 +4,7 @@ import { useRecentWorkitems, type RecentWorkitem } from '@/store/recent-workitem
 import { useUi } from '@/store/ui';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { StatusIcon } from '@/components/status-icon';
 import { EmptyHint } from '@/components/empty-hint';
 import { WorkitemPeekDrawer } from '@/components/workitem-peek-drawer';
@@ -115,7 +116,7 @@ export function RecentsView() {
           className="rounded-xl border border-dashed py-16"
         />
       ) : (
-        <div className="rounded-xl border border-border/70 bg-card/40 overflow-hidden divide-y divide-border/40">
+        <Card className="p-0 overflow-hidden divide-y divide-border/40">
           {items.map((item, idx) => {
             const isCursorActive = activeCursor === idx;
             return (
@@ -186,7 +187,7 @@ export function RecentsView() {
               </div>
             );
           })}
-        </div>
+        </Card>
       )}
 
       {/* 点击条目打开的 Peek 抽屉 */}

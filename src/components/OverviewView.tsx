@@ -21,6 +21,7 @@ import { calculateIterationProgress } from '@/lib/iteration-period';
 import { CycleHeaderBanner } from './overview/cycle-header-banner';
 import { QuickBuildConsole } from './overview/quick-build-console';
 import { HealthDistributionCard } from './overview/health-distribution';
+import { Card } from '@/components/ui/card';
 
 /** 运行状态归一：与 StatusBadge 同一套语义分组 */
 const runGroup = (status?: string): RunStatus => {
@@ -258,48 +259,50 @@ export function OverviewView() {
               title={currentIteration ? `状态分布 · ${currentIteration.name}` : '状态分布'}
             />
 
-            {/* 右栏：最近更新裸行（Border-less Raw Rows） */}
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border border-border bg-card p-5">
-              <div className="flex items-center justify-between text-[13px] font-medium">
-                <span className="font-semibold tracking-tight text-foreground">最近更新</span>
+            {/* 右栏：最近更新卡片 */}
+            <Card className="min-w-0 flex-1">
+              <Card.Header className="flex flex-row items-center justify-between pb-0">
+                <Card.Title className="text-[13px] font-semibold tracking-tight text-foreground">最近更新</Card.Title>
                 <span className="text-xs text-muted-foreground">共 {items.length} 项</span>
-              </div>
+              </Card.Header>
 
-              {loadingList && !items.length ? (
-                <div className="flex flex-col gap-1.5 py-1" aria-hidden>
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <div key={i} className="flex items-center gap-2 px-2 py-2">
-                      <Skeleton className="size-3.5 rounded-full shrink-0" />
-                      <Skeleton className="h-3.5 w-16 shrink-0" />
-                      <Skeleton className="h-3.5 flex-1 rounded" style={{ width: `${40 + ((i * 13) % 35)}%` }} />
-                      <Skeleton className="h-3.5 w-20 shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              ) : recentItems.length > 0 ? (
-                <div className="flex flex-col gap-0.5 pt-1">
-                  {recentItems.map((it) => (
-                    <Button
-                      key={it.workitemId || it.identifier}
-                      type="button"
-                      variant="ghost"
-                      className={cn(
-                        'h-auto w-full justify-start gap-2.5 rounded px-2.5 py-2 text-xs font-normal transition-colors hover:bg-muted/60',
-                        it.workitemId === drawerWorkitemId && 'bg-accent font-medium',
-                      )}
-                      onClick={() => openDetail(it)}
-                    >
-                      <StatusIcon status={it.status} className="size-3.5 shrink-0" />
-                      <span className="shrink-0 font-mono text-muted-foreground">{it.identifier}</span>
-                      <OverflowTooltip text={it.subject} className="min-w-0 flex-1 truncate text-foreground" />
-                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{it.updatedAt?.slice(0, 10) ?? ''}</span>
-                    </Button>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-6 text-center text-xs text-muted-foreground">暂无工作项</div>
-              )}
-            </div>
+              <Card.Content>
+                {loadingList && !items.length ? (
+                  <div className="flex flex-col gap-1.5 py-1" aria-hidden>
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <div key={i} className="flex items-center gap-2 px-2 py-2">
+                        <Skeleton className="size-3.5 rounded-full shrink-0" />
+                        <Skeleton className="h-3.5 w-16 shrink-0" />
+                        <Skeleton className="h-3.5 flex-1 rounded" style={{ width: `${40 + ((i * 13) % 35)}%` }} />
+                        <Skeleton className="h-3.5 w-20 shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                ) : recentItems.length > 0 ? (
+                  <div className="flex flex-col gap-0.5 pt-1">
+                    {recentItems.map((it) => (
+                      <Button
+                        key={it.workitemId || it.identifier}
+                        type="button"
+                        variant="ghost"
+                        className={cn(
+                          'h-auto w-full justify-start gap-2.5 rounded px-2.5 py-2 text-xs font-normal transition-colors hover:bg-muted/60',
+                          it.workitemId === drawerWorkitemId && 'bg-accent font-medium',
+                        )}
+                        onClick={() => openDetail(it)}
+                      >
+                        <StatusIcon status={it.status} className="size-3.5 shrink-0" />
+                        <span className="shrink-0 font-mono text-muted-foreground">{it.identifier}</span>
+                        <OverflowTooltip text={it.subject} className="min-w-0 flex-1 truncate text-foreground" />
+                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{it.updatedAt?.slice(0, 10) ?? ''}</span>
+                      </Button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-xs text-muted-foreground">暂无工作项</div>
+                )}
+              </Card.Content>
+            </Card>
           </div>
         </section>
       </div>

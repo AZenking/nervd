@@ -11,6 +11,7 @@ import {
   XIcon,
 } from 'lucide-react';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CopyButton } from '@/components/ui/copy-button';
@@ -126,12 +127,10 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
   const timeDisplay = log.startedAt || log.finishedAt ? formatDateTime(log.startedAt || log.finishedAt!) : '';
 
   return (
-    <div
+    <Card
       className={cn(
-        'rounded-lg border p-4 transition-colors text-xs',
-        isSuccess
-          ? 'border-border/70 bg-card/60'
-          : 'border-destructive/30 bg-destructive/5',
+        'transition-colors text-xs',
+        !isSuccess && 'border-destructive/30 bg-destructive/5',
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -260,6 +259,6 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
           </pre>
         </details>
       )}
-    </div>
+    </Card>
   );
 }

@@ -3,6 +3,7 @@ import { useApp } from '../store/app';
 import { formatDateTime, formatDuration } from '../lib/format';
 import { humanizeError } from '@/lib/error-format';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RefreshCwIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -39,7 +40,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
   };
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-muted/40">
+    <Card className="transition-colors hover:bg-muted/40">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={snapshot?.status} />
         <OverflowTooltip
@@ -100,7 +101,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
           {runTrigger()}
         </>
       )}
-    </section>
+    </Card>
   );
 
   function runTrigger() {

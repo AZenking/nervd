@@ -14,6 +14,7 @@ import { useUi } from '@/store/ui';
 import { useWorkitemWorkflowStatuses, type WorkflowStatusItem } from '@/hooks/use-workitem-workflow-statuses';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -655,7 +656,7 @@ export function ChildrenCard({
       />
 
       {(items.length > 0 || isAdding) && (
-        <div className="flex flex-col divide-y divide-border/40 rounded-lg border border-border/50 bg-background/50 overflow-hidden">
+        <Card className="divide-y divide-border/40 p-0 overflow-hidden">
           {items.map((task) => {
             const isCompleted = /完成|已解决|已关闭|已发布|已合并|已修复/.test(task.status || '');
             const isSelected = selectedChildId === task.workitemId;
@@ -734,7 +735,7 @@ export function ChildrenCard({
               <span>添加{title}…</span>
             </button>
           )}
-        </div>
+        </Card>
       )}
 
       {items.length === 0 && !isAdding && !error && (

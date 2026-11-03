@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { openRepoBuildLogs, openPipelineRunLogs } from '@/components/build-workbench';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/lib/yunxiao-link';
+import { Card } from '@/components/ui/card';
 import { BuildProgressBar } from './build-progress-bar';
 
 export interface ActiveBuildItem {
@@ -157,9 +158,9 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
 
       <div className="flex flex-col gap-2.5 pt-1">
         {activeBuilds.map((item) => (
-          <div
+          <Card
             key={item.id}
-            className="flex flex-col gap-2 rounded-md border border-border/60 bg-card/90 px-3 py-2.5 text-xs shadow-xs"
+            className="p-3 text-xs"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -216,7 +217,7 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
               estimatedDurationMs={item.estimatedDurationMs}
               compact
             />
-          </div>
+          </Card>
         ))}
       </div>
     </section>

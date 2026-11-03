@@ -46,6 +46,7 @@ import { CreateMrDialog } from './create-mr-dialog';
 import { RepoCiModal } from './repo-ci-modal';
 import { MrInlineItem } from './mr-inline-item';
 import { IterationDevDivergence } from './iteration-dev-divergence';
+import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import {
@@ -870,12 +871,11 @@ export function LinkedRepoCard({
   const palette = getRepoPalette(repo.name);
 
   return (
-    <article
+    <Card
       data-testid={`linked-repo-card-${repo.id}`}
       className={cn(
-        'group relative flex flex-col rounded-lg border border-border/80 bg-card shadow-2xs transition-all duration-150',
-        'hover:border-border hover:shadow-xs overflow-hidden',
-        detailsOpen && 'border-border ring-1 ring-border/50',
+        'group relative p-0 overflow-hidden transition-all duration-150',
+        detailsOpen && 'ring-1 ring-border/50',
       )}
     >
       {/* Tier 1: 仓库主行（图标、名称、命名空间、分支交付拓扑与操作） */}
@@ -1343,7 +1343,7 @@ export function LinkedRepoCard({
         }}
         onNavigateToMr={(localId) => handleViewMr({ localId })}
       />
-    </article>
+    </Card>
   );
 }
 

@@ -19,6 +19,7 @@ import { isBranchParameterName, isEnvironmentParameterName, sortJenkinsJobsWithR
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -557,7 +558,7 @@ export function JenkinsBuildParameters({
 
             {jobFullName && !parametersLoading && parameters.length > 0 && (
               <>
-                <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-card/40 p-3">
+                <Card className="p-3">
                   <div className="flex items-center justify-between pb-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-foreground">
@@ -589,7 +590,7 @@ export function JenkinsBuildParameters({
                       />
                     ))}
                   </div>
-                </div>
+                </Card>
 
                 <Collapsible className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs">
                   <CollapsibleTrigger className="flex w-full items-center justify-between font-medium text-muted-foreground hover:text-foreground">

@@ -18,6 +18,7 @@ import { errorLog, humanizeError } from '@/lib/error-format';
 import { formatCompactDateTime, formatDateTime, formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Descriptions } from '@/components/ui/descriptions';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -160,7 +161,7 @@ function RepoRunsPage({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-5 sm:p-7">
-        <section className="rounded-lg border border-border/70 bg-card/40 p-4">
+        <Card>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -222,9 +223,9 @@ function RepoRunsPage({
               <WorkflowIcon data-icon="inline-start" />参数页
             </Button>
           </div>
-        </section>
+        </Card>
 
-        <section className="rounded-lg border border-border/70 bg-card/30">
+        <Card className="p-0 overflow-hidden">
           <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-foreground">最近运行</h2>
@@ -275,7 +276,7 @@ function RepoRunsPage({
               </p>
             )}
           </div>
-        </section>
+        </Card>
       </div>
     </div>
   );
@@ -323,7 +324,7 @@ function FlowParametersPage({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-5 sm:p-7">
-        <section className="rounded-lg border border-border/70 bg-card/40 p-5">
+        <Card>
           <div className="flex items-center gap-2">
             <WorkflowIcon className="size-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">按当前配置发起流水线</h2>
@@ -340,7 +341,7 @@ function FlowParametersPage({
               { key: 'mode', label: '运行方式', children: '使用流水线当前配置' },
             ]}
           />
-        </section>
+        </Card>
         <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-border/70 bg-popover/95 px-1 py-3 backdrop-blur-sm">
           <Button type="button" variant="outline" size="sm" onClick={onCancel}>返回</Button>
           <WriteOpButton
@@ -372,7 +373,7 @@ function PipelineRunsPage({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-5 sm:p-7">
-        <section className="rounded-lg border border-border/70 bg-card/40 p-4">
+        <Card>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -397,8 +398,8 @@ function PipelineRunsPage({
               title={`运行 ${pipeline?.pipelineName || target.title}`}
             />
           </div>
-        </section>
-        <section className="rounded-lg border border-border/70 bg-card/30">
+        </Card>
+        <Card className="p-0 overflow-hidden">
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-foreground">最近运行</h2>
@@ -429,7 +430,7 @@ function PipelineRunsPage({
             ))}
             {!runs.length && <p className="p-8 text-center text-xs text-muted-foreground">暂无流水线运行记录。</p>}
           </div>
-        </section>
+        </Card>
       </div>
     </div>
   );
@@ -467,7 +468,7 @@ function PipelineParametersPage({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-5 sm:p-7">
-        <section className="rounded-lg border border-border/70 bg-card/40 p-5">
+        <Card>
           <div className="flex items-center gap-2">
             <WorkflowIcon className="size-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">运行流水线</h2>
@@ -484,7 +485,7 @@ function PipelineParametersPage({
               { key: 'mode', label: '运行方式', children: '使用当前流水线配置' },
             ]}
           />
-        </section>
+        </Card>
         <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-border/70 bg-popover/95 px-1 py-3 backdrop-blur-sm">
           <Button type="button" variant="outline" size="sm" onClick={onCancel}>返回</Button>
           <WriteOpButton
@@ -528,13 +529,13 @@ function ParametersPage({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-5 sm:p-7">
-        <section className="rounded-lg border border-border/70 bg-card/40 p-4">
+        <Card>
           <div className="flex items-center gap-2">
             <WorkflowIcon className="size-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">Jenkins 构建参数</h2>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">{repo?.pathWithNamespace || target.title} · 选择 Job、分支和环境后提交。</p>
-        </section>
+        </Card>
         <JenkinsBuildParameters
           repoId={target.repoId}
           repoName={repo?.name || target.title}

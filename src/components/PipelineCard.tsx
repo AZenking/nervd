@@ -1,5 +1,6 @@
 import type { PipelineRunSummary } from '../types';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { CopyButton } from '@/components/ui/copy-button';
 import { StatusBadge } from './StatusBadge';
 import { formatDateTime } from '../lib/format';
@@ -14,7 +15,7 @@ export function PipelineCard({
   const latest = runs[0];
 
   return (
-    <div className="rounded-lg border border-border bg-card px-5 py-4 transition-colors hover:bg-muted/40">
+    <Card className="transition-colors hover:bg-muted/40">
       <div className="flex items-center gap-2">
         <StatusBadge status={latest?.status} />
         <OverflowTooltip
@@ -43,6 +44,6 @@ export function PipelineCard({
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
