@@ -43,7 +43,7 @@ export function CodeDiffDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">
-      <DrawerContent className="w-[100vw] sm:w-[min(84rem,96vw)] data-[swipe-axis=x]:sm:[--drawer-content-width:min(84rem,96vw)] p-0 flex flex-col h-full bg-background border-l border-border">
+      <DrawerContent className="w-full sm:w-[min(84rem,96vw)] sm:max-w-none flex flex-col h-full bg-background border-l border-border">
         {/* 抽屉头部 */}
         <DrawerHeader className="border-b border-border/60 px-5 py-3.5 bg-muted/20 shrink-0">
           <div className="flex items-center justify-between gap-3">

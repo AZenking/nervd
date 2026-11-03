@@ -374,7 +374,7 @@ export function ChildDetailDrawer({
 
   return (
     <Drawer open={open} onOpenChange={(o) => { if (!o) onClose(); }} swipeDirection="right">
-      <DrawerContent className="w-full sm:w-[500px] lg:w-[560px] [--drawer-content-width:min(560px,100vw)]">
+      <DrawerContent className="w-full sm:w-[560px] sm:max-w-none">
         {/* 顶部页头与快捷工具栏 */}
         <DrawerHeader className="border-b border-border/70 pb-3">
           <div className="flex items-center justify-between gap-2">

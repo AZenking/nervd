@@ -151,7 +151,7 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
       }}
       swipeDirection="right"
     >
-      <DrawerContent className="w-[100vw] sm:w-[min(42rem,85vw)] data-[swipe-axis=x]:sm:[--drawer-content-width:min(42rem,85vw)] p-0">
+      <DrawerContent className="w-full sm:w-[min(42rem,85vw)] sm:max-w-none">
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
           {/* 顶栏控制栏 */}
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 select-none">

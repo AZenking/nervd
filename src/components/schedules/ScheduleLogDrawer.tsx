@@ -52,7 +52,7 @@ export function ScheduleLogDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">
-      <DrawerContent className="w-[100vw] sm:w-[min(54rem,92vw)] data-[swipe-axis=x]:sm:[--drawer-content-width:min(54rem,92vw)] p-0">
+      <DrawerContent className="w-full sm:w-[min(54rem,92vw)] sm:max-w-none">
         <div className="flex h-full min-h-0 flex-1 flex-col bg-background">
           {/* 抽屉头部 */}
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">

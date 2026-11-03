@@ -616,7 +616,7 @@ export function BuildWorkbenchDrawer() {
         closeWorkbench();
       }}
     >
-      <DrawerContent className="h-[100dvh] w-[100vw] data-[swipe-axis=x]:sm:[--drawer-content-width:min(64rem,96vw)] p-0 sm:w-[min(64rem,96vw)]">
+      <DrawerContent className="w-full sm:w-[min(64rem,96vw)] sm:max-w-none">
         {page === 'logs' ? (
           <LogViewerContent
             fallbackTitle={`${title} · 日志`}

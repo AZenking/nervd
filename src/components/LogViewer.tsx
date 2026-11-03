@@ -556,7 +556,7 @@ export function LogViewer() {
   const { logView, closeLogs } = useApp();
   return (
     <Drawer open={!!logView} onOpenChange={(open) => { if (!open) closeLogs(); }} swipeDirection="right">
-      <DrawerContent className="h-[100dvh] w-[100vw] p-0 sm:w-[min(58rem,94vw)] data-[swipe-axis=x]:sm:[--drawer-content-width:min(58rem,94vw)]">
+      <DrawerContent className="w-full sm:w-[min(58rem,94vw)] sm:max-w-none">
         <LogViewerContent />
       </DrawerContent>
     </Drawer>
