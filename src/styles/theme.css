@@ -110,6 +110,10 @@
   --muted: var(--muted-foreground);
 }
 
+.tabs__tab {
+  white-space: nowrap;
+}
+
 .dark {
   color-scheme: dark;
 

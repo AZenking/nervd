@@ -94,7 +94,7 @@ function TabsTrigger({
   return (
     <HeroTabs.Tab
       id={resolvedId}
-      className={className}
+      className={cn("whitespace-nowrap gap-1.5", className)}
       {...props}
     >
       {(renderProps: any) => (
