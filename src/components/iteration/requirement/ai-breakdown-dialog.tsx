@@ -9,6 +9,7 @@ import { useApp } from '@/store/app';
 import type { AiBreakdownItem } from '@/types/ai';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -283,7 +284,7 @@ export function AiBreakdownDialog({
               </Button>
             </div>
           ) : (
-            <div className="flex flex-col divide-y divide-border/40 rounded-lg border border-border/50 bg-background/50 overflow-hidden">
+            <Card className="flex flex-col divide-y divide-border/40 rounded-lg border border-border/50 bg-background/50 overflow-hidden">
               {items.map((item) => {
                 const color = TAG_COLORS[item.tag] || {
                   bg: 'bg-muted/50',
@@ -397,7 +398,7 @@ export function AiBreakdownDialog({
                   </div>
                 );
               })}
-            </div>
+            </Card>
           )}
 
           {!loading && items.length > 0 && (

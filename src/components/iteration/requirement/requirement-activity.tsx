@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { RichEditor } from '@/components/ui/rich-editor';
 import { cn } from '@/lib/utils';
 import { EmptyHint } from '@/components/empty-hint';
@@ -207,7 +208,7 @@ export function RequirementActivity({
 
       {/* AI 纪要面板 */}
       {summary && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 text-xs flex flex-col gap-2.5 transition-all">
+        <Card className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 text-xs flex flex-col gap-2.5 transition-all">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 font-semibold text-primary">
               <SparklesIcon className="size-3.5" />
@@ -219,7 +220,7 @@ export function RequirementActivity({
                 onClick={() => void handleCopySummary()}
                 className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/60 transition-colors cursor-pointer"
               >
-                {copiedSummary ? <CheckIcon className="size-3 text-emerald-500" /> : <CopyIcon className="size-3" />}
+                {copiedSummary ? <CheckIcon className="size-3 text-emerald-600 dark:text-emerald-400" /> : <CopyIcon className="size-3" />}
                 {copiedSummary ? '已复制' : '复制纪要'}
               </button>
               <button
@@ -275,7 +276,7 @@ export function RequirementActivity({
               )}
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       {/* 历史评论时间轴 */}

@@ -7,6 +7,7 @@ import { aiGenerateMergeRequest } from '@/lib/ai-api';
 import { comparisonCommits } from '../BranchDivergenceCheck';
 import { mergeRequestRows, mergeRequestBranch } from './types';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -344,7 +345,7 @@ export function CreateMrDialog({
         </DialogHeader>
 
         {/* 分支选择区（可搜索、支持自定义输入、支持分页补拉） */}
-        <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+        <Card className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
           <div className="flex items-center justify-between">
             <span className="font-medium text-foreground text-xs">分支流转</span>
             <Button
@@ -393,7 +394,7 @@ export function CreateMrDialog({
               />
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* 表单内容 */}
         <div className="flex flex-col gap-3 py-1">

@@ -132,7 +132,7 @@ export function JenkinsInstancesCard() {
                     Token 已保存
                   </Badge>
                 ) : draftToken ? (
-                  <span className="text-xs text-amber-500">Token 待保存</span>
+                  <span className="text-xs text-amber-600 dark:text-amber-400">Token 待保存</span>
                 ) : (
                   <span className="text-xs text-muted-foreground">尚未保存 Token</span>
                 )}

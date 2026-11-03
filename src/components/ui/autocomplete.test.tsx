@@ -6,7 +6,7 @@ import {
   SearchField,
   ListBox,
   useFilter,
-} from '@heroui/react'
+} from './autocomplete'
 
 describe('HeroUI Autocomplete Component', () => {
   it('renders standard HeroUI Autocomplete trigger and value placeholder', async () => {

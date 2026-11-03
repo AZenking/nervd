@@ -108,7 +108,7 @@ export function SettingsAutoSaveStatus() {
         <TooltipTrigger
           render={
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-default">
-              <CheckIcon className="size-3 text-emerald-500" />
+              <CheckIcon className="size-3 text-emerald-600 dark:text-emerald-400" />
               <span>已自动保存</span>
             </div>
           }

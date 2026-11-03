@@ -19,6 +19,7 @@ import { parseFileDiffs, type FileDiffItem } from './diff-utils';
 import { CodeDiffViewer } from './code-diff-viewer';
 import { CodeDiffDrawer } from './code-diff-drawer';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
@@ -168,7 +169,7 @@ export function MrInlineItem({
   };
 
   return (
-    <div
+    <Card
       id={`mr-item-${mr.localId}`}
       className="flex flex-col rounded-md border border-border/40 bg-background/50 transition-colors hover:border-border/70 overflow-hidden"
     >
@@ -459,6 +460,6 @@ export function MrInlineItem({
           ) : null
         }
       />
-    </div>
+    </Card>
   );
 }

@@ -136,7 +136,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           {isSuccess ? (
-            <CheckCircle2Icon className="size-4 text-emerald-500 shrink-0" />
+            <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           ) : (
             <XCircleIcon className="size-4 text-destructive shrink-0" />
           )}
@@ -148,8 +148,8 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
             className={cn(
               'font-mono text-[10px] px-1.5 py-0',
               isManual
-                ? 'border-blue-500/30 text-blue-500 bg-blue-500/5'
-                : 'border-purple-500/30 text-purple-500 bg-purple-500/5',
+                ? 'border-blue-500/30 dark:border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-500/10 dark:bg-blue-500/20'
+                : 'border-purple-500/30 dark:border-purple-500/40 text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20',
             )}
           >
             {isManual ? '手动执行' : 'Cron 定时'}
@@ -182,7 +182,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
               {log.mergeResult.strategy === 'aggressive' ? (
                 <Badge
                   variant="outline"
-                  className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px]"
+                  className="bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 dark:border-amber-500/40 text-[10px]"
                 >
                   <ShieldCheckIcon className="mr-1 size-3" />
                   激进策略 · 零污染影子分支
@@ -190,7 +190,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
               ) : (
                 <Badge
                   variant="outline"
-                  className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 text-[10px]"
+                  className="bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30 dark:border-blue-500/40 text-[10px]"
                 >
                   <ShieldAlertIcon className="mr-1 size-3" />
                   谨慎策略 · 遇冲突终止
@@ -213,7 +213,9 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
               <span
                 className={cn(
                   'ml-1 font-semibold',
-                  log.mergeResult.conflictDetected ? 'text-amber-500' : 'text-emerald-500',
+                  log.mergeResult.conflictDetected
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-emerald-600 dark:text-emerald-400',
                 )}
               >
                 {log.mergeResult.conflictDetected ? '检测到代码冲突' : '无代码冲突'}

@@ -93,7 +93,7 @@ export function CommandMenu() {
         group: '最近查看',
         label: it.subject,
         hint: `${it.identifier} · 30s+`,
-        icon: <ClockIcon className="size-4 text-amber-500" />,
+        icon: <ClockIcon className="size-4 text-amber-600 dark:text-amber-400" />,
         run: () =>
           openWorkitem(it.workitemId, {
             workitemId: it.workitemId,
@@ -208,7 +208,7 @@ export function CommandMenu() {
         group: '操作',
         label: '快速构建 / 流水线触发',
         hint: '⌘B',
-        icon: <ZapIcon className="size-4 text-amber-500" />,
+        icon: <ZapIcon className="size-4 text-amber-600 dark:text-amber-400" />,
         keywords: '构建 build 触发 trigger ci flow jenkins 流水线 快速构建 重新构建',
         run: () => setQuickBuildOpen(true),
       },

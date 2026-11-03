@@ -73,7 +73,7 @@ function StageStatusIcon({ status }: { status: string }) {
     return <MinusCircleIcon className="size-3.5 text-muted-foreground shrink-0" />;
   }
   if (s.includes('PAUSE')) {
-    return <PauseCircleIcon className="size-3.5 text-purple-400 shrink-0" />;
+    return <PauseCircleIcon className="size-3.5 text-purple-600 dark:text-purple-400 shrink-0" />;
   }
   return <div className="size-2 rounded-full bg-muted-foreground/60 shrink-0" />;
 }
@@ -353,7 +353,7 @@ export function LogViewerContent({
                 <TabsTrigger
                   value="error"
                   className={cn(
-                    stats.errorCount > 0 && filterMode !== 'error' && 'text-red-500 hover:text-red-600',
+                    stats.errorCount > 0 && filterMode !== 'error' && 'text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300',
                   )}
                 >
                   错误 ({stats.errorCount})
@@ -361,7 +361,7 @@ export function LogViewerContent({
                 <TabsTrigger
                   value="warning"
                   className={cn(
-                    stats.warningCount > 0 && filterMode !== 'warning' && 'text-amber-500 hover:text-amber-600',
+                    stats.warningCount > 0 && filterMode !== 'warning' && 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300',
                   )}
                 >
                   警告 ({stats.warningCount})

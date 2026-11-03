@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { PaneSeparator } from '@/components/ui/resizable';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -711,7 +711,7 @@ export function IterationView() {
                           'data-[active=true]:bg-accent data-[active=true]:text-accent-foreground',
                           isMasterColumn ? 'h-9 px-2' : 'h-10 px-2.5',
                           match.isAssigned && (isMasterColumn ? 'border-l-2 border-l-primary bg-primary/[0.04] pl-1.5' : 'border-l-2 border-l-primary bg-primary/[0.04] pl-2'),
-                          match.isRelated && !match.isAssigned && (isMasterColumn ? 'border-l-2 border-l-amber-500/80 bg-amber-500/[0.04] pl-1.5' : 'border-l-2 border-l-amber-500/80 bg-amber-500/[0.04] pl-2'),
+                          match.isRelated && !match.isAssigned && (isMasterColumn ? 'border-l-2 border-l-amber-500 bg-amber-500/10 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 pl-1.5' : 'border-l-2 border-l-amber-500 bg-amber-500/10 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 pl-2'),
                         )}
                       >
                         {/* 多选 Checkbox（Linear 风格：悬停滑出，已选常驻） */}
@@ -740,7 +740,7 @@ export function IterationView() {
                             我负责
                           </span>
                         ) : match.isRelated ? (
-                          <span className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                          <span className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none bg-amber-500/15 dark:bg-amber-500/25 text-amber-600 dark:text-amber-400 border border-amber-500/25 dark:border-amber-500/35">
                             我参与
                           </span>
                         ) : null}
@@ -833,12 +833,12 @@ export function IterationView() {
   // 分支规则模板独立视图
   const branchesView = (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-border/70 p-4 bg-background">
+      <Card className="rounded-lg border border-border/70 p-4 bg-background">
         <IterationBranches
           iterationId={iteration?.id}
           iterationName={iteration?.name ?? iterationKey}
         />
-      </div>
+      </Card>
     </div>
   );
 
@@ -968,7 +968,7 @@ export function IterationView() {
         style={{ width: effectiveListWidth }}
         className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-border/70 bg-background"
       >
-          {/* master 页头（PageHeader v2 compact）：navigation=侧栏开关｜title=迭代｜scope=迭代切换｜
+          {/* master 页头（PageHeader v2 compact）：navigation=侧栏开关｜title=迭代｜
             toolbar=视图 Tabs + 类别 Tabs + 筛选｜actions=刷新。master 不在滚动容器内，不用 sticky。 */}
         <PageHeader
           density="compact"
@@ -976,25 +976,6 @@ export function IterationView() {
           navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
           title="迭代"
           titleClassName="text-sm font-semibold tracking-tight text-foreground"
-          scope={(
-            <Select
-              className="w-32 text-xs sm:w-36 shrink-0"
-              aria-label="切换迭代"
-              value={iteration.name}
-              onValueChange={(v) => { if (v) setIteration(v); }}
-            >
-              <SelectTrigger className="h-7 text-xs font-medium">
-                <SelectValue placeholder="切换迭代..." />
-              </SelectTrigger>
-              <SelectContent>
-                {iterations.map((it) => (
-                  <SelectItem key={it.name} value={it.name}>
-                    {it.name} · {it.state}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
           actions={(
             <Button
               variant="ghost"
@@ -1109,7 +1090,7 @@ export function IterationView() {
       onScroll={handleListScroll}
       className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10"
     >
-      {/* 页头（PageHeader v2 sticky）：navigation=侧栏开关｜title=迭代｜scope=迭代切换｜actions=刷新；
+      {/* 页头（PageHeader v2 sticky）：navigation=侧栏开关｜title=迭代｜actions=刷新；
           toolbar=视图 Tabs + 类别 Tabs + 筛选（或仓库/模板行提示）。单栏窄窗 density compact 收紧留白。 */}
       <PageHeader
         sticky
@@ -1117,25 +1098,6 @@ export function IterationView() {
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="迭代"
         titleClassName="text-sm font-semibold tracking-tight text-foreground"
-        scope={(
-          <Select
-            className="w-44 text-xs"
-            aria-label="切换迭代"
-            value={iteration.name}
-            onValueChange={(v) => { if (v) setIteration(v); }}
-          >
-            <SelectTrigger className="h-7 text-xs font-medium">
-              <SelectValue placeholder="切换迭代..." />
-            </SelectTrigger>
-            <SelectContent>
-              {iterations.map((it) => (
-                <SelectItem key={it.name} value={it.name}>
-                  {it.name} · {it.state}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
         actions={(
           <div className="flex shrink-0 items-center gap-2">
             <Tabs

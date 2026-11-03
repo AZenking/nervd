@@ -53,7 +53,7 @@ export function SecuritySection() {
           {draft.draft?.allowWriteOps ? (
             <ShieldAlertIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
           ) : (
-            <ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+            <ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
           )}
           <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
             <span className={cn('font-medium', draft.draft?.allowWriteOps ? 'text-destructive' : 'text-foreground')}>

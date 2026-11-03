@@ -335,11 +335,11 @@ function DiffItemCard({
           </button>
 
           {file.newFile ? (
-            <FilePlusIcon className="size-3.5 text-emerald-500 shrink-0" />
+            <FilePlusIcon className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
           ) : file.deletedFile ? (
-            <FileMinusIcon className="size-3.5 text-rose-500 shrink-0" />
+            <FileMinusIcon className="size-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
           ) : file.renamedFile ? (
-            <FileCodeIcon className="size-3.5 text-amber-500 shrink-0" />
+            <FileCodeIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
           ) : (
             <FileCodeIcon className="size-3.5 text-primary shrink-0" />
           )}

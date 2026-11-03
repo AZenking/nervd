@@ -472,7 +472,7 @@ export function ChildrenCard({
         ) : (
           <Badge
             variant="outline"
-            className="border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0 text-[11px] font-normal text-emerald-600 dark:text-emerald-400"
+            className="border-emerald-500/30 dark:border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-500/20 px-1.5 py-0 text-[11px] font-normal text-emerald-600 dark:text-emerald-400"
           >
             全部已解决
           </Badge>
@@ -483,7 +483,7 @@ export function ChildrenCard({
           className={cn(
             'px-1.5 py-0 text-[11px] font-normal',
             completedCount === items.length
-              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+              ? 'border-emerald-500/30 dark:border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
               : 'border-border/60 bg-muted/50 text-muted-foreground',
           )}
         >
@@ -543,20 +543,20 @@ export function ChildrenCard({
           >
             <span
               className={cn('size-1.5 rounded-full shrink-0', {
-                'bg-red-500': selectedSeverity === '致命',
-                'bg-amber-500': selectedSeverity === '严重',
-                'bg-yellow-500': selectedSeverity === '一般',
-                'bg-emerald-400': selectedSeverity === '轻微',
+                'bg-red-500 dark:bg-red-400': selectedSeverity === '致命',
+                'bg-amber-500 dark:bg-amber-400': selectedSeverity === '严重',
+                'bg-yellow-500 dark:bg-yellow-400': selectedSeverity === '一般',
+                'bg-emerald-500 dark:bg-emerald-400': selectedSeverity === '轻微',
               })}
             />
             <span>{selectedSeverity}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-28">
             {[
-              { label: '致命', color: 'bg-red-500' },
-              { label: '严重', color: 'bg-amber-500' },
-              { label: '一般', color: 'bg-yellow-500' },
-              { label: '轻微', color: 'bg-emerald-400' },
+              { label: '致命', color: 'bg-red-500 dark:bg-red-400' },
+              { label: '严重', color: 'bg-amber-500 dark:bg-amber-400' },
+              { label: '一般', color: 'bg-yellow-500 dark:bg-yellow-400' },
+              { label: '轻微', color: 'bg-emerald-500 dark:bg-emerald-400' },
             ].map((sev) => (
               <DropdownMenuItem
                 key={sev.label}

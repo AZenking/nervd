@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 import { useApp } from '@/store/app';
@@ -85,7 +86,7 @@ export function AboutSection() {
         </div>
 
         {hasUpdate && updateInfo && (
-          <div className="mx-4 mt-4 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
+          <Card className="mx-4 mt-4 flex flex-row items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1.5 font-medium text-foreground">
                 <SparklesIcon className="size-3.5 text-primary" />
@@ -107,7 +108,7 @@ export function AboutSection() {
               <DownloadIcon className="size-3.5" />
               <span>下载更新</span>
             </Button>
-          </div>
+          </Card>
         )}
 
         <SettingsRow
@@ -127,7 +128,7 @@ export function AboutSection() {
           control={(
             <div className="flex items-center gap-2">
               {status === 'up_to_date' && (
-                <span className="flex items-center gap-1 text-xs text-emerald-500 font-medium">
+                <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                   <CheckCircle2Icon className="size-3.5" />
                   已是最新
                 </span>
@@ -246,7 +247,7 @@ export function AboutSection() {
                 </Badge>
               ) : (
                 <Badge variant="secondary" className="gap-1 h-5 px-1.5 text-[11px] font-normal text-muted-foreground">
-                  <ShieldCheckIcon className="size-3 text-emerald-500" />
+                  <ShieldCheckIcon className="size-3 text-emerald-600 dark:text-emerald-400" />
                   只读保护中
                 </Badge>
               )}

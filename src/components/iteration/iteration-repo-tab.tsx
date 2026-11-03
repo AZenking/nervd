@@ -105,7 +105,7 @@ export function IterationRepoCard({
     <>
       <Card className={cn(
         'group transition-all duration-200',
-        isRunning && 'border-amber-500/50',
+        isRunning && 'border-amber-500/40 dark:border-amber-500/50',
       )}>
         {/* 卡片头部：仓库基本信息 + CI 状态 + 触发验证 / 详情按钮 */}
         <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-border/40">
@@ -113,7 +113,7 @@ export function IterationRepoCard({
             <div className={cn(
               'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors',
               isRunning
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-500'
+                ? 'border-amber-500/30 dark:border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400'
                 : 'border-border/60 bg-muted/30 group-hover:text-foreground',
             )}>
               <FolderGit2Icon className="size-4" />
@@ -204,11 +204,11 @@ export function IterationRepoCard({
 
         {/* 正在构建看板（Active Running Job Area）：用户能够清晰知道当前关联的正在构建的 job */}
         {isRunning && runningRun && (
-          <div className="mt-3.5 flex flex-col gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+          <div className="mt-3.5 flex flex-col gap-2 rounded-md border border-amber-500/30 dark:border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/20 p-3 text-xs">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
-                <Loader2Icon className="size-4 shrink-0 animate-spin text-amber-500" />
-                <span className="font-medium text-amber-500">正在构建 Job</span>
+                <Loader2Icon className="size-4 shrink-0 animate-spin text-amber-600 dark:text-amber-400" />
+                <span className="font-medium text-amber-600 dark:text-amber-400">正在构建 Job</span>
                 <OverflowTooltip
                   text={runningJobName}
                   className="max-w-64 truncate font-mono font-semibold text-foreground"
@@ -439,7 +439,7 @@ export function IterationRepoTab({
   return (
     <div className="flex flex-col gap-4">
       {/* 顶部聚合说明与状态提示条 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/15 px-4 py-2.5 text-xs">
+      <Card className="flex flex-wrap flex-row items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/15 px-4 py-2.5 text-xs">
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
           <span>当前迭代</span>
           {iterationKey && (
@@ -453,7 +453,7 @@ export function IterationRepoTab({
           <span>覆盖 <strong className="font-semibold text-foreground font-mono">{effectiveItems.length}</strong> 项工作项</span>
 
           {anyRunningCount > 0 && (
-            <span className="ml-1 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 font-medium text-amber-500 text-[11px]">
+            <span className="ml-1 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 dark:bg-amber-500/25 px-2.5 py-0.5 font-medium text-amber-600 dark:text-amber-400 text-[11px]">
               <Loader2Icon className="size-3 animate-spin" />
               <span>{anyRunningCount} 个 Job 正在构建中</span>
             </span>
@@ -481,7 +481,7 @@ export function IterationRepoTab({
             <span>配置 CI 绑定</span>
           </Button>
         </div>
-      </div>
+      </Card>
 
       {/* 涉及仓库卡片列表 */}
       <div className="flex flex-col gap-3">

@@ -3,6 +3,7 @@ import { AlertCircleIcon, RefreshCwIcon, ServerIcon, SparklesIcon, WorkflowIcon 
 import type { JenkinsConnectionView, JenkinsJobSummary, PipelineSummary, RepoCiBinding } from '@/types';
 import { cn } from '@/lib/utils';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { getCachedJenkinsJobs, hasCachedJobs } from '@/lib/jenkins-cache';
@@ -160,7 +161,7 @@ export function RepoCiBindingFields({
     binding.pipelineId === recommendedPipeline.pipelineId;
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-3.5">
+    <Card className="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-3.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <WorkflowIcon className="size-4 text-primary shrink-0" />
@@ -368,6 +369,6 @@ export function RepoCiBindingFields({
           </div>
         )
       )}
-    </div>
+    </Card>
   );
 }

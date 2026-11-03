@@ -21,6 +21,7 @@ import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
 import { statusMeta } from '../StatusBadge';
 import { Descriptions, type DescriptionsItem } from '@/components/ui/descriptions';
+import { Card } from '@/components/ui/card';
 import {
   Drawer,
   DrawerContent,
@@ -474,9 +475,9 @@ export function ChildDetailDrawer({
             <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               属性
             </p>
-            <div className="rounded-lg border border-border/50 bg-muted/15 p-2">
+            <Card className="rounded-lg border border-border/50 bg-muted/15 p-2">
               <Descriptions variant="plain" items={attributeItems} />
-            </div>
+            </Card>
           </section>
 
           {/* 描述正文 */}
@@ -491,7 +492,7 @@ export function ChildDetailDrawer({
                 <Skeleton className="h-4 w-2/3" />
               </div>
             ) : (
-              <div className="rounded-lg border border-border/50 bg-muted/10 p-3.5 text-sm leading-relaxed text-foreground/90">
+              <Card className="rounded-lg border border-border/50 bg-muted/10 p-3.5 text-sm leading-relaxed text-foreground/90">
                 <RichDescription
                   raw={wi.description ?? wi.content}
                   workitemId={child?.workitemId}
@@ -499,7 +500,7 @@ export function ChildDetailDrawer({
                     setRawDetail((prev) => (prev ? { ...prev, description: newHtml, content: newHtml } : prev));
                   }}
                 />
-              </div>
+              </Card>
             )}
           </section>
         </div>

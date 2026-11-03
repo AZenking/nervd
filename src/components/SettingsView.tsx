@@ -4,6 +4,7 @@ import { useApp } from '../store/app';
 import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type SettingsSection } from '../store/ui';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SETTINGS_SECTIONS, getSectionErrorCount } from './settings/sections';
 import { PageHeader } from './page-header';
@@ -177,7 +178,7 @@ export function SettingsView({
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-20">
           {/* 首次配置就绪检查卡片（云效连接分区顶部展示引导） */}
           {settingsSection === 'connection' && (
-            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 transition-all">
+            <Card className="rounded-lg border border-border/60 bg-muted/20 p-4 transition-all">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
@@ -241,7 +242,7 @@ export function SettingsView({
                   </span>
                 </div>
               </div>
-            </div>
+            </Card>
           )}
 
           <div className="flex flex-col gap-1.5">

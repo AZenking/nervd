@@ -152,7 +152,7 @@ export function AboutDialog() {
                     </>
                   ) : (
                     <>
-                      <ShieldCheckIcon className="size-3.5 text-emerald-500" />
+                      <ShieldCheckIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
                       <span className="text-foreground">只读保护中</span>
                     </>
                   )}
@@ -252,7 +252,7 @@ export function AboutDialog() {
                 className="h-8 flex-1 gap-1.5 text-xs font-normal cursor-pointer"
               >
                 {status === 'up_to_date' ? (
-                  <CheckCircle2Icon className="size-3.5 text-emerald-500" />
+                  <CheckCircle2Icon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
                 ) : (
                   <RefreshCwIcon className={`size-3.5 ${isChecking ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
                 )}

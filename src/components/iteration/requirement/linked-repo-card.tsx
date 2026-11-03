@@ -86,11 +86,11 @@ export interface LinkedRepoCardProps {
 
 /** 需求关联仓库的紧凑摘要；分支与交付细节默认收拢。 */
 const REPO_PALETTES = [
-  'from-indigo-500/20 to-purple-500/30 text-indigo-500 dark:text-indigo-400 border-indigo-500/20',
-  'from-sky-500/20 to-blue-500/30 text-sky-500 dark:text-sky-400 border-sky-500/20',
-  'from-amber-500/20 to-orange-500/30 text-amber-500 dark:text-amber-400 border-amber-500/20',
-  'from-emerald-500/20 to-teal-500/30 text-emerald-500 dark:text-emerald-400 border-emerald-500/20',
-  'from-rose-500/20 to-pink-500/30 text-rose-500 dark:text-rose-400 border-rose-500/20',
+  'from-indigo-500/20 to-purple-500/30 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+  'from-sky-500/20 to-blue-500/30 text-sky-600 dark:text-sky-400 border-sky-500/20',
+  'from-amber-500/20 to-orange-500/30 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  'from-emerald-500/20 to-teal-500/30 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+  'from-rose-500/20 to-pink-500/30 text-rose-600 dark:text-rose-400 border-rose-500/20',
 ];
 
 function getRepoPalette(name: string): string {
@@ -662,7 +662,7 @@ export function LinkedRepoCard({
       if (devOnly > 0) {
         return (
           <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-            <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+            <span className="size-2 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
             <span className="truncate">超前 {devOnly} 提交</span>
             {baseOnly > 0 && (
               <span className="text-[11px] text-amber-600 dark:text-amber-400 font-normal truncate" title={`落后基准 ${baseOnly} 提交`}>
@@ -675,21 +675,21 @@ export function LinkedRepoCard({
       if (baseOnly > 0) {
         return (
           <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
-            <span className="size-2 rounded-full bg-amber-500 shrink-0" />
+            <span className="size-2 rounded-full bg-amber-500 dark:bg-amber-400 shrink-0" />
             <span className="truncate">落后基准 {baseOnly} 提交</span>
           </div>
         );
       }
       return (
         <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-          <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+          <span className="size-2 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
           <span className="truncate">与基准已对齐</span>
         </div>
       );
     }
     return (
       <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-        <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+        <span className="size-2 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
         <span className="truncate">需求分支已就绪</span>
       </div>
     );
@@ -725,7 +725,7 @@ export function LinkedRepoCard({
     if (developerBranchState === 'exists' && devOnly > 0) {
       return (
         <div className="flex items-center gap-1.5 text-xs">
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 shrink-0">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/20 dark:border-amber-500/30 shrink-0">
             待合入 ({devOnly} 提交)
           </span>
           <button
@@ -755,10 +755,10 @@ export function LinkedRepoCard({
           className="group inline-flex items-center gap-1.5 text-xs text-left cursor-pointer transition-colors max-w-full"
           title={`历史合并请求 !${matchingMergedMr.localId} 已成功合入，点击查看详情`}
         >
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 shrink-0">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-500/30 group-hover:bg-emerald-500/20 dark:group-hover:bg-emerald-500/30 shrink-0">
             !{matchingMergedMr.localId}
           </span>
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-500/30 shrink-0">
             已合入
           </span>
         </button>
@@ -767,7 +767,7 @@ export function LinkedRepoCard({
     if (hasMatchingMergedMr) {
       return (
         <div className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 dark:border-emerald-500/30 shrink-0">
             已合入
           </span>
         </div>
@@ -835,9 +835,9 @@ export function LinkedRepoCard({
           title={`${ciSummary}，点击查看构建记录`}
         >
           <div className="flex items-center gap-1 min-w-0 shrink-0">
-            {isSuccess && <CheckCircle2Icon className="size-3.5 text-emerald-500 shrink-0" />}
+            {isSuccess && <CheckCircle2Icon className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />}
             {isFailed && <XCircleIcon className="size-3.5 text-destructive shrink-0" />}
-            {isRunning && <Loader2Icon className="size-3.5 text-amber-500 animate-spin shrink-0" />}
+            {isRunning && <Loader2Icon className="size-3.5 text-amber-600 dark:text-amber-400 animate-spin shrink-0" />}
             {!isSuccess && !isFailed && !isRunning && <span className="size-2 rounded-full bg-muted-foreground shrink-0" />}
 
             <span className="font-mono text-[11px] font-medium text-foreground/90 group-hover:text-primary shrink-0">
@@ -1292,7 +1292,7 @@ export function LinkedRepoCard({
                       setAutoOpenWorkbenchOnBind(false);
                       setCiModalOpen(true);
                     }}
-                    className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer transition-colors"
+                    className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 cursor-pointer transition-colors"
                     title="该仓库尚未关联 CI，点击就地配置云效 Flow 或 Jenkins"
                   >
                     <PlusIcon className="size-3" />

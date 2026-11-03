@@ -518,7 +518,7 @@ export function ScheduleEditorDialog({
                 )}
               >
                 <div className="flex items-center gap-1.5 font-medium text-foreground text-xs min-w-0">
-                  <WorkflowIcon className="size-3.5 text-emerald-500 shrink-0" />
+                  <WorkflowIcon className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span className="truncate">云效 Flow 流水线</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
@@ -538,7 +538,7 @@ export function ScheduleEditorDialog({
                 )}
               >
                 <div className="flex items-center gap-1.5 font-medium text-foreground text-xs min-w-0">
-                  <RefreshCwIcon className="size-3.5 text-amber-500 shrink-0" />
+                  <RefreshCwIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span className="truncate">同步云效需求</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
@@ -558,7 +558,7 @@ export function ScheduleEditorDialog({
                 )}
               >
                 <div className="flex items-center gap-1.5 font-medium text-foreground text-xs min-w-0">
-                  <RefreshCwIcon className="size-3.5 text-purple-400 shrink-0" />
+                  <RefreshCwIcon className="size-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
                   <span className="truncate">集成分支巡检</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
@@ -660,13 +660,13 @@ export function ScheduleEditorDialog({
                         : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                     )}
                   >
-                    <ShieldAlertIcon className="size-4 text-blue-400 shrink-0 mt-0.5" />
+                    <ShieldAlertIcon className="size-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                         <span>谨慎策略</span>
                         <Badge
                           variant="outline"
-                          className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-400 shrink-0"
+                          className="text-[9px] px-1 py-0 border-blue-500/30 dark:border-blue-500/40 text-blue-600 dark:text-blue-400 shrink-0"
                         >
                           冲突即终止
                         </Badge>
@@ -688,13 +688,13 @@ export function ScheduleEditorDialog({
                         : 'border-border/60 hover:bg-muted/40 text-muted-foreground',
                     )}
                   >
-                    <ShieldCheckIcon className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                    <ShieldCheckIcon className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                         <span>激进策略</span>
                         <Badge
                           variant="outline"
-                          className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-400 shrink-0"
+                          className="text-[9px] px-1 py-0 border-amber-500/30 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 shrink-0"
                         >
                           零污染隔离
                         </Badge>
@@ -709,7 +709,7 @@ export function ScheduleEditorDialog({
                 {strategy === 'aggressive' && (
                   <div className="rounded-md border border-border/70 bg-muted/20 p-2.5 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 font-medium text-amber-500 shrink-0">
+                      <div className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400 shrink-0">
                         <HelpCircleIcon className="size-3.5 shrink-0" />
                         <span>激进冲突自动裁决偏好</span>
                       </div>
@@ -742,7 +742,7 @@ export function ScheduleEditorDialog({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 py-0 border-blue-500/30 text-blue-400 shrink-0"
+                            className="text-[9px] px-1 py-0 border-blue-500/30 dark:border-blue-500/40 text-blue-600 dark:text-blue-400 shrink-0"
                           >
                             新代码优先
                           </Badge>
@@ -775,7 +775,7 @@ export function ScheduleEditorDialog({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 py-0 border-emerald-500/30 text-emerald-400 shrink-0"
+                            className="text-[9px] px-1 py-0 border-emerald-500/30 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400 shrink-0"
                           >
                             主干稳定优先
                           </Badge>
@@ -808,7 +808,7 @@ export function ScheduleEditorDialog({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 py-0 border-amber-500/30 text-amber-500 bg-amber-500/10 shrink-0"
+                            className="text-[9px] px-1 py-0 border-amber-500/30 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 shrink-0"
                           >
                             推荐 · 人工裁决
                           </Badge>
@@ -904,7 +904,7 @@ export function ScheduleEditorDialog({
               </div>
 
               {cronDescription && (
-                <span className="text-[11px] text-emerald-400 font-medium">
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
                   {cronDescription}
                 </span>
               )}
@@ -929,21 +929,21 @@ export function ScheduleEditorDialog({
                     value="interval"
                     className="min-w-0"
                   >
-                    <ClockIcon className="size-3 mr-1 text-blue-500 shrink-0" />
+                    <ClockIcon className="size-3 mr-1 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span className="truncate">循环间隔</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="daily"
                     className="min-w-0"
                   >
-                    <CalendarClockIcon className="size-3 mr-1 text-amber-500 shrink-0" />
+                    <CalendarClockIcon className="size-3 mr-1 text-amber-600 dark:text-amber-400 shrink-0" />
                     <span className="truncate">固定时间</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="cron"
                     className="min-w-0"
                   >
-                    <TerminalIcon className="size-3 mr-1 text-purple-500 shrink-0" />
+                    <TerminalIcon className="size-3 mr-1 text-purple-600 dark:text-purple-400 shrink-0" />
                     <span className="truncate">Cron 专家</span>
                   </TabsTrigger>
                 </TabsList>

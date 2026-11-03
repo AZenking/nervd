@@ -35,6 +35,7 @@ import { openRepoBuildLogs, openPipelineRunLogs } from '@/components/build-workb
 import { openExternal } from '@/lib/yunxiao-link';
 import type { JenkinsJobParameter, JenkinsJobSummary } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/searchable-select';
@@ -378,7 +379,7 @@ export function QuickBuildConsole() {
       {/* 头部：标题与活跃状态徽标 + 目标与 Job 切换器 */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline/60 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex size-6 items-center justify-center rounded-md bg-amber-500/10 text-amber-500">
+          <div className="flex size-6 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
             <ZapIcon className="size-3.5 fill-current" />
           </div>
           <div className="flex items-center gap-2">
@@ -491,7 +492,7 @@ export function QuickBuildConsole() {
           内置活跃构建监控区域 (方案 B 预估进度条 + 就地盯盘)
           ========================================== */}
       {activeBuilds.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-lg border border-sig-run/30 bg-sig-run/5 p-3">
+        <Card className="flex flex-col gap-2 rounded-lg border border-sig-run/30 bg-sig-run/5 p-3">
           <div className="flex items-center justify-between text-xs font-medium text-foreground pb-1">
             <span className="flex items-center gap-1.5">
               <StatusIcon status="RUNNING" className="size-3.5" />
@@ -560,7 +561,7 @@ export function QuickBuildConsole() {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* 3. 最近执行标签快速选卡 */}
@@ -597,7 +598,7 @@ export function QuickBuildConsole() {
                 {record.type === 'flow' ? (
                   <WorkflowIcon className="size-3 text-primary shrink-0" />
                 ) : (
-                  <TerminalIcon className="size-3 text-amber-500 shrink-0" />
+                  <TerminalIcon className="size-3 text-amber-600 dark:text-amber-400 shrink-0" />
                 )}
                 <span className="truncate max-w-[110px]">{record.repoName}</span>
                 {record.jobFullName && (
@@ -618,7 +619,7 @@ export function QuickBuildConsole() {
                       void triggerQuickBuild(record);
                     }}
                     className={cn(
-                      'flex items-center justify-center size-4 rounded hover:bg-emerald-500/20 text-emerald-500 transition-colors',
+                      'flex items-center justify-center size-4 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-colors',
                       triggeringId === record.id && 'animate-spin',
                     )}
                     aria-label={`重跑 ${record.repoName} 构建`}
@@ -754,7 +755,7 @@ export function QuickBuildConsole() {
             <SlidersHorizontalIcon className="size-3" />
             <span>更多参数配置 ({otherParams.length} 个参数)</span>
           </summary>
-          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 p-2.5 rounded-lg border border-hairline/60 bg-muted/10">
+          <Card className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 p-2.5 rounded-lg border border-hairline/60 bg-muted/10">
             {otherParams.map((p) => (
               <div key={p.name} className="flex flex-col gap-1">
                 <span className="text-[10px] font-mono text-muted-foreground truncate">
@@ -777,7 +778,7 @@ export function QuickBuildConsole() {
                 )}
               </div>
             ))}
-          </div>
+          </Card>
         </details>
       )}
     </section>

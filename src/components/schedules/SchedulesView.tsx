@@ -224,9 +224,9 @@ export function SchedulesView() {
                   </TabsTrigger>
 
                   {runningCount > 0 && (
-                    <TabsTrigger value="running" className="gap-1.5 text-amber-500">
+                    <TabsTrigger value="running" className="gap-1.5 text-amber-600 dark:text-amber-400">
                       <span>执行中</span>
-                      <span className="rounded-full bg-amber-500/20 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                      <span className="rounded-full bg-amber-500/10 dark:bg-amber-500/20 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
                         {runningCount}
                       </span>
                     </TabsTrigger>
@@ -271,7 +271,7 @@ export function SchedulesView() {
                 <TemplateCard
                   title="开发分支合入主干 (谨慎)"
                   description="每天凌晨 02:00 自动比对 dev 与 master，若有冲突则安全终止"
-                  icon={<GitMergeIcon className="size-4 text-blue-500" />}
+                  icon={<GitMergeIcon className="size-4 text-blue-600 dark:text-blue-400" />}
                   onClick={() => {
                     addTask({
                       name: '开发分支合入主干 (谨慎策略)',
@@ -296,7 +296,7 @@ export function SchedulesView() {
                 <TemplateCard
                   title="开发分支合入主干 (激进零污染)"
                   description="每天凌晨 03:00 遇冲突自动隔离至影子分支并提审，绝不污染原分支"
-                  icon={<ShieldCheckIcon className="size-4 text-amber-500" />}
+                  icon={<ShieldCheckIcon className="size-4 text-amber-600 dark:text-amber-400" />}
                   onClick={() => {
                     addTask({
                       name: '开发分支合入主干 (激进零污染)',
@@ -322,7 +322,7 @@ export function SchedulesView() {
                 <TemplateCard
                   title="云效需求每小时自动同步"
                   description="每小时整点自动刷新云效工作项与最新迭代进展"
-                  icon={<RefreshCwIcon className="size-4 text-emerald-500" />}
+                  icon={<RefreshCwIcon className="size-4 text-emerald-600 dark:text-emerald-400" />}
                   onClick={() => {
                     addTask({
                       name: '云效需求每小时同步',
@@ -363,9 +363,9 @@ export function SchedulesView() {
                 <div className="flex items-start gap-3 min-w-0 flex-1">
                   <div className="pt-0.5 shrink-0">
                     {isRunning ? (
-                      <Spinner className="size-4 text-amber-500 animate-spin" />
+                      <Spinner className="size-4 text-amber-600 dark:text-amber-400 animate-spin" />
                     ) : task.lastStatus === 'success' ? (
-                      <CheckCircle2Icon className="size-4 text-emerald-500" />
+                      <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
                     ) : task.lastStatus === 'failed' ? (
                       <XCircleIcon className="size-4 text-destructive" />
                     ) : (
@@ -608,7 +608,7 @@ export function ActionDetailTags({
           {isAggressive ? (
             <Badge
               variant="outline"
-              className="border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+              className="border-amber-500/30 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
               title="遇冲突将自动在影子隔离分支消解，原分支保持 100% 纯净"
             >
               <ShieldCheckIcon className="size-3 shrink-0" />
@@ -617,7 +617,7 @@ export function ActionDetailTags({
           ) : (
             <Badge
               variant="outline"
-              className="border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-500/5 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+              className="border-blue-500/30 dark:border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-500/10 dark:bg-blue-500/20 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
               title="检测到代码冲突立即中止合并，原分支零变更"
             >
               <ShieldAlertIcon className="size-3 shrink-0" />
@@ -638,7 +638,7 @@ export function ActionDetailTags({
             variant="outline"
             className="border-border/80 text-foreground/90 bg-muted/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
           >
-            <WorkflowIcon className="size-3 text-emerald-500 shrink-0" />
+            <WorkflowIcon className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>{pipelineDisplayName}</span>
           </Badge>
           <Badge
@@ -658,7 +658,7 @@ export function ActionDetailTags({
             variant="outline"
             className="border-border/80 text-foreground/90 bg-muted/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
           >
-            <TerminalIcon className="size-3 text-sky-500 shrink-0" />
+            <TerminalIcon className="size-3 text-sky-600 dark:text-sky-400 shrink-0" />
             <span>{action.jobFullName}</span>
           </Badge>
           {paramCount > 0 && (
@@ -680,7 +680,7 @@ export function ActionDetailTags({
             variant="outline"
             className="border-border/80 text-muted-foreground bg-muted/40 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
           >
-            <RefreshCwIcon className="size-2.5 text-amber-500 shrink-0" />
+            <RefreshCwIcon className="size-2.5 text-amber-600 dark:text-amber-400 shrink-0" />
             云效迭代与全量工作项状态巡检
           </Badge>
         </div>
@@ -692,7 +692,7 @@ export function ActionDetailTags({
             variant="outline"
             className="border-border/80 text-muted-foreground bg-muted/40 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
           >
-            <GitCompareIcon className="size-2.5 text-purple-500 shrink-0" />
+            <GitCompareIcon className="size-2.5 text-purple-600 dark:text-purple-400 shrink-0" />
             {action.repoIds && action.repoIds.length > 0
               ? `指定 ${action.repoIds.length} 个代码库落差`
               : '全量纳管仓库集成分支落差'}

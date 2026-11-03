@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/searchable-select';
@@ -37,10 +38,10 @@ const STATUS_OPTIONS: { label: string; value: LocalTaskStatus; icon: React.Compo
 
 const PRIORITY_OPTIONS: { label: string; value: LocalTaskPriority; color: string }[] = [
   { label: '无优先级', value: 'none', color: 'text-muted-foreground' },
-  { label: '低优先级', value: 'low', color: 'text-blue-500' },
-  { label: '中等优先级', value: 'medium', color: 'text-amber-500' },
-  { label: '高优先级', value: 'high', color: 'text-orange-500' },
-  { label: '紧急', value: 'urgent', color: 'text-red-500' },
+  { label: '低优先级', value: 'low', color: 'text-blue-600 dark:text-blue-400' },
+  { label: '中等优先级', value: 'medium', color: 'text-amber-600 dark:text-amber-400' },
+  { label: '高优先级', value: 'high', color: 'text-orange-600 dark:text-orange-400' },
+  { label: '紧急', value: 'urgent', color: 'text-red-600 dark:text-red-400' },
 ];
 
 export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
@@ -245,7 +246,7 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
             </div>
 
             {/* Codeup 仓库与分支联动卡片（支持关联多个仓库） */}
-            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+            <Card className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
               <div className="flex items-center justify-between text-xs font-medium text-foreground">
                 <div className="flex items-center gap-2">
                   <FolderGit2Icon className="size-3.5 text-primary" />
@@ -325,7 +326,7 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
                   placeholder="+ 添加关联代码仓库..."
                 />
               </div>
-            </div>
+            </Card>
 
             {/* 详细描述 / 清单 */}
             <div className="space-y-2">

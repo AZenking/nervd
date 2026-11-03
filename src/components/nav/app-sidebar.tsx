@@ -151,7 +151,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       type="button"
                       onClick={() => setQuickBuildOpen(true)}
                       aria-label="快速构建 (⌘B)"
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-neutral-100/70 text-amber-500 hover:bg-neutral-100 hover:text-amber-400 dark:bg-neutral-800/60"
+                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-neutral-100/70 text-amber-600 dark:text-amber-400 hover:bg-neutral-100 hover:text-amber-700 dark:hover:text-amber-300 dark:bg-neutral-800/60"
                     />
                   }
                 >

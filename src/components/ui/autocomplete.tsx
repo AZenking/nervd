@@ -191,5 +191,6 @@ export {
   AutocompletePopover,
   AutocompleteItem,
   HeroSearchField as SearchField,
+  ListBox,
   useFilter,
 }

@@ -12,29 +12,29 @@ const DEFAULT_AVAILABLE_TAGS = ['前端', '后端', '自测', '文档', '运维'
 
 export const TAG_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   前端: {
-    bg: 'bg-blue-500/10 dark:bg-blue-500/15',
+    bg: 'bg-blue-500/10 dark:bg-blue-500/20',
     text: 'text-blue-600 dark:text-blue-400',
-    border: 'border-blue-500/30',
+    border: 'border-blue-500/30 dark:border-blue-500/40',
   },
   后端: {
-    bg: 'bg-purple-500/10 dark:bg-purple-500/15',
+    bg: 'bg-purple-500/10 dark:bg-purple-500/20',
     text: 'text-purple-600 dark:text-purple-400',
-    border: 'border-purple-500/30',
+    border: 'border-purple-500/30 dark:border-purple-500/40',
   },
   自测: {
-    bg: 'bg-emerald-500/10 dark:bg-emerald-500/15',
+    bg: 'bg-emerald-500/10 dark:bg-emerald-500/20',
     text: 'text-emerald-600 dark:text-emerald-400',
-    border: 'border-emerald-500/30',
+    border: 'border-emerald-500/30 dark:border-emerald-500/40',
   },
   文档: {
-    bg: 'bg-amber-500/10 dark:bg-amber-500/15',
+    bg: 'bg-amber-500/10 dark:bg-amber-500/20',
     text: 'text-amber-600 dark:text-amber-400',
-    border: 'border-amber-500/30',
+    border: 'border-amber-500/30 dark:border-amber-500/40',
   },
   运维: {
-    bg: 'bg-rose-500/10 dark:bg-rose-500/15',
+    bg: 'bg-rose-500/10 dark:bg-rose-500/20',
     text: 'text-rose-600 dark:text-rose-400',
-    border: 'border-rose-500/30',
+    border: 'border-rose-500/30 dark:border-rose-500/40',
   },
 };
 

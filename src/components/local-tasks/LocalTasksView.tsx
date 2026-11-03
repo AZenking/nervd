@@ -29,9 +29,9 @@ const STATUS_CONFIG: Record<
   LocalTaskStatus,
   { label: string; icon: React.ComponentType<{ className?: string }>; color: string }
 > = {
-  todo: { label: '待办', icon: ClockIcon, color: 'text-slate-400' },
-  in_progress: { label: '进行中', icon: CircleDotIcon, color: 'text-amber-500' },
-  done: { label: '已完成', icon: CheckCircle2Icon, color: 'text-emerald-500' },
+  todo: { label: '待办', icon: ClockIcon, color: 'text-slate-600 dark:text-slate-400' },
+  in_progress: { label: '进行中', icon: CircleDotIcon, color: 'text-amber-600 dark:text-amber-400' },
+  done: { label: '已完成', icon: CheckCircle2Icon, color: 'text-emerald-600 dark:text-emerald-400' },
   canceled: { label: '已取消', icon: XCircleIcon, color: 'text-muted-foreground/60' },
 };
 
@@ -123,21 +123,21 @@ export function LocalTasksView() {
                     {totalCount}
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="in_progress" className="gap-1.5">
+                <TabsTrigger value="in_progress" className="gap-1.5 text-amber-600 dark:text-amber-400">
                   <span>进行中</span>
-                  <span className="rounded-full bg-amber-500/15 text-amber-500 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                  <span className="rounded-full bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
                     {tasks.filter((t) => t.status === 'in_progress').length}
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="todo" className="gap-1.5">
+                <TabsTrigger value="todo" className="gap-1.5 text-slate-600 dark:text-slate-400">
                   <span>待办</span>
-                  <span className="rounded-full bg-slate-500/15 text-slate-400 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                  <span className="rounded-full bg-slate-500/10 dark:bg-slate-500/20 text-slate-600 dark:text-slate-400 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
                     {tasks.filter((t) => t.status === 'todo').length}
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="done" className="gap-1.5">
+                <TabsTrigger value="done" className="gap-1.5 text-emerald-600 dark:text-emerald-400">
                   <span>已完成</span>
-                  <span className="rounded-full bg-emerald-500/15 text-emerald-500 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                  <span className="rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
                     {doneCount}
                   </span>
                 </TabsTrigger>

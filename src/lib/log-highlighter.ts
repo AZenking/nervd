@@ -26,22 +26,22 @@ export interface LogStats {
 
 // ANSI 颜色映射表
 const ANSI_COLOR_MAP: Record<number, string> = {
-  30: 'text-zinc-500',
+  30: 'text-zinc-700 dark:text-zinc-400',
   31: 'text-red-500 dark:text-red-400 font-medium',
   32: 'text-emerald-500 dark:text-emerald-400',
   33: 'text-amber-500 dark:text-amber-400',
   34: 'text-sky-500 dark:text-sky-400',
   35: 'text-purple-500 dark:text-purple-400',
   36: 'text-cyan-500 dark:text-cyan-400',
-  37: 'text-zinc-200',
-  90: 'text-zinc-400',
+  37: 'text-zinc-700 dark:text-zinc-200',
+  90: 'text-zinc-600 dark:text-zinc-400',
   91: 'text-red-400 dark:text-red-300 font-medium',
   92: 'text-emerald-400 dark:text-emerald-300',
   93: 'text-amber-400 dark:text-amber-300',
   94: 'text-sky-400 dark:text-sky-300',
   95: 'text-purple-400 dark:text-purple-300',
   96: 'text-cyan-400 dark:text-cyan-300',
-  97: 'text-white',
+  97: 'text-zinc-900 dark:text-white',
 };
 
 /** 解析包含 ANSI 转义序列的一行文本为带样式的 Span 数组 */

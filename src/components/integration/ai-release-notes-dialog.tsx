@@ -7,6 +7,7 @@ import { aiGenerateReleaseNotes } from '@/lib/ai-api';
 import { comparisonCommits } from '../iteration/BranchDivergenceCheck';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -156,7 +157,7 @@ export function AiReleaseNotesDialog({
               onClick={() => void handleCopy()}
               className="h-7 text-xs"
             >
-              {copied ? <CheckIcon className="size-3.5 mr-1 text-emerald-500" /> : <CopyIcon className="size-3.5 mr-1" />}
+              {copied ? <CheckIcon className="size-3.5 mr-1 text-emerald-600 dark:text-emerald-400" /> : <CopyIcon className="size-3.5 mr-1" />}
               {copied ? '已复制' : '复制 Markdown'}
             </Button>
           </div>
@@ -177,9 +178,9 @@ export function AiReleaseNotesDialog({
               </Button>
             </div>
           ) : tab === 'preview' ? (
-            <div className="rounded-lg border border-border/50 bg-background/50 p-4 text-xs font-mono whitespace-pre-wrap leading-relaxed text-foreground select-text">
+            <Card className="rounded-lg border border-border/50 bg-background/50 p-4 text-xs font-mono whitespace-pre-wrap leading-relaxed text-foreground select-text">
               {content}
-            </div>
+            </Card>
           ) : (
             <Textarea
               value={content}

@@ -1035,7 +1035,7 @@ export function RequirementDetails({
         {/* 左主列：无卡片白框，纯粹呼吸感的 Linear 画布 */}
         <div className="flex min-w-0 flex-col gap-8">
           {parent && (
-            <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/30 px-3.5 py-2.5 text-xs">
+            <Card className="flex flex-row items-center justify-between rounded-lg border border-border/70 bg-muted/30 px-3.5 py-2.5 text-xs">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-muted-foreground shrink-0">
                   {category === 'Bug' ? '关联缺陷挂载于需求：' : '子任务挂载于需求：'}
@@ -1069,7 +1069,7 @@ export function RequirementDetails({
               >
                 查看父需求 ›
               </Button>
-            </div>
+            </Card>
           )}
 
           {/* 分栏导航 Tabs（HeroUI 胶囊分段 Tabs，对齐 Linear / HeroUI Pro 风格） */}
