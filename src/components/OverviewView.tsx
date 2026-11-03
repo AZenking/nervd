@@ -22,6 +22,7 @@ import { CycleHeaderBanner } from './overview/cycle-header-banner';
 import { QuickBuildConsole } from './overview/quick-build-console';
 import { HealthDistributionCard } from './overview/health-distribution';
 import { Card } from '@/components/ui/card';
+import { ProgressBar, Label } from '@heroui/react';
 
 /** 运行状态归一：与 StatusBadge 同一套语义分组 */
 const runGroup = (status?: string): RunStatus => {
@@ -186,6 +187,22 @@ export function OverviewView() {
       />
 
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 py-1">
+        {loadingList && (
+          <div className="w-full">
+            <ProgressBar
+              isIndeterminate
+              aria-label="正在刷新总览数据"
+              size="sm"
+              color="accent"
+            >
+              <Label className="text-xs text-muted-foreground">正在同步最新总览状态…</Label>
+              <ProgressBar.Track>
+                <ProgressBar.Fill />
+              </ProgressBar.Track>
+            </ProgressBar>
+          </div>
+        )}
+
         {/* 1. Linear 标志性 Cycle Header 迭代周期横幅 */}
         <CycleHeaderBanner
           iteration={currentIteration}
