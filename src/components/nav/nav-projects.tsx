@@ -63,7 +63,7 @@ export function NavProjects() {
                 <StatusIcon status={effectiveStatus} />
                 <IterationName name={iteration.name} showOverflowTooltip={!useSidebarTooltip} />
                 {isOngoing && (
-                  <span className="ml-auto text-[10px] text-muted-foreground/80 font-normal group-data-[collapsible=icon]:hidden">
+                  <span className="ml-auto rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40 text-[10.5px] font-semibold px-2 py-0.5 leading-none group-data-[collapsible=icon]:hidden">
                     当前
                   </span>
                 )}

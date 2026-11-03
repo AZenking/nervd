@@ -93,13 +93,13 @@
   --chart-5: #30a46c;
   /* Linear 控件基准 10px；rounded-md(6px)/rounded-xl(12px) 等由下方刻度细分 */
   --radius: 0.625rem;
-  --sidebar: #f9f9f9;
+  --sidebar: #ffffff;
   --sidebar-foreground: #26282d;
   --sidebar-primary: #5e6ad2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef0f2;
-  --sidebar-accent-foreground: #26282d;
-  --sidebar-border: #e8e9eb;
+  --sidebar-accent: #f4f5f7;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #f0f1f3;
   --sidebar-ring: #5e6ad2;
 }
 

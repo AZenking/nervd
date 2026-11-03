@@ -21,7 +21,7 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
   const { setView, view } = useUi();
   return (
     <SidebarGroup className="px-0 py-0">
-      <SidebarMenu>
+      <SidebarMenu className="gap-1">
         {items.map((item) => (
           <SidebarMenuItem key={item.title}>
             <SidebarMenuButton
@@ -33,7 +33,7 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
               }}
             >
               {item.icon}
-              <span className="flex-1">{item.title}</span>
+              <span className="flex-1 font-medium">{item.title}</span>
               {item.badge}
             </SidebarMenuButton>
           </SidebarMenuItem>
