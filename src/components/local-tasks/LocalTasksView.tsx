@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -108,9 +108,9 @@ export function LocalTasksView() {
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="本地任务"
         titleBadge={
-          <Badge variant="outline" className="font-mono text-xs border-primary/30 text-primary bg-primary/5">
+          <Chip size="sm" variant="soft" color="accent">
             {pendingCount} 个未完成 · {doneCount} 个已完成
-          </Badge>
+          </Chip>
         }
         description="与云效迭代完全解耦的个人轻量工作台，基于 SQLite 持久化并联动 Codeup 仓库与分支"
         toolbar={

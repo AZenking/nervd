@@ -35,6 +35,7 @@ import { openRepoBuildLogs, openPipelineRunLogs } from '@/components/build-workb
 import { openExternal } from '@/lib/yunxiao-link';
 import type { JenkinsJobParameter, JenkinsJobSummary } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/searchable-select';
 import {
@@ -385,14 +386,14 @@ export function QuickBuildConsole() {
               快捷构建控制台
             </h3>
             {activeBuilds.length > 0 ? (
-              <div className="flex items-center gap-1.5 rounded-full bg-sig-run/15 px-2 py-0.5 text-[10px] font-medium text-sig-run border border-sig-run/30">
+              <Chip size="sm" color="warning" variant="soft" className="gap-1.5">
                 <span className="relative flex size-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sig-run opacity-75" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-sig-run" />
                 </span>
-                <span>活跃构建中 ({activeBuilds.length})</span>
+                <Chip.Label>活跃构建中 ({activeBuilds.length})</Chip.Label>
                 <RadioIcon className="size-2.5 ml-0.5 animate-pulse" />
-              </div>
+              </Chip>
             ) : (
               <span className="text-[11px] font-normal text-muted-foreground hidden sm:inline">
                 就地选择任务、调参并即时触发

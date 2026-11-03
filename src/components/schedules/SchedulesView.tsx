@@ -26,6 +26,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -157,17 +158,13 @@ export function SchedulesView() {
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="定时任务工作台"
         titleBadge={
-          <Badge
-            variant="outline"
-            className={cn(
-              'font-mono text-xs',
-              globalPaused
-                ? 'border-amber-500/30 text-amber-500 bg-amber-500/5'
-                : 'border-primary/30 text-primary bg-primary/5',
-            )}
+          <Chip
+            size="sm"
+            variant="soft"
+            color={globalPaused ? 'warning' : activeCount > 0 ? 'accent' : 'default'}
           >
             {globalPaused ? '调度器已全局暂停' : `${activeCount} 个任务运行中`}
-          </Badge>
+          </Chip>
         }
         description="自动化执行分支同步合并（谨慎/激进零污染）、流水线部署与云效工作项巡检"
         actions={
@@ -522,68 +519,38 @@ export function ActionTypeTag({
   switch (type) {
     case 'branch_merge':
       return (
-        <Badge
-          variant="outline"
-          className={cn(
-            'border-indigo-500/30 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
-            className,
-          )}
-        >
+        <Chip size="sm" color="accent" variant="soft" className={className}>
           <GitMergeIcon className="size-3" />
-          分支合并
-        </Badge>
+          <Chip.Label>分支合并</Chip.Label>
+        </Chip>
       );
     case 'pipeline':
       return (
-        <Badge
-          variant="outline"
-          className={cn(
-            'border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
-            className,
-          )}
-        >
+        <Chip size="sm" color="success" variant="soft" className={className}>
           <WorkflowIcon className="size-3" />
-          云效流水线
-        </Badge>
+          <Chip.Label>云效流水线</Chip.Label>
+        </Chip>
       );
     case 'jenkins':
       return (
-        <Badge
-          variant="outline"
-          className={cn(
-            'border-sky-500/30 text-sky-600 dark:text-sky-400 bg-sky-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
-            className,
-          )}
-        >
+        <Chip size="sm" color="accent" variant="soft" className={className}>
           <TerminalIcon className="size-3" />
-          Jenkins
-        </Badge>
+          <Chip.Label>Jenkins</Chip.Label>
+        </Chip>
       );
     case 'sync_workitems':
       return (
-        <Badge
-          variant="outline"
-          className={cn(
-            'border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
-            className,
-          )}
-        >
+        <Chip size="sm" color="warning" variant="soft" className={className}>
           <RefreshCwIcon className="size-3" />
-          需求同步
-        </Badge>
+          <Chip.Label>需求同步</Chip.Label>
+        </Chip>
       );
     case 'scan_branches':
       return (
-        <Badge
-          variant="outline"
-          className={cn(
-            'border-purple-500/30 text-purple-600 dark:text-purple-400 bg-purple-500/10 text-[10px] font-medium inline-flex items-center gap-1 px-1.5 py-0.5',
-            className,
-          )}
-        >
+        <Chip size="sm" color="accent" variant="soft" className={className}>
           <GitCompareIcon className="size-3" />
-          分支巡检
-        </Badge>
+          <Chip.Label>分支巡检</Chip.Label>
+        </Chip>
       );
     default:
       return null;

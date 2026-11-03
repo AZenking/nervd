@@ -7,6 +7,8 @@ import {
 } from '@/lib/iteration-period';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { statusMeta } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
 import { LinearSegmentedProgressBar } from './segmented-progress-bar';
 import {
@@ -34,13 +36,6 @@ export function CycleHeaderBanner({
   className,
 }: CycleHeaderBannerProps) {
   const remaining = calculateSprintRemaining(iteration?.endDate);
-
-  const remainingToneClasses = {
-    run: 'border-sig-run/30 bg-sig-run/10 text-sig-run',
-    fail: 'border-sig-fail/30 bg-sig-fail/10 text-sig-fail',
-    ok: 'border-sig-ok/30 bg-sig-ok/10 text-sig-ok',
-    idle: 'border-border bg-muted/40 text-muted-foreground',
-  }[remaining.tone];
 
   return (
     <div
@@ -108,9 +103,19 @@ export function CycleHeaderBanner({
           )}
 
           {/* 状态徽标 */}
-          <span className="rounded px-1.5 py-0.5 text-[11px] font-medium border border-border/80 bg-muted/40 text-muted-foreground">
+          <Chip
+            size="sm"
+            variant="soft"
+            color={
+              statusMeta(iteration?.state).tone === 'ok'
+                ? 'success'
+                : statusMeta(iteration?.state).tone === 'fail'
+                  ? 'danger'
+                  : 'default'
+            }
+          >
             {iteration?.state || '进行中'}
-          </span>
+          </Chip>
 
           {/* 日期周期 */}
           <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
@@ -119,14 +124,13 @@ export function CycleHeaderBanner({
           </span>
 
           {/* 倒计时胶囊 */}
-          <span
-            className={cn(
-              'rounded-full border px-2 py-0.5 text-[11px] font-medium',
-              remainingToneClasses,
-            )}
+          <Chip
+            size="sm"
+            variant="soft"
+            color={remaining.tone === 'fail' ? 'danger' : remaining.tone === 'run' ? 'warning' : 'default'}
           >
             {remaining.label}
-          </span>
+          </Chip>
         </div>
 
         {/* 右侧进入工作台操作 */}

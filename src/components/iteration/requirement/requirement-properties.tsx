@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { useUi } from '@/store/ui';
 import { StatusIcon } from '@/components/status-icon';
+import { statusMeta, type StatusTone } from '@/components/StatusBadge';
+import { Chip } from '@/components/ui/chip';
 import { SearchableAssigneePopover } from './assignee-popover';
 import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 
@@ -39,22 +41,54 @@ export function DetailStatusPopover({
     if (open) void fetchStatuses();
   }, [fetchStatuses, open]);
 
-  return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+  const renderTrigger = () => {
+    if (variant === 'badge') {
+      const meta = statusMeta(status);
+      const colorMap: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
+        ok: 'success',
+        run: 'warning',
+        fail: 'danger',
+        idle: 'default',
+      };
+      const color = colorMap[meta.tone] ?? 'default';
+
+      return (
+        <DropdownMenuTrigger
+          className="cursor-pointer"
+          render={
+            <Chip
+              size="sm"
+              color={color}
+              variant="soft"
+              className={className}
+              title="点击原地流转状态"
+            >
+              <StatusIcon status={status} className="size-3 shrink-0" />
+              <Chip.Label>{status || '未知状态'}</Chip.Label>
+              <ChevronDownIcon className="size-3 shrink-0 opacity-60 ml-0.5" />
+            </Chip>
+          }
+        />
+      );
+    }
+
+    return (
       <DropdownMenuTrigger
         className={cn(
-          'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none',
-          variant === 'badge'
-            ? 'h-7 rounded-md border border-border/60 bg-muted/20 hover:bg-muted/60 hover:border-border/80 px-2.5 text-xs font-medium'
-            : 'rounded-sm hover:bg-muted/80 px-1.5 py-0.5 text-xs font-medium',
+          'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none rounded-sm hover:bg-muted/80 px-1.5 py-0.5 text-xs font-medium',
           className,
         )}
         title="点击原地流转状态"
       >
         <StatusIcon status={status} className="size-3.5 shrink-0" />
         <span>{status || '未知状态'}</span>
-        {variant === 'badge' && <ChevronDownIcon className="size-3 text-muted-foreground/60 shrink-0 ml-0.5" />}
       </DropdownMenuTrigger>
+    );
+  };
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      {renderTrigger()}
       <DropdownMenuContent align="start" className="w-36 p-1 z-50 bg-popover/95 backdrop-blur-md border border-border shadow-level-2">
         <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
           流转状态

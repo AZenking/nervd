@@ -18,7 +18,9 @@ import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { SearchableAssigneePopover } from './requirement/assignee-popover';
 import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
+import { statusMeta } from '../StatusBadge';
 import { Descriptions, type DescriptionsItem } from '@/components/ui/descriptions';
 import {
   Drawer,
@@ -223,6 +225,9 @@ export function ChildDetailDrawer({
     await changeStatus(status);
   };
 
+  const statusTone = statusMeta(statusName).tone;
+  const statusColor = statusTone === 'ok' ? 'success' : statusTone === 'fail' ? 'danger' : statusTone === 'run' ? 'warning' : 'default';
+
   const statusDropdown = (
     <DropdownMenu
       open={statusOpen}
@@ -233,23 +238,22 @@ export function ChildDetailDrawer({
     >
       <DropdownMenuTrigger
         render={
-          <button
-            type="button"
-            className={cn(
-              'group/status inline-flex items-center gap-1.5 rounded border border-border/60 bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer',
-              updatingStatus && 'pointer-events-none opacity-60',
-            )}
+          <Chip
+            size="sm"
+            color={statusColor}
+            variant="soft"
+            className={cn('cursor-pointer', updatingStatus && 'pointer-events-none opacity-60')}
             title="点击快速更改状态"
-          />
+          >
+            {updatingStatus ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <StatusIcon status={statusName} className="size-3.5 shrink-0" />
+            )}
+            <Chip.Label>{statusName || '未指定'}</Chip.Label>
+          </Chip>
         }
-      >
-        {updatingStatus ? (
-          <Spinner className="size-3.5" />
-        ) : (
-          <StatusIcon status={statusName} className="size-3.5 shrink-0" />
-        )}
-        <span className="text-foreground">{statusName || '未指定'}</span>
-      </DropdownMenuTrigger>
+      />
       <DropdownMenuContent align="start" className="min-w-36 z-50">
         {loadingStatuses && (
           <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
