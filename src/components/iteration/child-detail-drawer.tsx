@@ -17,7 +17,6 @@ import * as api from '@/lib/api';
 import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { SearchableAssigneePopover } from './requirement/assignee-popover';
-import { Badge } from '@/components/ui/badge';
 import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
 import { statusMeta } from '../StatusBadge';
@@ -380,33 +379,31 @@ export function ChildDetailDrawer({
         <DrawerHeader className="border-b border-border/70 pb-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <Badge
-                variant="outline"
-                className={cn(
-                  'gap-1 px-1.5 py-0.5 text-[11px] font-normal shrink-0',
-                  isBug
-                    ? 'border-destructive/30 bg-destructive/10 text-destructive'
-                    : 'border-primary/30 bg-primary/10 text-primary',
-                )}
+              <Chip
+                size="sm"
+                variant="soft"
+                color={isBug ? 'danger' : 'accent'}
+                className="gap-1 shrink-0"
               >
-                {isBug ? <BugIcon className="size-3" /> : <LayersIcon className="size-3" />}
-                <span>{categoryLabel}</span>
-              </Badge>
+                {isBug ? <BugIcon className="size-3 shrink-0" /> : <LayersIcon className="size-3 shrink-0" />}
+                <Chip.Label>{categoryLabel}</Chip.Label>
+              </Chip>
 
               {child?.identifier && (
-                <button
-                  type="button"
+                <Chip
+                  size="sm"
+                  variant="secondary"
+                  className="font-mono cursor-pointer transition-colors hover:bg-muted/60 gap-1 shrink-0"
                   onClick={copyIdentifier}
-                  className="group inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer shrink-0"
                   title="点击复制编号"
                 >
-                  <span>{child.identifier}</span>
+                  <Chip.Label>{child.identifier}</Chip.Label>
                   {copied ? (
-                    <CheckIcon className="size-3 text-sig-ok" />
+                    <CheckIcon className="size-3 text-sig-ok shrink-0" />
                   ) : (
-                    <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />
+                    <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
                   )}
-                </button>
+                </Chip>
               )}
             </div>
 

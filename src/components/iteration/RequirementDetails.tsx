@@ -19,6 +19,7 @@ import { useUi } from '@/store/ui';
 import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -732,15 +733,20 @@ export function RequirementDetails({
             <span className="flex min-w-0 items-center gap-2.5">
               <StatusIcon status={statusName} className="size-4 shrink-0" />
               {identifier && (
-                <button
-                  type="button"
+                <Chip
+                  size="sm"
+                  variant="secondary"
+                  className="font-mono cursor-pointer transition-colors hover:bg-muted/60 gap-1 shrink-0"
                   onClick={copyIdentifier}
-                  className="group inline-flex shrink-0 items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
                   title="点击复制编号"
                 >
-                  <span>{identifier}</span>
-                  {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
-                </button>
+                  <Chip.Label>{identifier}</Chip.Label>
+                  {copiedId ? (
+                    <CheckIcon className="size-3 text-sig-ok shrink-0" />
+                  ) : (
+                    <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+                  )}
+                </Chip>
               )}
               <OverflowTooltip
                 text={subject}
@@ -832,98 +838,119 @@ export function RequirementDetails({
               />
 
               {/* 类型 Chip */}
-              <div
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none"
+              <Chip
+                size="sm"
+                variant="soft"
+                className="gap-1.5 text-foreground/85 select-none"
                 title={`工作项类型：${category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}`}
               >
                 <LayersIcon className="size-3.5 text-muted-foreground shrink-0" />
-                <span>{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</span>
-              </div>
+                <Chip.Label>{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</Chip.Label>
+              </Chip>
 
               {/* 项目空间 Chip */}
               {spaceName && (
-                <div
-                  className="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none"
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  className="gap-1.5 max-w-48 text-foreground/85 select-none"
                   title={`项目空间：${spaceName}`}
                 >
                   <FolderIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <OverflowTooltip text={spaceName} className="truncate" />
-                </div>
+                  <Chip.Label className="truncate">
+                    <OverflowTooltip text={spaceName} className="truncate" />
+                  </Chip.Label>
+                </Chip>
               )}
 
               {/* 所属迭代 Chip */}
-              <div
-                className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none"
+              <Chip
+                size="sm"
+                variant="soft"
+                className="gap-1.5 max-w-56 text-foreground/85 select-none"
                 title={`所属迭代：${iterationName || '未关联迭代'}`}
               >
                 <CalendarIcon className="size-3.5 text-muted-foreground shrink-0" />
-                <OverflowTooltip
-                  text={iterationName || '未关联迭代'}
-                  className="truncate"
-                />
-              </div>
+                <Chip.Label className="truncate">
+                  <OverflowTooltip
+                    text={iterationName || '未关联迭代'}
+                    className="truncate"
+                  />
+                </Chip.Label>
+              </Chip>
 
               {/* 关联仓库 Chip */}
-              <button
-                type="button"
+              <Chip
+                size="sm"
+                variant="soft"
+                className="gap-1.5 text-foreground/85 cursor-pointer transition-colors hover:bg-muted/60 hover:text-foreground"
                 onClick={() => {
                   const el = document.getElementById('linked-repos-section');
                   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 transition-colors hover:bg-muted/60 hover:border-border/80 hover:text-foreground cursor-pointer"
                 title={`已关联 ${effectiveRepoIds.length} 个代码仓库，点击定位至仓库区块`}
               >
                 <DatabaseIcon className="size-3.5 text-muted-foreground shrink-0" />
-                <span>{effectiveRepoIds.length} 个仓库</span>
-              </button>
+                <Chip.Label>{effectiveRepoIds.length} 个仓库</Chip.Label>
+              </Chip>
 
               {/* 迭代基准 Chip */}
               {iterationBranchValue && iterationBranchValue !== '—' && (
-                <div
-                  className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none font-mono"
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  className="gap-1.5 max-w-56 text-foreground/85 select-none font-mono"
                   title={`迭代基准规则/模板：${iterationBranchValue}`}
                 >
                   <GitBranchIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <OverflowTooltip text={iterationBranchValue} className="truncate" />
-                </div>
+                  <Chip.Label className="truncate">
+                    <OverflowTooltip text={iterationBranchValue} className="truncate" />
+                  </Chip.Label>
+                </Chip>
               )}
 
               {/* 更新时间 Chip */}
               {updatedAt && (
-                <div
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-muted-foreground select-none font-mono"
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  className="gap-1.5 text-muted-foreground select-none font-mono"
                   title={`最后更新时间：${String(updatedAt).replace('T', ' ')}`}
                 >
                   <ClockIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <span>{String(updatedAt).slice(0, 16).replace('T', ' ')}</span>
-                </div>
+                  <Chip.Label>{String(updatedAt).slice(0, 16).replace('T', ' ')}</Chip.Label>
+                </Chip>
               )}
 
               {/* 创建人 Chip（若与处理人不同） */}
               {creatorName && creatorName !== assignedToName && (
-                <div
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-muted-foreground select-none"
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  className="gap-1.5 text-muted-foreground select-none"
                   title={`创建人：${creatorName}`}
                 >
                   <UserIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <span>创建: {creatorName}</span>
-                </div>
+                  <Chip.Label>创建: {creatorName}</Chip.Label>
+                </Chip>
               )}
 
               {/* 父需求 Chip */}
               {parent && (
-                <button
-                  type="button"
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  color="accent"
+                  className="gap-1.5 max-w-48 cursor-pointer transition-colors hover:opacity-80 font-mono"
                   onClick={() => {
                     if (onSelectParent) onSelectParent(parent.workitemId);
                     else openWorkitem(parent.workitemId, parent);
                   }}
-                  className="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10 hover:border-primary/50 cursor-pointer font-mono"
                   title={`所属父需求：${parent.identifier} ${parent.subject || ''}`}
                 >
                   <GitForkIcon className="size-3.5 shrink-0" />
-                  <span className="truncate">{parent.identifier}</span>
-                </button>
+                  <Chip.Label className="truncate">{parent.identifier}</Chip.Label>
+                </Chip>
               )}
             </div>
           )}
@@ -941,15 +968,20 @@ export function RequirementDetails({
             </span>
           )}
           titleBadge={identifier ? (
-            <button
-              type="button"
+            <Chip
+              size="sm"
+              variant="secondary"
+              className="font-mono cursor-pointer transition-colors hover:bg-muted/60 gap-1.5"
               onClick={copyIdentifier}
-              className="group inline-flex items-center gap-1.5 rounded-md bg-muted/70 px-2 py-0.5 font-mono text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
               title="点击复制编号"
             >
-              <span>{identifier}</span>
-              {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
-            </button>
+              <Chip.Label>{identifier}</Chip.Label>
+              {copiedId ? (
+                <CheckIcon className="size-3 text-sig-ok shrink-0" />
+              ) : (
+                <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+              )}
+            </Chip>
           ) : undefined}
           titleClassName="text-2xl font-semibold tracking-tight"
           actions={(

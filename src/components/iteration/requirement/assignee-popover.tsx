@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon, ChevronDownIcon, SearchIcon, UserIcon, XIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Chip } from '@/components/ui/chip';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -207,15 +208,47 @@ export function SearchableAssigneePopover({
 
     // 'cell' 或 'badge'
     const isBadge = variant === 'badge';
+    if (isBadge) {
+      return (
+        <Chip
+          size="sm"
+          color="default"
+          variant="soft"
+          onClick={handleTriggerClick}
+          className={cn(
+            'group/assignee gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none hover:bg-muted/60',
+            updating && 'pointer-events-none opacity-60',
+            disabled && 'pointer-events-none opacity-50',
+            className,
+          )}
+          title="点击更改负责人"
+        >
+          {updating ? (
+            <Spinner className="size-3.5 shrink-0" />
+          ) : assignedToName ? (
+            <Avatar className="size-3.5 shrink-0">
+              <AvatarFallback className="text-[9px]">{assignedToName.charAt(0)}</AvatarFallback>
+            </Avatar>
+          ) : (
+            <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
+          )}
+          <Chip.Label>
+            <OverflowTooltip
+              text={assignedToName || placeholder}
+              className="max-w-28 truncate"
+            />
+          </Chip.Label>
+          <ChevronDownIcon className="size-3 text-muted-foreground/60 shrink-0 ml-0.5 transition-transform group-hover/assignee:opacity-100" />
+        </Chip>
+      );
+    }
+
     return (
       <button
         type="button"
         onClick={handleTriggerClick}
         className={cn(
-          'group/assignee inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none',
-          isBadge
-            ? 'h-7 rounded-md border border-border/60 bg-muted/20 hover:bg-muted/60 hover:border-border/80 px-2.5 text-xs font-medium'
-            : 'rounded-sm hover:bg-muted/80 px-1.5 py-0.5 text-xs font-medium',
+          'group/assignee inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none rounded-sm hover:bg-muted/80 px-1.5 py-0.5 text-xs font-medium',
           updating && 'pointer-events-none opacity-60',
           disabled && 'pointer-events-none opacity-50',
           className,
@@ -233,7 +266,7 @@ export function SearchableAssigneePopover({
         )}
         <OverflowTooltip
           text={assignedToName || placeholder}
-          className={cn('truncate', isBadge ? 'max-w-28' : 'max-w-24')}
+          className="max-w-24 truncate"
         />
         <ChevronDownIcon className="size-3 text-muted-foreground/60 shrink-0 ml-0.5 transition-transform group-hover/assignee:opacity-100" />
       </button>
