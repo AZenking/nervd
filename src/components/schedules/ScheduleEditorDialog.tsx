@@ -908,7 +908,7 @@ export function ScheduleEditorDialog({
                 onValueChange={(val) => handleFreqModeSelect(val as FreqMode)}
                 className="w-full space-y-2.5"
               >
-                <TabsList size="lg" className="w-full grid grid-cols-4 rounded-full">
+                <TabsList className="w-full grid grid-cols-4">
                   <TabsTrigger
                     value="preset"
                     className="min-w-0"

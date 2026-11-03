@@ -8,6 +8,16 @@ let root: Root;
 
 beforeEach(() => {
   (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
+  if (typeof globalThis.ResizeObserver === 'undefined') {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as any;
+  }
+  if (typeof Element.prototype.getAnimations === 'undefined') {
+    Element.prototype.getAnimations = () => [];
+  }
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -18,8 +28,8 @@ afterEach(async () => {
   host.remove();
 });
 
-describe('Tabs Component', () => {
-  it('renders segmented tabs list with default styling and proper roles', async () => {
+describe('HeroUI Tabs Component', () => {
+  it('renders HeroUI segmented tabs list with native list container, indicator and proper roles', async () => {
     await act(() =>
       root.render(
         <Tabs defaultValue="req">
@@ -35,65 +45,56 @@ describe('Tabs Component', () => {
       )
     );
 
+    const listContainer = host.querySelector('.tabs__list-container');
+    expect(listContainer).not.toBeNull();
+
     const tabList = host.querySelector('[role="tablist"]');
     expect(tabList).not.toBeNull();
-    expect(tabList?.getAttribute('data-variant')).toBe('default');
-    expect(tabList?.className).toContain('bg-muted/60');
-    expect(tabList?.className).toContain('p-0.5');
+    expect(tabList?.className).toContain('tabs__list');
 
     const tabs = host.querySelectorAll('[role="tab"]');
     expect(tabs.length).toBe(3);
     expect(tabs[0].textContent).toBe('需求');
-    expect(tabs[0].getAttribute('data-active')).toBe('');
+    expect(tabs[0].getAttribute('data-selected')).toBe('true');
+
+    // HeroUI indicator exists on selected tab
+    const indicator = tabs[0].querySelector('[data-slot="tabs-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator?.className).toContain('tabs__indicator');
+
+    // Panel content renders correctly
+    const panel = host.querySelector('[role="tabpanel"]');
+    expect(panel?.textContent).toBe('需求内容');
   });
 
-  it('inherits size from TabsList to TabsTrigger', async () => {
+  it('supports direct HeroUI compound API', async () => {
     await act(() =>
       root.render(
-        <Tabs defaultValue="a">
-          <TabsList size="xs">
-            <TabsTrigger value="a">A</TabsTrigger>
-            <TabsTrigger value="b">B</TabsTrigger>
-          </TabsList>
+        <Tabs defaultSelectedKey="first">
+          <Tabs.ListContainer>
+            <Tabs.List aria-label="Compound Test">
+              <Tabs.Tab id="first">
+                Tab 1
+                <Tabs.Indicator />
+              </Tabs.Tab>
+              <Tabs.Tab id="second">
+                Tab 2
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            </Tabs.List>
+          </Tabs.ListContainer>
+          <Tabs.Panel id="first">First Panel</Tabs.Panel>
+          <Tabs.Panel id="second">Second Panel</Tabs.Panel>
         </Tabs>
       )
     );
 
     const tabList = host.querySelector('[role="tablist"]');
-    expect(tabList?.className).toContain('h-6');
-    const trigger = host.querySelector('[role="tab"]');
-    expect(trigger?.className).toContain('text-[11px]');
-  });
+    expect(tabList).not.toBeNull();
+    expect(tabList?.getAttribute('aria-label')).toBe('Compound Test');
 
-  it('supports size="lg" for comfortable controls', async () => {
-    await act(() =>
-      root.render(
-        <Tabs defaultValue="a">
-          <TabsList size="lg">
-            <TabsTrigger value="a">A</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      )
-    );
-
-    const tabList = host.querySelector('[role="tablist"]');
-    expect(tabList?.className).toContain('h-8');
-  });
-
-  it('supports variant="ghost" without background container', async () => {
-    await act(() =>
-      root.render(
-        <Tabs defaultValue="settings">
-          <TabsList variant="ghost">
-            <TabsTrigger value="settings">常规设置</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      )
-    );
-
-    const tabList = host.querySelector('[role="tablist"]');
-    expect(tabList?.className).toContain('bg-transparent');
-    expect(tabList?.className).toContain('p-0');
+    const activeTab = host.querySelector('[data-selected="true"]');
+    expect(activeTab?.textContent).toContain('Tab 1');
   });
 
   it('handles value changes and triggers onValueChange', async () => {
@@ -109,11 +110,26 @@ describe('Tabs Component', () => {
       )
     );
 
-    const secondTab = host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1];
+    const secondTab = host.querySelectorAll<HTMLElement>('[role="tab"]')[1];
     await act(() => {
       secondTab.click();
     });
 
     expect(onValueChange).toHaveBeenCalledWith('tab2', expect.anything());
+  });
+
+  it('supports native vertical orientation', async () => {
+    await act(() =>
+      root.render(
+        <Tabs orientation="vertical" defaultValue="v1">
+          <TabsList>
+            <TabsTrigger value="v1">V1</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )
+    );
+
+    const rootElement = host.querySelector('[data-slot="tabs"]');
+    expect(rootElement?.getAttribute('data-orientation')).toBe('vertical');
   });
 });

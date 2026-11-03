@@ -101,6 +101,13 @@
   --sidebar-accent-foreground: #18181b;
   --sidebar-border: #f0f1f3;
   --sidebar-ring: #5e6ad2;
+
+  /* HeroUI semantic token alignments */
+  --muted-text: var(--muted-foreground);
+}
+
+.tabs {
+  --muted: var(--muted-foreground);
 }
 
 .dark {
