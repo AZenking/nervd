@@ -18,6 +18,7 @@ import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
+import { Tabs } from '@heroui/react';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -50,6 +51,7 @@ import { RequirementActivity } from './requirement/requirement-activity';
 
 export { RequirementDetailsSkeleton };
 export type { RequirementDetailsProps };
+export type DetailTabKey = 'description' | 'repos' | 'children' | 'activity';
 
 /**
  * 单栏窄窗口扩展 props（IterationView 在 < SINGLE_COLUMN_WORKSPACE_WIDTH 时传入）：
@@ -158,6 +160,14 @@ export function RequirementDetails({
   const isRequirement = category === 'Req';
   const subtasks = isRequirement ? children.filter((c) => c.category !== 'Bug') : [];
   const defects = isRequirement ? children.filter((c) => c.category === 'Bug') : [];
+
+  const [activeTab, setActiveTab] = useState<DetailTabKey>('description');
+
+  useEffect(() => {
+    if (!isRequirement && activeTab === 'children') {
+      setActiveTab('description');
+    }
+  }, [isRequirement, activeTab]);
 
   const statusName = (typeof wi.status === 'string' && wi.status)
     || (wi.status && typeof wi.status === 'object' && typeof (wi.status as any).name === 'string' ? (wi.status as any).name : '')
@@ -885,10 +895,11 @@ export function RequirementDetails({
                 variant="soft"
                 className="gap-1.5 text-foreground/85 cursor-pointer transition-colors hover:bg-muted/60 hover:text-foreground"
                 onClick={() => {
+                  setActiveTab('repos');
                   const el = document.getElementById('linked-repos-section');
                   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
-                title={`已关联 ${effectiveRepoIds.length} 个代码仓库，点击定位至仓库区块`}
+                title={`已关联 ${effectiveRepoIds.length} 个代码仓库，点击切换至关联仓库标签页`}
               >
                 <DatabaseIcon className="size-3.5 text-muted-foreground shrink-0" />
                 <Chip.Label>{effectiveRepoIds.length} 个仓库</Chip.Label>
@@ -1060,38 +1071,91 @@ export function RequirementDetails({
             </div>
           )}
 
-          {/* 需求描述 (Linear 风格无边框融入画板) */}
-          <section className="flex flex-col gap-3">
-            <SectionHeader
-              title="描述"
-              action={
-                selectedId && allowWrite && !isEditingDesc ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setIsEditingDesc(true)}
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    title="编辑描述"
-                  >
-                    <PencilIcon className="size-3 mr-1" />
-                    编辑
-                  </Button>
-                ) : null
-              }
-            />
-            <div className="text-sm leading-relaxed text-foreground/90">
-              <RichDescription
-                raw={wi.description ?? wi.content}
-                workitemId={selectedId ?? undefined}
-                isEditing={isEditingDesc}
-                onEditingChange={setIsEditingDesc}
-              />
-            </div>
-          </section>
+          {/* 分栏导航 Tabs（HeroUI 胶囊分段 Tabs，对齐 Linear / HeroUI Pro 风格） */}
+          <Tabs
+            selectedKey={activeTab}
+            onSelectionChange={(key) => setActiveTab(String(key) as DetailTabKey)}
+            className="w-full gap-4"
+          >
+            <Tabs.ListContainer className="w-fit">
+              <Tabs.List aria-label="需求详情分栏导航">
+                <Tabs.Tab id="description">
+                  <span>描述</span>
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="repos">
+                  <span className="flex items-center gap-1.5">
+                    <span>关联仓库</span>
+                    {effectiveRepoIds.length > 0 && (
+                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/80">
+                        {effectiveRepoIds.length}
+                      </span>
+                    )}
+                  </span>
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                {isRequirement && (
+                  <Tabs.Tab id="children">
+                    <span className="flex items-center gap-1.5">
+                      <span>子工作项</span>
+                      {subtasks.length + defects.length > 0 && (
+                        <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/80">
+                          {subtasks.length + defects.length}
+                        </span>
+                      )}
+                    </span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                )}
+                <Tabs.Tab id="activity">
+                  <span className="flex items-center gap-1.5">
+                    <span>活动动态</span>
+                    {comments.length > 0 && (
+                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/80">
+                        {comments.length}
+                      </span>
+                    )}
+                  </span>
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs.ListContainer>
 
-          {/* 关联云效仓库与代码操作 (Linear Integrations 风格) */}
-          <section id="linked-repos-section" className="flex flex-col gap-3">
+            {/* 标签页 1：需求描述 */}
+            <Tabs.Panel id="description" className="p-0 outline-none">
+              <section className="flex flex-col gap-3">
+                <SectionHeader
+                  title="描述"
+                  action={
+                    selectedId && allowWrite && !isEditingDesc ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setIsEditingDesc(true)}
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="编辑描述"
+                      >
+                        <PencilIcon className="size-3 mr-1" />
+                        编辑
+                      </Button>
+                    ) : null
+                  }
+                />
+                <div className="text-sm leading-relaxed text-foreground/90">
+                  <RichDescription
+                    raw={wi.description ?? wi.content}
+                    workitemId={selectedId ?? undefined}
+                    isEditing={isEditingDesc}
+                    onEditingChange={setIsEditingDesc}
+                  />
+                </div>
+              </section>
+            </Tabs.Panel>
+
+            {/* 标签页 2：关联云效仓库与代码操作 */}
+            <Tabs.Panel id="repos" className="p-0 outline-none">
+              <section id="linked-repos-section" className="flex flex-col gap-3">
             {/* 标题简化为「关联仓库 · n」；常驻 刷新全部 / 关联仓库(+Modal)，更多操作收入菜单 */}
             <SectionHeader
               title="关联仓库"
@@ -1411,55 +1475,61 @@ export function RequirementDetails({
               </div>
             )}
           </section>
+        </Tabs.Panel>
 
-          {/* 子工作项与缺陷 (Linear Sub-issues 风格) */}
-          {isRequirement && (() => {
-            const openChild = (child: WorkitemChild) => {
-              setActiveChildId(child.workitemId);
-              setDrawerChild(child);
-            };
+        {/* 标签页 3：子工作项与缺陷 */}
+        {isRequirement && (
+          <Tabs.Panel id="children" className="p-0 outline-none">
+            {(() => {
+              const openChild = (child: WorkitemChild) => {
+                setActiveChildId(child.workitemId);
+                setDrawerChild(child);
+              };
 
-            return (
-              <div className="flex flex-col gap-6">
-                <ChildrenCard
-                  title="子任务"
-                  category="Task"
-                  description="挂载在该需求下的子任务"
-                  items={subtasks}
-                  error={childrenError}
-                  debug={childrenDebug}
-                  parentWorkitemId={selectedId ?? ''}
-                  parentIdentifier={identifier}
-                  parentSubject={subject}
-                  parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
-                  parentAssigneeId={parentAssigneeId}
-                  parentAssigneeName={assignedToName}
-                  candidateAssignees={candidateAssignees}
-                  selectedChildId={activeChildId}
-                  onSelect={openChild}
-                />
-                <ChildrenCard
-                  title="缺陷"
-                  category="Bug"
-                  description="挂载在该需求下的缺陷"
-                  items={defects}
-                  error={childrenError}
-                  debug={childrenDebug}
-                  parentWorkitemId={selectedId ?? ''}
-                  parentIdentifier={identifier}
-                  parentSubject={subject}
-                  parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
-                  parentAssigneeId={parentAssigneeId}
-                  parentAssigneeName={assignedToName}
-                  candidateAssignees={candidateAssignees}
-                  selectedChildId={activeChildId}
-                  onSelect={openChild}
-                />
-              </div>
-            );
-          })()}
+              return (
+                <div className="flex flex-col gap-6">
+                  <ChildrenCard
+                    title="子任务"
+                    category="Task"
+                    description="挂载在该需求下的子任务"
+                    items={subtasks}
+                    error={childrenError}
+                    debug={childrenDebug}
+                    parentWorkitemId={selectedId ?? ''}
+                    parentIdentifier={identifier}
+                    parentSubject={subject}
+                    parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
+                    parentAssigneeId={parentAssigneeId}
+                    parentAssigneeName={assignedToName}
+                    candidateAssignees={candidateAssignees}
+                    selectedChildId={activeChildId}
+                    onSelect={openChild}
+                  />
+                  <ChildrenCard
+                    title="缺陷"
+                    category="Bug"
+                    description="挂载在该需求下的缺陷"
+                    items={defects}
+                    error={childrenError}
+                    debug={childrenDebug}
+                    parentWorkitemId={selectedId ?? ''}
+                    parentIdentifier={identifier}
+                    parentSubject={subject}
+                    parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
+                    parentAssigneeId={parentAssigneeId}
+                    parentAssigneeName={assignedToName}
+                    candidateAssignees={candidateAssignees}
+                    selectedChildId={activeChildId}
+                    onSelect={openChild}
+                  />
+                </div>
+              );
+            })()}
+          </Tabs.Panel>
+        )}
 
-          {/* Activity / 评论讨论（1:1 对齐 Linear Activity 时间轴与 AI 赋能） */}
+        {/* 标签页 4：Activity / 评论讨论（1:1 对齐 Linear Activity 时间轴与 AI 赋能） */}
+        <Tabs.Panel id="activity" className="p-0 outline-none">
           <RequirementActivity
             comments={comments}
             workitemId={selectedId ?? undefined}
@@ -1470,7 +1540,9 @@ export function RequirementDetails({
               done: [...subtasks, ...defects].filter((s) => s.status === '已完成' || s.status === '已解决' || s.status === '已关闭').length,
             }}
           />
-        </div>
+        </Tabs.Panel>
+      </Tabs>
+    </div>
 
         {/* 右侧边栏：Linear 式属性栏（全屏/非 embedded 模式下展示） */}
         {!embedded && (
