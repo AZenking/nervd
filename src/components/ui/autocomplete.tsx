@@ -14,6 +14,9 @@ export interface AutocompleteProps
   value?: string | null
   defaultValue?: string | null
   onValueChange?: (value: string | null) => void
+  selectedKey?: string | null
+  defaultSelectedKey?: string | null
+  onSelectionChange?: (key: any) => void
   disabled?: boolean
 }
 
@@ -22,16 +25,20 @@ function AutocompleteRoot({
   value,
   defaultValue,
   onValueChange,
+  selectedKey,
+  defaultSelectedKey,
+  onSelectionChange,
   disabled,
   isDisabled,
   children,
   ...props
 }: AutocompleteProps) {
-  const resolvedValue = value !== undefined ? (value ? String(value) : null) : undefined
-  const resolvedDefaultValue = defaultValue !== undefined ? (defaultValue ? String(defaultValue) : null) : undefined
+  const resolvedSelectedKey = value !== undefined ? (value ? String(value) : null) : selectedKey
+  const resolvedDefaultSelectedKey = defaultValue !== undefined ? (defaultValue ? String(defaultValue) : null) : defaultSelectedKey
   const resolvedDisabled = disabled ?? isDisabled
 
-  const handleChange = (key: any) => {
+  const handleSelectionChange = (key: any) => {
+    onSelectionChange?.(key)
     if (onValueChange) {
       if (key === null || key === undefined || key === "") {
         onValueChange(null)
@@ -44,9 +51,9 @@ function AutocompleteRoot({
   return (
     <HeroAutocomplete
       data-slot="autocomplete"
-      value={resolvedValue}
-      defaultValue={resolvedDefaultValue}
-      onChange={handleChange}
+      selectedKey={resolvedSelectedKey}
+      defaultSelectedKey={resolvedDefaultSelectedKey}
+      onSelectionChange={handleSelectionChange}
       isDisabled={resolvedDisabled}
       className={className}
       {...props}
