@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { PaneSeparator } from '@/components/ui/resizable';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -25,7 +26,6 @@ import {
   useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters, buildWorkitemFilterOptions, UNPLANNED_ITERATION,
 } from '@/store/ui';
 import { CATEGORY_LABELS, type Category } from '@/types';
-import { SearchableSelect } from '../searchable-select';
 import { PageHeader } from '../page-header';
 import { EmptyHint } from '../empty-hint';
 import { OverflowTooltip } from '../overflow-tooltip';
@@ -965,60 +965,69 @@ export function IterationView() {
           title="迭代"
           titleClassName="text-sm font-semibold tracking-tight text-foreground"
           scope={(
-            <SearchableSelect
-              className="w-28 text-xs sm:w-32"
-              ariaLabel="切换迭代"
+            <Select
+              className="w-32 text-xs sm:w-36 shrink-0"
+              aria-label="切换迭代"
               value={iteration.name}
               onValueChange={(v) => { if (v) setIteration(v); }}
-              items={iterations.map((it) => ({
-                label: `${it.name} · ${it.state}`,
-                value: it.name,
-              }))}
-            />
+            >
+              <SelectTrigger className="h-7 text-xs font-medium">
+                <SelectValue placeholder="切换迭代..." />
+              </SelectTrigger>
+              <SelectContent>
+                {iterations.map((it) => (
+                  <SelectItem key={it.name} value={it.name}>
+                    {it.name} · {it.state}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           actions={(
-            <div className="flex shrink-0 items-center gap-1.5">
-              <Tabs
-                value={shownTab}
-                onValueChange={(v) => {
-                  setViewTab(v as 'workitems' | 'repos' | 'branches');
-                  if (v !== 'workitems') setSplitWorkitemId(null);
-                }}
-              >
-                <TabsList size="xs">
-                  <TabsTrigger value="workitems">工作项</TabsTrigger>
-                  <TabsTrigger value="repos">涉及仓库</TabsTrigger>
-                  {!isUnplanned && <TabsTrigger value="branches">模板</TabsTrigger>}
-                </TabsList>
-              </Tabs>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="刷新"
-                disabled={loadingList || revalidatingList}
-                onClick={() => {
-                  void (items.length ? revalidateList() : loadList(false));
-                  void loadIterations();
-                  refreshCi();
-                }}
-              >
-                <RefreshCwIcon className={cn('size-3.5', (loadingList || revalidatingList) && 'animate-spin')} />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="刷新"
+              disabled={loadingList || revalidatingList}
+              onClick={() => {
+                void (items.length ? revalidateList() : loadList(false));
+                void loadIterations();
+                refreshCi();
+              }}
+            >
+              <RefreshCwIcon className={cn('size-3.5', (loadingList || revalidatingList) && 'animate-spin')} />
+            </Button>
           )}
           toolbar={(
-            <>
-              <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
-                <TabsList size="sm">
-                  {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
-                    <TabsTrigger key={c} value={c}>{CATEGORY_LABELS[c]}</TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <WorkitemFilterBar options={filterOptions} activeFilterCount={activeFilterCount} />
+            <div className="flex flex-col gap-2 w-full min-w-0">
+              <div className="flex items-center gap-1.5 w-full min-w-0">
+                <Tabs
+                  value={shownTab}
+                  onValueChange={(v) => {
+                    setViewTab(v as 'workitems' | 'repos' | 'branches');
+                    if (v !== 'workitems') setSplitWorkitemId(null);
+                  }}
+                >
+                  <TabsList size="xs">
+                    <TabsTrigger value="workitems">工作项</TabsTrigger>
+                    <TabsTrigger value="repos">涉及仓库</TabsTrigger>
+                    {!isUnplanned && <TabsTrigger value="branches">模板</TabsTrigger>}
+                  </TabsList>
+                </Tabs>
               </div>
-            </>
+              <div className="flex items-center justify-between gap-1.5 w-full min-w-0">
+                <Tabs value={category} onValueChange={(v) => void setCategory(v as Category)}>
+                  <TabsList size="sm">
+                    {(['Req', 'Bug', 'Task'] as Category[]).map((c) => (
+                      <TabsTrigger key={c} value={c}>{CATEGORY_LABELS[c]}</TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <WorkitemFilterBar options={filterOptions} activeFilterCount={activeFilterCount} />
+                </div>
+              </div>
+            </div>
           )}
         />
 
@@ -1097,16 +1106,23 @@ export function IterationView() {
         title="迭代"
         titleClassName="text-sm font-semibold tracking-tight text-foreground"
         scope={(
-          <SearchableSelect
+          <Select
             className="w-44 text-xs"
-            ariaLabel="切换迭代"
+            aria-label="切换迭代"
             value={iteration.name}
             onValueChange={(v) => { if (v) setIteration(v); }}
-            items={iterations.map((it) => ({
-              label: `${it.name} · ${it.state}`,
-              value: it.name,
-            }))}
-          />
+          >
+            <SelectTrigger className="h-7 text-xs font-medium">
+              <SelectValue placeholder="切换迭代..." />
+            </SelectTrigger>
+            <SelectContent>
+              {iterations.map((it) => (
+                <SelectItem key={it.name} value={it.name}>
+                  {it.name} · {it.state}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
         actions={(
           <div className="flex shrink-0 items-center gap-2">

@@ -31,6 +31,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
 import { SearchableSelect } from '@/components/searchable-select';
 import { useApp } from '@/store/app';
@@ -829,16 +830,23 @@ export function ScheduleEditorDialog({
                 <Label className="text-[11px] font-medium text-muted-foreground block">
                   Jenkins 实例连接
                 </Label>
-                <SearchableSelect
-                  value={jenkinsConnId || null}
-                  onValueChange={(val) => setJenkinsConnId(val ? String(val) : '')}
-                  items={(settings?.jenkinsConnections || []).map((conn) => ({
-                    label: `${conn.name} (${conn.baseUrl})`,
-                    value: conn.id,
-                  }))}
-                  placeholder="选择 Jenkins 连接..."
+                <Select
+                  value={jenkinsConnId || ''}
+                  onValueChange={(val) => setJenkinsConnId(val || '')}
+                  aria-label="Jenkins 实例连接"
                   className="w-full text-xs"
-                />
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="选择 Jenkins 连接..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(settings?.jenkinsConnections || []).map((conn) => (
+                      <SelectItem key={conn.id} value={conn.id}>
+                        {conn.name} ({conn.baseUrl})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-1.5">
@@ -941,25 +949,28 @@ export function ScheduleEditorDialog({
 
                 {/* Tab 1: 常用推荐模式 */}
                 <TabsContent value="preset" className="mt-0 space-y-2 focus-visible:outline-none">
-                  <SearchableSelect
+                  <Select
                     value={preset}
                     onValueChange={(val) => {
-                      const selected = val ? String(val) : '';
-                      handlePresetChange(selected);
+                      handlePresetChange(val || '');
                     }}
-                    items={[
-                      ...CRON_PRESETS.map((p) => ({
-                        label: `${p.label} · ${p.description}`,
-                        value: p.value,
-                      })),
-                      {
-                        label: '自定义 Cron 表达式 (高级设置)...',
-                        value: 'custom',
-                      },
-                    ]}
-                    placeholder="请选择预设频率..."
+                    aria-label="选择预设频率"
                     className="w-full text-xs"
-                  />
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="请选择预设频率..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CRON_PRESETS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label} · {p.description}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">
+                        自定义 Cron 表达式 (高级设置)...
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </TabsContent>
 
                 {/* Tab 2: 循环间隔模式 (每 N 分钟/小时) */}

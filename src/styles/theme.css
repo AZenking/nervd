@@ -114,6 +114,10 @@
   white-space: nowrap;
 }
 
+.select__value [data-slot="list-box-item-indicator"] {
+  display: none !important;
+}
+
 .dark {
   color-scheme: dark;
 

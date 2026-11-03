@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchableSelect } from '../searchable-select';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SettingsGroup } from './settings-group';
@@ -264,9 +265,9 @@ export function RepoCiBindingsCard() {
             <div className="flex flex-wrap items-center gap-2">
               <OverflowTooltip text={label} className="min-w-0 flex-1 truncate font-mono text-xs" />
               <Badge variant={binding ? 'secondary' : 'outline'}>{binding ? '已绑定' : '未绑定'}</Badge>
-              <SearchableSelect
+              <Select
                 className="w-32 text-xs"
-                ariaLabel={`${label} CI 提供方`}
+                aria-label={`${label} CI 提供方`}
                 value={binding?.provider ?? 'none'}
                 onValueChange={(v) => {
                   if (!v || v === 'none') setRepoBinding(repo.id, null);
@@ -277,12 +278,16 @@ export function RepoCiBindingsCard() {
                     setRepoBinding(repo.id, { provider: 'jenkins', connectionId: (draft?.jenkinsConnections ?? [])[0]?.id ?? '', jobFullName: '' });
                   }
                 }}
-                items={[
-                  { label: '未绑定', value: 'none' },
-                  { label: '云效 Flow', value: 'flow' },
-                  { label: 'Jenkins', value: 'jenkins' },
-                ]}
-              />
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">未绑定</SelectItem>
+                  <SelectItem value="flow">云效 Flow</SelectItem>
+                  <SelectItem value="jenkins">Jenkins</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {binding?.provider === 'flow' && (
               <SearchableSelect

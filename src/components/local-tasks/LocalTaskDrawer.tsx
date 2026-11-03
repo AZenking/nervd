@@ -13,6 +13,7 @@ import {
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/searchable-select';
 import { useApp } from '@/store/app';
 import { useLocalTasksStore } from '@/store/local-tasks';
@@ -212,17 +213,23 @@ export function LocalTaskDrawer({ taskId, onClose }: LocalTaskDrawerProps) {
 
               {/* 优先级 */}
               <div className="flex items-center gap-1.5">
-                <select
+                <Select
                   value={task.priority}
-                  onChange={(e) => void updateTask(task.id, { priority: e.target.value as LocalTaskPriority })}
-                  className="h-8 rounded-md border border-border bg-background px-2 text-xs font-medium outline-none cursor-pointer"
+                  onValueChange={(val) => void updateTask(task.id, { priority: val as LocalTaskPriority })}
+                  aria-label="优先级"
+                  className="w-28"
                 >
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

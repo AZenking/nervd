@@ -3,6 +3,7 @@ import { AlertCircleIcon, RefreshCwIcon, ServerIcon, SparklesIcon, WorkflowIcon 
 import type { JenkinsConnectionView, JenkinsJobSummary, PipelineSummary, RepoCiBinding } from '@/types';
 import { cn } from '@/lib/utils';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { getCachedJenkinsJobs, hasCachedJobs } from '@/lib/jenkins-cache';
 import { humanizeError } from '@/lib/error-format';
@@ -178,18 +179,22 @@ export function RepoCiBindingFields({
           <div className="flex items-center h-5 mb-1.5">
             <FieldLabel className="mb-0">CI 提供方</FieldLabel>
           </div>
-          <SearchableSelect
-            className="text-xs"
-            ariaLabel="CI 提供方"
+          <Select
+            className="w-full text-xs"
+            aria-label="CI 提供方"
             disabled={disabled}
             value={currentProvider}
-            onValueChange={handleProviderChange}
-            items={[
-              { label: '不关联 CI', value: 'none' },
-              { label: '云效 Flow 流水线', value: 'flow' },
-              { label: 'Jenkins 任务', value: 'jenkins' },
-            ]}
-          />
+            onValueChange={(val) => handleProviderChange(val as any)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">不关联 CI</SelectItem>
+              <SelectItem value="flow">云效 Flow 流水线</SelectItem>
+              <SelectItem value="jenkins">Jenkins 任务</SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
 
         {currentProvider === 'flow' && (

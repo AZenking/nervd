@@ -227,7 +227,7 @@ export function PageHeader({
           {titleBadge != null && <div className="shrink-0" data-no-drag>{titleBadge}</div>}
         </div>
         {scope != null && (
-          <div className="flex min-w-0 max-w-[40%] items-center gap-2" data-tauri-drag-region>
+          <div className="flex min-w-0 max-w-[40%] items-center gap-1.5" data-no-drag>
             <span
               aria-hidden
               className="select-none text-xs text-muted-foreground/50 cursor-default"
@@ -240,9 +240,9 @@ export function PageHeader({
                 className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default"
               />
             ) : (
-              <span className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default">
+              <div className="flex min-w-0 items-center" data-no-drag>
                 {scope}
-              </span>
+              </div>
             )}
           </div>
         )}
