@@ -134,7 +134,8 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
   };
 
   return (
-    <section
+    <Card
+      role="region"
       aria-label="实时活跃构建监控"
       className={cn(
         'flex flex-col gap-2 rounded-lg border border-sig-run/40 bg-sig-run/8 p-3.5 transition-all sm:p-4 animate-in fade-in-50 duration-200',
@@ -220,6 +221,6 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
           </Card>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }

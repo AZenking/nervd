@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 /**
@@ -56,27 +57,27 @@ function columnClasses(column: NonNullable<StatBandProps['column']>): string {
 
 export function Stat({ label, value, sub, children }: StatProps) {
   return (
-    <div className="flex min-h-24 flex-col gap-1.5 bg-card px-4 py-3.5">
+    <Card className="flex min-h-24 flex-col gap-1.5 rounded-none border-0 bg-card px-4 py-3.5 shadow-none">
       <div className="text-xs font-medium text-muted-foreground">{label}</div>
       <div className="flex min-w-0 items-baseline gap-2">
         <span className="font-mono text-base font-medium tabular-nums text-foreground">{value}</span>
         {sub && <span className="min-w-0 truncate text-xs text-muted-foreground">{sub}</span>}
       </div>
       {children && <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{children}</div>}
-    </div>
+    </Card>
   );
 }
 
 export function StatBand({ children, column, className }: StatBandProps) {
   return (
-    <div
+    <Card
       className={cn(
-        'grid gap-px overflow-hidden rounded-lg border border-border bg-border',
+        'grid gap-px overflow-hidden rounded-lg border border-border bg-border p-0 shadow-xs',
         columnClasses(column ?? DEFAULT_COLUMN),
         className,
       )}
     >
       {children}
-    </div>
+    </Card>
   );
 }

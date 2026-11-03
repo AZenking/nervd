@@ -371,7 +371,8 @@ export function QuickBuildConsole() {
   }
 
   return (
-    <section
+    <Card
+      role="region"
       data-testid="quick-build-console"
       aria-label="CI/CD 构建工作台"
       className="flex flex-col gap-3.5 rounded-xl border border-hairline bg-surface/50 p-4 shadow-xs backdrop-blur-xs transition-colors"
@@ -636,7 +637,7 @@ export function QuickBuildConsole() {
 
       {/* 4. 就地自定义参数配置行 */}
       {currentTarget && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-muted/20 border border-hairline/40 rounded-lg p-3">
+        <Card className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-muted/20 border border-hairline/40 rounded-lg p-3">
           {/* 构建分支参数 */}
           <div className="flex flex-col gap-1 sm:col-span-2">
             <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
@@ -745,7 +746,7 @@ export function QuickBuildConsole() {
               )}
             </Button>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* 5. 更多参数微调折叠项 */}
@@ -781,6 +782,6 @@ export function QuickBuildConsole() {
           </Card>
         </details>
       )}
-    </section>
+    </Card>
   );
 }
