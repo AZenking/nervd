@@ -19,7 +19,6 @@ import { WorkitemPeekDrawer } from './workitem-peek-drawer';
 import { ciStatusInfo } from '@/lib/ci';
 import { calculateIterationProgress } from '@/lib/iteration-period';
 import { CycleHeaderBanner } from './overview/cycle-header-banner';
-import { ActiveBuildsBar } from './overview/active-builds-bar';
 import { QuickBuildConsole } from './overview/quick-build-console';
 import { HealthDistributionCard } from './overview/health-distribution';
 
@@ -195,10 +194,7 @@ export function OverviewView() {
           onSelectIteration={(name) => setIterationKey(name)}
         />
 
-        {/* 2. 动态活跃构建监控带（仅当有 Jenkins 或 Flow 任务正在执行时滑出） */}
-        <ActiveBuildsBar />
-
-        {/* 3. 页面内嵌快速构建控制台（零弹窗：最近执行平铺 + 就地自定义参数配置与触发） */}
+        {/* 2. 页面内嵌 CI/CD 构建工作台（整合活跃构建流与方案 B 预估进度条 + 就地选择 Job 调参触发） */}
         <QuickBuildConsole />
 
         {/* 4. 精炼核心指标带：hairline 分隔的 4 格 */}

@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronDownIcon,
   ClockIcon,
+  ExternalLinkIcon,
+  FileTextIcon,
   GitBranchIcon,
   Loader2Icon,
   PlayIcon,
+  RadioIcon,
   RefreshCwIcon,
   SlidersHorizontalIcon,
   TerminalIcon,
@@ -14,13 +17,23 @@ import {
 import { cn } from '@/lib/utils';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import {
   extractConfiguredBuildTargets,
   useQuickBuild,
+  type QuickBuildTarget,
 } from '@/store/quick-build';
-import { getCachedJenkinsJobParameters } from '@/lib/jenkins-cache';
+import {
+  getCachedJenkinsJobParameters,
+  getCachedJenkinsJobs,
+  hasCachedJobs,
+} from '@/lib/jenkins-cache';
 import { isBranchParameterName, isEnvironmentParameterName } from '@/lib/ci';
-import type { JenkinsJobParameter } from '@/types';
+import { statusMeta } from '@/components/StatusBadge';
+import { StatusIcon } from '@/components/status-icon';
+import { openRepoBuildLogs, openPipelineRunLogs } from '@/components/build-workbench';
+import { openExternal } from '@/lib/yunxiao-link';
+import type { JenkinsJobParameter, JenkinsJobSummary } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/searchable-select';
@@ -31,24 +44,147 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { BuildProgressBar } from './build-progress-bar';
+
+export interface ActiveBuildItem {
+  id: string;
+  kind: 'repo' | 'pipeline';
+  provider: 'Jenkins' | '云效 Flow';
+  title: string;
+  subTitle?: string;
+  runId: string;
+  startTime?: number | null;
+  estimatedDurationMs?: number | null;
+  repoId?: number;
+  pipelineId?: number;
+  externalUrl?: string | null;
+}
 
 export function QuickBuildConsole() {
-  const settings = useApp((s) => s.settings);
-  const repositories = useApp((s) => s.repositories);
+  const {
+    settings,
+    repositories,
+    repoCiByRepo,
+    pipelines,
+    runsByPipeline,
+  } = useApp(
+    useShallow((s) => ({
+      settings: s.settings,
+      repositories: s.repositories,
+      repoCiByRepo: s.repoCiByRepo,
+      pipelines: s.pipelines,
+      runsByPipeline: s.runsByPipeline,
+    })),
+  );
+
   const history = useQuickBuild((s) => s.history);
   const triggeringId = useQuickBuild((s) => s.triggeringId);
   const triggerQuickBuild = useQuickBuild((s) => s.triggerQuickBuild);
 
-  // 1. 获取所有配置好的构建目标
+  // ==========================================
+  // 1. 活跃构建监听（合并原 ActiveBuildsBar，带方案 B 历史耗时预估）
+  // ==========================================
+  const activeBuilds = useMemo(() => {
+    const list: ActiveBuildItem[] = [];
+
+    // 1.1 扫描仓库 CI 快照（特别是 Jenkins 与 Flow）
+    for (const [repoIdStr, entry] of Object.entries(repoCiByRepo)) {
+      const repoId = Number(repoIdStr);
+      const snapshot = entry?.snapshot;
+      if (!snapshot) continue;
+
+      const latestRun = snapshot.runs?.[0];
+      const status = snapshot.status || latestRun?.status;
+      if (statusMeta(status).tone === 'run') {
+        const repo = repositories.find((r) => r.id === repoId);
+        const repoName = repo?.pathWithNamespace || repo?.name || `仓库 #${repoId}`;
+        const isJenkins = snapshot.provider?.toUpperCase() === 'JENKINS';
+        const provider = isJenkins ? 'Jenkins' : '云效 Flow';
+        const runId = latestRun?.runId ? String(latestRun.runId) : '最新';
+
+        let externalUrl: string | null = null;
+        if (isJenkins) {
+          const binding = settings?.repoCiBindings?.[String(repoId)];
+          if (binding && binding.provider === 'jenkins') {
+            const conn = settings?.jenkinsConnections?.find((c) => c.id === binding.connectionId);
+            if (conn?.baseUrl && binding.jobFullName) {
+              const trimmed = conn.baseUrl.replace(/\/+$/, '');
+              const parts = binding.jobFullName.split('/').filter(Boolean).map(encodeURIComponent);
+              externalUrl = `${trimmed}/job/${parts.join('/job/')}/${runId}`;
+            }
+          }
+        }
+
+        // 方案 B：寻找历史最近一次成功运行的时长作为估算基准
+        const prevSuccess = snapshot.runs
+          ?.slice(1)
+          .find((r) => r.status === 'SUCCESS' && typeof r.durationMs === 'number' && r.durationMs > 0);
+        const estimatedDurationMs = prevSuccess?.durationMs ?? null;
+
+        list.push({
+          id: `repo-${repoId}-${runId}`,
+          kind: 'repo',
+          provider,
+          title: repoName,
+          subTitle: snapshot.name,
+          runId,
+          startTime: latestRun?.startTime,
+          estimatedDurationMs,
+          repoId,
+          externalUrl,
+        });
+      }
+    }
+
+    // 1.2 扫描云效 Flow 流水线
+    for (const p of pipelines) {
+      const pRuns = runsByPipeline[p.pipelineId] ?? [];
+      const latest = pRuns[0];
+      if (latest && statusMeta(latest.status).tone === 'run') {
+        const prevSuccess = pRuns.slice(1).find(
+          (r) => (r.status === 'SUCCESS' || r.status === 'ok') && typeof r.startTime === 'number' && typeof (r as any).endTime === 'number',
+        );
+        const estimatedDurationMs = prevSuccess
+          ? Math.max(0, (prevSuccess as any).endTime - (prevSuccess.startTime || 0))
+          : null;
+
+        list.push({
+          id: `pipeline-${p.pipelineId}-${latest.pipelineRunId}`,
+          kind: 'pipeline',
+          provider: '云效 Flow',
+          title: p.pipelineName,
+          runId: String(latest.pipelineRunId),
+          startTime: latest.startTime,
+          estimatedDurationMs,
+          pipelineId: p.pipelineId,
+          externalUrl: `https://flow.aliyun.com/pipelines/${p.pipelineId}/current`,
+        });
+      }
+    }
+
+    return list;
+  }, [repoCiByRepo, repositories, settings, pipelines, runsByPipeline]);
+
+  const handleOpenLogs = (item: ActiveBuildItem) => {
+    if (item.kind === 'repo' && item.repoId) {
+      openRepoBuildLogs(item.repoId, item.runId, `${item.title} · ${item.subTitle ?? ''} #${item.runId}`);
+    } else if (item.kind === 'pipeline' && item.pipelineId) {
+      void openPipelineRunLogs(item.pipelineId, Number(item.runId), item.title);
+    }
+  };
+
+  // ==========================================
+  // 2. 构建目标与自由选择 Job 入口
+  // ==========================================
   const configuredTargets = useMemo(
     () => extractConfiguredBuildTargets(settings, repositories),
     [settings, repositories],
   );
 
-  // 2. 当前选中的构建目标（优先取最近构建第 1 条，否则取已配置的目标第 1 条）
   const [selectedTargetId, setSelectedTargetId] = useState<string>('');
 
-  const currentTarget = useMemo(() => {
+  // 基础目标解析
+  const baseTarget = useMemo(() => {
     if (selectedTargetId) {
       const foundInHistory = history.find((h) => h.id === selectedTargetId);
       if (foundInHistory) return foundInHistory;
@@ -58,24 +194,83 @@ export function QuickBuildConsole() {
     return history[0] || configuredTargets[0] || null;
   }, [selectedTargetId, history, configuredTargets]);
 
-  // 当外部数据载入时，默认对齐有效目标
   useEffect(() => {
-    if (!selectedTargetId && currentTarget) {
-      setSelectedTargetId(currentTarget.id);
+    if (!selectedTargetId && baseTarget) {
+      setSelectedTargetId(baseTarget.id);
     }
-  }, [currentTarget, selectedTargetId]);
+  }, [baseTarget, selectedTargetId]);
 
-  // 3. 当前目标的自定义参数状态
+  // Job 列表状态与自由切换
+  const [selectedJobFullName, setSelectedJobFullName] = useState<string>('');
+  const [availableJobs, setAvailableJobs] = useState<JenkinsJobSummary[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [jobsRefreshCount, setJobsRefreshCount] = useState(0);
+
+  // 当基础目标发生变化时，默认采用其自带的 Job
+  useEffect(() => {
+    if (baseTarget?.jobFullName) {
+      setSelectedJobFullName(baseTarget.jobFullName);
+    } else {
+      setSelectedJobFullName('');
+    }
+  }, [baseTarget?.id]);
+
+  // 异步获取当前 Jenkins 实例下的全量 Job 列表供自由选择
+  useEffect(() => {
+    if (baseTarget?.type === 'jenkins' && baseTarget.connectionId) {
+      let active = true;
+      const isManual = jobsRefreshCount > 0;
+      if (!hasCachedJobs(baseTarget.connectionId) || isManual) {
+        setLoadingJobs(true);
+      }
+      void getCachedJenkinsJobs(baseTarget.connectionId, {
+        force: isManual,
+        onStaleUpdate: (freshJobs) => {
+          if (active) setAvailableJobs(freshJobs);
+        },
+      })
+        .then(({ jobs: fetched }) => {
+          if (active) setAvailableJobs(fetched);
+        })
+        .catch(() => {
+          if (active) setAvailableJobs([]);
+        })
+        .finally(() => {
+          if (active) setLoadingJobs(false);
+        });
+      return () => {
+        active = false;
+      };
+    } else {
+      setAvailableJobs([]);
+    }
+  }, [baseTarget?.connectionId, jobsRefreshCount]);
+
+  // 合成当前的生效目标（若用户切换了 Job，动态覆盖）
+  const currentTarget = useMemo<QuickBuildTarget | null>(() => {
+    if (!baseTarget) return null;
+    if (baseTarget.type === 'jenkins' && selectedJobFullName && selectedJobFullName !== baseTarget.jobFullName) {
+      return {
+        ...baseTarget,
+        id: `jenkins:${baseTarget.repoId}:${baseTarget.connectionId}:${selectedJobFullName}`,
+        jobFullName: selectedJobFullName,
+        pipelineName: selectedJobFullName,
+      };
+    }
+    return baseTarget;
+  }, [baseTarget, selectedJobFullName]);
+
+  // ==========================================
+  // 3. 自定义参数配置与动态表单
+  // ==========================================
   const [params, setParams] = useState<Record<string, string>>({});
 
-  // 切换目标时同步参数
   useEffect(() => {
     if (currentTarget) {
       setParams(currentTarget.parameters || {});
     }
   }, [currentTarget?.id]);
 
-  // 4. 若为 Jenkins，异步拉取该 Job 的参数元数据
   const [jobParams, setJobParams] = useState<JenkinsJobParameter[]>([]);
   const [loadingParams, setLoadingParams] = useState(false);
 
@@ -87,7 +282,6 @@ export function QuickBuildConsole() {
         .then((fetched) => {
           if (!canceled) {
             setJobParams(fetched);
-            // 用默认参数补齐尚未填写的字段
             setParams((prev) => {
               const next = { ...prev };
               for (const p of fetched) {
@@ -113,7 +307,7 @@ export function QuickBuildConsole() {
     }
   }, [currentTarget?.id, currentTarget?.connectionId, currentTarget?.jobFullName]);
 
-  // 5. 异步拉取当前仓库的远端分支列表（供分支输入框下拉辅助选择）
+  // 仓库远端分支选项
   const [branchOptions, setBranchOptions] = useState<string[]>([]);
   const [loadingBranches, setLoadingBranches] = useState(false);
 
@@ -143,7 +337,6 @@ export function QuickBuildConsole() {
     }
   }, [currentTarget?.repoId]);
 
-  // 6. 识别出主分支字段与主环境字段
   const branchParamName = useMemo(() => {
     if (!currentTarget) return null;
     if (currentTarget.branchParameter) return currentTarget.branchParameter;
@@ -159,12 +352,10 @@ export function QuickBuildConsole() {
     return jobParams.find((p) => isEnvironmentParameterName(p.name)) || null;
   }, [currentTarget, jobParams]);
 
-  // 其他普通参数
   const otherParams = useMemo(() => {
     return jobParams.filter((p) => p.name !== branchParamName && p.name !== envParam?.name);
   }, [jobParams, branchParamName, envParam]);
 
-  // 7. 发起构建动作
   const handleTriggerCurrent = async () => {
     if (!currentTarget) return;
     await triggerQuickBuild(currentTarget, params);
@@ -172,52 +363,206 @@ export function QuickBuildConsole() {
 
   const isTriggering = triggeringId === currentTarget?.id;
 
-  // 如果没有任何配置的流水线，也不展示空壳
-  if (!currentTarget && configuredTargets.length === 0 && history.length === 0) {
+  // 如果无活跃任务且无任何可构建配置，不显示空壳
+  if (!currentTarget && configuredTargets.length === 0 && history.length === 0 && activeBuilds.length === 0) {
     return null;
   }
 
   return (
-    <div
+    <section
       data-testid="quick-build-console"
-      className="flex flex-col gap-3 rounded-xl border border-hairline bg-surface/40 p-4 shadow-xs backdrop-blur-xs transition-colors"
+      aria-label="CI/CD 构建工作台"
+      className="flex flex-col gap-3.5 rounded-xl border border-hairline bg-surface/50 p-4 shadow-xs backdrop-blur-xs transition-colors"
     >
-      {/* 头部：标题 + 目标选择 */}
+      {/* 头部：标题与活跃状态徽标 + 目标与 Job 切换器 */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline/60 pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <div className="flex size-6 items-center justify-center rounded-md bg-amber-500/10 text-amber-500">
             <ZapIcon className="size-3.5 fill-current" />
           </div>
-          <div>
-            <h3 className="text-xs font-semibold text-foreground tracking-tight flex items-center gap-2">
-              <span>快捷构建控制台</span>
-              <span className="text-[11px] font-normal text-muted-foreground">
-                直接就地自定义参数并触发
-              </span>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-foreground tracking-tight">
+              快捷构建控制台
             </h3>
+            {activeBuilds.length > 0 ? (
+              <div className="flex items-center gap-1.5 rounded-full bg-sig-run/15 px-2 py-0.5 text-[10px] font-medium text-sig-run border border-sig-run/30">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sig-run opacity-75" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-sig-run" />
+                </span>
+                <span>活跃构建中 ({activeBuilds.length})</span>
+                <RadioIcon className="size-2.5 ml-0.5 animate-pulse" />
+              </div>
+            ) : (
+              <span className="text-[11px] font-normal text-muted-foreground hidden sm:inline">
+                就地选择任务、调参并即时触发
+              </span>
+            )}
           </div>
         </div>
 
-        {/* 目标流水线切换器 */}
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground shrink-0">当前目标:</span>
-          {loadingParams && <Loader2Icon className="size-3 animate-spin text-muted-foreground shrink-0" />}
-          <SearchableSelect
-            className="w-56 text-xs h-7"
-            ariaLabel="选择构建目标仓库与流水线"
-            value={currentTarget?.id || ''}
-            onValueChange={(val) => {
-              if (val) setSelectedTargetId(val);
-            }}
-            items={configuredTargets.map((t) => ({
-              label: `${t.repoName} (${t.type === 'flow' ? 'Flow' : 'Jenkins'})`,
-              value: t.id,
-            }))}
-          />
+        {/* 目标项目与自由选择 Job 入口 */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 1. 目标代码仓库 */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground shrink-0">项目:</span>
+            <SearchableSelect
+              className="w-44 text-xs h-7"
+              ariaLabel="选择构建目标代码仓库"
+              value={baseTarget?.id || ''}
+              onValueChange={(val) => {
+                if (val) setSelectedTargetId(val);
+              }}
+              items={configuredTargets.map((t) => ({
+                label: `${t.repoName}`,
+                value: t.id,
+              }))}
+            />
+          </div>
+
+          {/* 2. 自由选择具体 Job（关键新增能力） */}
+          {baseTarget?.type === 'jenkins' && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground shrink-0">任务(Job):</span>
+              {loadingParams && <Loader2Icon className="size-3 animate-spin text-muted-foreground shrink-0" />}
+              <div className="flex items-center gap-1">
+                <SearchableSelect
+                  className="w-48 text-xs h-7"
+                  ariaLabel="选择该 Jenkins 实例下的具体 Job 任务"
+                  value={selectedJobFullName || baseTarget.jobFullName || ''}
+                  onValueChange={(val) => {
+                    if (val) setSelectedJobFullName(val);
+                  }}
+                  items={
+                    availableJobs.length > 0
+                      ? availableJobs.map((j) => ({
+                          label: j.fullName || j.name,
+                          value: j.fullName || j.name,
+                        }))
+                      : [
+                          {
+                            label: baseTarget.jobFullName || '默认 Job',
+                            value: baseTarget.jobFullName || '',
+                          },
+                        ]
+                  }
+                  placeholder={loadingJobs ? '加载 Job 列表中…' : '选择或搜索任务'}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-7 text-muted-foreground hover:text-foreground shrink-0"
+                  onClick={() => setJobsRefreshCount((c) => c + 1)}
+                  title="刷新 Jenkins Job 列表"
+                  aria-label="刷新 Jenkins Job 列表"
+                >
+                  <RefreshCwIcon className={cn('size-3', loadingJobs && 'animate-spin')} />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {baseTarget?.type === 'flow' && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground shrink-0">流水线:</span>
+              <SearchableSelect
+                className="w-48 text-xs h-7"
+                ariaLabel="选择云效 Flow 流水线"
+                value={baseTarget.pipelineName}
+                onValueChange={(val) => {
+                  const found = pipelines.find((p) => p.pipelineName === val);
+                  if (found) {
+                    setSelectedTargetId(`flow:${found.pipelineId}`);
+                  }
+                }}
+                items={pipelines.map((p) => ({
+                  label: p.pipelineName,
+                  value: p.pipelineName,
+                }))}
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 1. 最近构建标签快速选卡 */}
+      {/* ==========================================
+          内置活跃构建监控区域 (方案 B 预估进度条 + 就地盯盘)
+          ========================================== */}
+      {activeBuilds.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-lg border border-sig-run/30 bg-sig-run/5 p-3">
+          <div className="flex items-center justify-between text-xs font-medium text-foreground pb-1">
+            <span className="flex items-center gap-1.5">
+              <StatusIcon status="RUNNING" className="size-3.5" />
+              <span>正在执行的任务</span>
+            </span>
+            <span className="text-[11px] font-mono text-muted-foreground">4s 高频动态轮询中</span>
+          </div>
+
+          <div className="flex flex-col divide-y divide-sig-run/15">
+            {activeBuilds.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col gap-2 py-2.5 first:pt-1 last:pb-1"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span
+                      className={cn(
+                        'rounded px-1.5 py-0.2 text-[10px] font-medium tracking-wide uppercase',
+                        item.provider === 'Jenkins'
+                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                          : 'bg-primary/15 text-primary border border-primary/30',
+                      )}
+                    >
+                      {item.provider}
+                    </span>
+                    <span className="font-medium text-foreground truncate max-w-56">{item.title}</span>
+                    {item.subTitle && (
+                      <span className="text-muted-foreground truncate text-[11px]">· {item.subTitle}</span>
+                    )}
+                    <span className="font-mono text-foreground font-semibold">#{item.runId}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => handleOpenLogs(item)}
+                      className="h-6 gap-1 px-2 text-[11px] hover:bg-muted"
+                    >
+                      <FileTextIcon className="size-3 text-muted-foreground" />
+                      <span>就地盯盘</span>
+                    </Button>
+
+                    {item.externalUrl && (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => openExternal(item.externalUrl!)}
+                        title="在外部打开构建详情"
+                        aria-label="在外部打开构建详情"
+                        className="size-6 text-muted-foreground hover:text-foreground"
+                      >
+                        <ExternalLinkIcon className="size-3" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 方案 B：进度条组件呈现 */}
+                <BuildProgressBar
+                  startTime={item.startTime}
+                  estimatedDurationMs={item.estimatedDurationMs}
+                  compact
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 3. 最近执行标签快速选卡 */}
       {history.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0 pr-1">
@@ -235,7 +580,12 @@ export function QuickBuildConsole() {
             return (
               <div
                 key={record.id}
-                onClick={() => setSelectedTargetId(record.id)}
+                onClick={() => {
+                  setSelectedTargetId(record.id);
+                  if (record.jobFullName) {
+                    setSelectedJobFullName(record.jobFullName);
+                  }
+                }}
                 className={cn(
                   'group flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-xs transition-all select-none',
                   isSelected
@@ -249,8 +599,13 @@ export function QuickBuildConsole() {
                   <TerminalIcon className="size-3 text-amber-500 shrink-0" />
                 )}
                 <span className="truncate max-w-[110px]">{record.repoName}</span>
+                {record.jobFullName && (
+                  <span className="truncate max-w-[90px] text-[10px] text-muted-foreground/80">
+                    {record.jobFullName}
+                  </span>
+                )}
                 {branchText && (
-                  <span className="text-[10px] font-mono opacity-70 truncate max-w-[90px]">
+                  <span className="text-[10px] font-mono opacity-70 truncate max-w-[80px]">
                     {branchText}
                   </span>
                 )}
@@ -277,7 +632,7 @@ export function QuickBuildConsole() {
         </div>
       )}
 
-      {/* 2. 就地自定义参数配置行 */}
+      {/* 4. 就地自定义参数配置行 */}
       {currentTarget && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-muted/20 border border-hairline/40 rounded-lg p-3">
           {/* 构建分支参数 */}
@@ -287,7 +642,7 @@ export function QuickBuildConsole() {
                 <GitBranchIcon className="size-3 text-primary" />
                 <span>构建分支 ({branchParamName || 'branch'})</span>
               </span>
-              <span className="text-[10px] text-muted-foreground/70">支持手动输入或下拉选择</span>
+              <span className="text-[10px] text-muted-foreground/70">支持输入或选择分支</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Input
@@ -391,7 +746,7 @@ export function QuickBuildConsole() {
         </div>
       )}
 
-      {/* 3. 其它参数微调折叠项（针对复杂的 Jenkins 任务） */}
+      {/* 5. 更多参数微调折叠项 */}
       {otherParams.length > 0 && (
         <details className="text-xs text-muted-foreground group">
           <summary className="cursor-pointer select-none py-1 hover:text-foreground flex items-center gap-1.5 font-medium text-[11px]">
@@ -424,6 +779,6 @@ export function QuickBuildConsole() {
           </div>
         </details>
       )}
-    </div>
+    </section>
   );
 }

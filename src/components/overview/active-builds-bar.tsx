@@ -4,10 +4,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { statusMeta } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
 import { Button } from '@/components/ui/button';
-import { useElapsedTime } from '@/hooks/use-elapsed-time';
 import { openRepoBuildLogs, openPipelineRunLogs } from '@/components/build-workbench';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/lib/yunxiao-link';
+import { BuildProgressBar } from './build-progress-bar';
 
 export interface ActiveBuildItem {
   id: string;
@@ -17,19 +17,10 @@ export interface ActiveBuildItem {
   subTitle?: string;
   runId: string;
   startTime?: number | null;
+  estimatedDurationMs?: number | null;
   repoId?: number;
   pipelineId?: number;
   externalUrl?: string | null;
-}
-
-function ElapsedTimeBadge({ startTime }: { startTime?: number | null }) {
-  const elapsed = useElapsedTime(startTime, true);
-  return (
-    <span className="flex items-center gap-1 font-mono text-xs tabular-nums text-sig-run">
-      <span>已运行</span>
-      <span className="font-semibold">{elapsed}</span>
-    </span>
-  );
 }
 
 export function ActiveBuildsBar({ className }: { className?: string }) {
@@ -79,6 +70,11 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
         }
       }
 
+      const prevSuccess = snapshot.runs
+        ?.slice(1)
+        .find((r) => r.status === 'SUCCESS' && typeof r.durationMs === 'number' && r.durationMs > 0);
+      const estimatedDurationMs = prevSuccess?.durationMs ?? null;
+
       repoBuilds.push({
         id: `repo-${repoId}-${runId}`,
         kind: 'repo',
@@ -87,6 +83,7 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
         subTitle: snapshot.name,
         runId,
         startTime: latestRun?.startTime,
+        estimatedDurationMs,
         repoId,
         externalUrl,
       });
@@ -96,8 +93,16 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
   // 2. 扫描云效 Flow 流水线运行
   const flowBuilds: ActiveBuildItem[] = [];
   for (const p of pipelines) {
-    const latest = (runsByPipeline[p.pipelineId] ?? [])[0];
+    const pRuns = runsByPipeline[p.pipelineId] ?? [];
+    const latest = pRuns[0];
     if (latest && statusMeta(latest.status).tone === 'run') {
+      const prevSuccess = pRuns.slice(1).find(
+        (r) => (r.status === 'SUCCESS' || r.status === 'ok') && typeof r.startTime === 'number' && typeof (r as any).endTime === 'number',
+      );
+      const estimatedDurationMs = prevSuccess
+        ? Math.max(0, (prevSuccess as any).endTime - (prevSuccess.startTime || 0))
+        : null;
+
       flowBuilds.push({
         id: `pipeline-${p.pipelineId}-${latest.pipelineRunId}`,
         kind: 'pipeline',
@@ -105,6 +110,7 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
         title: p.pipelineName,
         runId: String(latest.pipelineRunId),
         startTime: latest.startTime,
+        estimatedDurationMs,
         pipelineId: p.pipelineId,
         externalUrl: `https://flow.aliyun.com/pipelines/${p.pipelineId}/current`,
       });
@@ -149,61 +155,67 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 pt-1">
+      <div className="flex flex-col gap-2.5 pt-1">
         {activeBuilds.map((item) => (
           <div
             key={item.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 bg-card/90 px-3 py-2 text-xs shadow-xs"
+            className="flex flex-col gap-2 rounded-md border border-border/60 bg-card/90 px-3 py-2.5 text-xs shadow-xs"
           >
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
-              <StatusIcon status="RUNNING" className="size-3.5 shrink-0" />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                <StatusIcon status="RUNNING" className="size-3.5 shrink-0" />
+                <span
+                  className={cn(
+                    'rounded px-1.5 py-0.2 text-[10px] font-medium uppercase tracking-wider',
+                    item.provider === 'Jenkins'
+                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                      : 'bg-primary/15 text-primary border border-primary/30',
+                  )}
+                >
+                  {item.provider}
+                </span>
 
-              <span
-                className={cn(
-                  'rounded px-1.5 py-0.2 text-[10px] font-medium uppercase tracking-wider',
-                  item.provider === 'Jenkins'
-                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                    : 'bg-primary/15 text-primary border border-primary/30',
-                )}
-              >
-                {item.provider}
-              </span>
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+                  <span className="font-medium text-foreground truncate">{item.title}</span>
+                  {item.subTitle && (
+                    <span className="text-muted-foreground truncate text-[11px]">· {item.subTitle}</span>
+                  )}
+                  <span className="font-mono font-medium text-foreground">#{item.runId}</span>
+                </div>
+              </div>
 
-              <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
-                <span className="font-medium text-foreground truncate">{item.title}</span>
-                {item.subTitle && (
-                  <span className="text-muted-foreground truncate text-[11px]">· {item.subTitle}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => handleOpenLogs(item)}
+                  className="h-6 gap-1 px-2 text-[11px] hover:bg-muted"
+                >
+                  <FileTextIcon className="size-3 text-muted-foreground" />
+                  <span>就地盯盘</span>
+                </Button>
+
+                {item.externalUrl && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => openExternal(item.externalUrl!)}
+                    title="在外部打开构建详情"
+                    aria-label="在外部打开构建详情"
+                    className="size-6 text-muted-foreground hover:text-foreground"
+                  >
+                    <ExternalLinkIcon className="size-3" />
+                  </Button>
                 )}
-                <span className="font-mono font-medium text-foreground">#{item.runId}</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 shrink-0">
-              <ElapsedTimeBadge startTime={item.startTime} />
-
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => handleOpenLogs(item)}
-                className="h-6 gap-1 px-2 text-[11px] hover:bg-muted"
-              >
-                <FileTextIcon className="size-3 text-muted-foreground" />
-                <span>就地盯盘</span>
-              </Button>
-
-              {item.externalUrl && (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => openExternal(item.externalUrl!)}
-                  title="在外部打开构建详情"
-                  aria-label="在外部打开构建详情"
-                  className="size-6 text-muted-foreground hover:text-foreground"
-                >
-                  <ExternalLinkIcon className="size-3" />
-                </Button>
-              )}
-            </div>
+            {/* 方案 B 进度条 */}
+            <BuildProgressBar
+              startTime={item.startTime}
+              estimatedDurationMs={item.estimatedDurationMs}
+              compact
+            />
           </div>
         ))}
       </div>

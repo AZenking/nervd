@@ -13,6 +13,18 @@ vi.mock('@/lib/api', () => ({
   triggerJenkinsJob: vi.fn(),
 }));
 
+vi.mock('@/lib/jenkins-cache', () => ({
+  getCachedJenkinsJobs: vi.fn().mockResolvedValue({
+    jobs: [
+      { name: 'build-job', fullName: 'build-job', color: 'blue' },
+      { name: 'deploy-job', fullName: 'deploy-job', color: 'blue' },
+    ],
+    stale: false,
+  }),
+  hasCachedJobs: vi.fn().mockReturnValue(true),
+  getCachedJenkinsJobParameters: vi.fn().mockResolvedValue([]),
+}));
+
 // @ts-expect-error configure React testing environment
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -64,6 +76,7 @@ describe('QuickBuildConsole', () => {
         hasPat: true,
       },
       repositories: [{ id: 101, name: 'order-service' }],
+      repoCiByRepo: {},
     });
   });
 
@@ -119,5 +132,61 @@ describe('QuickBuildConsole', () => {
       expect.objectContaining({ id: 'jenkins:101:conn-1:build-job' }),
       expect.objectContaining({ branch: 'feature/order-v1' }),
     );
+  });
+
+  it('内嵌展示活跃构建流、方案 B 进度条与就地盯盘按钮', async () => {
+    const now = Date.now();
+    useApp.setState({
+      repoCiByRepo: {
+        101: {
+          loading: false,
+          snapshot: {
+            provider: 'jenkins',
+            name: 'build-job',
+            status: 'RUNNING',
+            runs: [
+              {
+                runId: '105',
+                status: 'RUNNING',
+                startTime: now - 30000, // 运行 30s
+              },
+              {
+                runId: '104',
+                status: 'SUCCESS',
+                startTime: now - 120000,
+                durationMs: 60000, // 历史基准 60s
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    await act(async () => {
+      root?.render(
+        <TooltipProvider>
+          <QuickBuildConsole />
+        </TooltipProvider>,
+      );
+    });
+
+    expect(document.body.textContent).toContain('活跃构建中 (1)');
+    expect(document.body.textContent).toContain('正在执行的任务');
+    expect(document.body.textContent).toContain('#105');
+    expect(document.body.textContent).toContain('就地盯盘');
+    expect(document.body.textContent).toContain('50%'); // 30s / 60s = 50%
+  });
+
+  it('提供自由选择与切换具体 Job 的下拉入口', async () => {
+    await act(async () => {
+      root?.render(
+        <TooltipProvider>
+          <QuickBuildConsole />
+        </TooltipProvider>,
+      );
+    });
+
+    expect(document.body.textContent).toContain('任务(Job):');
+    expect(document.body.textContent).toContain('build-job');
   });
 });
