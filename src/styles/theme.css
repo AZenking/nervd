@@ -17,7 +17,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
+:root,
+.light,
+[data-theme="light"] {
   color-scheme: light;
 
   /* ---------- Linear palette ---------- */
@@ -27,7 +29,6 @@
   --bg-3: #e8e9eb;
   --canvas: #ffffff;
   --canvas-soft: #f7f8f8;
-  --surface: #ffffff;
   --hairline: #e8e9eb;
   --ink: #26282d;
   --ink-secondary: #6b7075;
@@ -68,7 +69,7 @@
   /* 等宽字体栈（标识符、分支名、运行号、统计数字与快捷键） */
   --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 
-  /* ---------- shadcn semantic tokens mapped to design.md ---------- */
+  /* ---------- shadcn / Base UI semantic tokens mapped to design.md ---------- */
   /* Linear 式分层：侧栏灰底（--sidebar）、主区白底（--background / SidebarInset） */
   --background: #ffffff;
   --foreground: #26282d;
@@ -82,13 +83,14 @@
   --secondary-foreground: #6b7075;
   --muted: #f7f8f8;
   --muted-foreground: #8a8f98;
-  --accent: #f2f3f5;
-  --accent-foreground: #26282d;
+  --accent: #5e6ad2;
+  --accent-foreground: #ffffff;
   --destructive: #e5484d;
   --destructive-foreground: #ffffff;
   --border: #e8e9eb;
   --input: #d5d7da;
   --ring: #5e6ad2;
+  --focus: var(--accent);
   --chart-1: #5e6ad2;
   --chart-2: #57a4f5;
   --chart-3: #c0bcf7;
@@ -105,23 +107,30 @@
   --sidebar-border: #f0f1f3;
   --sidebar-ring: #5e6ad2;
 
-  /* HeroUI semantic token alignments */
+  /* ---------- HeroUI semantic token alignments ---------- */
+  --surface: #ffffff;
+  --surface-foreground: #26282d;
+  --overlay: #ffffff;
+  --overlay-foreground: #26282d;
+  --default: #f4f5f7;
+  --default-foreground: #26282d;
+  --field-background: #ffffff;
+  --field-foreground: #26282d;
+  --field-placeholder: #8a8f98;
+  --field-border: #e8e9eb;
+  --success: #30a46c;
+  --success-foreground: #ffffff;
+  --warning: #d9730d;
+  --warning-foreground: #ffffff;
+  --danger: #e5484d;
+  --danger-foreground: #ffffff;
+  --scrollbar-thumb: color-mix(in oklch, var(--foreground) 15%, transparent);
+  --scrollbar-track: transparent;
   --muted-text: var(--muted-foreground);
 }
 
-.tabs {
-  --muted: var(--muted-foreground);
-}
-
-.tabs__tab {
-  white-space: nowrap;
-}
-
-.select__value [data-slot="list-box-item-indicator"] {
-  display: none !important;
-}
-
-.dark {
+.dark,
+[data-theme="dark"] {
   color-scheme: dark;
 
   /* ---------- Linear Dark Mode (LCH-based) ---------- */
@@ -142,6 +151,7 @@
   --ink-0: #f7f8f8;
   --ink-1: #8a8f98;
   --ink-2: #44474e;
+  --accent-dim: rgba(94, 106, 210, 0.2);
 
   --background: #121215;
   --foreground: #f7f8f8;
@@ -155,13 +165,14 @@
   --secondary-foreground: #8a8f98;
   --muted: #1e1e24;
   --muted-foreground: #8a8f98;
-  --accent: #22232a;
-  --accent-foreground: #f7f8f8;
+  --accent: #5e6ad2;
+  --accent-foreground: #ffffff;
   --destructive: #e5484d;
   --destructive-foreground: #ffffff;
   --border: rgba(255, 255, 255, 0.08);
   --input: rgba(255, 255, 255, 0.12);
   --ring: #5e6ad2;
+  --focus: var(--accent);
 
   --sidebar: #0b0b0e;
   --sidebar-foreground: #f7f8f8;
@@ -171,6 +182,27 @@
   --sidebar-accent-foreground: #f7f8f8;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #5e6ad2;
+
+  /* ---------- HeroUI semantic token alignments ---------- */
+  --surface: #18181c;
+  --surface-foreground: #f7f8f8;
+  --overlay: #1e1e24;
+  --overlay-foreground: #f7f8f8;
+  --default: #222228;
+  --default-foreground: #f7f8f8;
+  --field-background: #18181c;
+  --field-foreground: #f7f8f8;
+  --field-placeholder: #8a8f98;
+  --field-border: rgba(255, 255, 255, 0.08);
+  --success: #30a46c;
+  --success-foreground: #ffffff;
+  --warning: #d9730d;
+  --warning-foreground: #ffffff;
+  --danger: #e5484d;
+  --danger-foreground: #ffffff;
+  --scrollbar-thumb: color-mix(in oklch, var(--foreground) 15%, transparent);
+  --scrollbar-track: transparent;
+  --muted-text: var(--muted-foreground);
 }
 
 /* ---------- 工具类映射（Tailwind v4 CSS-first） ---------- */
@@ -183,6 +215,12 @@
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-overlay: var(--overlay);
+  --color-overlay-foreground: var(--overlay-foreground);
+  --color-default: var(--default);
+  --color-default-foreground: var(--default-foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -197,6 +235,12 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -373,8 +417,8 @@
 
 /* ---------- Light, quiet scrollbars ---------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track, transparent); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, var(--line-strong)); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-2); }
 
 /* ---------- Reduced motion（规范：尊重系统减弱动态偏好） ---------- */
