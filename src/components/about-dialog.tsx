@@ -1,4 +1,4 @@
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Modal } from '@heroui/react';
 import {
   CheckCircle2Icon,
   CopyIcon,
@@ -10,7 +10,6 @@ import {
   ShieldAlertIcon,
   ShieldCheckIcon,
   SparklesIcon,
-  XIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -76,25 +75,17 @@ export function AboutDialog() {
   };
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={setAboutOpen}>
-      <DialogPrimitive.Portal>
-        {/* 背景遮罩 */}
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/25 backdrop-blur-[2px] duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
+    <Modal isOpen={open} onOpenChange={setAboutOpen}>
+      <Modal.Backdrop variant="blur">
+        <Modal.Container placement="center" size="sm">
+          <Modal.Dialog className="relative p-0 overflow-hidden sm:max-w-[480px]">
+            {/* 无障碍隐藏标题 */}
+            <Modal.Heading className="sr-only">关于 nervd</Modal.Heading>
 
-        {/* 居中卡片 */}
-        <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 flex w-full max-w-[480px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border/80 bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/10 outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
-          {/* 无障碍隐藏标题 */}
-          <DialogPrimitive.Title className="sr-only">关于 nervd</DialogPrimitive.Title>
+            {/* 右上角关闭按钮 */}
+            <Modal.CloseTrigger />
 
-          {/* 右上角关闭按钮 */}
-          <DialogPrimitive.Close
-            className="absolute right-3.5 top-3.5 z-10 flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="关闭"
-          >
-            <XIcon className="size-4" />
-          </DialogPrimitive.Close>
-
-          {/* 顶部 Hero 品牌区 */}
+            {/* 顶部 Hero 品牌区 */}
           <div className="relative flex flex-col items-center px-6 pt-7 pb-5 text-center">
             {/* 柔和顶部环境微光 */}
             <div
@@ -339,8 +330,9 @@ export function AboutDialog() {
               </button>
             </div>
           </div>
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
-  );
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  </Modal>
+);
 }

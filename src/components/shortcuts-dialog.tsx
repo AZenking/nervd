@@ -1,4 +1,4 @@
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Modal } from '@heroui/react';
 import { useUi } from '@/store/ui';
 
 /**
@@ -64,7 +64,7 @@ function ShortcutGroup({ title, rows }: { title: string; rows: ShortcutRow[] }) 
       <p className="px-4 pb-1 pt-4 text-xs font-medium text-muted-foreground">{title}</p>
       <ul>
         {rows.map((row) => (
-          <li key={row.label} className="flex h-8 items-center justify-between px-4 text-sm">
+          <li key={row.label} className="flex h-8 items-center justify-between px-4 text-sm text-foreground">
             <span>{row.label}</span>
             <span className="flex shrink-0 items-center gap-1">
               {row.keys.map((key, i) => (
@@ -86,23 +86,24 @@ export function ShortcutsDialog() {
   const setShortcutsOpen = useUi((s) => s.setShortcutsOpen);
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={setShortcutsOpen}>
-      <DialogPrimitive.Portal>
-        {/* 遮罩：与 ui/dialog.tsx 的 DialogOverlay 同款（浅黑 + 轻模糊） */}
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/20 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
-        {/* 居中卡片：p-0 由内部分区自带留白；不渲染关闭按钮，Esc / 点遮罩即关 */}
-        <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 flex w-full max-w-[480px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-popover pb-2 text-popover-foreground shadow-level-2 ring-1 ring-black/8 outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0">
-          {/* 可见标题即 DialogTitle（避免 sr-only + 可见文字造成的读屏重复播报） */}
-          <DialogPrimitive.Title className="flex h-12 shrink-0 items-center border-b border-border px-4 text-sm font-medium">
-            键盘快捷键
-          </DialogPrimitive.Title>
-          <div className="max-h-[min(480px,80vh)] overflow-y-auto">
-            <ShortcutGroup title="导航" rows={NAV_ROWS} />
-            <ShortcutGroup title="列表" rows={LIST_ROWS} />
-            <ShortcutGroup title="布局" rows={LAYOUT_ROWS} />
-          </div>
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    <Modal isOpen={open} onOpenChange={setShortcutsOpen}>
+      <Modal.Backdrop>
+        <Modal.Container placement="center" size="sm">
+          <Modal.Dialog className="p-0 overflow-hidden sm:max-w-[480px]">
+            <Modal.Header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 py-0">
+              <Modal.Heading className="text-sm font-medium">
+                键盘快捷键
+              </Modal.Heading>
+              <Modal.CloseTrigger />
+            </Modal.Header>
+            <Modal.Body className="p-0 max-h-[min(480px,80vh)] overflow-y-auto">
+              <ShortcutGroup title="导航" rows={NAV_ROWS} />
+              <ShortcutGroup title="列表" rows={LIST_ROWS} />
+              <ShortcutGroup title="布局" rows={LAYOUT_ROWS} />
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Modal } from '@heroui/react';
 import {
   CalendarClockIcon,
   CalendarDaysIcon,
@@ -333,20 +333,14 @@ export function CommandMenu() {
   };
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
-      <DialogPrimitive.Portal>
-        {/* 遮罩：与 ui/dialog.tsx 的 DialogOverlay 同款（浅黑 + 轻模糊） */}
-        <DialogPrimitive.Backdrop
-          className="fixed inset-0 z-50 bg-black/20 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
-        />
-        {/* 顶部 12vh 悬浮面板（Linear 形态：非居中卡片，不用 DialogContent） */}
-        <DialogPrimitive.Popup
-          className="fixed left-1/2 top-[12vh] z-50 w-full max-w-[640px] -translate-x-1/2 overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-level-2 ring-1 ring-foreground/10 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
-        >
-          {/* 无障碍必需：sr-only 标题 */}
-          <DialogPrimitive.Title className="sr-only">命令面板</DialogPrimitive.Title>
+    <Modal isOpen={open} onOpenChange={handleOpenChange}>
+      <Modal.Backdrop>
+        <Modal.Container placement="top" size="lg">
+          <Modal.Dialog className="p-0 overflow-hidden sm:max-w-[640px] mt-[12vh]">
+            {/* 无障碍必需：sr-only 标题 */}
+            <Modal.Heading className="sr-only">命令面板</Modal.Heading>
 
-          {/* 搜索行 */}
+            {/* 搜索行 */}
           <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4">
             <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
             <input
@@ -422,8 +416,9 @@ export function CommandMenu() {
               关闭
             </span>
           </div>
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
-  );
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  </Modal>
+);
 }

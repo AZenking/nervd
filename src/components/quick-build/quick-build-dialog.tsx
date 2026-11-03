@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Modal } from '@heroui/react';
 import {
   ClockIcon,
   PlayIcon,
@@ -134,15 +134,13 @@ export function QuickBuildDialog() {
   };
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/20 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
-        <DialogPrimitive.Popup
-          className="fixed left-1/2 top-[12vh] z-50 w-full max-w-[640px] -translate-x-1/2 overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-level-2 ring-1 ring-foreground/10 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
-        >
-          <DialogPrimitive.Title className="sr-only">快速构建</DialogPrimitive.Title>
+    <Modal isOpen={open} onOpenChange={setOpen}>
+      <Modal.Backdrop>
+        <Modal.Container placement="top" size="lg">
+          <Modal.Dialog className="p-0 overflow-hidden sm:max-w-[640px] mt-[12vh]">
+            <Modal.Heading className="sr-only">快速构建</Modal.Heading>
 
-          {/* 顶栏：搜索输入与快捷键提示 */}
+            {/* 顶栏：搜索输入与快捷键提示 */}
           <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4">
             <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
             <input
@@ -334,8 +332,9 @@ export function QuickBuildDialog() {
             </div>
             <span className="text-[11px] font-mono text-muted-foreground/80">⌘B 随时呼出</span>
           </div>
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
-  );
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  </Modal>
+);
 }
