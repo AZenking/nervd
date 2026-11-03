@@ -33,7 +33,7 @@ export function NavUser() {
           className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
         >
           <HelpCircleIcon className="size-[18px] shrink-0" />
-          <span className="truncate text-[13.5px] font-medium">帮助与信息</span>
+          <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">帮助与信息</span>
           {hasUpdate ? (
             <span className="ml-auto rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary group-data-[collapsible=icon]:hidden animate-pulse leading-none">
               新版本
@@ -53,7 +53,7 @@ export function NavUser() {
           className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
         >
           <ThemeIcon className="size-[18px] shrink-0" />
-          <span className="truncate text-[13.5px] font-medium">{themeLabel}</span>
+          <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">{themeLabel}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>
@@ -64,7 +64,7 @@ export function NavUser() {
           className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
         >
           <SettingsIcon className="size-[18px] shrink-0" />
-          <span className="truncate text-[13.5px] font-medium">系统设置</span>
+          <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">系统设置</span>
           <kbd className="ml-auto rounded-md border border-neutral-200/80 bg-background dark:border-neutral-700 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden leading-none">
             g s
           </kbd>

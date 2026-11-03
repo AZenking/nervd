@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   RefreshCwIcon,
-  ChevronRightIcon,
   SearchXIcon,
   UserIcon,
   Link2Icon,
 } from 'lucide-react';
-import { ListBox } from '@heroui/react';
+import { Accordion, ListBox } from '@heroui/react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -287,14 +286,20 @@ export function IterationView() {
 
   // 折叠状态：status 原文集合（折叠的组不渲染数据行）
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(listContext.collapsedStatuses));
-  const toggleGroup = useCallback((status: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) next.delete(status);
-      else next.add(status);
-      return next;
-    });
-  }, []);
+
+  const expandedKeys = useMemo(
+    () => new Set(groups.filter((g) => !collapsed.has(g.status)).map((g) => g.status)),
+    [groups, collapsed],
+  );
+
+  const onExpandedChange = useCallback((keys: any) => {
+    const expandedSet = new Set(Array.from(keys as Iterable<React.Key>).map(String));
+    const nextCollapsed = new Set<string>();
+    for (const g of groups) {
+      if (!expandedSet.has(g.status)) nextCollapsed.add(g.status);
+    }
+    setCollapsed(nextCollapsed);
+  }, [groups]);
 
   useEffect(() => {
     updateListContext({ collapsedStatuses: [...collapsed] });
@@ -615,40 +620,35 @@ export function IterationView() {
   // 工作项列表区块（全宽 / 分栏左侧两用）
   const renderWorkitemList = (isMasterColumn: boolean) => (
     <section aria-label="迭代工作项" className={cn('flex flex-col gap-3', !isMasterColumn && 'border-b border-border/70 pb-6')}>
-      <div className="flex flex-col gap-6">
+      <Accordion
+        allowsMultipleExpanded
+        expandedKeys={expandedKeys}
+        onExpandedChange={onExpandedChange}
+        className="flex flex-col gap-4 p-0 w-full"
+      >
         {groups.map((group) => {
-          const isCollapsed = collapsed.has(group.status);
           return (
-            <div key={group.status} className="flex flex-col gap-1.5">
+            <Accordion.Item key={group.status} id={group.status} className="border-none">
               {/* 组头：Linear 组头形态；微弱字距，清晰层级，可折叠 */}
-              <div className="flex items-center">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.status)}
-                  aria-expanded={!isCollapsed}
-                  className="group/group-header -ml-1 flex h-7 cursor-pointer items-center gap-2 rounded px-2 text-left transition-colors hover:bg-muted/60"
-                >
-                  <ChevronRightIcon
-                    className={cn(
-                      'size-3.5 text-muted-foreground/70 transition-transform group-hover/group-header:text-foreground',
-                      !isCollapsed && 'rotate-90',
-                    )}
-                  />
+              <Accordion.Heading>
+                <Accordion.Trigger className="group/group-header -ml-1 flex h-7 w-full cursor-pointer items-center gap-2 rounded px-2 text-left transition-colors hover:bg-muted/60">
                   <StatusIcon status={group.status} className="size-3.5 shrink-0" />
                   <span className="text-[13px] font-semibold text-foreground/90">{group.status || '未知'}</span>
                   <span className="rounded-full bg-muted/80 px-1.5 py-0.5 text-[11px] font-mono font-medium text-muted-foreground tabular-nums">
                     {group.items.length}
                   </span>
-                </button>
-              </div>
+                  <Accordion.Indicator className="ms-auto" />
+                </Accordion.Trigger>
+              </Accordion.Heading>
 
               {/* 组内工作项：左缩进 + 1px 导引线，明确体现父子层级关系 */}
-              {!isCollapsed && (
-                <ListBox
-                  aria-label={group.status || '工作项列表'}
-                  className="flex flex-col gap-0.5 ml-2.5 pl-3 border-l border-border/50 py-0.5 w-full p-0"
-                  selectionMode="none"
-                >
+              <Accordion.Panel>
+                <Accordion.Body className="p-0 pt-1">
+                  <ListBox
+                    aria-label={group.status || '工作项列表'}
+                    className="flex flex-col gap-0.5 ml-2.5 pl-3 border-l border-border/50 py-0.5 w-full p-0"
+                    selectionMode="none"
+                  >
                   {group.items.map((item) => {
                     const rowId = rowKeyOf(item);
                     const assignee = item.assignedTo && item.assignedTo !== '—' ? item.assignedTo : '';
@@ -781,10 +781,12 @@ export function IterationView() {
                     );
                   })}
                 </ListBox>
-              )}
-            </div>
-          );
-        })}
+              </Accordion.Body>
+            </Accordion.Panel>
+          </Accordion.Item>
+        );
+      })}
+    </Accordion>
 
         {/* 首屏加载（尚无已加载数据）：以行骨架代替纯文字 */}
         {loadingList && !items.length && <WorkitemSkeletonRows />}
@@ -816,9 +818,8 @@ export function IterationView() {
             />
           </div>
         )}
-      </div>
-    </section>
-  );
+      </section>
+    );
 
   // 本迭代涉及仓库与 CI 独立视图（按当前迭代动态聚合）
   const reposView = (

@@ -33,7 +33,7 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
               }}
             >
               {item.icon}
-              <span className="flex-1 font-medium">{item.title}</span>
+              <span className="flex-1 font-medium group-data-[collapsible=icon]:hidden">{item.title}</span>
               {item.badge}
             </SidebarMenuButton>
           </SidebarMenuItem>

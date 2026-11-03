@@ -171,7 +171,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="返回工作区" onClick={() => setView('iteration')}>
                 <ArrowLeftIcon />
-                <span>返回工作区</span>
+                <span className="group-data-[collapsible=icon]:hidden">返回工作区</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -190,7 +190,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     onClick={() => setSettingsSection(section.value)}
                   >
                     <section.icon />
-                    <span className="flex-1 font-medium">{section.label}</span>
+                    <span className="flex-1 font-medium group-data-[collapsible=icon]:hidden">{section.label}</span>
                     {errorCount > 0 && (
                       <span
                         className="size-2 rounded-full bg-destructive shrink-0"

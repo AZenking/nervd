@@ -7,6 +7,7 @@
 @import "@heroui/styles";
 @import "@heroui/styles/components/toast.css";
 @import "@heroui/styles/components/progress-bar.css";
+@import "@heroui/styles/components/accordion.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import '@fontsource/inter/400.css';
