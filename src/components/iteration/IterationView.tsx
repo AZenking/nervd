@@ -6,6 +6,7 @@ import {
   UserIcon,
   Link2Icon,
 } from 'lucide-react';
+import { ListBox } from '@heroui/react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -643,24 +644,34 @@ export function IterationView() {
 
               {/* 组内工作项：左缩进 + 1px 导引线，明确体现父子层级关系 */}
               {!isCollapsed && (
-                <div className="flex flex-col gap-0.5 ml-2.5 pl-3 border-l border-border/50 py-0.5">
+                <ListBox
+                  aria-label={group.status || '工作项列表'}
+                  className="flex flex-col gap-0.5 ml-2.5 pl-3 border-l border-border/50 py-0.5 w-full p-0"
+                  selectionMode="none"
+                >
                   {group.items.map((item) => {
                     const rowId = rowKeyOf(item);
                     const assignee = item.assignedTo && item.assignedTo !== '—' ? item.assignedTo : '';
                     const isActive = flatIndexById.get(rowId) === cursor || item.workitemId === splitWorkitemId;
                     const match = matchWorkitemUser(item, currentUser, workitemHighlight);
                     return (
-                      <div
+                      <ListBox.Item
                         key={rowId}
-                        role="listitem"
-                        tabIndex={-1}
-                        ref={(el) => {
+                        id={rowId}
+                        textValue={item.subject}
+                        ref={(el: HTMLElement | null) => {
                           if (el) rowRefs.current.set(rowId, el);
                           else rowRefs.current.delete(rowId);
                         }}
                         data-active={isActive}
                         data-testid="workitem-row"
                         data-identifier={item.identifier ?? ''}
+                        onAction={() => {
+                          applyCursor(flatIndexById.get(rowId) ?? 0);
+                          clearSelection();
+                          setSelectionAnchor(item.workitemId);
+                          openDetail(item);
+                        }}
                         onClick={(e) => {
                           cancelPreviewClick();
                           applyCursor(flatIndexById.get(rowId) ?? 0);
@@ -696,7 +707,7 @@ export function IterationView() {
                           setCtxMenu({ item, x: e.clientX, y: e.clientY });
                         }}
                         className={cn(
-                          'group flex w-full cursor-pointer items-center gap-2.5 rounded-md text-left transition-colors hover:bg-muted/60',
+                          'group flex w-full cursor-pointer items-center gap-2.5 rounded-md text-left transition-colors hover:bg-muted/60 min-h-0',
                           'data-[active=true]:bg-accent data-[active=true]:text-accent-foreground',
                           isMasterColumn ? 'h-9 px-2' : 'h-10 px-2.5',
                           match.isAssigned && (isMasterColumn ? 'border-l-2 border-l-primary bg-primary/[0.04] pl-1.5' : 'border-l-2 border-l-primary bg-primary/[0.04] pl-2'),
@@ -766,10 +777,10 @@ export function IterationView() {
                             </span>
                           ) : null}
                         </span>
-                      </div>
+                      </ListBox.Item>
                     );
                   })}
-                </div>
+                </ListBox>
               )}
             </div>
           );

@@ -56,7 +56,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar variant="inset" collapsible="icon" {...props}>
       <SidebarHeader
         data-tauri-drag-region
-        className="px-3 pb-2 pt-2 select-none"
+        className="px-3 pb-2 pt-2 select-none group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center"
       >
         {/* macOS 沉浸式窗口：红绿灯安全留白避让与可拖拽区 */}
         <div data-tauri-drag-region className="h-7 w-full shrink-0 select-none cursor-default" />
@@ -69,7 +69,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <button
             type="button"
             onClick={() => openSettings('connection')}
-            className="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl p-1.5 text-left transition-all hover:bg-neutral-100/70 dark:hover:bg-neutral-800/50 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:p-0"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl p-1.5 text-left transition-all hover:bg-neutral-100/70 dark:hover:bg-neutral-800/50 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:p-0"
             title={`${displayName} (${displayRole}) · 点击进入账号设置`}
             data-no-drag
           >
@@ -166,7 +166,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       {inSettings ? (
         // 设置模式：左侧栏即设置菜单，顶部为返回工作区，下方直列各个设置分区
-        <SidebarContent className="gap-1 px-3 py-2">
+        <SidebarContent className="gap-1 px-3 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="返回工作区" onClick={() => setView('iteration')}>
@@ -204,7 +204,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarContent>
       ) : (
-        <SidebarContent className="gap-1.5 px-3 py-2">
+        <SidebarContent className="gap-1.5 px-3 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center">
           {/* 主导航：对齐图片菜单序列（Dashboard, Orders, Tracker [New], Analytics, etc.） */}
           <NavMain
             items={[
@@ -260,7 +260,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarContent>
       )}
 
-      <SidebarFooter className="border-t border-sidebar-border/70 p-3 pt-2">
+      <SidebarFooter className="border-t border-sidebar-border/70 p-3 pt-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center">
         {!inSettings && <NavUser />}
       </SidebarFooter>
     </Sidebar>
