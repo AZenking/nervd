@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SearchableAssigneePopover } from './assignee-popover';
+import { useApp } from '@/store/app';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -21,6 +22,22 @@ beforeEach(() => {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
+
+  useApp.setState({
+    settings: {
+      organizationId: 'mock-org',
+      defaultSpaceIdentifier: 'mock-space',
+      linkPattern: 'REQ-(\\d+)',
+      watchedRepos: [],
+      allowWriteOps: true,
+      workitemRepos: {},
+      branchRuleTemplates: [],
+      workitemRepoBranchTemplates: {},
+      jenkinsConnections: [],
+      repoCiBindings: {},
+      hasPat: true,
+    },
+  });
 });
 
 afterEach(async () => {
@@ -28,7 +45,7 @@ afterEach(async () => {
   host.remove();
 });
 
-describe('SearchableAssigneePopover', () => {
+describe('SearchableAssigneePopover (Select 规范实现)', () => {
   it('opens candidate list and selects a candidate properly', async () => {
     const candidates = [
       { id: 'u1', name: '林益生', role: '需求负责人' },
@@ -51,34 +68,47 @@ describe('SearchableAssigneePopover', () => {
       );
     });
 
-    const triggerBtn = host.querySelector('button');
-    expect(triggerBtn).not.toBeNull();
-    expect(triggerBtn?.textContent).toContain('林益生');
+    // 触发器回显当前负责人
+    const trigger = host.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement | null;
+    expect(trigger).not.toBeNull();
+    expect(trigger?.textContent).toContain('林益生');
 
-    // 点击触发器打开 Popover
+    // 点击触发器展开 Select 弹层
     await act(async () => {
-      triggerBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     });
 
-    // 检查搜索输入框与候选人员列表是否出现在 PopoverContent 中
-    const searchInput = document.querySelector('input[placeholder="搜索成员或角色…"]');
-    expect(searchInput).not.toBeNull();
-
-    // 候选列表里包含张三
-    const candidateButtons = Array.from(document.querySelectorAll('button')).filter((b) =>
-      b.textContent?.includes('张三'),
+    // 候选列表（ListBox option）包含张三
+    const option = Array.from(document.querySelectorAll('[role="listbox"] [role="option"]')).find(
+      (opt) => opt.textContent?.includes('张三'),
     );
-    expect(candidateButtons.length).toBeGreaterThan(0);
+    expect(option).not.toBeUndefined();
 
-    // 点击张三选择
+    // 点击张三完成选择
     await act(async () => {
-      candidateButtons[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      option?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     });
 
     expect(selectedCandidate).toEqual({ id: 'u2', name: '张三', role: '前端开发' });
   });
 
   it('blocks opening and shows toast when checkWriteOps is true and allowWriteOps is false', async () => {
+    useApp.setState({
+      settings: {
+        organizationId: 'mock-org',
+        defaultSpaceIdentifier: 'mock-space',
+        linkPattern: 'REQ-(\\d+)',
+        watchedRepos: [],
+        allowWriteOps: false,
+        workitemRepos: {},
+        branchRuleTemplates: [],
+        workitemRepoBranchTemplates: {},
+        jenkinsConnections: [],
+        repoCiBindings: {},
+        hasPat: true,
+      },
+    });
+
     const candidates = [
       { id: 'u1', name: '林益生', role: '需求负责人' },
     ];
@@ -95,17 +125,14 @@ describe('SearchableAssigneePopover', () => {
       );
     });
 
-    const triggerBtn = host.querySelector('button');
-    expect(triggerBtn).not.toBeNull();
+    const trigger = host.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement | null;
+    expect(trigger).not.toBeNull();
 
-    // 点击触发器
+    // 点击触发器：受控 isOpen 拦截，弹层不展开
     await act(async () => {
-      triggerBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     });
 
-    // 弹窗未打开
-    const searchInput = document.querySelector('input[placeholder="搜索成员或角色…"]');
-    expect(searchInput).toBeNull();
+    expect(document.querySelectorAll('[role="listbox"] [role="option"]').length).toBe(0);
   });
 });
-
