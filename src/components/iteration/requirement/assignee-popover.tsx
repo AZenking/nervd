@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon, ChevronDownIcon, SearchIcon, UserIcon, XIcon } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover } from '@heroui/react';
 import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Chip } from '@/components/ui/chip';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -113,10 +113,9 @@ export function SearchableAssigneePopover({
     }
   };
 
-  const handleTriggerClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleOpenChange = (nextOpen: boolean) => {
     if (disabled || updating) return;
-    if (checkWriteOps && !allowWriteOps) {
+    if (nextOpen && checkWriteOps && !allowWriteOps) {
       toast.add({
         title: '当前处于只读模式',
         description: '更改负责人需在「设置 → 安全」中开启写操作。',
@@ -128,7 +127,7 @@ export function SearchableAssigneePopover({
       });
       return;
     }
-    setOpen((prev) => !prev);
+    setOpen(nextOpen);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -157,75 +156,61 @@ export function SearchableAssigneePopover({
   const renderTriggerContent = () => {
     if (variant === 'row') {
       return (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={handleTriggerClick}
-                className={cn(
-                  'group/assignee h-6 gap-1.5 px-1.5 text-xs text-muted-foreground hover:text-foreground',
-                  updating && 'pointer-events-none opacity-60',
-                  disabled && 'pointer-events-none opacity-50',
-                  className,
-                )}
-                title="点击更改负责人"
-                aria-label="点击更改负责人"
-              >
-                {updating ? (
-                  <Spinner className="size-3.5" />
-                ) : assignedToName ? (
-                  <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
-                    <AvatarFallback className="text-[9px] bg-transparent font-medium">{assignedToName.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <UserIcon className="size-3.5 text-muted-foreground/60" />
-                )}
-                <OverflowTooltip
-                  text={assignedToName || placeholder}
-                  className="hidden max-w-20 sm:inline truncate"
-                />
-              </Button>
-            }
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          disabled={disabled}
+          className={cn(
+            'group/assignee h-6 gap-1.5 rounded-sm px-1.5 text-xs text-muted-foreground hover:text-foreground',
+            updating && 'pointer-events-none opacity-60',
+            disabled && 'pointer-events-none opacity-50',
+            className,
+          )}
+          title="点击更改负责人"
+          aria-label="点击更改负责人"
+        >
+          {updating ? (
+            <Spinner className="size-3.5" />
+          ) : assignedToName ? (
+            <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
+              <AvatarFallback className="text-[9px] bg-transparent font-medium">{assignedToName.charAt(0)}</AvatarFallback>
+            </Avatar>
+          ) : (
+            <UserIcon className="size-3.5 text-muted-foreground/60" />
+          )}
+          <OverflowTooltip
+            text={assignedToName || placeholder}
+            className="hidden max-w-20 sm:inline truncate"
           />
-          <TooltipContent>点击更改负责人</TooltipContent>
-        </Tooltip>
+        </Button>
       );
     }
 
     if (variant === 'button') {
       return (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                onClick={handleTriggerClick}
-                className={cn(
-                  'h-7 shrink-0 gap-1.5 px-2 text-xs font-medium text-foreground max-w-44',
-                  updating && 'pointer-events-none opacity-60',
-                  disabled && 'pointer-events-none opacity-50',
-                  className,
-                )}
-                title="选择处理人"
-                aria-label="选择处理人"
-              >
-                {updating ? (
-                  <Spinner className="size-3" />
-                ) : (
-                  <UserIcon className="size-3 text-muted-foreground shrink-0" />
-                )}
-                <OverflowTooltip text={assignedToName || placeholder} className="truncate" />
-                <ChevronDownIcon className="size-3 text-muted-foreground opacity-60 shrink-0" />
-              </Button>
-            }
-          />
-          <TooltipContent>选择处理人</TooltipContent>
-        </Tooltip>
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          disabled={disabled}
+          className={cn(
+            'h-7 shrink-0 gap-1.5 rounded-md border border-border/70 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted max-w-44',
+            updating && 'pointer-events-none opacity-60',
+            disabled && 'pointer-events-none opacity-50',
+            className,
+          )}
+          title="选择处理人"
+          aria-label="选择处理人"
+        >
+          {updating ? (
+            <Spinner className="size-3" />
+          ) : (
+            <UserIcon className="size-3 text-muted-foreground shrink-0" />
+          )}
+          <OverflowTooltip text={assignedToName || placeholder} className="truncate" />
+          <ChevronDownIcon className="size-3 text-muted-foreground opacity-60 shrink-0" />
+        </Button>
       );
     }
 
@@ -237,9 +222,8 @@ export function SearchableAssigneePopover({
           size="sm"
           color="default"
           variant="soft"
-          onClick={handleTriggerClick}
           className={cn(
-            'group/assignee gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none hover:bg-muted/60',
+            'group/assignee gap-1.5 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none hover:bg-muted/60',
             updating && 'pointer-events-none opacity-60',
             disabled && 'pointer-events-none opacity-50',
             className,
@@ -271,9 +255,9 @@ export function SearchableAssigneePopover({
         type="button"
         variant="ghost"
         size="xs"
-        onClick={handleTriggerClick}
+        disabled={disabled}
         className={cn(
-          'group/assignee h-6 gap-1.5 px-1.5 text-xs font-medium text-foreground',
+          'group/assignee h-6 gap-1.5 rounded-sm px-1.5 text-xs font-medium text-foreground',
           updating && 'pointer-events-none opacity-60',
           disabled && 'pointer-events-none opacity-50',
           className,
@@ -300,92 +284,85 @@ export function SearchableAssigneePopover({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={renderTriggerContent()} />
-      <PopoverContent
-        align={align}
-        sideOffset={4}
-        className="w-56 p-1.5 z-50 shadow-level-2 bg-popover border border-border"
-        onClick={(e) => e.stopPropagation()}
+    <Popover isOpen={open} onOpenChange={handleOpenChange}>
+      <Popover.Trigger>
+        {renderTriggerContent()}
+      </Popover.Trigger>
+      <Popover.Content
+        placement={align === 'end' ? 'bottom end' : 'bottom start'}
+        className="w-56 p-1.5 z-50 shadow-level-2 bg-popover border border-border rounded-lg"
       >
-        {/* 搜索框 */}
-        <div className="relative mb-1 flex items-center">
-          <SearchIcon className="absolute left-2 size-3 text-muted-foreground pointer-events-none z-10" />
-          <Input
-            ref={inputRef}
-            type="text"
-            placeholder="搜索成员或角色…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setHighlightedIndex(0);
-            }}
-            onKeyDown={handleKeyDown}
-            className="h-7 w-full pl-7 pr-6 text-xs bg-muted/40"
-          />
-          {query && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => {
-                      setQuery('');
-                      inputRef.current?.focus();
-                    }}
-                    className="absolute right-1 size-5 text-muted-foreground hover:text-foreground"
-                    title="清空搜索"
-                    aria-label="清空搜索"
-                  >
-                    <XIcon className="size-3" />
-                  </Button>
-                }
-              />
-              <TooltipContent>清空搜索</TooltipContent>
-            </Tooltip>
-          )}
-        </div>
+        <Popover.Dialog className="outline-none">
+          {/* 搜索框 */}
+          <div className="relative mb-1 flex items-center">
+            <SearchIcon className="absolute left-2 size-3 text-muted-foreground pointer-events-none z-10" />
+            <Input
+              ref={inputRef}
+              type="text"
+              placeholder="搜索成员或角色…"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setHighlightedIndex(0);
+              }}
+              onKeyDown={handleKeyDown}
+              className="h-7 w-full pl-7 pr-6 text-xs bg-muted/40"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  inputRef.current?.focus();
+                }}
+                className="absolute right-1 size-5 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
+                title="清空搜索"
+                aria-label="清空搜索"
+              >
+                <XIcon className="size-3" />
+              </button>
+            )}
+          </div>
 
-        {/* 候选列表 */}
-        <div className="max-h-56 overflow-y-auto flex flex-col gap-0.5">
-          {filteredCandidates.length === 0 ? (
-            <div className="py-3 text-center text-xs text-muted-foreground">
-              未找到匹配成员{query ? `「${query}」` : ''}
-            </div>
-          ) : (
-            filteredCandidates.map((c, index) => {
-              const isSelected = c.name === assignedToName || c.id === assignedToName;
-              const isHighlighted = index === highlightedIndex;
-              return (
-                <button
-                  key={c.id || c.name}
-                  type="button"
-                  onClick={() => void handleSelect(c)}
-                  onMouseEnter={() => setHighlightedIndex(index)}
-                  className={cn(
-                    'flex items-center justify-between gap-2 px-2 py-1.5 text-xs rounded-sm cursor-pointer transition-colors text-left w-full',
-                    isHighlighted ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/60 text-foreground',
-                    isSelected && 'font-medium text-primary',
-                  )}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(c.name))}>
-                      <AvatarFallback className="text-[9px] bg-transparent font-medium">{c.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <OverflowTooltip text={c.name} className="min-w-0 truncate" />
-                    {c.role && (
-                      <span className="text-[10px] text-muted-foreground/80 shrink-0">({c.role})</span>
+          {/* 候选列表 */}
+          <ScrollArea size={24} className="max-h-56 flex flex-col gap-0.5">
+            {filteredCandidates.length === 0 ? (
+              <div className="py-3 text-center text-xs text-muted-foreground">
+                未找到匹配成员{query ? `「${query}」` : ''}
+              </div>
+            ) : (
+              filteredCandidates.map((c, index) => {
+                const isSelected = c.name === assignedToName || c.id === assignedToName;
+                const isHighlighted = index === highlightedIndex;
+                return (
+                  <button
+                    key={c.id || c.name}
+                    type="button"
+                    onClick={() => void handleSelect(c)}
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                    className={cn(
+                      'flex items-center justify-between gap-2 px-2 py-1.5 text-xs rounded-sm cursor-pointer transition-colors text-left w-full',
+                      isHighlighted ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/60 text-foreground',
+                      isSelected && 'font-medium text-primary',
                     )}
-                  </div>
-                  {isSelected && <CheckIcon className="size-3 text-primary shrink-0" />}
-                </button>
-              );
-            })
-          )}
-        </div>
-      </PopoverContent>
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(c.name))}>
+                        <AvatarFallback className="text-[9px] bg-transparent font-medium">{c.name.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <OverflowTooltip text={c.name} className="min-w-0 truncate" />
+                      {c.role && (
+                        <span className="text-[10px] text-muted-foreground/80 shrink-0">({c.role})</span>
+                      )}
+                    </div>
+                    {isSelected && <CheckIcon className="size-3 text-primary shrink-0" />}
+                  </button>
+                );
+              })
+            )}
+          </ScrollArea>
+        </Popover.Dialog>
+      </Popover.Content>
     </Popover>
   );
 }

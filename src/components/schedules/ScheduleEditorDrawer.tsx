@@ -24,6 +24,7 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -545,7 +546,7 @@ export function ScheduleEditorDrawer({
           </div>
 
           {/* 抽屉正文：完整 Card 分节 */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <ScrollArea className="min-h-0 flex-1 px-6 py-5">
             <div className="flex flex-col gap-4">
               {/* 分节 1：基本信息 */}
               <Card>
@@ -1184,7 +1185,7 @@ export function ScheduleEditorDrawer({
                 </Card.Content>
               </Card>
             </div>
-          </div>
+          </ScrollArea>
 
           {/* 抽屉底部操作栏 */}
           <div className="flex h-14 shrink-0 items-center justify-end gap-2 border-t border-border bg-background px-6">

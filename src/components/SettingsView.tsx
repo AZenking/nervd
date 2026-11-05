@@ -7,6 +7,7 @@ import { Alert, Button, Card } from '@heroui/react';
 import { SETTINGS_SECTIONS } from './settings/sections';
 import { PageHeader } from './page-header';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { SettingsAutoSaveStatus } from './settings/SettingsAutoSaveStatus';
 import { Stepper } from './ui/stepper';
 import { OrgRow, PatRow, SpaceRow } from './settings/sections/connection-fields';
@@ -189,7 +190,7 @@ export function SettingsView({
         {/* 最外层 Card：填充页头以下整个区域（透明底 + 细边框）；向导内容在卡内垂直居中，
             小窗口下内容超高时卡内自行滚动 */}
         <Card className="flex min-h-0 flex-1 flex-col rounded-lg border border-border/60 bg-transparent p-6">
-          <div className="m-auto flex max-h-full w-full max-w-3xl flex-col gap-6 overflow-y-auto">
+          <ScrollArea className="m-auto flex max-h-full w-full max-w-3xl flex-col gap-6">
             <div className="flex items-center gap-2">
               <SparklesIcon className="size-4 text-primary" />
               <span className="text-sm font-medium text-foreground">欢迎使用 nervd 桌面工作台</span>
@@ -251,7 +252,7 @@ export function SettingsView({
                 </Button>
               )}
             </div>
-          </div>
+          </ScrollArea>
         </Card>
       </main>
     </div>

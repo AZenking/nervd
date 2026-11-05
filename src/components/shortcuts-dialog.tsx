@@ -1,6 +1,7 @@
 import { Modal } from '@heroui/react';
 import { useUi } from '@/store/ui';
 import { Kbd } from '@/components/ui/kbd';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 /**
  * ? 键盘快捷键面板（Linear 式 `?` 帮助弹层）：
@@ -88,10 +89,12 @@ export function ShortcutsDialog() {
               </Modal.Heading>
               <Modal.CloseTrigger />
             </Modal.Header>
-            <Modal.Body className="p-0 max-h-[min(480px,80vh)] overflow-y-auto">
-              <ShortcutGroup title="导航" rows={NAV_ROWS} />
-              <ShortcutGroup title="列表" rows={LIST_ROWS} />
-              <ShortcutGroup title="布局" rows={LAYOUT_ROWS} />
+            <Modal.Body className="p-0 max-h-[min(480px,80vh)]">
+              <ScrollArea className="max-h-[inherit]">
+                <ShortcutGroup title="导航" rows={NAV_ROWS} />
+                <ShortcutGroup title="列表" rows={LIST_ROWS} />
+                <ShortcutGroup title="布局" rows={LAYOUT_ROWS} />
+              </ScrollArea>
             </Modal.Body>
           </Modal.Dialog>
         </Modal.Container>

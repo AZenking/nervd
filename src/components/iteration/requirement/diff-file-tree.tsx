@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface DiffFileTreeProps {
@@ -191,7 +192,7 @@ export function DiffFileTree({
       </div>
 
       {/* 树节点列表 */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-1.5 space-y-0.5">
+      <ScrollArea className="flex-1 min-h-0 p-1.5 space-y-0.5">
         {displayedTree.length === 0 ? (
           <div className="p-4 text-center text-xs text-muted-foreground">
             {searchQuery ? '未找到匹配的文件' : '暂无改动文件'}
@@ -209,7 +210,7 @@ export function DiffFileTree({
             />
           ))
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 }

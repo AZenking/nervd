@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ListFilterIcon, XIcon } from 'lucide-react';
 import { Dropdown, Label } from '@heroui/react';
 import { Chip } from '@/components/ui/chip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useUi, type WorkitemFilters } from '@/store/ui';
@@ -55,7 +56,8 @@ function FilterMenu({ label, kind, options }: {
           </Chip>
         )}
       </Dropdown.Trigger>
-      <Dropdown.Popover placement="bottom end" className="max-h-72 min-w-52 overflow-y-auto">
+      <Dropdown.Popover placement="bottom end" className="max-h-72 min-w-52">
+        <ScrollArea size={24} className="max-h-[inherit]">
         {sortedOptions.length === 0 ? (
           <p className="px-2 py-3 text-center text-xs text-muted-foreground select-none">
             暂无可筛选项
@@ -104,6 +106,7 @@ function FilterMenu({ label, kind, options }: {
             })}
           </Dropdown.Menu>
         )}
+        </ScrollArea>
       </Dropdown.Popover>
     </Dropdown>
   );

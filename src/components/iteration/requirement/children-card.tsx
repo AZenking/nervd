@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
+import { Dropdown, Surface, Select, ListBox } from '@heroui/react';
 import {
-  BugIcon, CheckIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, SearchIcon, ShieldCheckIcon, SparklesIcon,
+  BugIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, ShieldCheckIcon, SparklesIcon, UserIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { getAiSettings, aiBreakdownRequirement } from '@/lib/ai-api';
@@ -15,11 +16,9 @@ import { useWorkitemWorkflowStatuses, type WorkflowStatusItem } from '@/hooks/us
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CopyButton } from '@/components/ui/copy-button';
@@ -27,7 +26,15 @@ import { EmptyHint } from '@/components/empty-hint';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SectionHeader } from '@/components/section-header';
 import { StatusIcon } from '@/components/status-icon';
+import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
 import { SearchableAssigneePopover, type AssigneeOption } from './assignee-popover';
+
+const SEVERITY_OPTIONS = [
+  { label: '致命', color: 'bg-red-500 dark:bg-red-400' },
+  { label: '严重', color: 'bg-amber-500 dark:bg-amber-400' },
+  { label: '一般', color: 'bg-yellow-500 dark:bg-yellow-400' },
+  { label: '轻微', color: 'bg-emerald-500 dark:bg-emerald-400' },
+] as const;
 
 /** 行首快速状态切换下拉（免弹窗极速流转，即时回显 + 乐观更新） */
 export function InlineStatusDropdown({
@@ -40,16 +47,11 @@ export function InlineStatusDropdown({
   const loadChildren = useApp((state) => state.loadChildren);
   const [open, setOpen] = useState(false);
   const [localStatus, setLocalStatus] = useState({ id: task.statusId, name: task.status });
-  const [statusSearch, setStatusSearch] = useState('');
 
   // 同步外部 task 状态变化
   useEffect(() => {
     setLocalStatus({ id: task.statusId, name: task.status });
   }, [task.statusId, task.status]);
-
-  useEffect(() => {
-    if (open) setStatusSearch('');
-  }, [open]);
 
   const { statuses, loadingStatuses, updatingStatus, fetchStatuses, changeStatus } =
     useWorkitemWorkflowStatuses({
@@ -64,12 +66,6 @@ export function InlineStatusDropdown({
       },
     });
 
-  const filteredStatuses = useMemo(() => {
-    const q = statusSearch.trim().toLowerCase();
-    if (!q) return statuses;
-    return statuses.filter((s) => s.name.toLowerCase().includes(q));
-  }, [statuses, statusSearch]);
-
   const handleSelectStatus = async (s: WorkflowStatusItem) => {
     // 本地回显由统一 workflow action 负责，避免先写一次 store、再由 API action 写第二次。
     const previous = { ...localStatus };
@@ -83,91 +79,76 @@ export function InlineStatusDropdown({
   const displayStatus = localStatus.name || task.status;
 
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        if (v) void fetchStatuses();
-      }}
+    <div
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      className="shrink-0"
     >
-      <DropdownMenuTrigger
-        onClick={(e) => e.stopPropagation()}
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            className={cn(
-              'group/status h-6 gap-1.5 px-1.5 text-xs font-medium',
-              updatingStatus && 'pointer-events-none opacity-60',
-            )}
-            title="点击快速更改状态"
-            aria-label="点击快速更改状态"
-          />
-        }
+      <Dropdown
+        isOpen={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (v) void fetchStatuses();
+        }}
       >
-        {updatingStatus ? (
-          <Spinner className="size-3.5" />
-        ) : (
-          <StatusIcon status={displayStatus} className="size-3.5 shrink-0" />
-        )}
-        <span className="text-[12px] text-muted-foreground group-hover/status:text-foreground">
-          {displayStatus || '未指定'}
-        </span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-36">
-        {statuses.length >= 5 && (
-          <div className="p-1 border-b border-border/50">
-            <div className="relative">
-              <SearchIcon className="absolute left-2 top-2 size-3 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="搜索状态…"
-                value={statusSearch}
-                onChange={(e) => setStatusSearch(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-                className="h-6 w-full pl-6 pr-2 text-xs"
-              />
-            </div>
-          </div>
-        )}
-        {loadingStatuses && (
-          <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
-            <Spinner className="size-3" />
-            <span>读取状态流程…</span>
-          </div>
-        )}
-        {!loadingStatuses && statuses.length === 0 && (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">
-            暂无可流转状态
-          </div>
-        )}
-        {!loadingStatuses && statuses.length > 0 && filteredStatuses.length === 0 && (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">
-            未找到匹配状态
-          </div>
-        )}
-        {!loadingStatuses && filteredStatuses.map((s) => {
-          const isCurrent = s.id === localStatus.id || s.name === localStatus.name;
-          return (
-            <DropdownMenuItem
-              key={s.id}
-              className={cn('flex cursor-pointer items-center justify-between text-xs', isCurrent && 'font-medium text-primary')}
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleSelectStatus(s);
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <StatusIcon status={s.name} className="size-3" />
-                <span>{s.name}</span>
-              </div>
-              {isCurrent && <CheckIcon className="size-3.5" />}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <Dropdown.Trigger
+          type="button"
+          className={cn(
+            'group/status h-6 gap-1.5 px-1.5 text-xs font-medium inline-flex items-center rounded-sm transition-colors hover:bg-muted/60',
+            updatingStatus && 'pointer-events-none opacity-60',
+          )}
+          aria-label="点击快速更改状态"
+        >
+          {updatingStatus ? (
+            <Spinner className="size-3.5" />
+          ) : (
+            <StatusIcon status={displayStatus} className="size-3.5 shrink-0" />
+          )}
+          <span className="text-[12px] text-muted-foreground group-hover/status:text-foreground">
+            {displayStatus || '未指定'}
+          </span>
+        </Dropdown.Trigger>
+        <Dropdown.Popover className="min-w-36">
+          <Dropdown.Menu
+            aria-label="流转状态"
+            onAction={(key) => {
+              const s = statuses.find((item) => item.id === String(key) || item.name === String(key));
+              if (s) void handleSelectStatus(s);
+            }}
+          >
+            {loadingStatuses ? (
+              <Dropdown.Item id="__loading" isDisabled textValue="读取状态流程…">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Spinner className="size-3" />
+                  <span>读取状态流程…</span>
+                </div>
+              </Dropdown.Item>
+            ) : statuses.length === 0 ? (
+              <Dropdown.Item id="__empty" isDisabled textValue="暂无可流转状态">
+                <span className="text-xs text-muted-foreground">暂无可流转状态</span>
+              </Dropdown.Item>
+            ) : (
+              statuses.map((s) => {
+                const isCurrent = s.id === localStatus.id || s.name === localStatus.name;
+                return (
+                  <Dropdown.Item
+                    key={s.id}
+                    id={s.id}
+                    textValue={s.name}
+                    className={cn('flex cursor-pointer items-center justify-between text-xs', isCurrent && 'font-medium text-primary')}
+                  >
+                    <div className="flex items-center gap-2">
+                      <StatusIcon status={s.name} className="size-3" />
+                      <span>{s.name}</span>
+                    </div>
+                  </Dropdown.Item>
+                );
+              })
+            )}
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+    </div>
   );
 }
 
@@ -497,103 +478,178 @@ export function ChildrenCard({
     <span className="font-mono text-xs text-muted-foreground">0</span>
   );
 
+  // 保证当前选中的人或需求负责人在候选人列表中，确保 Select 能够正确匹配 value 和回显
+  const assigneeCandidates = useMemo(() => {
+    const list = [...(candidateAssignees ?? [])];
+    const currentName = selectedAssignee?.name || parentAssigneeName;
+    const currentId = selectedAssignee?.id || parentAssigneeId;
+    if (currentName && !list.some((c) => c.name === currentName || (currentId && c.id === currentId))) {
+      list.unshift({
+        id: currentId || currentName,
+        name: currentName,
+        role: currentId === parentAssigneeId ? '需求负责人' : undefined,
+      });
+    }
+    return list;
+  }, [candidateAssignees, selectedAssignee, parentAssigneeName, parentAssigneeId]);
+
+  const currentAssigneeKey = useMemo(() => {
+    if (selectedAssignee?.id) return selectedAssignee.id;
+    const matched = assigneeCandidates.find((c) => c.name === (selectedAssignee?.name || parentAssigneeName));
+    return matched?.id ?? (assigneeCandidates[0]?.id || '');
+  }, [selectedAssignee, parentAssigneeName, assigneeCandidates]);
+
   const inlineAddRow = (
-    <div className="flex flex-wrap items-center gap-2 p-2 bg-muted/25 transition-colors">
+    <Surface variant="secondary" className="flex flex-wrap items-center gap-2 p-2 rounded-lg border border-border/70 transition-colors">
       {types.length > 1 ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 shrink-0 gap-1 rounded border-border/60 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted"
-              />
-            }
-          >
-            {isBug ? <BugIcon className="size-3 text-destructive/70" /> : <PlusIcon className="size-3 text-primary" />}
-            <span>{types.find((t) => t.id === typeId)?.name || (isBug ? '缺陷' : '子任务')}</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-32">
-            {types.map((t) => (
-              <DropdownMenuItem
-                key={t.id}
-                className={cn('text-xs cursor-pointer', t.id === typeId && 'font-medium text-primary')}
-                onClick={() => setTypeId(t.id)}
-              >
-                {t.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Select
+          aria-label="工作项类型"
+          variant="secondary"
+          className="w-auto shrink-0"
+          selectedKey={typeId || (types[0]?.id ?? '')}
+          onSelectionChange={(key) => {
+            if (key !== null) setTypeId(String(key));
+          }}
+        >
+          <Select.Trigger className="h-7 min-h-7 gap-1.5 rounded-md px-2 text-xs font-medium">
+            <Select.Value>
+              {({ state }) => {
+                const currentType = types.find((t) => t.id === state.selectedItems[0]?.key) || types[0];
+                return (
+                  <div className="flex items-center gap-1.5 truncate">
+                    {isBug ? (
+                      <BugIcon className="size-3 text-destructive/70 shrink-0" />
+                    ) : (
+                      <PlusIcon className="size-3 text-primary shrink-0" />
+                    )}
+                    <span className="truncate">{currentType?.name || (isBug ? '缺陷' : '子任务')}</span>
+                  </div>
+                );
+              }}
+            </Select.Value>
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover className="min-w-32">
+            <ListBox>
+              {types.map((t) => (
+                <ListBox.Item key={t.id} id={t.id} textValue={t.name} className="text-xs">
+                  {t.name}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       ) : (
-        <div className="flex items-center gap-1.5 px-1.5 text-xs text-muted-foreground font-medium shrink-0">
-          {isBug ? <BugIcon className="size-3 text-destructive/70" /> : <PlusIcon className="size-3 text-primary" />}
+        <div className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2 text-xs font-medium text-foreground">
+          {isBug ? <BugIcon className="size-3 text-destructive/70 shrink-0" /> : <PlusIcon className="size-3 text-primary shrink-0" />}
           <span>{types[0]?.name || (isBug ? '缺陷' : '子任务')}</span>
         </div>
       )}
 
-      {/* 缺陷专属：严重程度快速选择 */}
+      {/* 缺陷专属：严重程度快速选择（严格按照 HeroUI Select 规范） */}
       {isBug && (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                className="h-7 shrink-0 gap-1.5 px-2 text-xs font-medium"
-                title="选择严重程度"
-                aria-label="选择严重程度"
-              />
-            }
-          >
-            <span
-              className={cn('size-1.5 rounded-full shrink-0', {
-                'bg-red-500 dark:bg-red-400': selectedSeverity === '致命',
-                'bg-amber-500 dark:bg-amber-400': selectedSeverity === '严重',
-                'bg-yellow-500 dark:bg-yellow-400': selectedSeverity === '一般',
-                'bg-emerald-500 dark:bg-emerald-400': selectedSeverity === '轻微',
-              })}
-            />
-            <span>{selectedSeverity}</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-28">
-            {[
-              { label: '致命', color: 'bg-red-500 dark:bg-red-400' },
-              { label: '严重', color: 'bg-amber-500 dark:bg-amber-400' },
-              { label: '一般', color: 'bg-yellow-500 dark:bg-yellow-400' },
-              { label: '轻微', color: 'bg-emerald-500 dark:bg-emerald-400' },
-            ].map((sev) => (
-              <DropdownMenuItem
-                key={sev.label}
-                className={cn(
-                  'text-xs cursor-pointer flex items-center justify-between',
-                  sev.label === selectedSeverity && 'font-medium text-primary',
-                )}
-                onClick={() => setSelectedSeverity(sev.label)}
-              >
-                <div className="flex items-center gap-2">
-                  <span className={cn('size-1.5 rounded-full shrink-0', sev.color)} />
-                  <span>{sev.label}</span>
-                </div>
-                {sev.label === selectedSeverity && <CheckIcon className="size-3" />}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Select
+          aria-label="严重程度"
+          variant="secondary"
+          className="w-auto shrink-0"
+          selectedKey={selectedSeverity}
+          onSelectionChange={(key) => {
+            if (key !== null) setSelectedSeverity(String(key));
+          }}
+        >
+          <Select.Trigger className="h-7 min-h-7 gap-1.5 rounded-md px-2 text-xs font-medium">
+            <Select.Value>
+              {({ state }) => {
+                const sev = SEVERITY_OPTIONS.find((s) => s.label === state.selectedItems[0]?.key) || SEVERITY_OPTIONS[2];
+                return (
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className={cn('size-1.5 rounded-full shrink-0', sev.color)} />
+                    <span className="truncate">{sev.label}</span>
+                  </div>
+                );
+              }}
+            </Select.Value>
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover className="min-w-28">
+            <ListBox>
+              {SEVERITY_OPTIONS.map((sev) => (
+                <ListBox.Item key={sev.label} id={sev.label} textValue={sev.label} className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className={cn('size-1.5 rounded-full shrink-0', sev.color)} />
+                    <span>{sev.label}</span>
+                  </div>
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       )}
 
-      {/* 指定人选择器（支持搜索与键盘快捷导航） */}
-      <SearchableAssigneePopover
-        assignedToName={selectedAssignee?.name || parentAssigneeName || '指定人'}
-        candidateAssignees={candidateAssignees}
-        onSelect={(a) => setSelectedAssignee(a)}
-        variant="button"
-        checkWriteOps={false}
-        placeholder="指定人"
-        align="start"
-      />
+      {/* 指定人选择器（严格按照 HeroUI Select 规范） */}
+      <Select
+        aria-label="指定处理人"
+        variant="secondary"
+        className="w-auto shrink-0 max-w-44"
+        placeholder="指定处理人"
+        selectedKey={currentAssigneeKey}
+        onSelectionChange={(key) => {
+          if (key !== null) {
+            const found = assigneeCandidates.find((c) => c.id === String(key));
+            if (found) setSelectedAssignee(found);
+          }
+        }}
+      >
+        <Select.Trigger className="h-7 min-h-7 gap-1.5 rounded-md px-2 text-xs font-medium">
+          <Select.Value>
+            {({ state }) => {
+              const item = assigneeCandidates.find((c) => c.id === state.selectedItems[0]?.key);
+              const name = item?.name || selectedAssignee?.name || parentAssigneeName;
+              if (!name) {
+                return (
+                  <div className="flex items-center gap-1.5 text-muted-foreground truncate">
+                    <UserIcon className="size-3.5 text-muted-foreground shrink-0" />
+                    <span>指定处理人</span>
+                  </div>
+                );
+              }
+              return (
+                <div className="flex items-center gap-1.5 truncate">
+                  <Avatar className={cn('size-3.5 shrink-0 border', getAvatarColorClass(name))}>
+                    <AvatarFallback className="text-[9px] bg-transparent font-medium">
+                      {name.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="truncate">{name}</span>
+                </div>
+              );
+            }}
+          </Select.Value>
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover className="min-w-44">
+          <ListBox>
+            {assigneeCandidates.map((c) => (
+              <ListBox.Item key={c.id} id={c.id} textValue={c.name} className="text-xs">
+                <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(c.name))}>
+                  <AvatarFallback className="text-[9px] bg-transparent font-medium">
+                    {c.name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="truncate">{c.name}</span>
+                  {c.role && (
+                    <span className="text-[10px] text-muted-foreground/80 shrink-0">({c.role})</span>
+                  )}
+                </div>
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      </Select>
 
       <Input
         value={newSubject}
@@ -601,7 +657,7 @@ export function ChildrenCard({
         maxLength={500}
         autoFocus
         placeholder={isBug ? '输入缺陷描述，按 ↵ 快速创建…' : '输入子任务名称，按 ↵ 快速创建…'}
-        className="h-7 text-xs flex-1 min-w-44 bg-background"
+        className="h-7 rounded-md border-border/70 text-xs flex-1 min-w-44 bg-background"
         disabled={submitting}
         onKeyDown={(e) => {
           if (e.key === 'Enter') void handleCreate();
@@ -614,6 +670,7 @@ export function ChildrenCard({
           size="xs"
           disabled={submitting || !newSubject.trim()}
           onClick={() => void handleCreate()}
+          className="h-7 rounded-md px-2.5 text-xs font-medium"
         >
           {submitting ? '创建中…' : '创建'}
         </Button>
@@ -622,11 +679,12 @@ export function ChildrenCard({
           variant="ghost"
           disabled={submitting}
           onClick={cancelAdding}
+          className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground"
         >
           取消
         </Button>
       </div>
-    </div>
+    </Surface>
   );
 
   return (
@@ -704,7 +762,9 @@ export function ChildrenCard({
                 />
 
                 {/* 处理人下拉切换 */}
-                <InlineAssigneeDropdown task={task} candidateAssignees={candidateAssignees} />
+                <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                  <InlineAssigneeDropdown task={task} candidateAssignees={candidateAssignees} />
+                </div>
 
                 {/* 悬停快捷动作条 */}
                 <div className="flex items-center gap-1">
@@ -767,7 +827,7 @@ export function ChildrenCard({
         <Tooltip>
           <TooltipTrigger
             render={
-              <p className="max-h-20 overflow-y-auto break-all rounded bg-muted/50 px-3 py-2 font-mono text-xs leading-4 text-muted-foreground" />
+              <ScrollArea size={24} className="max-h-20 break-all rounded bg-muted/50 px-3 py-2 font-mono text-xs leading-4 text-muted-foreground" />
             }
           >
             接口返回：{debug}

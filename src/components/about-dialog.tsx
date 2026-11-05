@@ -1,4 +1,4 @@
-import { Modal } from '@heroui/react';
+import { Modal, Surface } from '@heroui/react';
 import { Card } from '@/components/ui/card';
 import {
   CheckCircle2Icon,
@@ -124,25 +124,25 @@ export function AboutDialog() {
 
             {/* 核心架构特性标签 */}
             <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-[11px]">
-              <span className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-muted-foreground font-mono">
+              <Surface variant="secondary" className="rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground font-mono">
                 Tauri 2 (Rust Core)
-              </span>
-              <span className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-muted-foreground">
+              </Surface>
+              <Surface variant="secondary" className="rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground">
                 React 19
-              </span>
-              <span className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-muted-foreground">
-                Base UI
-              </span>
-              <span className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-muted-foreground">
+              </Surface>
+              <Surface variant="secondary" className="rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground">
+                HeroUI v3
+              </Surface>
+              <Surface variant="secondary" className="rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground">
                 Tailwind v4
-              </span>
+              </Surface>
             </div>
           </div>
 
           {/* 中间状态与诊断面板 */}
           <div className="flex flex-col gap-2.5 px-5 pb-4">
             {/* 状态徽章条 */}
-            <Card className="grid grid-cols-2 gap-2 p-3 text-xs">
+            <Surface variant="secondary" className="grid grid-cols-2 gap-2 rounded-lg border border-border/60 p-3 text-xs">
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] text-muted-foreground">写操作权限</span>
                 <div className="flex items-center gap-1.5 font-medium">
@@ -167,7 +167,7 @@ export function AboutDialog() {
                   <span>macOS Keychain</span>
                 </div>
               </div>
-            </Card>
+            </Surface>
 
             {/* 发现新版本专属卡片 */}
             {hasUpdate && updateInfo && (

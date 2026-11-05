@@ -1,4 +1,5 @@
 import { ChevronRightIcon } from 'lucide-react';
+import { Surface } from '@heroui/react';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
@@ -52,7 +53,11 @@ export function FloatingBatchBar({
   };
 
   return (
-    <div data-testid="floating-batch-bar" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-popover/95 backdrop-blur-md border border-border shadow-level-3 rounded-lg px-3.5 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
+    <Surface
+      variant="default"
+      data-testid="floating-batch-bar"
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md border border-border shadow-level-3 rounded-lg px-3.5 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
+    >
       <Chip
         data-testid="batch-bar-count"
         size="sm"
@@ -97,6 +102,6 @@ export function FloatingBatchBar({
       >
         取消 (Esc)
       </Button>
-    </div>
+    </Surface>
   );
 }

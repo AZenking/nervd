@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { Button, Card, Chip, Dropdown, Label } from '@heroui/react';
 import { statusMeta } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Kbd } from '@/components/ui/kbd';
 
 export interface CycleHeaderBannerProps {
@@ -56,7 +57,8 @@ export function CycleHeaderBanner({
                 <span>{iteration?.name || '当前迭代'}</span>
                 <span className="text-[10px] text-muted-foreground">▼</span>
               </Dropdown.Trigger>
-              <Dropdown.Popover className="min-w-52 max-h-80 overflow-y-auto">
+              <Dropdown.Popover className="min-w-52 max-h-80">
+                <ScrollArea size={24} className="max-h-[inherit]">
                 <Dropdown.Menu
                   aria-label="切换迭代"
                   onAction={(key) => onSelectIteration?.(String(key))}
@@ -93,6 +95,7 @@ export function CycleHeaderBanner({
                     );
                   })}
                 </Dropdown.Menu>
+                </ScrollArea>
               </Dropdown.Popover>
             </Dropdown>
           ) : (
@@ -147,7 +150,7 @@ export function CycleHeaderBanner({
         </Button>
       </Card.Header>
 
-      <Card.Content className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
+      <Card.Footer className="flex w-full flex-row flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
         <div className="flex items-center gap-1">
           <span className="font-medium text-foreground">
             {dataComplete ? `共 ${visibleItemCount} 项` : `已加载 ${visibleItemCount} 项`}
@@ -158,7 +161,7 @@ export function CycleHeaderBanner({
         <span className="font-mono text-[11px]">
           {dataComplete ? '分页已完成' : '分页未完成'}
         </span>
-      </Card.Content>
+      </Card.Footer>
     </Card>
   );
 }

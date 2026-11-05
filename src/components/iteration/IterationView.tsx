@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserAvatar } from '@/components/ui/avatar';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -978,10 +979,10 @@ export function IterationView() {
 
   // 全宽模式：居中单栏浏览形态（单栏窄窗下页头 compact 化）；详情检视统一为右侧 Peek 抽屉
   const fullWidthView = (
-    <div
+    <ScrollArea
       ref={attachListScroll}
       onScroll={handleListScroll}
-      className="workspace-scroll min-h-0 flex-1 h-full overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10"
+      className="workspace-scroll min-h-0 flex-1 h-full overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10"
     >
       {/* 页头（PageHeader v2 sticky）：navigation=侧栏开关｜title=迭代｜actions=视图 Tabs + 刷新。
           类别 Tabs + 计数摘要 + 筛选（或仓库/模板行提示）下放正文，随页面滚动。单栏窄窗 density compact 收紧留白。 */}
@@ -1104,7 +1105,7 @@ export function IterationView() {
 
       {contextMenuNode}
       {batchBarNode}
-    </div>
+    </ScrollArea>
   );
 
   // 根容器：常驻测量节点；列表常驻全宽渲染，详情统一经右侧 Peek 抽屉就地滑出（列表现场永不卸载），

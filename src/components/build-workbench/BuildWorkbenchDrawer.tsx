@@ -18,6 +18,7 @@ import { buildRunParameter, ciProviderLabel, ciStatusText } from '@/lib/ci';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { formatCompactDateTime, formatDateTime, formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Descriptions } from '@/components/ui/descriptions';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -161,7 +162,7 @@ function RepoRunsPage({
   const refresh = () => void loadRepoCi(target.repoId);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+    <ScrollArea className="min-h-0 flex-1 overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
           <Card.Header className="flex flex-row items-start justify-between gap-3 pb-2">
@@ -291,7 +292,7 @@ function RepoRunsPage({
           </Card.Content>
         </Card>
       </div>
-    </div>
+    </ScrollArea>
   );
 }
 
@@ -335,7 +336,7 @@ function FlowParametersPage({
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+    <ScrollArea className="min-h-0 flex-1 overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
           <Card.Header className="pb-2">
@@ -371,7 +372,7 @@ function FlowParametersPage({
           />
         </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }
 
@@ -387,7 +388,7 @@ function PipelineRunsPage({
   const runs = runsByPipeline[target.pipelineId] ?? [];
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+    <ScrollArea className="min-h-0 flex-1 overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
           <Card.Header className="flex flex-row items-center justify-between gap-3 pb-2">
@@ -454,7 +455,7 @@ function PipelineRunsPage({
           </Card.Content>
         </Card>
       </div>
-    </div>
+    </ScrollArea>
   );
 }
 
@@ -488,7 +489,7 @@ function PipelineParametersPage({
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+    <ScrollArea className="min-h-0 flex-1 overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
           <Card.Header className="pb-2">
@@ -523,7 +524,7 @@ function PipelineParametersPage({
           />
         </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }
 
@@ -552,7 +553,7 @@ function ParametersPage({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+    <ScrollArea className="min-h-0 flex-1 overscroll-contain [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
           <Card.Header className="pb-2">
@@ -575,7 +576,7 @@ function ParametersPage({
           onSuccess={onSuccess}
         />
       </div>
-    </div>
+    </ScrollArea>
   );
 }
 

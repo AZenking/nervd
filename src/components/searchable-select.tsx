@@ -6,6 +6,7 @@ import {
   ListBox,
 } from '@/components/ui/autocomplete';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface SearchableSelectOption<V extends string | number | null> {
@@ -83,10 +84,11 @@ function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
   const visibleItems = items.slice(startIndex, endIndex);
 
   return (
-    <div
+    <ScrollArea
       ref={containerRef}
       onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-      className="no-scrollbar max-h-[min(calc(var(--spacing)*72-var(--spacing)*9),calc(var(--available-height)-var(--spacing)*9))] scroll-py-1 overflow-y-auto overscroll-contain p-1"
+      hideScrollBar
+      className="max-h-[min(calc(var(--spacing)*72-var(--spacing)*9),calc(var(--available-height)-var(--spacing)*9))] scroll-py-1 overscroll-contain p-1"
       style={{ maxHeight: `${VIRTUAL_CONTAINER_HEIGHT}px` }}
       tabIndex={-1}
     >
@@ -128,7 +130,7 @@ function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
           </ListBox>
         </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }
 
@@ -272,7 +274,8 @@ export function SearchableSelect<V extends string | number | null>({
             emptyText={emptyText}
           />
         ) : (
-          <ListBox className="max-h-60 overflow-y-auto p-1">
+          <ScrollArea size={24} className="max-h-60 p-1">
+          <ListBox className="w-full">
             {displayItems.length === 0 ? (
               <div className="py-3 text-center text-xs text-muted-foreground select-none">
                 {emptyText}
@@ -302,6 +305,7 @@ export function SearchableSelect<V extends string | number | null>({
               ))
             )}
           </ListBox>
+          </ScrollArea>
         )}
       </Autocomplete.Popover>
     </Autocomplete>

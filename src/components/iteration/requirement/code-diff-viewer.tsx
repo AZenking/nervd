@@ -16,6 +16,7 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
@@ -267,9 +268,9 @@ export function CodeDiffViewer({
         </div>
 
         {/* 差异卡片滚动列表 */}
-        <div
+        <ScrollArea
           ref={scrollContainerRef}
-          className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3"
+          className="flex-1 min-h-0 p-3 sm:p-4 space-y-3"
         >
           {displayedDiffs.map((file) => {
             const filePath = file.newPath || file.oldPath;
@@ -300,7 +301,7 @@ export function CodeDiffViewer({
               </Button>
             </div>
           )}
-        </div>
+        </ScrollArea>
       </div>
     </div>
   );
@@ -394,7 +395,7 @@ function DiffItemCard({
 
         {/* 文件 Diff 正文 */}
         <CollapsibleContent>
-          <div className="overflow-x-auto font-mono text-[11px] leading-relaxed max-h-[32rem] divide-y divide-border/10 bg-background/60">
+          <ScrollArea orientation="horizontal" size={24} className="max-h-[32rem] divide-y divide-border/10 bg-background/60 font-mono text-[11px] leading-relaxed">
           {file.lines.length === 0 ? (
             <div className="p-3 text-center text-muted-foreground text-[10px]">
               {file.newFile
@@ -461,7 +462,7 @@ function DiffItemCard({
               );
             })
           )}
-          </div>
+          </ScrollArea>
         </CollapsibleContent>
       </Collapsible>
     </Card>

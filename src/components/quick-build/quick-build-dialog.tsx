@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { Kbd } from '@/components/ui/kbd';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   extractConfiguredBuildTargets,
   useQuickBuild,
@@ -154,7 +155,7 @@ export function QuickBuildDialog() {
           </div>
 
           {/* 内容区 */}
-          <div className="max-h-[min(26rem,50vh)] overflow-y-auto py-2">
+          <ScrollArea className="max-h-[min(26rem,50vh)] py-2">
             {flatEntries.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center text-xs text-muted-foreground">
                 {q ? (
@@ -302,7 +303,7 @@ export function QuickBuildDialog() {
                 )}
               </div>
             )}
-          </div>
+          </ScrollArea>
 
           {/* 底部紧凑快捷说明栏 */}
           <div className="flex shrink-0 items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { RequirementDetails } from '@/components/iteration/RequirementDetails';
 import type { WorkitemChild } from '@/lib/api';
 
@@ -71,17 +72,21 @@ export function WorkitemPeekDrawer({
         data-workspace-peek-drawer=""
         className="w-full sm:w-[min(58rem,92vw)] sm:max-w-none"
       >
-        <div key={workitemId ?? 'empty'} className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto animate-content-fade">
-          {workitemId && (
-            <RequirementDetails
-              embedded
-              parentWorkitem={parentWorkitem ?? null}
-              onSelectChild={onSelectChild}
-              onSelectParent={onSelectParent}
-              onOpenWorkbench={handleOpenWorkbench}
-              onClose={onClose}
-            />
-          )}
+        {/* animate-* 会覆盖 ScrollShadow 的 scroll-driven animation（同为 animation 简写），
+            故入场动画留在外层 div，滚动与边缘渐隐交给内层 ScrollArea */}
+        <div key={workitemId ?? 'empty'} className="flex h-full min-h-0 flex-1 flex-col overflow-hidden animate-content-fade">
+          <ScrollArea className="min-h-0 flex-1">
+            {workitemId && (
+              <RequirementDetails
+                embedded
+                parentWorkitem={parentWorkitem ?? null}
+                onSelectChild={onSelectChild}
+                onSelectParent={onSelectParent}
+                onOpenWorkbench={handleOpenWorkbench}
+                onClose={onClose}
+              />
+            )}
+          </ScrollArea>
         </div>
       </DrawerContent>
     </Drawer>

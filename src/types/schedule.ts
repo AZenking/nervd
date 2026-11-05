@@ -51,6 +51,38 @@ export type ScheduleAction =
 
 export type ScheduleStatus = 'idle' | 'running' | 'success' | 'failed';
 
+export interface MergeCommitItem {
+  id: string; // Commit SHA
+  shortId: string; // 7 位短 SHA
+  title: string;
+  authorName?: string;
+  committedDate?: string;
+  workitems?: string[]; // 识别出的需求/任务编号，如 REQ-101
+}
+
+export interface MergeDiffSummary {
+  newPath?: string;
+  oldPath?: string;
+  isNew?: boolean;
+  isDeleted?: boolean;
+}
+
+export interface MergeExecutionChanges {
+  commitsCount: number;
+  diffsCount?: number;
+  commits: MergeCommitItem[];
+  diffs?: MergeDiffSummary[];
+  mrId?: number;
+  mrUrl?: string;
+  targetBranch: string;
+  sourceBranch: string;
+  strategy: MergeStrategy;
+  shadowBranch?: string;
+  syncedAt: string;
+  status: 'merged' | 'up_to_date' | 'conflict_aborted' | 'isolated_shadow' | 'failed';
+  summary?: string;
+}
+
 export interface ScheduledTask {
   id: string;
   name: string;
@@ -69,6 +101,8 @@ export interface ScheduledTask {
   lastError?: string;
   nextRunAt?: string; // ISO string
   runCount: number;
+  // 分支合并专项：最近合并产生的变更点与差异
+  lastMergeChanges?: MergeExecutionChanges;
 }
 
 export interface ScheduleExecutionLog {
@@ -93,5 +127,8 @@ export interface ScheduleExecutionLog {
     shadowBranch?: string;
     mrUrl?: string;
     mrId?: number;
+    commitsCount?: number;
+    diffsCount?: number;
+    commits?: MergeCommitItem[];
   };
 }

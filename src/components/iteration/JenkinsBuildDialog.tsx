@@ -18,7 +18,7 @@ import { useQuickBuild } from '@/store/quick-build';
 import { isBranchParameterName, isEnvironmentParameterName, sortJenkinsJobsWithRecommendation } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
 import { errorLog, humanizeError } from '@/lib/error-format';
-import { Alert, Card } from '@heroui/react';
+import { Alert, Card, Surface } from '@heroui/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -597,58 +597,60 @@ export function JenkinsBuildParameters({
                   </Card.Content>
                 </Card>
 
-                <Collapsible className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs">
-                  <CollapsibleTrigger className="flex w-full items-center justify-between font-medium text-muted-foreground hover:text-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <Settings2Icon className="size-3.5" />
-                      CI 记录展示映射（高级）
-                    </span>
-                    <ChevronDownIcon className="size-3.5 transition-transform" />
-                  </CollapsibleTrigger>
-                  {/* 内边距/分隔线放内层 div：收合态 DisclosurePanel 高度为 0，
-                      装饰留在面板自身会残留空白条。 */}
-                  <CollapsibleContent>
-                    <div className="mt-2.5 flex flex-col gap-3 pt-2 border-t border-border/40">
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        指定哪个 Jenkins 参数对应「代码分支」与「部署环境」，用于在 nervd 的构建记录与迭代仓库列表中展示。已自动完成智能推断。
-                      </p>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field className="gap-1">
-                          <FieldLabel className="text-xs">代码分支参数</FieldLabel>
-                          <SearchableSelect
-                            value={branchParameter || '__none'}
-                            onValueChange={(v) => setBranchParameter(v && v !== '__none' ? v : '')}
-                            items={[
-                              { label: '不映射', value: '__none' },
-                              ...parameters.map((p) => ({
-                                label: p.name,
-                                value: p.name,
-                                disabled: p.name === environmentParameter,
-                              })),
-                            ]}
-                            className="text-xs h-8"
-                          />
-                        </Field>
-                        <Field className="gap-1">
-                          <FieldLabel className="text-xs">部署环境参数</FieldLabel>
-                          <SearchableSelect
-                            value={environmentParameter || '__none'}
-                            onValueChange={(v) => setEnvironmentParameter(v && v !== '__none' ? v : '')}
-                            items={[
-                              { label: '不映射', value: '__none' },
-                              ...parameters.map((p) => ({
-                                label: p.name,
-                                value: p.name,
-                                disabled: p.name === branchParameter,
-                              })),
-                            ]}
-                            className="text-xs h-8"
-                          />
-                        </Field>
+                <Surface variant="secondary" className="rounded-md border border-border/60 overflow-hidden">
+                  <Collapsible className="px-3 py-2 text-xs">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between font-medium text-muted-foreground hover:text-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <Settings2Icon className="size-3.5" />
+                        CI 记录展示映射（高级）
+                      </span>
+                      <ChevronDownIcon className="size-3.5 transition-transform" />
+                    </CollapsibleTrigger>
+                    {/* 内边距/分隔线放内层 div：收合态 DisclosurePanel 高度为 0，
+                        装饰留在面板自身会残留空白条。 */}
+                    <CollapsibleContent>
+                      <div className="mt-2.5 flex flex-col gap-3 pt-2 border-t border-border/40">
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          指定哪个 Jenkins 参数对应「代码分支」与「部署环境」，用于在 nervd 的构建记录与迭代仓库列表中展示。已自动完成智能推断。
+                        </p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field className="gap-1">
+                            <FieldLabel className="text-xs">代码分支参数</FieldLabel>
+                            <SearchableSelect
+                              value={branchParameter || '__none'}
+                              onValueChange={(v) => setBranchParameter(v && v !== '__none' ? v : '')}
+                              items={[
+                                { label: '不映射', value: '__none' },
+                                ...parameters.map((p) => ({
+                                  label: p.name,
+                                  value: p.name,
+                                  disabled: p.name === environmentParameter,
+                                })),
+                              ]}
+                              className="text-xs h-8"
+                            />
+                          </Field>
+                          <Field className="gap-1">
+                            <FieldLabel className="text-xs">部署环境参数</FieldLabel>
+                            <SearchableSelect
+                              value={environmentParameter || '__none'}
+                              onValueChange={(v) => setEnvironmentParameter(v && v !== '__none' ? v : '')}
+                              items={[
+                                { label: '不映射', value: '__none' },
+                                ...parameters.map((p) => ({
+                                  label: p.name,
+                                  value: p.name,
+                                  disabled: p.name === branchParameter,
+                                })),
+                              ]}
+                              className="text-xs h-8"
+                            />
+                          </Field>
+                        </div>
                       </div>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </Surface>
               </>
             )}
 

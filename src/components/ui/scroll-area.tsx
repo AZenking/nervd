@@ -17,7 +17,13 @@ function ScrollArea({
     <ScrollShadow
       data-slot="scroll-area"
       orientation={orientation}
-      className={cn("relative overflow-auto", className)}
+      // overflow 轴向与 ScrollShadow orientation 严格一致：既不依赖组件层默认值，
+      // 也不会以双向 overflow-auto 覆盖调用方传入的 overflow-x-hidden 等单轴约束
+      className={cn(
+        "relative",
+        orientation === "horizontal" ? "overflow-x-auto" : "overflow-y-auto",
+        className
+      )}
       {...props}
     >
       {children}

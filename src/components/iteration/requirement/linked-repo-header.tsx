@@ -11,11 +11,9 @@ import {
   WorkflowIcon,
 } from 'lucide-react';
 import type { RepoCiBinding, RepoSummary } from '@/types';
-import { Dropdown, Label, Separator, Toolbar } from '@heroui/react';
+import { Button, Dropdown, Label, Separator, Toolbar, Tooltip } from '@heroui/react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { openBuildWorkbenchFromTrigger } from '@/components/build-workbench';
 import type { BuildWorkbenchTarget } from '@/store/ui';
 import { cn } from '@/lib/utils';
@@ -63,29 +61,26 @@ export function LinkedRepoHeader({
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3.5">
       {/* 左侧：展开折叠图标 + 仓库图标 + 仓库名称与分支拓扑 */}
       <div className="flex min-w-[240px] flex-1 items-center gap-2.5">
+        {/* 展开折叠图标：HeroUI Button (ghost + isIconOnly) + HeroUI Tooltip */}
         <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={onToggleDetails}
-                className="size-6 shrink-0 text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
-                title={detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}
-                aria-label={detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}
-                aria-expanded={detailsOpen}
-              >
-                <ChevronRightIcon
-                  className={cn(
-                    'size-3.5 transition-transform duration-200',
-                    detailsOpen && 'rotate-90 text-primary',
-                  )}
-                />
-              </Button>
-            }
-          />
-          <TooltipContent>{detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}</TooltipContent>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            isIconOnly
+            onPress={onToggleDetails}
+            aria-label={detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}
+            aria-expanded={detailsOpen}
+            className="size-6 shrink-0 rounded-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          >
+            <ChevronRightIcon
+              className={cn(
+                'size-3.5 transition-transform duration-200',
+                detailsOpen && 'rotate-90 text-primary',
+              )}
+            />
+          </Button>
+          <Tooltip.Content>{detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}</Tooltip.Content>
         </Tooltip>
 
         {/* 仓库图标位：HeroUI Avatar 原语（调色板渐变 + GitBranch 图标回退） */}
@@ -154,12 +149,14 @@ export function LinkedRepoHeader({
         {primaryAction}
 
         <Dropdown>
-          {/* HeroUI Trigger 直接承载样式（单 button，按压可靠） */}
+          {/* Dropdown.Trigger 本身即 HeroUI 组件（react-aria Button 封装），内部严禁再嵌套 Button（button>button 非法 DOM）；
+              variant/size 对其无效（内部为无样式的 react-aria Button），紧凑外观由 className 覆盖 */}
           <Dropdown.Trigger
-            className="inline-flex h-7 cursor-pointer select-none items-center rounded-sm px-2 text-xs text-muted-foreground transition-colors outline-none hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+            type="button"
+            className="h-7 rounded-sm px-2 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
             aria-label="更多仓库操作"
           >
-            <span>更多</span>
+            更多
           </Dropdown.Trigger>
           <Dropdown.Popover placement="bottom end" className="min-w-44">
             <Dropdown.Menu

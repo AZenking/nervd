@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ListBox } from '@/components/ui/list-box';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Kbd } from '@/components/ui/kbd';
 import { useApp } from '@/store/app';
 import { iterationsOrFallback, useUi } from '@/store/ui';
@@ -351,11 +352,11 @@ export function CommandMenu() {
 
           {/* 结果列表：HeroUI ListBox（Section 分组 + 语义 option 行，系统级 hover/焦点样式） */}
           {flat.length ? (
+            <ScrollArea size={24} className="max-h-[min(26rem,50vh)] py-2">
             <ListBox
               aria-label="命令面板结果"
               selectionMode="none"
               onAction={(key) => runEntry(entryByKey.get(String(key)))}
-              className="max-h-[min(26rem,50vh)] overflow-y-auto py-2"
             >
               {groups.map(({ group, entries: groupEntries }) => (
                 <ListBox.Section key={group}>
@@ -396,6 +397,7 @@ export function CommandMenu() {
                 </ListBox.Section>
               ))}
             </ListBox>
+            </ScrollArea>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">无匹配结果</p>
           )}

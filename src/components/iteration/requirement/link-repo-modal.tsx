@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -148,7 +149,7 @@ export function LinkRepoModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col gap-6">
+        <ScrollArea className="flex-1 min-h-0 pr-1 flex flex-col gap-6">
           {/* AI 智能推荐区域 */}
           <Card className="border-primary/20 bg-primary/5">
             <div className="flex items-center justify-between gap-3">
@@ -353,7 +354,7 @@ export function LinkRepoModal({
               />
             )}
           </div>
-        </div>
+        </ScrollArea>
 
         <DialogFooter className="shrink-0 flex items-center justify-end gap-2 pt-3 border-t border-border/70">
           <Button

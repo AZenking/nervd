@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertCircleIcon, CheckIcon, FileCodeIcon, GitCompareIcon, RefreshCwIcon } from 'lucide-react';
+import { Surface } from '@heroui/react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -154,7 +155,7 @@ export function BranchDivergenceCheck({
   const aligned = ready && check.developmentOnly === 0 && check.baselineOnly === 0;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/30 bg-muted/15 px-2.5 py-1.5 text-xs text-muted-foreground">
+    <Surface variant="secondary" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/40 px-2.5 py-1.5 text-xs text-muted-foreground">
       <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
         <div className="flex items-center gap-1 font-medium text-foreground shrink-0">
           <GitCompareIcon className="size-3 text-muted-foreground" />
@@ -244,6 +245,6 @@ export function BranchDivergenceCheck({
         targetBranch={baseline}
         diffs={diffs}
       />
-    </div>
+    </Surface>
   );
 }

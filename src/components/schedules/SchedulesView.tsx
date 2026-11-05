@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Surface } from '@heroui/react';
 import {
   ArrowRightIcon,
   CheckCircle2Icon,
@@ -38,6 +39,7 @@ import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScheduleEditorDrawer } from './ScheduleEditorDrawer';
 import { ScheduleLogDrawer } from './ScheduleLogDrawer';
+import { RecentMergeChangesPreview } from './RecentMergeChangesPreview';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { useScheduleStore } from '@/store/schedule';
 import { useApp } from '@/store/app';
@@ -223,7 +225,7 @@ export function SchedulesView() {
           </div>
         </Card.Header>
 
-        <Card.Content className="gap-3">
+        <Card.Content className="w-full gap-3">
           {/* 状态筛选与搜索行（紧邻任务列表） */}
           <div className="flex w-full flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-1.5 text-xs">
@@ -408,7 +410,7 @@ export function SchedulesView() {
                 const target = filteredTasks.find((t) => t.id === key);
                 if (target) handleOpenEdit(target);
               }}
-              className="w-full p-0 [&>*+*]:mt-0"
+              className="w-full p-0 space-y-3"
             >
               {filteredTasks.map((task) => {
                 const isRunning =
@@ -419,168 +421,178 @@ export function SchedulesView() {
                     key={task.id}
                     id={task.id}
                     textValue={task.name}
-                    className={cn(
-                      'group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 transition-colors hover:bg-muted/30 cursor-default outline-none data-[focused=true]:bg-muted/40 border-b border-border/60 last:border-b-0',
-                      !task.enabled && 'opacity-60 bg-muted/10',
-                    )}
+                    className="w-full block p-0 border-none outline-none focus:outline-none data-[focused=true]:outline-none bg-transparent hover:bg-transparent data-[hovered=true]:bg-transparent active:scale-100 data-[pressed=true]:scale-100"
                   >
-                    {/* 状态点与任务主体 */}
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="pt-0.5 shrink-0">
-                        {isRunning ? (
-                          <Spinner className="size-4 text-amber-600 dark:text-amber-400 animate-spin" />
-                        ) : task.lastStatus === 'success' ? (
-                          <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
-                        ) : task.lastStatus === 'failed' ? (
-                          <XCircleIcon className="size-4 text-destructive" />
-                        ) : (
-                          <div className="size-2.5 rounded-full bg-muted-foreground/40 m-0.5" />
-                        )}
-                      </div>
-
-                      <div className="space-y-2 min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <OverflowTooltip
-                            text={task.name}
-                            className="min-w-0 max-w-full truncate font-semibold text-foreground text-sm tracking-tight"
-                          />
-                          {/* 执行动作类型 Tag */}
-                          <ActionTypeTag type={task.action.type} />
-                          {/* 调度周期 Cron Tag */}
-                          <Badge
-                            variant="outline"
-                            className="font-mono text-[10px] text-muted-foreground bg-muted/20 border-border/70"
-                          >
-                            <ClockIcon className="mr-1 size-2.5 text-muted-foreground" />
-                            {task.cronLabel || task.cron}
-                          </Badge>
-                        </div>
-
-                        {/* 专属动作类型详细信息 Tag 簇行（如分支合并展示仓库名、分支流向、策略） */}
-                        <div className="pt-0.5">
-                          <ActionDetailTags
-                            action={task.action}
-                            repositories={repositories}
-                            pipelines={pipelines}
-                          />
-                        </div>
-
-                        {task.description && (
-                          <p className="text-xs text-muted-foreground/80 truncate max-w-xl">
-                            {task.description}
-                          </p>
-                        )}
-
-                        {/* 辅助元数据行 */}
-                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground font-mono">
-                          <span>已运行 {task.runCount} 次</span>
-                          {task.lastRunAt && (
-                            <span>
-                              上次：{formatCompactDateTime(task.lastRunAt)}
-                              {typeof task.lastDurationMs === 'number' &&
-                                ` (${(task.lastDurationMs / 1000).toFixed(1)}s)`}
-                            </span>
-                          )}
-                          {task.nextRunAt && task.enabled && !globalPaused && (
-                            <span className="text-primary/90">
-                              预计下次：{formatCompactDateTime(task.nextRunAt)}
-                            </span>
-                          )}
-                          {task.lastError && (
-                            <span className="max-w-sm whitespace-normal break-words text-destructive">
-                              错误: {task.lastError}
-                            </span>
+                    <Surface
+                      variant="secondary"
+                      className={cn(
+                        'w-full group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 rounded-xl border border-border/70 transition-all hover:border-border cursor-pointer shadow-2xs group-data-[focused=true]:ring-2 group-data-[focused=true]:ring-primary/40',
+                        !task.enabled && 'opacity-60 bg-muted/20',
+                      )}
+                    >
+                      {/* 状态点与任务主体 */}
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div className="pt-0.5 shrink-0">
+                          {isRunning ? (
+                            <Spinner className="size-4 text-amber-600 dark:text-amber-400 animate-spin" />
+                          ) : task.lastStatus === 'success' ? (
+                            <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
+                          ) : task.lastStatus === 'failed' ? (
+                            <XCircleIcon className="size-4 text-destructive" />
+                          ) : (
+                            <div className="size-2.5 rounded-full bg-muted-foreground/40 m-0.5" />
                           )}
                         </div>
-                      </div>
-                    </div>
 
-                    {/* 右侧动作操作位 */}
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={isRunning || globalPaused}
-                              onClick={() => handleRunNow(task)}
-                              className="h-7 text-xs hover:bg-muted font-medium"
-                              title="立即执行此任务一次"
-                              aria-label="立即执行此任务一次"
-                            >
-                              {isRunning ? (
-                                <Spinner className="mr-1.5 size-3.5" />
-                              ) : (
-                                <PlayCircleIcon className="mr-1.5 size-3.5 text-primary" />
-                              )}
-                              立即运行
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>立即执行此任务一次</TooltipContent>
-                      </Tooltip>
-
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Switch
-                              checked={task.enabled}
-                              onCheckedChange={() => toggleTask(task.id)}
-                              aria-label={task.enabled ? '点击暂停此任务' : '点击启用此任务'}
+                        <div className="space-y-2 min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <OverflowTooltip
+                              text={task.name}
+                              className="min-w-0 max-w-full truncate font-semibold text-foreground text-sm tracking-tight"
                             />
-                          }
-                        />
-                        <TooltipContent>{task.enabled ? '点击暂停此任务' : '点击启用此任务'}</TooltipContent>
-                      </Tooltip>
-
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => handleOpenLogs(task.id)}
-                              className="size-7 text-muted-foreground hover:text-foreground"
-                              title="查看此任务的执行日志"
-                              aria-label="查看此任务的执行日志"
+                            {/* 执行动作类型 Tag */}
+                            <ActionTypeTag type={task.action.type} />
+                            {/* 调度周期 Cron Tag */}
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-[10px] text-muted-foreground bg-muted/20 border-border/70"
                             >
-                              <FileTextIcon className="size-3.5" />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>查看此任务的执行日志</TooltipContent>
-                      </Tooltip>
+                              <ClockIcon className="mr-1 size-2.5 text-muted-foreground" />
+                              {task.cronLabel || task.cron}
+                            </Badge>
+                          </div>
 
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => handleOpenEdit(task)}
-                              className="size-7 text-muted-foreground hover:text-foreground"
-                              title="编辑任务配置"
-                              aria-label="编辑任务配置"
-                            >
-                              <PencilIcon className="size-3.5" />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>编辑任务配置</TooltipContent>
-                      </Tooltip>
+                          {/* 专属动作类型详细信息 Tag 簇行（如分支合并展示仓库名、分支流向、策略） */}
+                          <div className="pt-0.5">
+                            <ActionDetailTags
+                              action={task.action}
+                              repositories={repositories}
+                              pipelines={pipelines}
+                            />
+                          </div>
 
-                      <ConfirmButton
-                        label="删除"
-                        title="删除定时任务"
-                        description={`确定要删除定时任务「${task.name}」吗？历史运行日志仍将予以保留。`}
-                        onConfirm={() => deleteTask(task.id)}
-                        size="icon-sm"
-                        variant="ghost"
-                      >
-                        <Trash2Icon className="size-3.5 text-muted-foreground hover:text-destructive" />
-                      </ConfirmButton>
-                    </div>
+                          {/* 分支合并动作专属：最近合并变更点展示（解决分支任务没有展示合并变更点痛点） */}
+                          {task.action.type === 'branch_merge' && (
+                            <RecentMergeChangesPreview task={task} />
+                          )}
+
+                          {task.description && (
+                            <p className="text-xs text-muted-foreground/80 truncate max-w-xl">
+                              {task.description}
+                            </p>
+                          )}
+
+                          {/* 辅助元数据行 */}
+                          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground font-mono">
+                            <span>已运行 {task.runCount} 次</span>
+                            {task.lastRunAt && (
+                              <span>
+                                上次：{formatCompactDateTime(task.lastRunAt)}
+                                {typeof task.lastDurationMs === 'number' &&
+                                  ` (${(task.lastDurationMs / 1000).toFixed(1)}s)`}
+                              </span>
+                            )}
+                            {task.nextRunAt && task.enabled && !globalPaused && (
+                              <span className="text-primary/90">
+                                预计下次：{formatCompactDateTime(task.nextRunAt)}
+                              </span>
+                            )}
+                            {task.lastError && (
+                              <span className="max-w-sm whitespace-normal break-words text-destructive">
+                                错误: {task.lastError}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 右侧动作操作位 */}
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={isRunning || globalPaused}
+                                onClick={() => handleRunNow(task)}
+                                className="h-7 text-xs hover:bg-muted font-medium"
+                                title="立即执行此任务一次"
+                                aria-label="立即执行此任务一次"
+                              >
+                                {isRunning ? (
+                                  <Spinner className="mr-1.5 size-3.5" />
+                                ) : (
+                                  <PlayCircleIcon className="mr-1.5 size-3.5 text-primary" />
+                                )}
+                                立即运行
+                              </Button>
+                            }
+                          />
+                          <TooltipContent>立即执行此任务一次</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Switch
+                                checked={task.enabled}
+                                onCheckedChange={() => toggleTask(task.id)}
+                                aria-label={task.enabled ? '点击暂停此任务' : '点击启用此任务'}
+                              />
+                            }
+                          />
+                          <TooltipContent>{task.enabled ? '点击暂停此任务' : '点击启用此任务'}</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => handleOpenLogs(task.id)}
+                                className="size-7 text-muted-foreground hover:text-foreground"
+                                title="查看此任务的执行日志"
+                                aria-label="查看此任务的执行日志"
+                              >
+                                <FileTextIcon className="size-3.5" />
+                              </Button>
+                            }
+                          />
+                          <TooltipContent>查看此任务的执行日志</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => handleOpenEdit(task)}
+                                className="size-7 text-muted-foreground hover:text-foreground"
+                                title="编辑任务配置"
+                                aria-label="编辑任务配置"
+                              >
+                                <PencilIcon className="size-3.5" />
+                              </Button>
+                            }
+                          />
+                          <TooltipContent>编辑任务配置</TooltipContent>
+                        </Tooltip>
+
+                        <ConfirmButton
+                          label="删除"
+                          title="删除定时任务"
+                          description={`确定要删除定时任务「${task.name}」吗？历史运行日志仍将予以保留。`}
+                          onConfirm={() => deleteTask(task.id)}
+                          size="icon-sm"
+                          variant="ghost"
+                        >
+                          <Trash2Icon className="size-3.5 text-muted-foreground hover:text-destructive" />
+                        </ConfirmButton>
+                      </div>
+                    </Surface>
                   </ListBox.Item>
                 );
               })}

@@ -16,7 +16,6 @@ import {
   CalendarClockIcon,
   CalendarDaysIcon,
   ClockIcon,
-  GitBranchIcon,
   LayoutDashboardIcon,
   SearchIcon,
   ZapIcon,
@@ -57,8 +56,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         data-tauri-drag-region
         className="px-3 pb-2 pt-2 select-none group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center"
       >
-        {/* macOS 沉浸式窗口：红绿灯安全留白避让与可拖拽区 */}
-        <div data-tauri-drag-region className="h-7 w-full shrink-0 select-none cursor-default" />
+        {/* macOS 沉浸式窗口：红绿灯安全留白避让与可拖拽区（配合 y:26 红绿灯位置下移） */}
+        <div data-tauri-drag-region className="h-9 w-full shrink-0 select-none cursor-default" />
 
         {/* 顶部个人卡片：对齐参考图中的 Kate Moore / Admin 头部风格 */}
         <div
@@ -212,16 +211,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: '当前迭代',
                 icon: <CalendarDaysIcon />,
                 view: 'iteration',
-              },
-              {
-                title: '集成分支',
-                icon: <GitBranchIcon />,
-                view: 'integration',
-                badge: (
-                  <span className="ml-auto rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40 text-[10.5px] font-semibold px-2 py-0.5 leading-none group-data-[collapsible=icon]:hidden">
-                    New
-                  </span>
-                ),
               },
               {
                 title: '定时任务',

@@ -11,6 +11,7 @@ import { useUi } from '@/store/ui';
 import { useApp } from '@/store/app';
 import { StatusIcon } from '@/components/status-icon';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
@@ -37,16 +38,20 @@ export function DetailStatusPopover({
     currentStatusName: status,
   });
 
-  // 触发器：min-h + py-1 自适应（.select__trigger 默认 py-2 会在 h-7 内垂直裁切文字）
+  // Select 负责交互与无障碍，Chip 负责 HeroUI 语义化的视觉层。
   const triggerCls = cn(
-    'min-h-8 gap-1.5 px-2 py-1 text-xs',
-    variant === 'cell' && 'min-h-7',
+    'min-h-0 border-0 bg-transparent p-0 shadow-none',
     className,
+  );
+  const chipCls = cn(
+    'h-8 max-w-44 gap-1.5 px-2 text-sm',
+    variant === 'cell' && 'h-7 text-xs',
   );
 
   return (
     <Select
       aria-label="流转状态"
+      variant="secondary"
       value={statusId ?? null}
       onOpenChange={(open) => {
         if (open) void fetchStatuses();
@@ -57,16 +62,26 @@ export function DetailStatusPopover({
       }}
       className={cn('min-w-0 max-w-44', className)}
     >
-      <Select.Trigger className={triggerCls}>
-        <StatusIcon status={status} className="size-3.5 shrink-0" />
-        <span className="truncate">{status || '未知状态'}</span>
+      <Select.Trigger className={triggerCls} showIndicator={false}>
+        <Chip variant="soft" size={variant === 'cell' ? 'sm' : 'md'} className={chipCls}>
+          <StatusIcon status={status} className="size-4 shrink-0" />
+          <Chip.Label className="truncate">{status || '未知状态'}</Chip.Label>
+          <Select.Indicator className="static size-3.5 shrink-0 text-muted-foreground" />
+        </Chip>
       </Select.Trigger>
-      {/* 加载/空态不能进入 ListBox（react-aria 集合仅接受 Item/Section 子节点） */}
+      {/* Select 必须始终保留 ListBox 集合，否则空态下触发器只能聚焦、无法展开。 */}
       {loadingStatuses || statuses.length === 0 ? (
         <Select.Popover className="min-w-36">
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">
-            {loadingStatuses ? '读取状态流程…' : '暂无可流转状态'}
-          </div>
+          <ListBox selectionMode="none">
+            <ListBox.Item
+              id="__status-empty"
+              textValue={loadingStatuses ? '读取状态流程…' : '暂无可流转状态'}
+              isDisabled
+              className="text-xs text-muted-foreground"
+            >
+              {loadingStatuses ? '读取状态流程…' : '暂无可流转状态'}
+            </ListBox.Item>
+          </ListBox>
         </Select.Popover>
       ) : (
         <Select.Popover className="min-w-36">
@@ -141,36 +156,52 @@ export function DetailAssigneePopover({
   };
 
   const triggerCls = cn(
-    'min-h-8 gap-1.5 px-2 py-1 text-xs',
-    variant === 'cell' && 'min-h-7',
+    'min-h-0 border-0 bg-transparent p-0 shadow-none',
     className,
+  );
+  const chipCls = cn(
+    'h-8 max-w-44 gap-1.5 px-2 text-sm',
+    variant === 'cell' && 'h-7 text-xs',
   );
 
   return (
     <Select
       aria-label="更改负责人"
+      variant="secondary"
       value={selectedId}
       onValueChange={handleValueChange}
       className={cn('min-w-0 max-w-44', className)}
     >
-      <Select.Trigger className={triggerCls}>
-        {updating ? (
-          <Spinner className="size-3.5 shrink-0" />
-        ) : assignedToName ? (
-          <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
-            <AvatarFallback className="text-[9px] bg-transparent font-medium">
-              {assignedToName.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-        ) : (
-          <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
-        )}
-        <span className="truncate">{assignedToName || '未分配'}</span>
+      <Select.Trigger className={triggerCls} showIndicator={false}>
+        <Chip variant="soft" size={variant === 'cell' ? 'sm' : 'md'} className={chipCls}>
+          {updating ? (
+            <Spinner className="size-4 shrink-0" />
+          ) : assignedToName ? (
+            <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
+              <AvatarFallback className="text-[9px] bg-transparent font-medium">
+                {assignedToName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+          ) : (
+            <UserIcon className="size-4 text-muted-foreground/60 shrink-0" />
+          )}
+          <Chip.Label className="truncate">{assignedToName || '未分配'}</Chip.Label>
+          <Select.Indicator className="static size-3.5 shrink-0 text-muted-foreground" />
+        </Chip>
       </Select.Trigger>
-      {/* 空候选不能进入 ListBox（react-aria 集合仅接受 Item/Section 子节点） */}
+      {/* Select 必须始终保留 ListBox 集合，否则空候选时触发器无法展开。 */}
       {candidates.length === 0 ? (
         <Select.Popover className="min-w-40">
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无候选成员</div>
+          <ListBox selectionMode="none">
+            <ListBox.Item
+              id="__assignee-empty"
+              textValue="暂无候选成员"
+              isDisabled
+              className="text-xs text-muted-foreground"
+            >
+              暂无候选成员
+            </ListBox.Item>
+          </ListBox>
         </Select.Popover>
       ) : (
         <Select.Popover className="min-w-44">

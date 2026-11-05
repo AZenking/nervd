@@ -14,7 +14,7 @@ import {
   XCircleIcon,
   XIcon,
 } from 'lucide-react';
-import { Accordion, Button, Tabs } from '@heroui/react';
+import { Accordion, Button, Surface, Tabs } from '@heroui/react';
 import { useApp } from '../store/app';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -323,7 +323,7 @@ export function LogViewerContent({
 
         {/* 过滤工具栏与快速跳转 */}
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-2 text-xs">
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto no-scrollbar">
+          <ScrollArea orientation="horizontal" hideScrollBar size={24} className="flex min-w-0 flex-1 items-center gap-1">
             <Tabs
               selectedKey={filterMode}
               onSelectionChange={(k) => {
@@ -353,7 +353,7 @@ export function LogViewerContent({
                 </Tabs.Tab>
               </Tabs.List>
             </Tabs>
-          </div>
+          </ScrollArea>
 
           {stats.firstErrorLine && (
             <Button
@@ -453,13 +453,19 @@ export function LogViewerContent({
                               {filterMode === 'all' ? '（该阶段暂未输出日志）' : '（当前筛选下无匹配日志）'}
                             </div>
                           ) : (
-                            <div
-                              className={cn(
-                                'my-1 rounded-md border border-border/60 bg-background/70 py-2 font-mono text-[12px] leading-snug select-text shadow-2xs',
-                                wrapLines ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto',
-                              )}
+                            <Surface
+                              variant="secondary"
+                              className="my-1 rounded-md border border-border/60 overflow-hidden shadow-2xs"
                             >
-                              {sectionLines.map((line: ProcessedLogLine) => {
+                              <ScrollArea
+                                orientation={wrapLines ? 'vertical' : 'horizontal'}
+                                size={24}
+                                className={cn(
+                                  'py-2 font-mono text-[12px] leading-snug select-text bg-transparent',
+                                  wrapLines ? 'whitespace-pre-wrap break-words' : 'whitespace-pre',
+                                )}
+                              >
+                                {sectionLines.map((line: ProcessedLogLine) => {
                                 const isError = line.severity === 'error';
                                 const isWarning = line.severity === 'warning';
                                 const isStage = line.severity === 'stage';
@@ -493,7 +499,8 @@ export function LogViewerContent({
                                   </div>
                                 );
                               })}
-                            </div>
+                              </ScrollArea>
+                            </Surface>
                           )}
                         </Accordion.Body>
                       </Accordion.Panel>

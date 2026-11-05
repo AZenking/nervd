@@ -18,7 +18,7 @@ import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
-import { Tabs, Button as HeroButton } from '@heroui/react';
+import { Tabs, Button as HeroButton, Surface } from '@heroui/react';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -767,71 +767,72 @@ export function RequirementDetails({
           )}
           titleClassName="flex min-w-0 items-center gap-2.5 select-text cursor-text"
           actions={(
-            <>
-              {/* 宽面板（页头 @container ≥520px）：刷新 / 云效直出图标；窄面板收入「更多」菜单，全屏与关闭常驻 */}
-              <span className="hidden items-center gap-2 @[520px]:flex">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => void handleRefreshDetail()}
-                  title="刷新工作项及追溯"
-                  aria-label="刷新工作项及追溯"
-                >
-                  <RefreshCwIcon className={cn('size-3.5', refreshing && 'animate-spin')} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleOpenInYunxiao}
-                  title="在云效中打开"
-                  aria-label="在云效中打开"
-                >
-                  <ExternalLinkIcon className="size-3.5" />
-                </Button>
-              </span>
-              <span className="flex items-center @[520px]:hidden">
-                <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label="更多操作" />}>
-                    <MoreHorizontalIcon className="size-3.5" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem disabled={refreshing} onClick={() => void handleRefreshDetail()}>
-                      <RefreshCwIcon className={cn('size-3.5 mr-2', refreshing && 'animate-spin')} />
-                      <span>刷新工作项及追溯</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleOpenInYunxiao}>
-                      <ExternalLinkIcon className="size-3.5 mr-2" />
-                      <span>在云效中打开</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </span>
+            /* 常驻操作：刷新 / 云效直出 / 全屏 / 关闭（原生 HeroUI 图标按钮） */
+            <div className="flex shrink-0 items-center gap-1">
+              <HeroButton
+                type="button"
+                variant="ghost"
+                isIconOnly
+                size="sm"
+                onPress={() => void handleRefreshDetail()}
+                aria-label="刷新工作项及追溯"
+              >
+                <RefreshCwIcon className={cn('size-4', refreshing && 'animate-spin')} />
+              </HeroButton>
+              <HeroButton
+                type="button"
+                variant="ghost"
+                isIconOnly
+                size="sm"
+                onPress={handleOpenInYunxiao}
+                aria-label="在云效中打开"
+              >
+                <ExternalLinkIcon className="size-4" />
+              </HeroButton>
               {onOpenWorkbench && (
-                <Button
+                <HeroButton
+                  type="button"
                   variant="ghost"
-                  size="icon-xs"
-                  onClick={onOpenWorkbench}
-                  title="在工作台全屏打开"
+                  isIconOnly
+                  size="sm"
+                  onPress={onOpenWorkbench}
                   aria-label="在工作台全屏打开"
                 >
-                  <Maximize2Icon className="size-3.5" />
-                </Button>
+                  <Maximize2Icon className="size-4" />
+                </HeroButton>
               )}
               {onClose && (
-                <Button
+                <HeroButton
+                  type="button"
                   variant="ghost"
-                  size="icon-xs"
-                  onClick={onClose}
-                  title="关闭分栏 (Esc)"
+                  isIconOnly
+                  size="sm"
+                  onPress={onClose}
                   aria-label="关闭分栏 (Esc)"
                 >
-                  <XIcon className="size-3.5" />
-                </Button>
+                  <XIcon className="size-4" />
+                </HeroButton>
               )}
-            </>
+            </div>
           )}
           toolbar={(
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 w-full text-xs">
+              {/* 状态与负责人 Select（顶部常驻元数据条最前列：就地快速流转与分配） */}
+              <DetailStatusPopover
+                status={statusName}
+                statusId={statusId}
+                workitemId={selectedId ?? undefined}
+                variant="badge"
+              />
+              <DetailAssigneePopover
+                assignedToName={assignedToName}
+                workitemId={selectedId}
+                candidateAssignees={candidateAssignees}
+                variant="badge"
+              />
+
+              <span className="h-4 w-px bg-border/60 mx-0.5 shrink-0" aria-hidden />
+
               {/* 类型 Chip */}
               <Chip
                 size="sm"
@@ -948,22 +949,6 @@ export function RequirementDetails({
                   <Chip.Label className="truncate">{parent.identifier}</Chip.Label>
                 </Chip>
               )}
-
-              {/* 状态与负责人 Select（右置贴齐行尾：可操作控件与只读信息分离） */}
-              <div className="ml-auto flex shrink-0 items-center gap-2 pl-2">
-                <DetailStatusPopover
-                  status={statusName}
-                  statusId={statusId}
-                  workitemId={selectedId ?? undefined}
-                  variant="badge"
-                />
-                <DetailAssigneePopover
-                  assignedToName={assignedToName}
-                  workitemId={selectedId}
-                  candidateAssignees={candidateAssignees}
-                  variant="badge"
-                />
-              </div>
             </div>
           )}
         />
@@ -1035,7 +1020,7 @@ export function RequirementDetails({
         {/* 左主列：无卡片白框，纯粹呼吸感的 Linear 画布 */}
         <div className="flex min-w-0 flex-col gap-8">
           {parent && (
-            <Card className="flex flex-row items-center justify-between rounded-lg border border-border/70 bg-muted/30 px-3.5 py-2.5 text-xs">
+            <Surface variant="secondary" className="flex flex-row items-center justify-between rounded-lg border border-border/70 px-3.5 py-2.5 text-xs">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-muted-foreground shrink-0">
                   {category === 'Bug' ? '关联缺陷挂载于需求：' : '子任务挂载于需求：'}
@@ -1070,58 +1055,61 @@ export function RequirementDetails({
               >
                 查看父需求 ›
               </Button>
-            </Card>
+            </Surface>
           )}
 
-          {/* 分栏导航 Tabs（HeroUI 胶囊分段 Tabs，对齐 Linear / HeroUI Pro 风格） */}
+          {/* 分栏导航 Tabs（HeroUI 胶囊分段 Tabs，对齐 Linear / HeroUI Pro 风格）；
+              操作按钮与 Tabs 同行右置（仅嵌入模式，全屏工作台操作保留在页头） */}
           <Tabs
             selectedKey={activeTab}
             onSelectionChange={(key) => setActiveTab(String(key) as DetailTabKey)}
             className="w-full gap-4"
           >
-            <Tabs.ListContainer className="w-fit">
-              <Tabs.List aria-label="需求详情分栏导航">
-                <Tabs.Tab id="description">
-                  <span>描述</span>
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-                <Tabs.Tab id="repos">
-                  <span className="flex items-center gap-1.5">
-                    <span>关联仓库</span>
-                    {effectiveRepoIds.length > 0 && (
-                      <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
-                        {effectiveRepoIds.length}
-                      </span>
-                    )}
-                  </span>
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-                {isRequirement && (
-                  <Tabs.Tab id="children">
+            <div className="flex w-full min-w-0 items-center justify-between gap-2">
+              <Tabs.ListContainer className="w-fit min-w-0">
+                <Tabs.List aria-label="需求详情分栏导航">
+                  <Tabs.Tab id="description">
+                    <span>描述</span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                  <Tabs.Tab id="repos">
                     <span className="flex items-center gap-1.5">
-                      <span>子工作项</span>
-                      {subtasks.length + defects.length > 0 && (
+                      <span>关联仓库</span>
+                      {effectiveRepoIds.length > 0 && (
                         <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
-                          {subtasks.length + defects.length}
+                          {effectiveRepoIds.length}
                         </span>
                       )}
                     </span>
                     <Tabs.Indicator />
                   </Tabs.Tab>
-                )}
-                <Tabs.Tab id="activity">
-                  <span className="flex items-center gap-1.5">
-                    <span>活动动态</span>
-                    {comments.length > 0 && (
-                      <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
-                        {comments.length}
+                  {isRequirement && (
+                    <Tabs.Tab id="children">
+                      <span className="flex items-center gap-1.5">
+                        <span>子工作项</span>
+                        {subtasks.length + defects.length > 0 && (
+                          <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
+                            {subtasks.length + defects.length}
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs.ListContainer>
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                  )}
+                  <Tabs.Tab id="activity">
+                    <span className="flex items-center gap-1.5">
+                      <span>活动动态</span>
+                      {comments.length > 0 && (
+                        <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
+                          {comments.length}
+                        </span>
+                      )}
+                    </span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                </Tabs.List>
+              </Tabs.ListContainer>
+            </div>
 
             {/* 标签页 1：需求描述 */}
             <Tabs.Panel id="description" className="p-0 outline-none">
@@ -1340,9 +1328,9 @@ export function RequirementDetails({
                     );
                   })}
                   {filteredLinkedRepos.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-border/70 bg-muted/10 py-8 text-center text-xs text-muted-foreground">
+                    <Surface variant="secondary" className="rounded-lg border border-dashed border-border/70 py-8 text-center text-xs text-muted-foreground">
                       当前筛选条件下暂无关联仓库
-                    </div>
+                    </Surface>
                   )}
                 </div>
               </div>

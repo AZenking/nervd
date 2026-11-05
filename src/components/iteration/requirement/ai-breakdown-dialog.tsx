@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -271,7 +272,7 @@ export function AiBreakdownDialog({
         </div>
 
         {/* 候选子任务清单区 */}
-        <div className="flex-1 min-h-0 overflow-y-auto workspace-scroll py-2 flex flex-col gap-2">
+        <ScrollArea className="flex-1 min-h-0 workspace-scroll py-2 flex flex-col gap-2">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
               <Loader2Icon className="size-6 animate-spin text-primary" />
@@ -471,7 +472,7 @@ export function AiBreakdownDialog({
               </Button>
             </div>
           )}
-        </div>
+        </ScrollArea>
 
         {/* 底部确认操作栏 */}
         <DialogFooter className="shrink-0 pt-3 border-t border-border/60">

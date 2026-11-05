@@ -6,7 +6,11 @@ import { executeBranchMerge } from '@/lib/branch-merge-runner';
 import { useApp } from '@/store/app';
 import { useScheduleStore } from '@/store/schedule';
 import { toast } from '@/components/ui/toast';
-import type { ScheduledTask, ScheduleExecutionLog } from '@/types/schedule';
+import type {
+  MergeExecutionChanges,
+  ScheduledTask,
+  ScheduleExecutionLog,
+} from '@/types/schedule';
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 
@@ -110,6 +114,7 @@ export async function runTaskNow(
   let details: string | undefined;
   let errorMessage: string | undefined;
   let mergeResult: ScheduleExecutionLog['mergeResult'];
+  let lastMergeChanges: MergeExecutionChanges | undefined;
 
   try {
     const act = task.action;
@@ -151,6 +156,25 @@ export async function runTaskNow(
           conflictResolved: res.conflictResolved,
           shadowBranch: res.shadowBranch,
           mrId: res.mrId,
+          commitsCount: res.commitsCount,
+          diffsCount: res.diffsCount,
+          commits: res.commits,
+        };
+        lastMergeChanges = {
+          commitsCount: res.commitsCount,
+          diffsCount: res.diffsCount,
+          commits: res.commits,
+          diffs: res.diffs,
+          mrId: res.mrId,
+          targetBranch: res.targetBranch,
+          sourceBranch: res.sourceBranch,
+          strategy: res.strategy,
+          shadowBranch: res.shadowBranch,
+          syncedAt: startIso,
+          status: !res.success
+            ? (res.conflictDetected ? 'conflict_aborted' : 'failed')
+            : (res.commitsCount === 0 ? 'up_to_date' : (res.shadowBranch ? 'isolated_shadow' : 'merged')),
+          summary: res.message,
         };
         break;
       }
@@ -194,6 +218,7 @@ export async function runTaskNow(
         nextRunAt: nextRun ? nextRun.toISOString() : undefined,
         runCount: t.runCount + 1,
         updatedAt: finishedIso,
+        lastMergeChanges: lastMergeChanges ?? t.lastMergeChanges,
       };
     }),
   }));

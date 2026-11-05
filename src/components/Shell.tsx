@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type WorkspaceView } from '../store/ui';
 import { AppSidebar } from './nav/app-sidebar';
+import { ScrollArea } from './ui/scroll-area';
 import { IterationView } from './iteration/IterationView';
 import { OverviewView } from './OverviewView';
 import { RecentsView } from './recents/RecentsView';
@@ -370,7 +371,7 @@ export function Shell() {
                 /* 顶部留白不放在滚动容器上（由各视图 / 吸顶页头自带 pt-5）：
                     吸顶 PageHeader 的 top-0 才能严格贴住可视顶部，避免吸顶缝隙；
                     overflow-x-hidden 阻断页头负边距在滚动条占位时引发的微量水平溢出 */
-                <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10">
+                <ScrollArea className="workspace-scroll min-h-0 flex-1 overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10">
                   {view === 'requirement' && (
                     <Suspense fallback={<RequirementViewSkeleton />}>
                       <RequirementDetails />
@@ -394,7 +395,7 @@ export function Shell() {
                       <SettingsView embedded />
                     </Suspense>
                   )}
-                </div>
+                </ScrollArea>
               )}
             </section>
           </div>

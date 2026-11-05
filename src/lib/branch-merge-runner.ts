@@ -1,7 +1,13 @@
 // 分支自动合并同步执行引擎：支持谨慎（有冲突立即终止）与激进（零污染隔离消解）双策略
 import * as api from '@/lib/api';
+import { extractWorkItemKeys } from '@/lib/link';
 import { useApp } from '@/store/app';
-import type { BranchMergeScheduleAction, MergeStrategy } from '@/types/schedule';
+import type {
+  BranchMergeScheduleAction,
+  MergeCommitItem,
+  MergeDiffSummary,
+  MergeStrategy,
+} from '@/types/schedule';
 
 export interface BranchMergeExecutionResult {
   success: boolean;
@@ -14,6 +20,81 @@ export interface BranchMergeExecutionResult {
   mrId?: number;
   message: string;
   details?: string;
+  commitsCount: number;
+  diffsCount: number;
+  commits: MergeCommitItem[];
+  diffs?: MergeDiffSummary[];
+}
+
+/**
+ * 解析 Codeup 比较结果中的 Commits 列表
+ */
+export function parseCompareCommits(rawCommits: unknown[], linkPattern?: string): MergeCommitItem[] {
+  if (!Array.isArray(rawCommits)) return [];
+  return rawCommits.map((item) => {
+    if (!item || typeof item !== 'object') {
+      return { id: '', shortId: '', title: 'Commit' };
+    }
+    const c = item as Record<string, unknown>;
+    const sha = String(c.id ?? c.sha ?? '').trim();
+    const shortId = sha ? sha.slice(0, 7) : '';
+    const rawMsg = String(c.message ?? c.title ?? '').trim();
+    const title = rawMsg.split('\n')[0] || 'Commit';
+    const author =
+      typeof c.author === 'object' && c.author != null
+        ? (c.author as { name?: string }).name
+        : typeof c.author_name === 'string'
+          ? c.author_name
+          : typeof c.authorName === 'string'
+            ? c.authorName
+            : undefined;
+    const committedDate =
+      typeof c.committed_date === 'string'
+        ? c.committed_date
+        : typeof c.committedDate === 'string'
+          ? c.committedDate
+          : typeof c.createdAt === 'string'
+            ? c.createdAt
+            : undefined;
+
+    const workitems = linkPattern ? extractWorkItemKeys(rawMsg, linkPattern) : [];
+
+    return {
+      id: sha,
+      shortId,
+      title,
+      authorName: author,
+      committedDate,
+      workitems: workitems.length > 0 ? workitems : undefined,
+    };
+  });
+}
+
+/**
+ * 解析 Codeup 比较结果中的 Diffs 摘要
+ */
+export function parseCompareDiffs(rawDiffs: unknown[]): MergeDiffSummary[] {
+  if (!Array.isArray(rawDiffs)) return [];
+  return rawDiffs.slice(0, 50).map((item) => {
+    if (!item || typeof item !== 'object') return {};
+    const d = item as Record<string, unknown>;
+    return {
+      newPath:
+        typeof d.new_path === 'string'
+          ? d.new_path
+          : typeof d.newPath === 'string'
+            ? d.newPath
+            : undefined,
+      oldPath:
+        typeof d.old_path === 'string'
+          ? d.old_path
+          : typeof d.oldPath === 'string'
+            ? d.oldPath
+            : undefined,
+      isNew: Boolean(d.new_file ?? d.isNew),
+      isDeleted: Boolean(d.deleted_file ?? d.isDeleted),
+    };
+  });
 }
 
 /**
@@ -23,10 +104,14 @@ function analyzeCompareResult(res: unknown): {
   commitsCount: number;
   diffsCount: number;
   hasConflictIndicator: boolean;
+  rawCommits: unknown[];
+  rawDiffs: unknown[];
 } {
   let commitsCount = 0;
   let diffsCount = 0;
   let hasConflictIndicator = false;
+  let rawCommits: unknown[] = [];
+  let rawDiffs: unknown[] = [];
 
   if (res && typeof res === 'object') {
     const obj = res as Record<string, unknown>;
@@ -34,9 +119,11 @@ function analyzeCompareResult(res: unknown): {
 
     if (Array.isArray(raw.commits)) {
       commitsCount = raw.commits.length;
+      rawCommits = raw.commits;
     }
     if (Array.isArray(raw.diffs)) {
       diffsCount = raw.diffs.length;
+      rawDiffs = raw.diffs;
     }
 
     // 检查冲突标志（某些 codeup 版本会直接标记 hasConflict 或 conflict）
@@ -45,7 +132,7 @@ function analyzeCompareResult(res: unknown): {
     }
   }
 
-  return { commitsCount, diffsCount, hasConflictIndicator };
+  return { commitsCount, diffsCount, hasConflictIndicator, rawCommits, rawDiffs };
 }
 
 /**
@@ -133,7 +220,11 @@ export async function executeBranchMerge(
     throw new Error(`分支落差预检失败: ${msg}`);
   }
 
-  const { commitsCount, diffsCount, hasConflictIndicator } = analyzeCompareResult(compareRes);
+  const { commitsCount, diffsCount, hasConflictIndicator, rawCommits, rawDiffs } =
+    analyzeCompareResult(compareRes);
+  const linkPattern = useApp.getState().settings?.linkPattern;
+  const parsedCommits = parseCompareCommits(rawCommits, linkPattern);
+  const parsedDiffs = parseCompareDiffs(rawDiffs);
 
   // 若无新提交需要合入
   if (commitsCount === 0) {
@@ -144,6 +235,10 @@ export async function executeBranchMerge(
       targetBranch,
       conflictDetected: false,
       message: `目标分支 [${targetBranch}] 已包含 [${sourceBranch}] 的全部提交，无待合入改动。`,
+      commitsCount: 0,
+      diffsCount: 0,
+      commits: [],
+      diffs: [],
     };
   }
 
@@ -190,6 +285,10 @@ export async function executeBranchMerge(
         conflictDetected: true,
         message: `[谨慎策略] 分支合并已中止：检测到 [${sourceBranch}] 与 [${targetBranch}] 存在代码冲突，原分支保持绝对未改动。`,
         details: `待合入提交数: ${commitsCount}，涉及文件数: ${diffsCount}`,
+        commitsCount,
+        diffsCount,
+        commits: parsedCommits,
+        diffs: parsedDiffs,
       };
     }
 
@@ -225,6 +324,10 @@ export async function executeBranchMerge(
         conflictDetected: false,
         mrId: mrId ?? undefined,
         message: `[谨慎策略] 合并成功：已自动将 [${sourceBranch}] 合入 [${targetBranch}] (${commitsCount} 个提交)。`,
+        commitsCount,
+        diffsCount,
+        commits: parsedCommits,
+        diffs: parsedDiffs,
       };
     } catch (mergeErr: unknown) {
       const errStr = mergeErr instanceof Error ? mergeErr.message : String(mergeErr);
@@ -238,6 +341,10 @@ export async function executeBranchMerge(
           conflictDetected: true,
           message: `[谨慎策略] 合入失败中止：远端报告代码冲突，已中止操作，原分支未受污染。`,
           details: errStr,
+          commitsCount,
+          diffsCount,
+          commits: parsedCommits,
+          diffs: parsedDiffs,
         };
       }
       const isReviewBlocked = /该状态下的评审不允许合并/i.test(errStr);
@@ -281,6 +388,10 @@ export async function executeBranchMerge(
           conflictDetected: false,
           mrId: mrId ?? undefined,
           message: `[激进策略] 预检无冲突，已直接安全合入 [${targetBranch}]。`,
+          commitsCount,
+          diffsCount,
+          commits: parsedCommits,
+          diffs: parsedDiffs,
         };
       } catch (err: unknown) {
         // 如果直合失败且提示冲突，继续落入下方的“隔离分支消解机制”
@@ -319,6 +430,10 @@ export async function executeBranchMerge(
         mrId: shadowMrId || undefined,
         message: `[激进策略] 已完成零污染隔离消解准备：在安全影子分支 [${shadowBranch}] 组织变更，原分支 [${sourceBranch}] 保持 100% 纯净未被污染。`,
         details: `已生成隔离同步请求 #${shadowMrId || 'NEW'}，开发者原分支完全不受任何污染干扰。`,
+        commitsCount,
+        diffsCount,
+        commits: parsedCommits,
+        diffs: parsedDiffs,
       };
     } catch (shadowErr: unknown) {
       const msg = shadowErr instanceof Error ? shadowErr.message : String(shadowErr);
@@ -330,6 +445,10 @@ export async function executeBranchMerge(
         conflictDetected: true,
         conflictResolved: false,
         message: `[激进策略] 创建安全隔离分支失败: ${msg}`,
+        commitsCount,
+        diffsCount,
+        commits: parsedCommits,
+        diffs: parsedDiffs,
       };
     }
   }

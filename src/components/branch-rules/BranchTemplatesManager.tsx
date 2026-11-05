@@ -15,6 +15,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { EmptyHint } from '@/components/empty-hint';
 import { SettingsGroup, SettingsRow } from '@/components/settings/settings-group';
@@ -388,7 +389,9 @@ export function BranchTemplatesManager({
             </div>
           </DrawerHeader>
 
-          <DrawerBody className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+          <DrawerBody className="flex min-h-0 flex-1 flex-col px-5 py-4">
+            {/* 滚动与边缘渐隐由 ScrollArea 承担，DrawerBody 只做弹性布局壳 */}
+            <ScrollArea className="flex min-h-0 flex-1 flex-col gap-3">
             {/* 作用域与变量说明（HeroUI Alert） */}
             <Alert status="default">
               <Alert.Indicator />
@@ -451,6 +454,7 @@ export function BranchTemplatesManager({
                 </Alert.Content>
               </Alert>
             )}
+            </ScrollArea>
           </DrawerBody>
 
           <DrawerFooter className="shrink-0 justify-end gap-2 border-t border-border/70 px-5 py-3">

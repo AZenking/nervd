@@ -3,6 +3,7 @@ import { Dropdown as DropdownHero, Separator } from "@heroui/react"
 import { RootMenuTriggerStateContext } from "react-aria-components"
 import { cn } from "@/lib/utils"
 import { ChevronRightIcon, CheckIcon } from "lucide-react"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface DropdownMenuProps {
   open?: boolean
@@ -127,18 +128,22 @@ function DropdownMenuContent({
       offset={sideOffset}
       crossOffset={alignOffset}
       className={cn(
-        "z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-level-2 ring-1 ring-black/5 duration-100 outline-none",
+        "z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) rounded-lg border border-border bg-popover text-popover-foreground shadow-level-2 ring-1 ring-black/5 duration-100 outline-none",
         className
       )}
       {...(props as any)}
     >
-      <DropdownHero.Menu
-        data-slot="dropdown-menu"
-        aria-label="Menu"
-        className="outline-none"
-      >
-        {children}
-      </DropdownHero.Menu>
+      {/* 滚动与边缘渐隐内聚到 ScrollArea；调用方追加的 max-h-*（如 max-h-56/72）
+          经 max-h-[inherit] 继续生效，菜单保留全局细滚动条（fade 自动避让滚动条泳道） */}
+      <ScrollArea size={24} className="max-h-[inherit] overflow-x-hidden p-1">
+        <DropdownHero.Menu
+          data-slot="dropdown-menu"
+          aria-label="Menu"
+          className="outline-none"
+        >
+          {children}
+        </DropdownHero.Menu>
+      </ScrollArea>
     </DropdownHero.Popover>
   )
 }

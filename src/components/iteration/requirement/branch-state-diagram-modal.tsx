@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { GitForkIcon } from 'lucide-react';
 import type { BranchSyncRepo } from '../BranchStateDiagram';
 
@@ -47,7 +48,7 @@ export function BranchStateDiagramModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+        <ScrollArea className="flex-1 min-h-0 pr-1">
           <Suspense
             fallback={(
               <div
@@ -70,7 +71,7 @@ export function BranchStateDiagramModal({
               />
             )}
           </Suspense>
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

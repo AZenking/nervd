@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Surface } from '@heroui/react';
 import {
   ArrowUpRightIcon,
   BugIcon,
@@ -21,7 +22,7 @@ import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
 import { statusMeta } from '../StatusBadge';
 import { Descriptions, type DescriptionsItem } from '@/components/ui/descriptions';
-import { Card } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Drawer,
   DrawerContent,
@@ -476,15 +477,15 @@ export function ChildDetailDrawer({
         </DrawerHeader>
 
         {/* 抽屉滚动内容主体 */}
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-5">
+        <ScrollArea className="flex min-h-0 flex-1 flex-col gap-6 px-5 py-5">
           {/* 属性列表：对齐 Linear 裸行规范 */}
           <section className="flex flex-col gap-2">
             <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               属性
             </p>
-            <Card className="rounded-lg border border-border/50 bg-muted/15 p-2">
+            <Surface variant="secondary" className="rounded-lg border border-border/50 p-2">
               <Descriptions variant="plain" items={attributeItems} />
-            </Card>
+            </Surface>
           </section>
 
           {/* 描述正文 */}
@@ -499,7 +500,7 @@ export function ChildDetailDrawer({
                 <Skeleton className="h-4 w-2/3" />
               </div>
             ) : (
-              <Card className="rounded-lg border border-border/50 bg-muted/10 p-3.5 text-sm leading-relaxed text-foreground/90">
+              <Surface variant="secondary" className="rounded-lg border border-border/50 p-3.5 text-sm leading-relaxed text-foreground/90">
                 <RichDescription
                   raw={wi.description ?? wi.content}
                   workitemId={child?.workitemId}
@@ -507,10 +508,10 @@ export function ChildDetailDrawer({
                     setRawDetail((prev) => (prev ? { ...prev, description: newHtml, content: newHtml } : prev));
                   }}
                 />
-              </Card>
+              </Surface>
             )}
           </section>
-        </div>
+        </ScrollArea>
 
         {/* 底部操作条 */}
         <div className="flex items-center justify-between border-t border-border/70 px-5 py-3">

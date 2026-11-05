@@ -688,45 +688,6 @@ export function IntegrationView() {
                 </Table.Content>
               </Table.ScrollContainer>
             </Table>
-
-            {/* 底部导航与说明 */}
-            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-              <p>纯查看视图：比较结果来自云效 Codeup，打包/触发等写操作请前往对应流水线。</p>
-              {totalPages > 1 && (
-                <Pagination size="sm" className="text-muted-foreground">
-                  <Pagination.Summary className="tabular-nums">
-                    第 {page} / {totalPages} 页（共 {matchedBranches.length} 条分支）
-                  </Pagination.Summary>
-                  <Pagination.Content>
-                    <Pagination.Item>
-                      <Pagination.Previous
-                        aria-label="上一页（快捷键 [）"
-                        isDisabled={page <= 1}
-                        onPress={() => setPage((p) => Math.max(1, p - 1))}
-                      >
-                        <Pagination.PreviousIcon />
-                      </Pagination.Previous>
-                    </Pagination.Item>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                      <Pagination.Item key={p}>
-                        <Pagination.Link isActive={p === page} onPress={() => setPage(p)}>
-                          {p}
-                        </Pagination.Link>
-                      </Pagination.Item>
-                    ))}
-                    <Pagination.Item>
-                      <Pagination.Next
-                        aria-label="下一页（快捷键 ]）"
-                        isDisabled={page >= totalPages}
-                        onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      >
-                        <Pagination.NextIcon />
-                      </Pagination.Next>
-                    </Pagination.Item>
-                  </Pagination.Content>
-                </Pagination>
-              )}
-            </div>
           </>
         )}
 

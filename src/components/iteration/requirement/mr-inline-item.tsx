@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Surface } from '@heroui/react';
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -22,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Spinner } from '@/components/ui/spinner';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/components/ui/toast';
 import { WriteOpButton } from '@/components/WriteOpButton';
 import { useApp } from '@/store/app';
@@ -208,9 +210,9 @@ export function MrInlineItem({
 
       {/* 就地展开的闭环检视面板 */}
       {isExpanded && (
-        <div className="flex flex-col gap-2.5 border-t border-border/40 bg-muted/20 px-3 py-2.5 text-xs">
+        <Surface variant="secondary" className="flex flex-col gap-2.5 border-t border-border/40 px-3 py-2.5 text-xs">
           {/* 分支流向与基本元数据 */}
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/30 bg-background/70 px-2 py-1.5 text-[11px] font-mono">
+          <Surface variant="tertiary" className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/30 px-2 py-1.5 text-[11px] font-mono">
             <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
               <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
               <OverflowTooltip
@@ -229,7 +231,7 @@ export function MrInlineItem({
               )}
               <CopyButton text={`${mr.sourceBranch} -> ${mr.targetBranch}`} label="复制分支" />
             </div>
-          </div>
+          </Surface>
 
           {/* 差异状态区域：区分活跃 MR 与历史 MR */}
           <div className="flex flex-col gap-1.5">
@@ -295,7 +297,7 @@ export function MrInlineItem({
                 )}
               </div>
             ) : (
-              <div className="flex flex-col divide-y divide-border/30 rounded border border-border/30 bg-background/50 max-h-36 overflow-y-auto">
+              <ScrollArea size={24} className="flex flex-col divide-y divide-border/30 rounded border border-border/30 bg-background/50 max-h-36">
                 {commits.slice(0, 5).map((c, i) => (
                   <div key={c.id || i} className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -312,7 +314,7 @@ export function MrInlineItem({
                     …还有 {commits.length - 5} 个提交
                   </div>
                 )}
-              </div>
+              </ScrollArea>
             )}
           </div>
 
@@ -423,7 +425,7 @@ export function MrInlineItem({
               )}
             </div>
           </div>
-        </div>
+        </Surface>
       )}
 
       {/* 本地代码变更抽屉 (Linear Peek View) */}

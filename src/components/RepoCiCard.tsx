@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Surface } from '@heroui/react';
 import { useApp } from '../store/app';
 import { formatDateTime, formatDuration } from '../lib/format';
 import { humanizeError } from '@/lib/error-format';
@@ -86,7 +87,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
               最近构建 · 仓库 Job 历史
             </div>
             {snapshot.runs.map((run) => (
-              <div key={run.runId} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border bg-muted/45 px-2.5 py-2 text-xs">
+              <Surface key={run.runId} variant="secondary" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/50 px-2.5 py-2 text-xs">
                 <StatusBadge status={run.status} size="sm" />
                 <span className="font-log text-foreground">#{run.runId}</span>
                 <span className="ml-auto text-muted-foreground">{when(run.startTime)}</span>
@@ -94,7 +95,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
                 <Button variant="ghost" size="xs" onClick={() => openRepoBuildLogs(repoId, run.runId, `${repoName} · ${snapshot.name} #${run.runId}`)}>
                   查看日志
                 </Button>
-              </div>
+              </Surface>
             ))}
             {!snapshot.runs.length && <p className="px-2 py-2 text-xs text-muted-foreground">此 Job 尚无构建记录。</p>}
           </div>

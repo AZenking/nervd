@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Surface } from '@heroui/react';
 import {
   CheckIcon, CopyIcon, FileTextIcon, Loader2Icon, RefreshCwIcon,
 } from 'lucide-react';
@@ -7,7 +8,7 @@ import { aiGenerateReleaseNotes } from '@/lib/ai-api';
 import { comparisonCommits } from '../iteration/BranchDivergenceCheck';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -164,7 +165,7 @@ export function AiReleaseNotesDialog({
         </div>
 
         {/* 内容区 */}
-        <div className="flex-1 min-h-0 overflow-y-auto workspace-scroll py-2">
+        <ScrollArea className="flex-1 min-h-0 workspace-scroll py-2">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
               <Loader2Icon className="size-6 animate-spin text-primary" />
@@ -178,17 +179,19 @@ export function AiReleaseNotesDialog({
               </Button>
             </div>
           ) : tab === 'preview' ? (
-            <Card className="rounded-lg border border-border/50 bg-background/50 p-4 text-xs font-mono whitespace-pre-wrap leading-relaxed text-foreground select-text">
+            <Surface variant="secondary" className="rounded-lg border border-border/50 p-4 text-xs font-mono whitespace-pre-wrap leading-relaxed text-foreground select-text">
               {content}
-            </Card>
+            </Surface>
           ) : (
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="h-full min-h-[350px] text-xs font-mono bg-background resize-none"
-            />
+            <Surface variant="secondary" className="rounded-lg border border-border/50 p-1">
+              <Textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="h-full min-h-[350px] border-0 bg-transparent text-xs font-mono resize-none focus-visible:ring-0 shadow-none"
+              />
+            </Surface>
           )}
-        </div>
+        </ScrollArea>
 
         {/* 底部关闭 */}
         <DialogFooter className="shrink-0 pt-3 border-t border-border/60">
