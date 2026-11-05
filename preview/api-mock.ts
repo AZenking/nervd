@@ -559,7 +559,10 @@ export async function listBranches(repoId: number, search?: string, page = 1, pe
     { name: 'dev', commit: { id: 'de00d00' } },
     { name: 'release/Benz-20261016', commit: { id: 'r16c02', message: 'chore: release Benz-20261016', committedDate: '2026-10-13T19:05:00Z' } },
     { name: 'temp/hotfix-login', commit: { id: 't05ha11', message: 'fix: login redirect', committedDate: '2026-10-12T21:12:00Z' } },
-  ] : [];
+  ] : repoId >= 100000 ? Array.from({ length: 40 }, (_, i) => ({
+    name: `iteration/nationwide-warranty-${String(i + 1).padStart(2, '0')}`,
+    commit: { id: `v${String(i + 1).padStart(4, '0')}` },
+  })) : [];
   const branches = [...baseBranches, ...(createdBranches[repoId] ?? [])];
   const filtered = search ? branches.filter((branch) => branch.name.includes(search)) : branches;
   const size = Math.max(1, perPage);

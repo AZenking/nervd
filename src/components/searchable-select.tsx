@@ -90,6 +90,8 @@ function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
       style={{ maxHeight: `${VIRTUAL_CONTAINER_HEIGHT}px` }}
       tabIndex={-1}
     >
+      {/* ListBox.Item 必须存活于 ListBox 集合上下文（react-aria CollectionBuilder 强约束）：
+          视口窗口 div 平移承载真正的 ListBox，仅渲染可见切片 */}
       <div style={{ height: `${totalHeight}px`, width: '100%', position: 'relative' }}>
         <div
           style={{
@@ -100,28 +102,30 @@ function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
             transform: `translateY(${translateY}px)`,
           }}
         >
-          {visibleItems.map((item) => (
-            <ListBox.Item
-              key={String(item.value)}
-              id={String(item.value)}
-              textValue={item.label}
-              isDisabled={item.disabled}
-              className={cn(
-                'cursor-pointer text-xs py-1.5 px-2 flex items-center justify-between gap-2',
-                item.className,
-              )}
-            >
-              {item.badge ? (
-                <span className="flex items-center justify-between gap-2 w-full min-w-0">
-                  <OverflowTooltip text={item.label} className="min-w-0 flex-1 truncate" />
-                  <span className="shrink-0">{item.badge}</span>
-                </span>
-              ) : (
-                <OverflowTooltip text={item.label} className="block min-w-0 max-w-full truncate" />
-              )}
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
+          <ListBox className="w-full">
+            {visibleItems.map((item) => (
+              <ListBox.Item
+                key={String(item.value)}
+                id={String(item.value)}
+                textValue={item.label}
+                isDisabled={item.disabled}
+                className={cn(
+                  'cursor-pointer text-xs py-1.5 px-2 flex items-center justify-between gap-2',
+                  item.className,
+                )}
+              >
+                {item.badge ? (
+                  <span className="flex items-center justify-between gap-2 w-full min-w-0">
+                    <OverflowTooltip text={item.label} className="min-w-0 flex-1 truncate" />
+                    <span className="shrink-0">{item.badge}</span>
+                  </span>
+                ) : (
+                  <OverflowTooltip text={item.label} className="block min-w-0 max-w-full truncate" />
+                )}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
         </div>
       </div>
     </div>
