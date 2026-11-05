@@ -749,18 +749,23 @@ export function IterationView() {
                           <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-r-full bg-primary/70" />
                         ) : null}
 
-                        {/* 多选 Checkbox（Linear 风格：悬停滑出，已选常驻） */}
+                        {/* 多选 Checkbox（Linear 风格：悬停滑出，已选常驻）
+                            注意：HeroUI Checkbox 是包裹隐藏 input 的 label，一次点击会冒泡
+                            两个 click（原始 + label→input 转发），切换必须挂 onCheckedChange
+                            （由 input change 驱动，恰好一次），span 仅负责 stopPropagation
+                            屏蔽行点击（打开抽屉/清空多选）。 */}
                         <span
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleSelect(item.workitemId);
-                          }}
+                          onClick={(e) => e.stopPropagation()}
                           className={cn(
                             'flex size-4 shrink-0 items-center justify-center cursor-pointer transition-opacity',
                             selectedIds.has(item.workitemId) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
                           )}
                         >
-                          <Checkbox checked={selectedIds.has(item.workitemId)} />
+                          <Checkbox
+                            checked={selectedIds.has(item.workitemId)}
+                            onCheckedChange={() => toggleSelect(item.workitemId)}
+                            aria-label={`选择 ${item.identifier}`}
+                          />
                         </span>
 
                         {/* 原地流转状态下拉 Popover */}
