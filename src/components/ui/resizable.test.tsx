@@ -71,6 +71,12 @@ describe('PaneSeparator semantics', () => {
     const { el } = await renderSeparator();
     expect(el.hasAttribute('data-tauri-drag-region')).toBe(false);
   });
+
+  it('can hide the decorative line while keeping the separator hit area', async () => {
+    const { el } = await renderSeparator({ showLine: false });
+    expect(el.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(el.getAttribute('role')).toBe('separator');
+  });
 });
 
 describe('PaneSeparator keyboard adjustments', () => {

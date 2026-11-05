@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon, ChevronDownIcon, SearchIcon, UserIcon, XIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Chip } from '@/components/ui/chip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -154,55 +157,75 @@ export function SearchableAssigneePopover({
   const renderTriggerContent = () => {
     if (variant === 'row') {
       return (
-        <button
-          type="button"
-          onClick={handleTriggerClick}
-          className={cn(
-            'group/assignee inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer',
-            updating && 'pointer-events-none opacity-60',
-            disabled && 'pointer-events-none opacity-50',
-            className,
-          )}
-          title="点击更改负责人"
-        >
-          {updating ? (
-            <Spinner className="size-3.5" />
-          ) : assignedToName ? (
-            <Avatar className="size-4 shrink-0">
-              <AvatarFallback className="text-[9px]">{assignedToName.charAt(0)}</AvatarFallback>
-            </Avatar>
-          ) : (
-            <UserIcon className="size-3.5 text-muted-foreground/60" />
-          )}
-          <OverflowTooltip
-            text={assignedToName || placeholder}
-            className="hidden max-w-20 sm:inline truncate"
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={handleTriggerClick}
+                className={cn(
+                  'group/assignee h-6 gap-1.5 px-1.5 text-xs text-muted-foreground hover:text-foreground',
+                  updating && 'pointer-events-none opacity-60',
+                  disabled && 'pointer-events-none opacity-50',
+                  className,
+                )}
+                title="点击更改负责人"
+                aria-label="点击更改负责人"
+              >
+                {updating ? (
+                  <Spinner className="size-3.5" />
+                ) : assignedToName ? (
+                  <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
+                    <AvatarFallback className="text-[9px] bg-transparent font-medium">{assignedToName.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <UserIcon className="size-3.5 text-muted-foreground/60" />
+                )}
+                <OverflowTooltip
+                  text={assignedToName || placeholder}
+                  className="hidden max-w-20 sm:inline truncate"
+                />
+              </Button>
+            }
           />
-        </button>
+          <TooltipContent>点击更改负责人</TooltipContent>
+        </Tooltip>
       );
     }
 
     if (variant === 'button') {
       return (
-        <button
-          type="button"
-          onClick={handleTriggerClick}
-          className={cn(
-            'inline-flex h-7 shrink-0 items-center gap-1.5 rounded border border-border/60 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-none max-w-44 cursor-pointer transition-colors',
-            updating && 'pointer-events-none opacity-60',
-            disabled && 'pointer-events-none opacity-50',
-            className,
-          )}
-          title="选择处理人"
-        >
-          {updating ? (
-            <Spinner className="size-3" />
-          ) : (
-            <UserIcon className="size-3 text-muted-foreground shrink-0" />
-          )}
-          <OverflowTooltip text={assignedToName || placeholder} className="truncate" />
-          <ChevronDownIcon className="size-3 text-muted-foreground opacity-60 shrink-0" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={handleTriggerClick}
+                className={cn(
+                  'h-7 shrink-0 gap-1.5 px-2 text-xs font-medium text-foreground max-w-44',
+                  updating && 'pointer-events-none opacity-60',
+                  disabled && 'pointer-events-none opacity-50',
+                  className,
+                )}
+                title="选择处理人"
+                aria-label="选择处理人"
+              >
+                {updating ? (
+                  <Spinner className="size-3" />
+                ) : (
+                  <UserIcon className="size-3 text-muted-foreground shrink-0" />
+                )}
+                <OverflowTooltip text={assignedToName || placeholder} className="truncate" />
+                <ChevronDownIcon className="size-3 text-muted-foreground opacity-60 shrink-0" />
+              </Button>
+            }
+          />
+          <TooltipContent>选择处理人</TooltipContent>
+        </Tooltip>
       );
     }
 
@@ -226,8 +249,8 @@ export function SearchableAssigneePopover({
           {updating ? (
             <Spinner className="size-3.5 shrink-0" />
           ) : assignedToName ? (
-            <Avatar className="size-3.5 shrink-0">
-              <AvatarFallback className="text-[9px]">{assignedToName.charAt(0)}</AvatarFallback>
+            <Avatar className={cn('size-3.5 shrink-0 border', getAvatarColorClass(assignedToName))}>
+              <AvatarFallback className="text-[9px] bg-transparent font-medium">{assignedToName.charAt(0)}</AvatarFallback>
             </Avatar>
           ) : (
             <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
@@ -244,22 +267,25 @@ export function SearchableAssigneePopover({
     }
 
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="xs"
         onClick={handleTriggerClick}
         className={cn(
-          'group/assignee inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none rounded-sm hover:bg-muted/80 px-1.5 py-0.5 text-xs font-medium',
+          'group/assignee h-6 gap-1.5 px-1.5 text-xs font-medium text-foreground',
           updating && 'pointer-events-none opacity-60',
           disabled && 'pointer-events-none opacity-50',
           className,
         )}
         title="点击更改负责人"
+        aria-label="点击更改负责人"
       >
         {updating ? (
           <Spinner className="size-3.5 shrink-0" />
         ) : assignedToName ? (
-          <Avatar className="size-4 shrink-0">
-            <AvatarFallback className="text-[9px]">{assignedToName.charAt(0)}</AvatarFallback>
+          <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
+            <AvatarFallback className="text-[9px] bg-transparent font-medium">{assignedToName.charAt(0)}</AvatarFallback>
           </Avatar>
         ) : (
           <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
@@ -269,7 +295,7 @@ export function SearchableAssigneePopover({
           className="max-w-24 truncate"
         />
         <ChevronDownIcon className="size-3 text-muted-foreground/60 shrink-0 ml-0.5 transition-transform group-hover/assignee:opacity-100" />
-      </button>
+      </Button>
     );
   };
 
@@ -283,9 +309,9 @@ export function SearchableAssigneePopover({
         onClick={(e) => e.stopPropagation()}
       >
         {/* 搜索框 */}
-        <div className="relative mb-1">
-          <SearchIcon className="absolute left-2 top-2 size-3 text-muted-foreground pointer-events-none" />
-          <input
+        <div className="relative mb-1 flex items-center">
+          <SearchIcon className="absolute left-2 size-3 text-muted-foreground pointer-events-none z-10" />
+          <Input
             ref={inputRef}
             type="text"
             placeholder="搜索成员或角色…"
@@ -295,20 +321,30 @@ export function SearchableAssigneePopover({
               setHighlightedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            className="h-7 w-full rounded-md border border-border/70 bg-muted/40 pl-7 pr-6 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 transition-colors"
+            className="h-7 w-full pl-7 pr-6 text-xs bg-muted/40"
           />
           {query && (
-            <button
-              type="button"
-              onClick={() => {
-                setQuery('');
-                inputRef.current?.focus();
-              }}
-              className="absolute right-1.5 top-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
-              title="清空搜索"
-            >
-              <XIcon className="size-3" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => {
+                      setQuery('');
+                      inputRef.current?.focus();
+                    }}
+                    className="absolute right-1 size-5 text-muted-foreground hover:text-foreground"
+                    title="清空搜索"
+                    aria-label="清空搜索"
+                  >
+                    <XIcon className="size-3" />
+                  </Button>
+                }
+              />
+              <TooltipContent>清空搜索</TooltipContent>
+            </Tooltip>
           )}
         </div>
 
@@ -335,8 +371,8 @@ export function SearchableAssigneePopover({
                   )}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <Avatar className="size-4 shrink-0">
-                      <AvatarFallback className="text-[9px]">{c.name.charAt(0)}</AvatarFallback>
+                    <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(c.name))}>
+                      <AvatarFallback className="text-[9px] bg-transparent font-medium">{c.name.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <OverflowTooltip text={c.name} className="min-w-0 truncate" />
                     {c.role && (

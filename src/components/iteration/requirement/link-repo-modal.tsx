@@ -16,6 +16,7 @@ import { RepoCiBindingFields } from './repo-ci-binding-fields';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
 import {
   Dialog,
   DialogContent,
@@ -160,13 +161,15 @@ export function LinkRepoModal({
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {recommendedRepos.length > 0 && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={onClearRecommendations}
-                    className="text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    className="h-6 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     清空推荐
-                  </button>
+                  </Button>
                 )}
                 <Button
                   variant="outline"
@@ -217,9 +220,9 @@ export function LinkRepoModal({
                             />
                           </div>
                           {rec.confidence === 'high' && (
-                            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-sig-ok/10 text-sig-ok border border-sig-ok/20">
+                            <Chip size="sm" variant="soft" color="success" className="text-[10px] font-medium shrink-0">
                               高置信
-                            </span>
+                            </Chip>
                           )}
                         </div>
 

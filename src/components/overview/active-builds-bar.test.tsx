@@ -2,7 +2,6 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useApp } from '@/store/app';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import { ActiveBuildsBar } from './active-builds-bar';
 import * as buildWorkbench from '@/components/build-workbench';
 
@@ -46,11 +45,7 @@ describe('ActiveBuildsBar', () => {
     });
 
     act(() => {
-      root?.render(
-        <TooltipProvider>
-          <ActiveBuildsBar />
-        </TooltipProvider>,
-      );
+      root?.render(<ActiveBuildsBar />);
     });
 
     expect(container?.innerHTML).toBe('');
@@ -93,11 +88,7 @@ describe('ActiveBuildsBar', () => {
     });
 
     act(() => {
-      root?.render(
-        <TooltipProvider>
-          <ActiveBuildsBar />
-        </TooltipProvider>,
-      );
+      root?.render(<ActiveBuildsBar />);
     });
 
     expect(container?.textContent).toContain('活跃构建中');

@@ -198,14 +198,59 @@ export async function triggerJenkinsJob(
   connectionId: string,
   jobFullName: string,
   parameters: Record<string, string>,
-): Promise<unknown> {
+): Promise<{ queueUrl?: string; queueId?: string; repoId: number; connectionId: string; jobFullName: string }> {
   return invoke('trigger_jenkins_job', { repoId, connectionId, jobFullName, parameters });
+}
+export async function getJenkinsQueueItem(
+  connectionId: string,
+  queueId: string,
+): Promise<{
+  queueId: string;
+  leftQueue: boolean;
+  cancelled?: boolean;
+  why?: string;
+  executableNumber?: number;
+  executableUrl?: string;
+}> {
+  return invoke('get_jenkins_queue_item', { connectionId, queueId });
+}
+export async function getJenkinsJobRuns(
+  connectionId: string,
+  jobFullName: string,
+  limit?: number,
+): Promise<Array<{ runId: string; status: string; startTime?: number; durationMs?: number }>> {
+  return invoke('get_jenkins_job_runs', { connectionId, jobFullName, limit });
+}
+export async function getJenkinsJobLogs(
+  connectionId: string,
+  jobFullName: string,
+  runId: string,
+): Promise<string> {
+  return invoke('get_jenkins_job_logs', { connectionId, jobFullName, runId });
+}
+export async function getJenkinsJobLogChunk(
+  connectionId: string,
+  jobFullName: string,
+  runId: string,
+  startOffset: number,
+): Promise<JenkinsLogChunk> {
+  return invoke('get_jenkins_job_log_chunk', { connectionId, jobFullName, runId, startOffset });
+}
+export async function getJenkinsJobStages(
+  connectionId: string,
+  jobFullName: string,
+  runId: string,
+): Promise<CiStageItem[]> {
+  return invoke('get_jenkins_job_stages', { connectionId, jobFullName, runId });
 }
 export async function getRepoCiSnapshot(repoId: number, maxResults = 5): Promise<RepoCiSnapshot> {
   return invoke('get_repo_ci_snapshot', { repoId, maxResults });
 }
-export async function triggerRepoCi(repoId: number): Promise<unknown> {
-  return invoke('trigger_repo_ci', { repoId });
+export async function triggerRepoCi(
+  repoId: number,
+  params?: Record<string, unknown>,
+): Promise<{ queueUrl?: string; queueId?: string; repoId?: number; connectionId?: string; jobFullName?: string } | unknown> {
+  return invoke('trigger_repo_ci', { repoId, params });
 }
 export async function getRepoCiLogs(repoId: number, runId: string): Promise<string> {
   return invoke('get_repo_ci_logs', { repoId, runId });
@@ -274,30 +319,15 @@ export async function listPipelineRuns(pipelineId: number, maxResults?: number):
 export async function getPipelineRun(pipelineId: number, runId: number): Promise<Record<string, unknown>> {
   return invoke('get_pipeline_run', { pipelineId, runId });
 }
-export async function startPipelineRun(pipelineId: number): Promise<unknown> {
-  return invoke('start_pipeline_run', { pipelineId });
+export async function startPipelineRun(
+  pipelineId: number,
+  params?: Record<string, unknown>,
+): Promise<unknown> {
+  return invoke('start_pipeline_run', { pipelineId, params });
 }
 export async function stopPipelineRun(pipelineId: number, runId: number): Promise<unknown> {
   return invoke('stop_pipeline_run', { pipelineId, runId });
 }
 export async function getJobLogs(pipelineId: number, runId: number, jobId: number): Promise<string> {
   return invoke('get_job_logs', { pipelineId, runId, jobId });
-}
-
-// ---------- 本地任务 (SQLite: local_tasks) ----------
-
-export async function listLocalTasks(status?: string, search?: string): Promise<import('@/types/local-task').LocalTask[]> {
-  return invoke('list_local_tasks', { status, search });
-}
-
-export async function createLocalTask(payload: import('@/types/local-task').CreateLocalTaskPayload): Promise<import('@/types/local-task').LocalTask> {
-  return invoke('create_local_task', { payload });
-}
-
-export async function updateLocalTask(id: string, payload: import('@/types/local-task').UpdateLocalTaskPayload): Promise<import('@/types/local-task').LocalTask> {
-  return invoke('update_local_task', { id, payload });
-}
-
-export async function deleteLocalTask(id: string): Promise<boolean> {
-  return invoke('delete_local_task', { id });
 }

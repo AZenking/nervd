@@ -36,14 +36,12 @@ function DropdownMenu({
 type DropdownMenuTriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
   React.HTMLAttributes<HTMLDivElement> & {
     render?: any
-    asChild?: boolean
   }
 
 function DropdownMenuTrigger({
   className,
   children,
   render,
-  asChild: _asChild,
   ...props
 }: DropdownMenuTriggerProps) {
   const triggerState = React.useContext(RootMenuTriggerStateContext)

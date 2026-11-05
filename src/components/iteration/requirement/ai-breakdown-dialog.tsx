@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toast';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { AiBreakdownTags, TAG_COLORS } from './ai-breakdown-tags';
 
@@ -249,7 +250,7 @@ export function AiBreakdownDialog({
         </DialogHeader>
 
         {/* 维度 Tags 与重新生成控制条 */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-y border-border/60 py-2.5 shrink-0 bg-muted/20 -mx-5 px-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-y border-border/60 py-2.5 shrink-0 -mx-5 px-5">
           <AiBreakdownTags
             selectedTags={selectedTags}
             onChange={(tags) => {
@@ -347,11 +348,14 @@ export function AiBreakdownDialog({
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="xs"
                             disabled={creating}
-                            className="flex items-center gap-1 shrink-0 rounded px-2 py-1 text-xs border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors max-w-28"
+                            className="h-7 flex items-center gap-1 shrink-0 px-2 text-xs font-normal max-w-28"
                             title="选择该子任务的处理人"
+                            aria-label="选择该子任务的处理人"
                           />
                         }
                       >
@@ -386,15 +390,25 @@ export function AiBreakdownDialog({
                     </DropdownMenu>
 
                     {/* 删除单个条目 */}
-                    <button
-                      type="button"
-                      disabled={creating}
-                      onClick={() => deleteItem(item.id)}
-                      className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors"
-                      title="删除此项"
-                    >
-                      <Trash2Icon className="size-3.5" />
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            disabled={creating}
+                            onClick={() => deleteItem(item.id)}
+                            className="text-muted-foreground hover:text-destructive size-6 rounded"
+                            title="删除此项"
+                            aria-label="删除此项"
+                          >
+                            <Trash2Icon className="size-3.5" />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>删除此项</TooltipContent>
+                    </Tooltip>
                   </div>
                 );
               })}
@@ -404,21 +418,25 @@ export function AiBreakdownDialog({
           {!loading && items.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
               <div className="flex items-center gap-3">
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   onClick={toggleSelectAll}
-                  className="text-muted-foreground hover:text-foreground underline cursor-pointer"
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
                 >
                   {items.every((i) => i.selected) ? '全不选' : '全选'}
-                </button>
+                </Button>
 
                 {candidateAssignees.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       render={
-                        <button
+                        <Button
                           type="button"
-                          className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground cursor-pointer text-xs"
+                          variant="ghost"
+                          size="xs"
+                          className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
                         />
                       }
                     >
@@ -441,14 +459,16 @@ export function AiBreakdownDialog({
                 )}
               </div>
 
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 onClick={addItem}
-                className="inline-flex items-center gap-1 text-primary hover:underline cursor-pointer"
+                className="h-7 gap-1 text-xs text-primary hover:text-primary hover:bg-primary/10"
               >
                 <PlusIcon className="size-3" />
                 新增一条
-              </button>
+              </Button>
             </div>
           )}
         </div>

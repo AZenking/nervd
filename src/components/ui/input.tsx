@@ -15,21 +15,25 @@ export type InputProps = BaseHeroUIInputProps &
     isDisabled?: boolean
   }
 
-const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, disabled, isDisabled, ...props }, ref) => {
-    return (
-      <HeroUIInput
-        ref={ref}
-        type={type}
-        data-slot="input"
-        isDisabled={isDisabled ?? disabled}
-        className={cn("h-8 text-[13px]", className)}
-        {...(props as any)}
-      />
-    )
-  }
-)
-Input.displayName = "Input"
+function Input({
+  ref,
+  className,
+  type,
+  disabled,
+  isDisabled,
+  ...props
+}: InputProps) {
+  return (
+    <HeroUIInput
+      ref={ref}
+      type={type}
+      data-slot="input"
+      isDisabled={isDisabled ?? disabled}
+      className={cn("h-8 text-[13px]", className)}
+      {...(props as any)}
+    />
+  )
+}
 
 const InputWithCompound = Object.assign(Input, {
   Root: HeroUIInput.Root,

@@ -93,13 +93,16 @@ export function InlineStatusDropdown({
       <DropdownMenuTrigger
         onClick={(e) => e.stopPropagation()}
         render={
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             className={cn(
-              'group/status flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+              'group/status h-6 gap-1.5 px-1.5 text-xs font-medium',
               updatingStatus && 'pointer-events-none opacity-60',
             )}
             title="点击快速更改状态"
+            aria-label="点击快速更改状态"
           />
         }
       >
@@ -117,14 +120,13 @@ export function InlineStatusDropdown({
           <div className="p-1 border-b border-border/50">
             <div className="relative">
               <SearchIcon className="absolute left-2 top-2 size-3 text-muted-foreground pointer-events-none" />
-              <input
-                type="text"
+              <Input
                 placeholder="搜索状态…"
                 value={statusSearch}
                 onChange={(e) => setStatusSearch(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
-                className="h-6 w-full rounded border border-border/60 bg-muted/40 pl-6 pr-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-ring"
+                className="h-6 w-full pl-6 pr-2 text-xs"
               />
             </div>
           </div>
@@ -501,9 +503,11 @@ export function ChildrenCard({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <button
+              <Button
                 type="button"
-                className="inline-flex h-7 shrink-0 items-center gap-1 rounded border border-border/60 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-none"
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0 gap-1 rounded border-border/60 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted"
               />
             }
           >
@@ -534,10 +538,13 @@ export function ChildrenCard({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <button
+              <Button
                 type="button"
-                className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded border border-border/60 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-none"
+                variant="outline"
+                size="xs"
+                className="h-7 shrink-0 gap-1.5 px-2 text-xs font-medium"
                 title="选择严重程度"
+                aria-label="选择严重程度"
               />
             }
           >
@@ -707,17 +714,26 @@ export function ChildrenCard({
                   >
                     <CopyButton text={task.identifier} label={`复制编号 ${task.identifier}`} />
                   </div>
-                  <button
-                    type="button"
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover/row:opacity-100"
-                    title="在详情抽屉中查看与编辑"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelect(task);
-                    }}
-                  >
-                    <PencilIcon className="size-3.5" />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          className="size-6 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/row:opacity-100"
+                          title="在详情抽屉中查看与编辑"
+                          aria-label="在详情抽屉中查看与编辑"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(task);
+                          }}
+                        >
+                          <PencilIcon className="size-3.5" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>在详情抽屉中查看与编辑</TooltipContent>
+                  </Tooltip>
                   <ChevronRightIcon className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100" />
                 </div>
               </div>
@@ -726,14 +742,16 @@ export function ChildrenCard({
 
           {/* 行内创建行 */}
           {isAdding ? inlineAddRow : (
-            <button
+            <Button
               type="button"
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground text-left cursor-pointer border-t border-border/40"
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start rounded-none border-t border-border/40 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground h-8 font-normal"
               onClick={startAdding}
             >
               <PlusIcon className="size-3.5 shrink-0" />
               <span>添加{title}…</span>
-            </button>
+            </Button>
           )}
         </Card>
       )}

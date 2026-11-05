@@ -3,11 +3,10 @@ import { useApp } from '@/store/app';
 import { useShallow } from 'zustand/react/shallow';
 import { statusMeta } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
-import { Button } from '@/components/ui/button';
+import { Button, Card, Chip } from '@heroui/react';
 import { openRepoBuildLogs, openPipelineRunLogs } from '@/components/build-workbench';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/lib/yunxiao-link';
-import { Card } from '@/components/ui/card';
 import { BuildProgressBar } from './build-progress-bar';
 
 export interface ActiveBuildItem {
@@ -166,16 +165,14 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-center gap-2.5">
                 <StatusIcon status="RUNNING" className="size-3.5 shrink-0" />
-                <span
-                  className={cn(
-                    'rounded px-1.5 py-0.2 text-[10px] font-medium uppercase tracking-wider',
-                    item.provider === 'Jenkins'
-                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                      : 'bg-primary/15 text-primary border border-primary/30',
-                  )}
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  color={item.provider === 'Jenkins' ? 'warning' : 'accent'}
+                  className="uppercase tracking-wider text-[10px]"
                 >
                   {item.provider}
-                </span>
+                </Chip>
 
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
                   <span className="font-medium text-foreground truncate">{item.title}</span>
@@ -188,10 +185,10 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
 
               <div className="flex items-center gap-2 shrink-0">
                 <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => handleOpenLogs(item)}
-                  className="h-6 gap-1 px-2 text-[11px] hover:bg-muted"
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => handleOpenLogs(item)}
+                  className="h-6 gap-1 px-2 text-[11px]"
                 >
                   <FileTextIcon className="size-3 text-muted-foreground" />
                   <span>就地盯盘</span>
@@ -199,10 +196,10 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
 
                 {item.externalUrl && (
                   <Button
+                    isIconOnly
                     variant="ghost"
-                    size="icon-xs"
-                    onClick={() => openExternal(item.externalUrl!)}
-                    title="在外部打开构建详情"
+                    size="sm"
+                    onPress={() => openExternal(item.externalUrl!)}
                     aria-label="在外部打开构建详情"
                     className="size-6 text-muted-foreground hover:text-foreground"
                   >

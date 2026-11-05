@@ -1,5 +1,3 @@
-"use client"
-
 import * as React from "react"
 import { Tabs as HeroTabs } from "@heroui/react"
 import { cn } from "@/lib/utils"
@@ -65,6 +63,7 @@ function TabsList({
   return (
     <HeroTabs.ListContainer
       className={cn(
+        "w-fit",
         isGhost && "bg-transparent p-0 rounded-none shadow-none",
         containerClassName
       )}
@@ -94,7 +93,7 @@ function TabsTrigger({
   return (
     <HeroTabs.Tab
       id={resolvedId}
-      className={cn("whitespace-nowrap gap-1.5", className)}
+      className={cn("whitespace-nowrap gap-1.5 text-foreground", className)}
       {...props}
     >
       {(renderProps: any) => (

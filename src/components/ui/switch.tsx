@@ -1,5 +1,3 @@
-"use client"
-
 import * as React from "react"
 import { Switch as HeroUISwitch } from "@heroui/react"
 import { cn } from '@/lib/utils'
@@ -22,60 +20,55 @@ export type SwitchProps = BaseHeroUISwitchProps & {
   id?: string
 }
 
-const Switch = React.forwardRef<HTMLInputElement, SwitchProps>(
-  (
-    {
-      className,
-      checked,
-      defaultChecked,
-      onCheckedChange,
-      onChange,
-      disabled,
-      isDisabled,
-      isSelected,
-      defaultSelected,
-      size = "default",
-      children,
-      ...props
-    },
-    ref
-  ) => {
-    const effectiveSelected = isSelected ?? checked
-    const effectiveDefaultSelected = defaultSelected ?? defaultChecked
-    const effectiveDisabled = isDisabled ?? disabled
+function Switch({
+  ref,
+  className,
+  checked,
+  defaultChecked,
+  onCheckedChange,
+  onChange,
+  disabled,
+  isDisabled,
+  isSelected,
+  defaultSelected,
+  size = "default",
+  children,
+  ...props
+}: SwitchProps) {
+  const effectiveSelected = isSelected ?? checked
+  const effectiveDefaultSelected = defaultSelected ?? defaultChecked
+  const effectiveDisabled = isDisabled ?? disabled
 
-    const herouiSize: "sm" | "md" | "lg" =
-      size === "default" || size === "sm" ? "sm" : (size as "md" | "lg")
+  const herouiSize: "sm" | "md" | "lg" =
+    size === "default" || size === "sm" ? "sm" : (size as "md" | "lg")
 
-    const handleChange = (selected: boolean) => {
-      onChange?.(selected)
-      onCheckedChange?.(selected)
-    }
-
-    return (
-      <HeroUISwitch
-        ref={ref}
-        data-slot="switch"
-        data-size={size}
-        className={cn("inline-flex", className)}
-        isSelected={effectiveSelected}
-        defaultSelected={effectiveDefaultSelected}
-        isDisabled={effectiveDisabled}
-        size={herouiSize}
-        onChange={handleChange}
-        {...(props as any)}
-      >
-        <HeroUISwitch.Content className="p-0">
-          <HeroUISwitch.Control>
-            <HeroUISwitch.Thumb />
-          </HeroUISwitch.Control>
-          {children}
-        </HeroUISwitch.Content>
-      </HeroUISwitch>
-    )
+  const handleChange = (selected: boolean) => {
+    onChange?.(selected)
+    onCheckedChange?.(selected)
   }
-)
-Switch.displayName = "Switch"
+
+  return (
+    <HeroUISwitch
+      ref={ref}
+      data-slot="switch"
+      data-size={size}
+      className={cn("inline-flex", className)}
+      isSelected={effectiveSelected}
+      defaultSelected={effectiveDefaultSelected}
+      isDisabled={effectiveDisabled}
+      size={herouiSize}
+      onChange={handleChange}
+      {...(props as any)}
+    >
+      <HeroUISwitch.Content className="p-0">
+        <HeroUISwitch.Control>
+          <HeroUISwitch.Thumb />
+        </HeroUISwitch.Control>
+        {children}
+      </HeroUISwitch.Content>
+    </HeroUISwitch>
+  )
+}
 
 const SwitchWithCompound = Object.assign(Switch, {
   Root: HeroUISwitch.Root,

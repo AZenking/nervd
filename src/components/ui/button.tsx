@@ -1,11 +1,11 @@
 import * as React from "react"
 import { Button as HeroUIButton } from "@heroui/react"
-import { cva, type VariantProps } from "class-variance-authority"
+import { tv, type VariantProps } from "tailwind-variants"
 import { cn } from '@/lib/utils'
 
-const buttonVariants = cva(
-  "",
+const buttonVariants = tv(
   {
+    base: "",
     variants: {
       variant: {
         default: "",
@@ -34,7 +34,8 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
+  { twMerge: false }
 )
 
 function mapHeroUIVariant(
@@ -104,76 +105,71 @@ export type ButtonProps = BaseHeroUIButtonProps &
     keyof BaseHeroUIButtonProps | "children" | "className" | "color"
   >
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
-      className,
-      variant = "default",
-      size = "default",
-      disabled,
-      isDisabled,
-      isIconOnly: isIconOnlyProp,
-      render,
-      children,
-      ...props
-    },
-    ref
-  ) => {
-    const { herouiSize, isIconOnly: isIconOnlyCalculated } = mapHeroUISize(size)
-    const herouiVariant = mapHeroUIVariant(variant)
-    const effectiveIsIconOnly = isIconOnlyProp ?? isIconOnlyCalculated
-    const effectiveDisabled = isDisabled ?? disabled
+function Button({
+  ref,
+  className,
+  variant = "default",
+  size = "default",
+  disabled,
+  isDisabled,
+  isIconOnly: isIconOnlyProp,
+  render,
+  children,
+  ...props
+}: ButtonProps) {
+  const { herouiSize, isIconOnly: isIconOnlyCalculated } = mapHeroUISize(size)
+  const herouiVariant = mapHeroUIVariant(variant)
+  const effectiveIsIconOnly = isIconOnlyProp ?? isIconOnlyCalculated
+  const effectiveDisabled = isDisabled ?? disabled
 
-    const resolvedRender = React.useMemo(() => {
-      if (React.isValidElement(render)) {
-        return (domProps: any) =>
-          React.cloneElement(render as React.ReactElement<any>, {
-            ...domProps,
-            ...(render as React.ReactElement<any>).props,
-            title: props.title ?? (render as React.ReactElement<any>).props?.title,
-            className: cn(domProps?.className, (render as React.ReactElement<any>).props?.className),
-          })
-      }
-      if (typeof render === "function") {
-        return (domProps: any, state: any) => {
-          const res = (render as any)(domProps, state)
-          if (React.isValidElement(res) && props.title) {
-            return React.cloneElement(res as React.ReactElement<any>, { title: props.title })
-          }
-          return res
+  const resolvedRender = React.useMemo(() => {
+    if (React.isValidElement(render)) {
+      return (domProps: any) =>
+        React.cloneElement(render as React.ReactElement<any>, {
+          ...domProps,
+          ...(render as React.ReactElement<any>).props,
+          title: props.title ?? (render as React.ReactElement<any>).props?.title,
+          className: cn(domProps?.className, (render as React.ReactElement<any>).props?.className),
+        })
+    }
+    if (typeof render === "function") {
+      return (domProps: any, state: any) => {
+        const res = (render as any)(domProps, state)
+        if (React.isValidElement(res) && props.title) {
+          return React.cloneElement(res as React.ReactElement<any>, { title: props.title })
         }
+        return res
       }
-      if (props.title) {
-        return (domProps: any) =>
-          React.createElement(
-            "button",
-            {
-              ...domProps,
-              title: props.title,
-            },
-            domProps.children
-          )
-      }
-      return undefined
-    }, [render, props.title])
+    }
+    if (props.title) {
+      return (domProps: any) =>
+        React.createElement(
+          "button",
+          {
+            ...domProps,
+            title: props.title,
+          },
+          domProps.children
+        )
+    }
+    return undefined
+  }, [render, props.title])
 
-    return (
-      <HeroUIButton
-        ref={ref}
-        variant={herouiVariant}
-        size={herouiSize}
-        isIconOnly={effectiveIsIconOnly}
-        isDisabled={effectiveDisabled}
-        render={resolvedRender}
-        className={cn(buttonVariants({ variant, size }), className)}
-        {...(props as any)}
-      >
-        {children}
-      </HeroUIButton>
-    )
-  }
-)
-Button.displayName = "Button"
+  return (
+    <HeroUIButton
+      ref={ref}
+      variant={herouiVariant}
+      size={herouiSize}
+      isIconOnly={effectiveIsIconOnly}
+      isDisabled={effectiveDisabled}
+      render={resolvedRender}
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...(props as any)}
+    >
+      {children}
+    </HeroUIButton>
+  )
+}
 
 const ButtonWithCompound = Object.assign(Button, {
   Root: HeroUIButton.Root,

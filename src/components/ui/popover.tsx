@@ -34,14 +34,12 @@ function Popover({
 type PopoverTriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
   React.HTMLAttributes<HTMLDivElement> & {
     render?: any
-    asChild?: boolean
   }
 
 function PopoverTrigger({
   className,
   children,
   render,
-  asChild: _asChild,
   ...props
 }: PopoverTriggerProps) {
   if (render) {

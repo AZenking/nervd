@@ -72,6 +72,8 @@ export interface PageHeaderProps {
   /** 覆写 h1 的类（如详情页 24px/medium 标题） */
   titleClassName?: string;
   className?: string;
+  /** 内容居中或内嵌容器类名（如 'mx-auto w-full max-w-7xl'） */
+  contentClassName?: string;
 }
 
 /**
@@ -91,7 +93,7 @@ function PageHeaderSecondaryActions({ items }: { items: PageHeaderSecondaryActio
         {items.map((item) => (
           <span key={item.key} className="flex items-center">
             {item.render ?? (
-              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={item.onSelect}>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onPress={item.onSelect}>
                 {item.icon}
                 <span>{item.label}</span>
               </Button>
@@ -138,16 +140,19 @@ export function PageHeader({
   description,
   meta,
   className,
+  contentClassName,
 }: PageHeaderProps) {
   const compact = density === 'compact';
   const hasSecondary = Boolean(secondaryActions?.length);
 
   const rootClassName = cn(
+    // 不设 w-full：flex 纵向容器内 width:100% 会覆盖 stretch 尺寸，使吸顶负边距 -mx-*
+    // 只向单侧出血（右侧短一截）；默认 align-self: stretch 才能与负边距对称全出血
     '@container flex select-none',
     breadcrumb || compact ? 'flex-col gap-2' : 'flex-col gap-3',
     sticky && STICKY_PAGE_HEADER_CLASS,
-    // compact 吸顶时收紧上下留白：pt-7（28px）仍满足 macOS 红绿灯避让下限
-    sticky && compact && 'pt-7 pb-2.5',
+    // compact 吸顶时只收紧底部留白；顶部避让统一由 STICKY_PAGE_HEADER_CLASS 提供
+    sticky && compact && 'pb-2.5',
     className,
   );
 
@@ -169,105 +174,119 @@ export function PageHeader({
   //    结构保持与历史版本一致，仅追加 navigation / toolbar / secondaryActions 槽位支持 ——
   if (breadcrumb) {
     return (
-      <header data-tauri-drag-region className={rootClassName}>
-        <div className="flex min-w-0 items-center justify-between gap-4" data-tauri-drag-region>
-          <div className="flex min-w-0 items-center gap-2" data-no-drag>
-            {navigation != null && (
-              <div className="flex shrink-0 items-center gap-2" data-no-drag>{navigation}</div>
-            )}
-            {breadcrumb}
-          </div>
-          {(actions != null || hasSecondary) && (
-            <div className="flex shrink-0 flex-nowrap items-center gap-2" data-no-drag>
-              {actions}
-              {hasSecondary && <PageHeaderSecondaryActions items={secondaryActions ?? []} />}
+      <header
+        data-slot="page-header"
+        data-density={density}
+        data-tauri-drag-region
+        className={rootClassName}
+      >
+        <div className={cn('flex w-full min-w-0 flex-col', contentClassName)}>
+          <div className="flex min-h-8 min-w-0 shrink-0 items-center justify-between gap-4" data-tauri-drag-region>
+            <div className="flex min-w-0 items-center gap-2" data-no-drag>
+              {navigation != null && (
+                <div className="flex shrink-0 items-center gap-2" data-no-drag>{navigation}</div>
+              )}
+              {breadcrumb}
             </div>
-          )}
+            {(actions != null || hasSecondary) && (
+              <div className="flex shrink-0 flex-nowrap items-center gap-2" data-no-drag>
+                {actions}
+                {hasSecondary && <PageHeaderSecondaryActions items={secondaryActions ?? []} />}
+              </div>
+            )}
+          </div>
+          <div className="flex min-h-9 min-w-0 shrink-0 flex-wrap items-center gap-2" data-tauri-drag-region>
+            {/* B2：不再覆写字号，页面标题统一走 theme.css base h1（26px/700/−0.625px） */}
+            <h1 className={cn('select-none cursor-default', titleClassName)}>{title}</h1>
+            <div data-no-drag>{titleBadge}</div>
+            {description && (
+              <span className="min-w-0 truncate text-xs text-muted-foreground select-none cursor-default">
+                {description}
+              </span>
+            )}
+          </div>
+          {toolbarRow}
+          {meta && <div className="border-t pt-3" data-no-drag>{meta}</div>}
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2" data-tauri-drag-region>
-          {/* B2：不再覆写字号，页面标题统一走 theme.css base h1（26px/700/−0.625px） */}
-          <h1 className={cn('select-none cursor-default', titleClassName)}>{title}</h1>
-          <div data-no-drag>{titleBadge}</div>
-          {description && (
-            <span className="min-w-0 truncate text-xs text-muted-foreground select-none cursor-default">
-              {description}
-            </span>
-          )}
-        </div>
-        {toolbarRow}
-        {meta && <div className="border-t pt-3" data-no-drag>{meta}</div>}
       </header>
     );
   }
 
   // —— 统一标准模式：主行「导航与标题 → 当前范围 → 弹性空隙 → 页面操作」+ toolbar 行 ——
   return (
-    <header data-tauri-drag-region className={rootClassName}>
-      {eyebrow && <p className="eyebrow select-none cursor-default" data-tauri-drag-region>{eyebrow}</p>}
-      <div
-        className={cn('flex min-w-0 flex-nowrap items-center gap-2.5', compact ? 'min-h-8' : 'min-h-9')}
-        data-tauri-drag-region
-      >
-        {navigation != null && (
-          <div className="flex shrink-0 items-center gap-2" data-no-drag>{navigation}</div>
-        )}
+    <header
+      data-slot="page-header"
+      data-density={density}
+      data-tauri-drag-region
+      className={rootClassName}
+    >
+      <div className={cn('flex w-full min-w-0 flex-col', contentClassName)}>
+        {eyebrow && <p className="eyebrow select-none cursor-default" data-tauri-drag-region>{eyebrow}</p>}
         <div
-          className={cn('flex min-w-0 items-center gap-2', scope == null ? 'flex-1' : 'flex-initial max-w-[60%]')}
+          className={cn('flex min-w-0 shrink-0 flex-nowrap items-center gap-2.5', compact ? 'h-8' : 'h-9')}
           data-tauri-drag-region
         >
-          {isPlainText(title) ? (
-            <OverflowTooltip
-              as="h1"
-              text={String(title)}
-              className={cn('min-w-0 truncate select-none cursor-default', titleClassName)}
-            />
-          ) : (
-            <h1 className={cn('min-w-0 truncate select-none cursor-default', titleClassName)}>{title}</h1>
+          {navigation != null && (
+            <div className="flex shrink-0 items-center gap-2" data-no-drag>{navigation}</div>
           )}
-          {titleBadge != null && <div className="shrink-0" data-no-drag>{titleBadge}</div>}
-        </div>
-        {scope != null && (
-          <div className="flex min-w-0 max-w-[40%] items-center gap-1.5" data-no-drag>
-            <span
-              aria-hidden
-              className="select-none text-xs text-muted-foreground/50 cursor-default"
-            >
-              /
-            </span>
-            {isPlainText(scope) ? (
+          <div
+            className={cn('flex min-w-0 items-center gap-2', scope == null ? 'flex-1' : 'flex-initial max-w-[60%]')}
+            data-tauri-drag-region
+          >
+            {isPlainText(title) ? (
               <OverflowTooltip
-                text={String(scope)}
-                className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default"
+                as="h1"
+                text={String(title)}
+                className={cn('min-w-0 truncate select-none cursor-default', titleClassName)}
               />
             ) : (
-              <div className="flex min-w-0 items-center" data-no-drag>
-                {scope}
-              </div>
+              <h1 className={cn('min-w-0 truncate select-none cursor-default', titleClassName)}>{title}</h1>
             )}
+            {titleBadge != null && <div className="shrink-0" data-no-drag>{titleBadge}</div>}
           </div>
+          {scope != null && (
+            <div className="flex min-w-0 max-w-[40%] items-center gap-1.5" data-no-drag>
+              <span
+                aria-hidden
+                className="select-none text-xs text-muted-foreground/50 cursor-default"
+              >
+                /
+              </span>
+              {isPlainText(scope) ? (
+                <OverflowTooltip
+                  text={String(scope)}
+                  className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default"
+                />
+              ) : (
+                <div className="flex min-w-0 items-center" data-no-drag>
+                  {scope}
+                </div>
+              )}
+            </div>
+          )}
+          {/* 弹性空隙：basis 0，空间不足时先压缩标题（title 已 min-w-0 truncate） */}
+          {scope != null && <div className="min-w-0 flex-1" data-tauri-drag-region />}
+          {actions != null && (
+            <div className="flex shrink-0 flex-nowrap items-center gap-2" data-no-drag>{actions}</div>
+          )}
+          {hasSecondary && <PageHeaderSecondaryActions items={secondaryActions ?? []} />}
+        </div>
+        {description != null && (
+          <p className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default" data-tauri-drag-region>
+            {description}
+          </p>
         )}
-        {/* 弹性空隙：basis 0，空间不足时先压缩标题（title 已 min-w-0 truncate） */}
-        {scope != null && <div className="min-w-0 flex-1" data-tauri-drag-region />}
-        {actions != null && (
-          <div className="flex shrink-0 flex-nowrap items-center gap-2" data-no-drag>{actions}</div>
-        )}
-        {hasSecondary && <PageHeaderSecondaryActions items={secondaryActions ?? []} />}
+        {toolbarRow}
+        {meta != null && <div className="border-t pt-3" data-no-drag>{meta}</div>}
       </div>
-      {description != null && (
-        <p className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default" data-tauri-drag-region>
-          {description}
-        </p>
-      )}
-      {toolbarRow}
-      {meta != null && <div className="border-t pt-3" data-no-drag>{meta}</div>}
     </header>
   );
 }
 
 /**
  * 吸顶页头统一形态（迭代页 / 需求详情共用）：
- * - 顶部留白由页头自身 pt-8 提供（包含 macOS 沉浸式窗口红绿灯避让与安全边距）；
+ * - 顶部留白由页头自身 pt-7 提供（包含 macOS 沉浸式窗口红绿灯避让与安全边距）；
  * - 负水平边距对冲滚动容器的 px-*，背景与下边框全宽贴边，窄屏下滚动内容不会从页头两侧穿出。
  */
 export const STICKY_PAGE_HEADER_CLASS =
-  'sticky top-0 z-10 -mx-5 border-b border-border bg-background px-5 pt-8 pb-3.5 sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10';
+  'sticky top-0 z-10 -mx-5 border-b border-border bg-background px-5 pt-7 pb-3 sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10';

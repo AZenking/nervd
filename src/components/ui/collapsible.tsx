@@ -1,5 +1,3 @@
-"use client"
-
 import * as React from "react"
 import { Disclosure as HeroDisclosure } from "@heroui/react"
 import { cn } from "@/lib/utils"

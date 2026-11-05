@@ -113,14 +113,19 @@ pub async fn get_pipeline_run(state: State<'_, AppState>, pipeline_id: i64, run_
 
 /// POST runs body {params:{}} → 运行 ID
 #[tauri::command]
-pub async fn start_pipeline_run(state: State<'_, AppState>, pipeline_id: i64) -> Result<Value, String> {
+pub async fn start_pipeline_run(
+    state: State<'_, AppState>,
+    pipeline_id: i64,
+    params: Option<Value>,
+) -> Result<Value, String> {
     ensure_write(&state)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;
+    let run_params = params.unwrap_or_else(|| json!({}));
     c.post(
         &format!("/oapi/v1/flow/organizations/{org}/pipelines/{pipeline_id}/runs"),
         &[],
-        json!({ "params": {} }),
+        json!({ "params": run_params }),
     )
     .await
 }

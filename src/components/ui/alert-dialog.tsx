@@ -52,14 +52,12 @@ const AlertDialog = Object.assign(AlertDialogRoot, {
 
 interface AlertDialogTriggerProps extends Omit<React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog.Trigger>, "render"> {
   render?: React.ReactNode | ((props: any) => React.ReactNode)
-  asChild?: boolean
 }
 
 function AlertDialogTrigger({
   className,
   children,
   render,
-  asChild: _asChild,
   ...props
 }: AlertDialogTriggerProps) {
   if (render) {

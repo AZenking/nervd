@@ -28,6 +28,10 @@ pub enum RepoCiBinding {
     Flow {
         pipeline_id: i64,
         pipeline_name: String,
+        #[serde(default)]
+        branch_parameter: Option<String>,
+        #[serde(default)]
+        parameters: HashMap<String, String>,
     },
     Jenkins {
         connection_id: String,

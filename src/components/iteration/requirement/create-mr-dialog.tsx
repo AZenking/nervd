@@ -345,9 +345,9 @@ export function CreateMrDialog({
         </DialogHeader>
 
         {/* 分支选择区（可搜索、支持自定义输入、支持分页补拉） */}
-        <Card className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-medium text-foreground text-xs">分支流转</span>
+        <Card>
+          <Card.Header className="flex flex-row items-center justify-between gap-2 pb-2">
+            <Card.Title className="text-xs font-semibold text-foreground">分支流转</Card.Title>
             <Button
               size="xs"
               variant="outline"
@@ -363,37 +363,39 @@ export function CreateMrDialog({
               )}
               {aiGenerating ? 'AI 拟定中…' : 'AI 智能拟定描述'}
             </Button>
-          </div>
+          </Card.Header>
 
-          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-            <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[11px] text-muted-foreground font-mono">源分支 (Source)</span>
-              <SearchableSelect
-                value={sourceBranch || null}
-                onValueChange={handleSourceChange}
-                items={branchOptions}
-                placeholder={loadingBranches ? '加载分支中…' : '选择或搜索源分支'}
-                allowCustomValue
-                className="h-8 text-xs font-mono"
-              />
-            </div>
+          <Card.Content className="pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+              <div className="flex flex-col gap-1 min-w-0">
+                <span className="text-[11px] text-muted-foreground font-mono">源分支 (Source)</span>
+                <SearchableSelect
+                  value={sourceBranch || null}
+                  onValueChange={handleSourceChange}
+                  items={branchOptions}
+                  placeholder={loadingBranches ? '加载分支中…' : '选择或搜索源分支'}
+                  allowCustomValue
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
 
-            <div className="flex justify-center sm:pt-4">
-              <ArrowRightIcon className="size-3.5 text-muted-foreground shrink-0 rotate-90 sm:rotate-0" />
-            </div>
+              <div className="flex justify-center sm:pt-4">
+                <ArrowRightIcon className="size-3.5 text-muted-foreground shrink-0 rotate-90 sm:rotate-0" />
+              </div>
 
-            <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[11px] text-muted-foreground font-mono">目标分支 (Target)</span>
-              <SearchableSelect
-                value={targetBranch || null}
-                onValueChange={handleTargetChange}
-                items={branchOptions}
-                placeholder={loadingBranches ? '加载分支中…' : '选择或搜索目标分支'}
-                allowCustomValue
-                className="h-8 text-xs font-mono"
-              />
+              <div className="flex flex-col gap-1 min-w-0">
+                <span className="text-[11px] text-muted-foreground font-mono">目标分支 (Target)</span>
+                <SearchableSelect
+                  value={targetBranch || null}
+                  onValueChange={handleTargetChange}
+                  items={branchOptions}
+                  placeholder={loadingBranches ? '加载分支中…' : '选择或搜索目标分支'}
+                  allowCustomValue
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
             </div>
-          </div>
+          </Card.Content>
         </Card>
 
         {/* 表单内容 */}

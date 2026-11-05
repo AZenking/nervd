@@ -1,12 +1,10 @@
-"use client"
-
 import * as React from "react"
 import {
   TextField as HeroUITextField,
   Fieldset as HeroUIFieldset,
   FieldError as HeroUIFieldError,
 } from "@heroui/react"
-import { cva, type VariantProps } from "class-variance-authority"
+import { tv, type VariantProps } from "tailwind-variants"
 import { cn } from '@/lib/utils'
 
 import { Label } from "@/components/ui/label"
@@ -15,75 +13,82 @@ import { Separator } from "@/components/ui/separator"
 export interface FieldSetProps
   extends React.ComponentPropsWithRef<typeof HeroUIFieldset.Root> {}
 
-const FieldSet = React.forwardRef<HTMLFieldSetElement, FieldSetProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <HeroUIFieldset.Root
-        ref={ref}
-        data-slot="field-set"
-        className={cn(
-          "flex flex-col gap-4 has-[>[data-slot=checkbox-group]]:gap-3 has-[>[data-slot=radio-group]]:gap-3",
-          className
-        )}
-        {...(props as any)}
-      >
-        {children}
-      </HeroUIFieldset.Root>
-    )
-  }
-)
-FieldSet.displayName = "FieldSet"
+function FieldSet({
+  ref,
+  className,
+  children,
+  ...props
+}: FieldSetProps) {
+  return (
+    <HeroUIFieldset.Root
+      ref={ref}
+      data-slot="field-set"
+      className={cn(
+        "flex flex-col gap-4 has-[>[data-slot=checkbox-group]]:gap-3 has-[>[data-slot=radio-group]]:gap-3",
+        className
+      )}
+      {...(props as any)}
+    >
+      {children}
+    </HeroUIFieldset.Root>
+  )
+}
 
 export interface FieldLegendProps
   extends React.ComponentPropsWithRef<typeof HeroUIFieldset.Legend> {
   variant?: "legend" | "label"
 }
 
-const FieldLegend = React.forwardRef<HTMLLegendElement, FieldLegendProps>(
-  ({ className, variant = "legend", children, ...props }, ref) => {
-    return (
-      <HeroUIFieldset.Legend
-        ref={ref}
-        data-slot="field-legend"
-        data-variant={variant}
-        className={cn(
-          "mb-1.5 font-medium data-[variant=label]:text-[13px] data-[variant=legend]:text-[13px]",
-          className
-        )}
-        {...(props as any)}
-      >
-        {children}
-      </HeroUIFieldset.Legend>
-    )
-  }
-)
-FieldLegend.displayName = "FieldLegend"
+function FieldLegend({
+  ref,
+  className,
+  variant = "legend",
+  children,
+  ...props
+}: FieldLegendProps) {
+  return (
+    <HeroUIFieldset.Legend
+      ref={ref}
+      data-slot="field-legend"
+      data-variant={variant}
+      className={cn(
+        "mb-1.5 font-medium data-[variant=label]:text-[13px] data-[variant=legend]:text-[13px]",
+        className
+      )}
+      {...(props as any)}
+    >
+      {children}
+    </HeroUIFieldset.Legend>
+  )
+}
 
 export interface FieldGroupProps
   extends React.ComponentPropsWithRef<typeof HeroUIFieldset.Group> {}
 
-const FieldGroup = React.forwardRef<HTMLDivElement, FieldGroupProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <HeroUIFieldset.Group
-        ref={ref}
-        data-slot="field-group"
-        className={cn(
-          "group/field-group @container/field-group flex w-full flex-col gap-5 data-[slot=checkbox-group]:gap-3 *:data-[slot=field-group]:gap-4",
-          className
-        )}
-        {...(props as any)}
-      >
-        {children}
-      </HeroUIFieldset.Group>
-    )
-  }
-)
-FieldGroup.displayName = "FieldGroup"
+function FieldGroup({
+  ref,
+  className,
+  children,
+  ...props
+}: FieldGroupProps) {
+  return (
+    <HeroUIFieldset.Group
+      ref={ref}
+      data-slot="field-group"
+      className={cn(
+        "group/field-group @container/field-group flex w-full flex-col gap-5 data-[slot=checkbox-group]:gap-3 *:data-[slot=field-group]:gap-4",
+        className
+      )}
+      {...(props as any)}
+    >
+      {children}
+    </HeroUIFieldset.Group>
+  )
+}
 
-const fieldVariants = cva(
-  "group/field flex w-full gap-2 data-[invalid=true]:text-destructive",
+const fieldVariants = tv(
   {
+    base: "group/field flex w-full gap-2 data-[invalid=true]:text-destructive",
     variants: {
       orientation: {
         vertical: "flex-col *:w-full [&>.sr-only]:w-auto",
@@ -96,7 +101,8 @@ const fieldVariants = cva(
     defaultVariants: {
       orientation: "vertical",
     },
-  }
+  },
+  { twMerge: false }
 )
 
 export interface FieldProps
@@ -105,23 +111,26 @@ export interface FieldProps
   orientation?: "vertical" | "horizontal" | "responsive"
 }
 
-const Field = React.forwardRef<HTMLDivElement, FieldProps>(
-  ({ className, orientation = "vertical", children, ...props }, ref) => {
-    return (
-      <HeroUITextField
-        ref={ref}
-        role="group"
-        data-slot="field"
-        data-orientation={orientation}
-        className={cn(fieldVariants({ orientation }), className)}
-        {...(props as any)}
-      >
-        {children}
-      </HeroUITextField>
-    )
-  }
-)
-Field.displayName = "Field"
+function Field({
+  ref,
+  className,
+  orientation = "vertical",
+  children,
+  ...props
+}: FieldProps) {
+  return (
+    <HeroUITextField
+      ref={ref}
+      role="group"
+      data-slot="field"
+      data-orientation={orientation}
+      className={cn(fieldVariants({ orientation }), className)}
+      {...(props as any)}
+    >
+      {children}
+    </HeroUITextField>
+  )
+}
 
 function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
   return (

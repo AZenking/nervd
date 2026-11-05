@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { createCoreSlice } from './app/core';
 import { createIterationsSlice } from './app/iterations';
 import { createLogsSlice } from './app/logs';
+import { createOverviewSlice } from './app/overview';
 import { createPipelinesSlice } from './app/pipelines';
 import { createRepoCiSlice } from './app/repo-ci';
 import { createAppRuntime } from './app/runtime';
@@ -21,6 +22,7 @@ export function createAppStore() {
     ...createCoreSlice(runtime)(set, get, api),
     ...createWorkitemsSlice(runtime)(set, get, api),
     ...createIterationsSlice(runtime)(set, get, api),
+    ...createOverviewSlice(runtime)(set, get, api),
     ...createTraceSlice(runtime)(set, get, api),
     ...createRepoCiSlice(runtime)(set, get, api),
     ...createPipelinesSlice(runtime)(set, get, api),

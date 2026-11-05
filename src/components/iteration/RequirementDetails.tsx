@@ -1040,8 +1040,9 @@ export function RequirementDetails({
                 <span className="text-muted-foreground shrink-0">
                   {category === 'Bug' ? '关联缺陷挂载于需求：' : '子任务挂载于需求：'}
                 </span>
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => {
                     if (embedded && onSelectParent) {
                       onSelectParent(parent.workitemId);
@@ -1053,7 +1054,7 @@ export function RequirementDetails({
                 >
                   <span className="font-mono text-xs shrink-0">{parent.identifier}</span>
                   <OverflowTooltip text={parent.subject} className="truncate max-w-xs" />
-                </button>
+                </Button>
               </div>
               <Button
                 variant="ghost"
@@ -1088,7 +1089,7 @@ export function RequirementDetails({
                   <span className="flex items-center gap-1.5">
                     <span>关联仓库</span>
                     {effectiveRepoIds.length > 0 && (
-                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/80">
+                      <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
                         {effectiveRepoIds.length}
                       </span>
                     )}
@@ -1100,7 +1101,7 @@ export function RequirementDetails({
                     <span className="flex items-center gap-1.5">
                       <span>子工作项</span>
                       {subtasks.length + defects.length > 0 && (
-                        <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/80">
+                        <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
                           {subtasks.length + defects.length}
                         </span>
                       )}
@@ -1112,7 +1113,7 @@ export function RequirementDetails({
                   <span className="flex items-center gap-1.5">
                     <span>活动动态</span>
                     {comments.length > 0 && (
-                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/80">
+                      <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
                         {comments.length}
                       </span>
                     )}
@@ -1274,56 +1275,31 @@ export function RequirementDetails({
                 {/* 状态分类 Filter Tabs（仓库 >= 2 时展示） */}
                 {linkedRepos.length >= 2 && (
                   <div className="flex items-center justify-between gap-2">
-                    <div className="inline-flex items-center rounded-md bg-muted/60 p-0.5 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setRepoFilter('all')}
-                        className={cn(
-                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
-                          repoFilter === 'all'
-                            ? 'bg-background text-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        全部 {linkedRepos.length}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRepoFilter('pending_merge')}
-                        className={cn(
-                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
-                          repoFilter === 'pending_merge'
-                            ? 'bg-background text-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        待合入 {pendingMergeCount}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRepoFilter('active')}
-                        className={cn(
-                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
-                          repoFilter === 'active'
-                            ? 'bg-background text-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        进行中 {activeCount}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRepoFilter('merged')}
-                        className={cn(
-                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
-                          repoFilter === 'merged'
-                            ? 'bg-background text-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        已合入 {mergedCount}
-                      </button>
-                    </div>
+                    <Tabs
+                      selectedKey={repoFilter}
+                      onSelectionChange={(k) => setRepoFilter(String(k) as typeof repoFilter)}
+                    >
+                      <Tabs.ListContainer className="w-fit">
+                        <Tabs.List aria-label="仓库状态过滤">
+                          <Tabs.Tab id="all">
+                            全部 {linkedRepos.length}
+                            <Tabs.Indicator />
+                          </Tabs.Tab>
+                          <Tabs.Tab id="pending_merge">
+                            待合入 {pendingMergeCount}
+                            <Tabs.Indicator />
+                          </Tabs.Tab>
+                          <Tabs.Tab id="active">
+                            进行中 {activeCount}
+                            <Tabs.Indicator />
+                          </Tabs.Tab>
+                          <Tabs.Tab id="merged">
+                            已合入 {mergedCount}
+                            <Tabs.Indicator />
+                          </Tabs.Tab>
+                        </Tabs.List>
+                      </Tabs.ListContainer>
+                    </Tabs>
 
                     <span className="text-[11px] text-muted-foreground">
                       共 {filteredLinkedRepos.length} 个仓库
@@ -1414,13 +1390,15 @@ export function RequirementDetails({
                     <SparklesIcon className="size-3.5" />
                     <span>AI 智能推荐的相关代码仓库 ({recommendedRepos.length})</span>
                   </span>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={() => setRecommendedRepos([])}
-                    className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                    className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
                   >
                     清空推荐
-                  </button>
+                  </Button>
                 </div>
 
                 <div className={cn('grid gap-2.5', embedded ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3')}>
@@ -1445,9 +1423,9 @@ export function RequirementDetails({
                               </span>
                             </div>
                             {rec.confidence === 'high' && (
-                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded font-medium shrink-0">
+                              <Chip size="sm" variant="soft" color="success" className="text-[10px] px-1 py-0 font-medium shrink-0">
                                 高置信
-                              </span>
+                              </Chip>
                             )}
                           </div>
                           {repoPath && repoPath !== repoName && (

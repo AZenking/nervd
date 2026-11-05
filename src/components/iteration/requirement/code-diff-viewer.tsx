@@ -15,6 +15,8 @@ import { DiffFileTree } from './diff-file-tree';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 
@@ -223,28 +225,44 @@ export function CodeDiffViewer({
           </div>
 
           <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
-              onClick={expandAllDiffs}
-              title="展开全部代码差异"
-            >
-              <UnfoldVerticalIcon className="size-3" />
-              <span>展开全部</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
-              onClick={collapseAllDiffs}
-              title="折叠全部代码差异"
-            >
-              <FoldVerticalIcon className="size-3" />
-              <span>折叠全部</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                    onClick={expandAllDiffs}
+                    title="展开全部代码差异"
+                    aria-label="展开全部代码差异"
+                  >
+                    <UnfoldVerticalIcon className="size-3" />
+                    <span>展开全部</span>
+                  </Button>
+                }
+              />
+              <TooltipContent>展开全部代码差异</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                    onClick={collapseAllDiffs}
+                    title="折叠全部代码差异"
+                    aria-label="折叠全部代码差异"
+                  >
+                    <FoldVerticalIcon className="size-3" />
+                    <span>折叠全部</span>
+                  </Button>
+                }
+              />
+              <TooltipContent>折叠全部代码差异</TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -313,74 +331,70 @@ function DiffItemCard({
         isHighlighted && 'ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/[0.04]',
       )}
     >
-      {/* 文件头部 */}
-      <div
-        className={cn(
-          'flex items-center justify-between gap-2 border-b border-border/40 bg-muted/40 px-2.5 py-1.5 cursor-pointer select-none hover:bg-muted/60 transition-colors',
-          isHighlighted && 'bg-primary/10 hover:bg-primary/15',
-        )}
-        onClick={onToggle}
-      >
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <button
-            type="button"
-            className="p-0.5 text-muted-foreground hover:text-foreground"
-            tabIndex={-1}
-          >
-            {isCollapsed ? (
-              <ChevronRightIcon className="size-3.5" />
+      <Collapsible open={!isCollapsed} onOpenChange={onToggle}>
+        {/* 文件头部 */}
+        <CollapsibleTrigger
+          className={cn(
+            'flex w-full items-center justify-between gap-2 border-b border-border/40 bg-muted/40 px-2.5 py-1.5 cursor-pointer select-none hover:bg-muted/60 transition-colors text-left',
+            isHighlighted && 'bg-primary/10 hover:bg-primary/15',
+          )}
+        >
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span className="p-0.5 text-muted-foreground hover:text-foreground">
+              {isCollapsed ? (
+                <ChevronRightIcon className="size-3.5" />
+              ) : (
+                <ChevronDownIcon className="size-3.5" />
+              )}
+            </span>
+
+            {file.newFile ? (
+              <FilePlusIcon className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            ) : file.deletedFile ? (
+              <FileMinusIcon className="size-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+            ) : file.renamedFile ? (
+              <FileCodeIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
             ) : (
-              <ChevronDownIcon className="size-3.5" />
+              <FileCodeIcon className="size-3.5 text-primary shrink-0" />
             )}
-          </button>
 
-          {file.newFile ? (
-            <FilePlusIcon className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          ) : file.deletedFile ? (
-            <FileMinusIcon className="size-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
-          ) : file.renamedFile ? (
-            <FileCodeIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-          ) : (
-            <FileCodeIcon className="size-3.5 text-primary shrink-0" />
-          )}
-
-          <OverflowTooltip
-            text={filePath}
-            className="min-w-0 truncate font-mono font-medium text-foreground text-[11px]"
-          />
-
-          {file.renamedFile && file.oldPath !== file.newPath && (
             <OverflowTooltip
-              text={`重命名自 ${file.oldPath}`}
-              className="min-w-0 truncate text-[10px] text-muted-foreground font-mono"
+              text={filePath}
+              className="min-w-0 truncate font-mono font-medium text-foreground text-[11px]"
             />
-          )}
-        </div>
 
-        {/* 变动统计与操作 */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1 font-mono text-[10px]">
-            {file.additions > 0 && (
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                +{file.additions}
-              </span>
-            )}
-            {file.deletions > 0 && (
-              <span className="text-rose-600 dark:text-rose-400 font-semibold">
-                -{file.deletions}
-              </span>
+            {file.renamedFile && file.oldPath !== file.newPath && (
+              <OverflowTooltip
+                text={`重命名自 ${file.oldPath}`}
+                className="min-w-0 truncate text-[10px] text-muted-foreground font-mono"
+              />
             )}
           </div>
 
-          <div onClick={(e) => e.stopPropagation()}>
-            <CopyButton text={filePath} label="复制路径" />
-          </div>
-        </div>
-      </div>
+          {/* 变动统计与操作 */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1 font-mono text-[10px]">
+              {file.additions > 0 && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                  +{file.additions}
+                </span>
+              )}
+              {file.deletions > 0 && (
+                <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                  -{file.deletions}
+                </span>
+              )}
+            </div>
 
-      {/* 文件 Diff 正文 */}
-      {!isCollapsed && (
-        <div className="overflow-x-auto font-mono text-[11px] leading-relaxed max-h-[32rem] divide-y divide-border/10 bg-background/60">
+            <div onClick={(e) => e.stopPropagation()}>
+              <CopyButton text={filePath} label="复制路径" />
+            </div>
+          </div>
+        </CollapsibleTrigger>
+
+        {/* 文件 Diff 正文 */}
+        <CollapsibleContent>
+          <div className="overflow-x-auto font-mono text-[11px] leading-relaxed max-h-[32rem] divide-y divide-border/10 bg-background/60">
           {file.lines.length === 0 ? (
             <div className="p-3 text-center text-muted-foreground text-[10px]">
               {file.newFile
@@ -447,8 +461,9 @@ function DiffItemCard({
               );
             })
           )}
-        </div>
-      )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }

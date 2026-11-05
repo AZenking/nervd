@@ -1,6 +1,6 @@
 import type { IterationWorkitemBreakdown } from '@/lib/iteration-period';
 import { cn } from '@/lib/utils';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip } from '@heroui/react';
 
 interface SegmentItem {
   key: string;
@@ -52,10 +52,11 @@ export function LinearSegmentedProgressBar({
         const isLast = idx === segments.length - 1;
 
         return (
-          <Tooltip key={s.key}>
-            <TooltipTrigger
-              render={
+          <Tooltip key={s.key} delay={0}>
+            <Tooltip.Trigger
+              render={(props) => (
                 <span
+                  {...props}
                   style={{ width: `${pct}%` }}
                   className={cn(
                     'block h-full transition-all duration-300 hover:brightness-110 focus-visible:outline-hidden',
@@ -64,14 +65,14 @@ export function LinearSegmentedProgressBar({
                     s.colorClass,
                   )}
                 />
-              }
+              )}
             />
-            <TooltipContent side="top" sideOffset={6} className="text-[11px] py-0.5 px-2 font-normal">
+            <Tooltip.Content offset={6} placement="top" className="text-[11px] py-0.5 px-2 font-normal">
               <span className="font-medium text-foreground">{s.label}</span>
               <span className="text-muted-foreground">：</span>
               <span className="font-mono tabular-nums text-foreground">{s.count}</span>
               <span className="text-muted-foreground"> 项 ({Math.round(pct)}%)</span>
-            </TooltipContent>
+            </Tooltip.Content>
           </Tooltip>
         );
       })}

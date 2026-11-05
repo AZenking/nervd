@@ -99,7 +99,7 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
   });
 }
 
-export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings' | 'schedules' | 'local-tasks';
+export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings' | 'schedules';
 export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security' | 'ai' | 'about';
 export type IterationViewTab = 'workitems' | 'repos' | 'branches';
 
@@ -156,7 +156,15 @@ export function getStoredTheme(): ThemeMode {
 /** 构建工作台的内部页面；具体参数草稿由工作台 hook 持有。 */
 export type BuildWorkbenchPage = 'runs' | 'parameters' | 'logs';
 export type BuildWorkbenchTarget =
-  | { kind: 'repo'; repoId: number; title: string; defaultBranch?: string; runId?: string }
+  | {
+      kind: 'repo';
+      repoId: number;
+      title: string;
+      defaultBranch?: string;
+      runId?: string;
+      connectionId?: string;
+      jobFullName?: string;
+    }
   | { kind: 'pipeline'; pipelineId: number; jobId?: number; title: string; runId?: number };
 
 /** 面包屑上的工作项（父 › 子层级链的节点） */
@@ -207,7 +215,7 @@ const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string');
 const SETTINGS_SECTIONS: SettingsSection[] = ['connection', 'trace', 'ci', 'security', 'ai', 'about'];
 const WORKSPACE_VIEWS: WorkspaceView[] = [
-  'iteration', 'requirement', 'integration', 'overview', 'recents', 'full-settings', 'schedules', 'local-tasks',
+  'iteration', 'requirement', 'integration', 'overview', 'recents', 'full-settings', 'schedules',
 ];
 const ITERATION_VIEW_TABS: IterationViewTab[] = ['workitems', 'repos', 'branches'];
 const CATEGORIES: Category[] = ['Req', 'Bug', 'Task'];

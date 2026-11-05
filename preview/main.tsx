@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import './theme.css';
 import { useApp } from '../src/store/app';
 import { Shell } from '../src/components/Shell';
+import { SettingsView } from '../src/components/SettingsView';
 import { Toaster } from '../src/components/ui/toast';
 import { TooltipProvider } from '../src/components/ui/tooltip';
 
@@ -12,6 +13,8 @@ import { dismissSplashScreen } from '../src/lib/splash';
 import { toast } from '../src/components/ui/toast';
 import { LandingView } from './landing/LandingView';
 import { ArrowLeft, Sparkles } from 'lucide-react';
+
+type PreviewMode = 'landing' | 'workbench' | 'onboarding';
 
 // zustand 单条 toast → Base UI 可堆叠 toast 队列
 function ToastHost() {
@@ -26,23 +29,26 @@ function ToastHost() {
   return <Toaster />;
 }
 
-// 预览总入口：支持落地页（LandingView，基于 React Bits 组件）与在线工作台（Shell）一键无缝切换
+// 预览总入口：落地页（LandingView）｜在线工作台（Shell）｜首启引导页（SettingsView，#onboarding）一键无缝切换
 function Preview() {
   const init = useApp((s) => s.init);
   const booting = useApp((s) => s.booting);
   const resolvedTheme = useUi((s) => s.resolvedTheme);
 
-  const getInitialMode = (): 'landing' | 'workbench' => {
+  const getInitialMode = (): PreviewMode => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.toLowerCase();
       if (hash === '#workbench' || hash === '#demo') {
         return 'workbench';
       }
+      if (hash === '#onboarding' || hash === '#first-run') {
+        return 'onboarding';
+      }
     }
     return 'landing';
   };
 
-  const [mode, setMode] = useState<'landing' | 'workbench'>(getInitialMode);
+  const [mode, setMode] = useState<PreviewMode>(getInitialMode);
 
   useEffect(() => {
     const unlisten = initThemeListener();
@@ -54,6 +60,8 @@ function Preview() {
       const hash = window.location.hash.toLowerCase();
       if (hash === '#workbench' || hash === '#demo') {
         setMode('workbench');
+      } else if (hash === '#onboarding' || hash === '#first-run') {
+        setMode('onboarding');
       } else if (hash === '#landing' || hash === '' || hash === '#') {
         setMode('landing');
       }
@@ -89,11 +97,23 @@ function Preview() {
     setMode('landing');
   };
 
+  const handleCompleteOnboarding = () => {
+    toast.add({
+      title: '配置已完成，欢迎使用 nervd 工作台',
+      type: 'success',
+    });
+    window.location.hash = '#workbench';
+    setMode('workbench');
+  };
+
   return (
     <React.StrictMode>
       <TooltipProvider>
         {mode === 'landing' ? (
           <LandingView onLaunchWorkbench={handleLaunchWorkbench} />
+        ) : mode === 'onboarding' ? (
+          /* 首启引导页全屏形态：与 App.tsx 零设置分支一致（api-mock 在 #onboarding 下返回零凭据） */
+          <SettingsView onComplete={handleCompleteOnboarding} />
         ) : (
           <div className="flex flex-col h-screen w-screen overflow-hidden">
             {/* 演示环境提示横幅 */}

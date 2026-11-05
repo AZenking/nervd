@@ -8,6 +8,7 @@ import {
   WorkflowIcon,
   XIcon,
 } from 'lucide-react';
+import { Alert, Button, Card, Chip, Table } from '@heroui/react';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
 import { useQuickBuild } from '@/store/quick-build';
@@ -17,8 +18,6 @@ import { buildRunParameter, ciProviderLabel, ciStatusText } from '@/lib/ci';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { formatCompactDateTime, formatDateTime, formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Descriptions } from '@/components/ui/descriptions';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -57,27 +56,28 @@ export function BuildWorkbenchTrigger({
   target,
   label,
   title,
-  variant = 'default',
+  variant = 'primary',
 }: {
   target: BuildWorkbenchTarget;
   label: string;
   title?: string;
-  variant?: React.ComponentProps<typeof Button>['variant'];
+  variant?: 'default' | 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 }) {
   const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
   const open = () => openBuildWorkbenchFromTrigger(target, 'parameters');
+  const heroVariant = variant === 'default' ? 'primary' : variant;
 
   return (
     <>
       <WriteOpGatedTrigger
         label={label}
-        icon={<WorkflowIcon data-icon="inline-start" />}
-        variant={variant}
+        icon={<WorkflowIcon className="size-3.5" />}
+        variant={variant as any}
       />
       {allowWriteOps && (
-        <Button type="button" size="sm" variant={variant} title={title} onClick={open}>
-          <WorkflowIcon data-icon="inline-start" />
-          {label}
+        <Button type="button" size="sm" variant={heroVariant} aria-label={title || label} onPress={open}>
+          <WorkflowIcon className="size-3.5" />
+          <span>{label}</span>
         </Button>
       )}
     </>
@@ -96,11 +96,11 @@ function RunRow({
   onOpen: () => void;
 }) {
   return (
-    <tr className="border-b border-border/50 last:border-0">
-      <td className="px-3 py-3 align-top">
-        <div className="font-mono text-xs text-foreground font-medium">#{run.runId}</div>
+    <Table.Row id={String(run.runId)} className="border-b border-border/40 transition-colors hover:bg-muted/30">
+      <Table.Cell className="px-3 py-2.5 align-top">
+        <div className="font-mono text-xs font-semibold text-foreground">#{run.runId}</div>
         {run.startTime && (
-          <div className="mt-0.5 text-[11px] text-muted-foreground font-mono" title={`开始时间：${formatDateTime(run.startTime)}`}>
+          <div className="mt-0.5 font-mono text-[11px] text-muted-foreground" title={`开始时间：${formatDateTime(run.startTime)}`}>
             {formatCompactDateTime(run.startTime)}
           </div>
         )}
@@ -110,24 +110,26 @@ function RunRow({
             className="mt-0.5 max-w-36 truncate text-[11px] text-muted-foreground"
           />
         )}
-      </td>
-      <td className="max-w-44 px-3 py-3 align-top">
+      </Table.Cell>
+      <Table.Cell className="max-w-44 px-3 py-2.5 align-top">
         <OverflowTooltip text={branch} className="block truncate font-mono text-xs text-foreground" />
-      </td>
-      <td className="max-w-36 px-3 py-3 align-top">
+      </Table.Cell>
+      <Table.Cell className="max-w-36 px-3 py-2.5 align-top">
         <OverflowTooltip text={environment} className="block truncate text-xs text-muted-foreground" />
-      </td>
-      <td className="px-3 py-3 align-top"><StatusBadge status={run.status} size="sm" /></td>
-      <td className="px-3 py-3 align-top text-xs text-muted-foreground">
+      </Table.Cell>
+      <Table.Cell className="px-3 py-2.5 align-top">
+        <StatusBadge status={run.status} size="sm" />
+      </Table.Cell>
+      <Table.Cell className="px-3 py-2.5 align-top text-xs text-muted-foreground">
         {run.durationMs != null ? formatDuration(run.durationMs) : '—'}
-      </td>
-      <td className="px-3 py-3 text-right align-top">
-        <Button type="button" variant="ghost" size="sm" onClick={onOpen}>
-          <TerminalIcon data-icon="inline-start" />
-          日志
+      </Table.Cell>
+      <Table.Cell className="px-3 py-2.5 text-right align-top">
+        <Button type="button" variant="ghost" size="sm" onPress={onOpen} className="h-7 gap-1 px-2 text-[11px]">
+          <TerminalIcon className="size-3" />
+          <span>日志</span>
         </Button>
-      </td>
-    </tr>
+      </Table.Cell>
+    </Table.Row>
   );
 }
 
@@ -160,9 +162,9 @@ function RepoRunsPage({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-5 sm:p-7">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <Card.Header className="flex flex-row items-start justify-between gap-3 pb-2">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <GitBranchIcon className="size-4 shrink-0 text-primary" />
@@ -171,100 +173,111 @@ function RepoRunsPage({
                   text={displayRepoName}
                   className="min-w-0 truncate text-sm font-semibold text-foreground"
                 />
-                <span className="font-mono text-[11px] text-muted-foreground">#{target.repoId}</span>
+                <Chip size="sm" variant="soft" color="default">#{target.repoId}</Chip>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <Card.Description className="mt-1 text-xs">
                 {binding ? `${ciProviderLabel(binding)}${binding.provider === 'flow' && binding.pipelineName ? ` · ${binding.pipelineName}` : ''}` : '未绑定 CI'}
-              </p>
+              </Card.Description>
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge status={binding ? ciStatusText(entry?.snapshot?.status, entry) : '未绑定'} />
-              <Button type="button" variant="ghost" size="icon-sm" aria-label="刷新运行记录" disabled={entry?.loading} onClick={refresh}>
+              <Button type="button" variant="ghost" isIconOnly size="sm" aria-label="刷新运行记录" isDisabled={entry?.loading} onPress={refresh}>
                 <RefreshCwIcon className={cn('size-3.5', entry?.loading && 'animate-spin')} />
               </Button>
             </div>
-          </div>
-          <Descriptions
-            className="mt-4"
-            variant="plain"
-            items={[
-              {
-                key: 'target',
-                label: '构建目标',
-                children: <OverflowTooltip text={buildTarget} className="min-w-0 flex-1 truncate font-mono font-medium" />,
-                contentClassName: 'font-mono font-medium',
-              },
-              {
-                key: 'branch',
-                label: '最近分支',
-                children: <OverflowTooltip text={recentBranch} className="min-w-0 flex-1 truncate font-mono font-medium" />,
-                contentClassName: 'font-mono font-medium',
-              },
-              {
-                key: 'environment',
-                label: '最近环境',
-                children: <OverflowTooltip text={recentEnvironment} className="min-w-0 flex-1 truncate font-mono font-medium" />,
-                contentClassName: 'font-mono font-medium',
-              },
-            ]}
-          />
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
-            <BuildWorkbenchTrigger
-              target={targetWithoutRun(target)}
-              label={binding ? '发起构建' : '选择 CI 构建'}
-              title={binding ? `为 ${target.title} 发起构建` : '选择 Jenkins Job 并发起构建'}
+          </Card.Header>
+          <Card.Content className="pt-2">
+            <Descriptions
+              variant="plain"
+              items={[
+                {
+                  key: 'target',
+                  label: '构建目标',
+                  children: <OverflowTooltip text={buildTarget} className="min-w-0 flex-1 truncate font-mono font-medium" />,
+                  contentClassName: 'font-mono font-medium',
+                },
+                {
+                  key: 'branch',
+                  label: '最近分支',
+                  children: <OverflowTooltip text={recentBranch} className="min-w-0 flex-1 truncate font-mono font-medium" />,
+                  contentClassName: 'font-mono font-medium',
+                },
+                {
+                  key: 'environment',
+                  label: '最近环境',
+                  children: <OverflowTooltip text={recentEnvironment} className="min-w-0 flex-1 truncate font-mono font-medium" />,
+                  contentClassName: 'font-mono font-medium',
+                },
+              ]}
             />
-            {!binding && (
-              <Button type="button" variant="outline" size="sm" onClick={() => openSettings('ci')}>
-                <Link2Icon data-icon="inline-start" />去绑定 CI
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+              <BuildWorkbenchTrigger
+                target={targetWithoutRun(target)}
+                label={binding ? '发起构建' : '选择 CI 构建'}
+                title={binding ? `为 ${target.title} 发起构建` : '选择 Jenkins Job 并发起构建'}
+              />
+              {!binding && (
+                <Button type="button" variant="outline" size="sm" onPress={() => openSettings('ci')}>
+                  <Link2Icon className="size-3.5" />
+                  <span>去绑定 CI</span>
+                </Button>
+              )}
+              <Button type="button" variant="outline" size="sm" onPress={() => onNavigate('parameters')}>
+                <WorkflowIcon className="size-3.5" />
+                <span>参数页</span>
               </Button>
-            )}
-            <Button type="button" variant="outline" size="sm" onClick={() => onNavigate('parameters')}>
-              <WorkflowIcon data-icon="inline-start" />参数页
-            </Button>
-          </div>
+            </div>
+          </Card.Content>
         </Card>
 
-        <Card className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
+        <Card>
+          <Card.Header className="flex flex-row items-center justify-between gap-3 border-b border-border/60 pb-3">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">最近运行</h2>
-              <p className="mt-1 text-xs text-muted-foreground">点击某次运行进入日志；日志目标按提供方严格区分。</p>
+              <Card.Title className="text-sm font-semibold">最近运行</Card.Title>
+              <Card.Description className="mt-1 text-xs">点击某次运行进入日志；日志目标按提供方严格区分。</Card.Description>
             </div>
-            <span className="font-mono text-xs text-muted-foreground">{runs.length} 次</span>
-          </div>
-          {entry?.error && (
-            <div className="mx-4 mt-4 rounded-md border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
-              查询失败：{humanizeError(entry.error, '未能获取运行记录，请稍后重试')}
-            </div>
-          )}
-          <div className="overflow-x-auto p-2">
-            <table className="w-full min-w-[42rem] border-collapse text-left">
-              <thead className="text-[11px] text-muted-foreground">
-                <tr className="border-b border-border/60">
-                  <th className="px-3 py-2 font-medium">运行</th>
-                  <th className="px-3 py-2 font-medium">分支</th>
-                  <th className="px-3 py-2 font-medium">环境</th>
-                  <th className="px-3 py-2 font-medium">状态</th>
-                  <th className="px-3 py-2 font-medium">耗时</th>
-                  <th className="px-3 py-2 text-right font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((run) => (
-                  <RunRow
-                    key={run.runId}
-                    run={run}
-                    branch={buildRunParameter(run, jenkinsBinding?.branchParameter, 'branch')}
-                    environment={buildRunParameter(run, jenkinsBinding?.environmentParameter, 'environment')}
-                    onOpen={() => {
-                      openRepoBuildLogs(target.repoId, run.runId, `${target.title} · #${run.runId}`, { internal: true });
-                      onNavigate('logs');
-                    }}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <Chip size="sm" variant="soft" color="default">{runs.length} 次</Chip>
+          </Card.Header>
+          <Card.Content className="p-0">
+            {entry?.error && (
+              <div className="p-4 pb-0">
+                <Alert status="danger">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>查询失败</Alert.Title>
+                    <Alert.Description>{humanizeError(entry.error, '未能获取运行记录，请稍后重试')}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              </div>
+            )}
+            <Table variant="secondary" className="w-full">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="最近运行记录" className="text-xs">
+                  <Table.Header className="border-b border-border/60 bg-transparent text-[11px] text-muted-foreground">
+                    <Table.Column isRowHeader className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">运行</Table.Column>
+                    <Table.Column className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">分支</Table.Column>
+                    <Table.Column className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">环境</Table.Column>
+                    <Table.Column className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">状态</Table.Column>
+                    <Table.Column className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">耗时</Table.Column>
+                    <Table.Column className="px-3 py-2 text-end text-[11px] font-medium text-muted-foreground">操作</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {runs.map((run) => (
+                      <RunRow
+                        key={run.runId}
+                        run={run}
+                        branch={buildRunParameter(run, jenkinsBinding?.branchParameter, 'branch')}
+                        environment={buildRunParameter(run, jenkinsBinding?.environmentParameter, 'environment')}
+                        onOpen={() => {
+                          openRepoBuildLogs(target.repoId, run.runId, `${target.title} · #${run.runId}`, { internal: true });
+                          onNavigate('logs');
+                        }}
+                      />
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table>
             {entry?.loading && !runs.length && (
               <div className="flex flex-col gap-2 p-4" aria-hidden>
                 {[0, 1, 2].map((item) => <Skeleton key={item} className="h-8 w-full rounded" />)}
@@ -275,7 +288,7 @@ function RepoRunsPage({
                 {binding ? '暂无运行记录，发起一次构建后展示。' : '未绑定 CI，请先选择 Jenkins Job 或前往设置绑定。'}
               </p>
             )}
-          </div>
+          </Card.Content>
         </Card>
       </div>
     </div>
@@ -323,27 +336,30 @@ function FlowParametersPage({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-5 sm:p-7">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
-          <div className="flex items-center gap-2">
-            <WorkflowIcon className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold text-foreground">按当前配置发起流水线</h2>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Flow 不需要在 nervd 中重新填写参数，将使用云效流水线当前绑定的配置运行。提交前请确认下面的目标信息。
-          </p>
-          <Descriptions
-            className="mt-5"
-            variant="plain"
-            items={[
-              { key: 'repo', label: '仓库', children: <OverflowTooltip text={repo?.pathWithNamespace || target.title} className="min-w-0 flex-1 truncate" /> },
-              { key: 'pipeline', label: '流水线', children: <OverflowTooltip text={binding?.provider === 'flow' ? binding.pipelineName || '未选择流水线' : '绑定已变更'} className="min-w-0 flex-1 truncate" /> },
-              { key: 'mode', label: '运行方式', children: '使用流水线当前配置' },
-            ]}
-          />
+          <Card.Header className="pb-2">
+            <div className="flex items-center gap-2">
+              <WorkflowIcon className="size-4 text-primary" />
+              <Card.Title className="text-sm font-semibold">按当前配置发起流水线</Card.Title>
+            </div>
+            <Card.Description className="mt-1 text-xs">
+              Flow 不需要在 nervd 中重新填写参数，将使用云效流水线当前绑定的配置运行。提交前请确认下面的目标信息。
+            </Card.Description>
+          </Card.Header>
+          <Card.Content className="pt-2">
+            <Descriptions
+              variant="plain"
+              items={[
+                { key: 'repo', label: '仓库', children: <OverflowTooltip text={repo?.pathWithNamespace || target.title} className="min-w-0 flex-1 truncate" /> },
+                { key: 'pipeline', label: '流水线', children: <OverflowTooltip text={binding?.provider === 'flow' ? binding.pipelineName || '未选择流水线' : '绑定已变更'} className="min-w-0 flex-1 truncate" /> },
+                { key: 'mode', label: '运行方式', children: '使用流水线当前配置' },
+              ]}
+            />
+          </Card.Content>
         </Card>
         <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-border/70 bg-popover/95 px-1 py-3 backdrop-blur-sm">
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>返回</Button>
+          <Button type="button" variant="outline" size="sm" onPress={onCancel}>返回</Button>
           <WriteOpButton
             label={submitting ? '提交中…' : '提交构建'}
             title={`触发流水线 ${binding?.provider === 'flow' ? binding.pipelineName : ''}`}
@@ -372,9 +388,9 @@ function PipelineRunsPage({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-5 sm:p-7">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <Card.Header className="flex flex-row items-center justify-between gap-3 pb-2">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <WorkflowIcon className="size-4 shrink-0 text-primary" />
@@ -383,53 +399,59 @@ function PipelineRunsPage({
                   text={pipeline?.pipelineName || target.title}
                   className="min-w-0 truncate text-sm font-semibold text-foreground"
                 />
-                <span className="font-mono text-[11px] text-muted-foreground">#{target.pipelineId}</span>
+                <Chip size="sm" variant="soft" color="default">#{target.pipelineId}</Chip>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">云效 Flow 流水线运行记录</p>
+              <Card.Description className="mt-1 text-xs">云效 Flow 流水线运行记录</Card.Description>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => void loadRuns(target.pipelineId)}>
-              <RefreshCwIcon className={cn('size-3.5', loadingPipelines && 'animate-spin')} data-icon="inline-start" />刷新
+            <Button type="button" variant="outline" size="sm" onPress={() => void loadRuns(target.pipelineId)}>
+              <RefreshCwIcon className={cn('size-3.5', loadingPipelines && 'animate-spin')} />
+              <span>刷新</span>
             </Button>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-border/60 pt-4">
-            <BuildWorkbenchTrigger
-              target={targetWithoutRun(target)}
-              label="运行流水线"
-              title={`运行 ${pipeline?.pipelineName || target.title}`}
-            />
-          </div>
-        </Card>
-        <Card className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">最近运行</h2>
-              <p className="mt-1 text-xs text-muted-foreground">点击日志前先解析运行详情中的 job，避免串到其他运行。</p>
+          </Card.Header>
+          <Card.Content className="pt-2">
+            <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+              <BuildWorkbenchTrigger
+                target={targetWithoutRun(target)}
+                label="运行流水线"
+                title={`运行 ${pipeline?.pipelineName || target.title}`}
+              />
             </div>
-            <span className="font-mono text-xs text-muted-foreground">{runs.length} 次</span>
-          </div>
-          <div className="flex flex-col divide-y divide-border/50">
-            {runs.map((run) => (
-              <div key={run.pipelineRunId} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <StatusBadge status={run.status} size="sm" />
-                <span className="font-mono text-xs text-foreground">#{run.pipelineRunId}</span>
-                {run.endTime && <span className="text-xs text-muted-foreground">{new Date(run.endTime).toLocaleString()}</span>}
-                <span className="ml-auto flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      void openPipelineRunLogs(target.pipelineId, run.pipelineRunId, pipeline?.pipelineName || target.title, { internal: true });
-                      onNavigate('logs');
-                    }}
-                  >
-                    <TerminalIcon data-icon="inline-start" />日志
-                  </Button>
-                </span>
-              </div>
-            ))}
-            {!runs.length && <p className="p-8 text-center text-xs text-muted-foreground">暂无流水线运行记录。</p>}
-          </div>
+          </Card.Content>
+        </Card>
+        <Card>
+          <Card.Header className="flex flex-row items-center justify-between border-b border-border/60 pb-3">
+            <div>
+              <Card.Title className="text-sm font-semibold">最近运行</Card.Title>
+              <Card.Description className="mt-1 text-xs">点击日志前先解析运行详情中的 job，避免串到其他运行。</Card.Description>
+            </div>
+            <Chip size="sm" variant="soft" color="default">{runs.length} 次</Chip>
+          </Card.Header>
+          <Card.Content className="p-0">
+            <div className="flex flex-col divide-y divide-border/50">
+              {runs.map((run) => (
+                <div key={run.pipelineRunId} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                  <StatusBadge status={run.status} size="sm" />
+                  <span className="font-mono text-xs text-foreground">#{run.pipelineRunId}</span>
+                  {run.endTime && <span className="text-xs text-muted-foreground">{new Date(run.endTime).toLocaleString()}</span>}
+                  <span className="ml-auto flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onPress={() => {
+                        void openPipelineRunLogs(target.pipelineId, run.pipelineRunId, pipeline?.pipelineName || target.title, { internal: true });
+                        onNavigate('logs');
+                      }}
+                    >
+                      <TerminalIcon className="size-3.5" />
+                      <span>日志</span>
+                    </Button>
+                  </span>
+                </div>
+              ))}
+              {!runs.length && <p className="p-8 text-center text-xs text-muted-foreground">暂无流水线运行记录。</p>}
+            </div>
+          </Card.Content>
         </Card>
       </div>
     </div>
@@ -467,27 +489,30 @@ function PipelineParametersPage({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-5 sm:p-7">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
-          <div className="flex items-center gap-2">
-            <WorkflowIcon className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold text-foreground">运行流水线</h2>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            该流水线由云效 Flow 管理，nervd 将按流水线当前配置提交一次运行。
-          </p>
-          <Descriptions
-            className="mt-5"
-            variant="plain"
-            items={[
-              { key: 'pipeline', label: '流水线', children: <OverflowTooltip text={pipeline?.pipelineName || target.title} className="min-w-0 flex-1 truncate" /> },
-              { key: 'pipelineId', label: '流水线 ID', children: String(target.pipelineId), contentClassName: 'font-mono' },
-              { key: 'mode', label: '运行方式', children: '使用当前流水线配置' },
-            ]}
-          />
+          <Card.Header className="pb-2">
+            <div className="flex items-center gap-2">
+              <WorkflowIcon className="size-4 text-primary" />
+              <Card.Title className="text-sm font-semibold">运行流水线</Card.Title>
+            </div>
+            <Card.Description className="mt-1 text-xs">
+              该流水线由云效 Flow 管理，nervd 将按流水线当前配置提交一次运行。
+            </Card.Description>
+          </Card.Header>
+          <Card.Content className="pt-2">
+            <Descriptions
+              variant="plain"
+              items={[
+                { key: 'pipeline', label: '流水线', children: <OverflowTooltip text={pipeline?.pipelineName || target.title} className="min-w-0 flex-1 truncate" /> },
+                { key: 'pipelineId', label: '流水线 ID', children: String(target.pipelineId), contentClassName: 'font-mono' },
+                { key: 'mode', label: '运行方式', children: '使用当前流水线配置' },
+              ]}
+            />
+          </Card.Content>
         </Card>
         <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-border/70 bg-popover/95 px-1 py-3 backdrop-blur-sm">
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>返回</Button>
+          <Button type="button" variant="outline" size="sm" onPress={onCancel}>返回</Button>
           <WriteOpButton
             label={submitting ? '提交中…' : '提交运行'}
             title={`运行 ${pipeline?.pipelineName || target.title}`}
@@ -528,13 +553,17 @@ function ParametersPage({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-5 sm:p-7">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-5">
         <Card>
-          <div className="flex items-center gap-2">
-            <WorkflowIcon className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold text-foreground">Jenkins 构建参数</h2>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">{repo?.pathWithNamespace || target.title} · 选择 Job、分支和环境后提交。</p>
+          <Card.Header className="pb-2">
+            <div className="flex items-center gap-2">
+              <WorkflowIcon className="size-4 text-primary" />
+              <Card.Title className="text-sm font-semibold">Jenkins 构建参数</Card.Title>
+            </div>
+            <Card.Description className="mt-1 text-xs">
+              {repo?.pathWithNamespace || target.title} · 选择 Job、分支和环境后提交。
+            </Card.Description>
+          </Card.Header>
         </Card>
         <JenkinsBuildParameters
           repoId={target.repoId}
@@ -617,7 +646,7 @@ export function BuildWorkbenchDrawer() {
         closeWorkbench();
       }}
     >
-      <DrawerContent className="w-full sm:w-[min(64rem,96vw)] sm:max-w-none">
+      <DrawerContent className="w-full sm:w-[560px] md:w-[600px] lg:w-[640px] sm:max-w-none">
         {page === 'logs' ? (
           <LogViewerContent
             fallbackTitle={`${title} · 日志`}
@@ -626,11 +655,11 @@ export function BuildWorkbenchDrawer() {
           />
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">
-            <DrawerHeader className="shrink-0 border-b border-border/70 px-5 py-3 sm:px-7">
+            <DrawerHeader className="shrink-0 border-b border-border/70 px-5 py-3 sm:px-6">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-2.5">
                   {page !== 'runs' && (
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label="返回运行记录" title="返回运行记录" onClick={back}>
+                    <Button type="button" variant="ghost" isIconOnly size="sm" aria-label="返回运行记录" onPress={back}>
                       <ArrowLeftIcon className="size-4" />
                     </Button>
                   )}
@@ -643,7 +672,7 @@ export function BuildWorkbenchDrawer() {
                     </DrawerDescription>
                   </div>
                 </div>
-                <Button type="button" variant="ghost" size="icon-sm" aria-label="关闭构建工作台" title="关闭构建工作台" onClick={closeWorkbench}>
+                <Button type="button" variant="ghost" isIconOnly size="sm" aria-label="关闭构建工作台" onPress={closeWorkbench}>
                   <XIcon className="size-4" />
                 </Button>
               </div>

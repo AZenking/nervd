@@ -1,4 +1,5 @@
 import { CheckIcon } from 'lucide-react';
+import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/utils';
 
 export interface AiBreakdownTagsProps {
@@ -65,20 +66,21 @@ export function AiBreakdownTags({
         };
 
         return (
-          <button
+          <Chip
             key={tag}
-            type="button"
+            size="sm"
+            variant={isSelected ? 'soft' : 'secondary'}
             onClick={() => toggle(tag)}
             className={cn(
-              'inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-mono font-medium transition-all cursor-pointer border',
+              'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-medium transition-all cursor-pointer',
               isSelected
                 ? cn(color.bg, color.text, color.border, 'shadow-xs font-semibold')
                 : 'border-border/50 bg-background/50 text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
             {isSelected && <CheckIcon className="size-3" />}
-            {tag}
-          </button>
+            <span>{tag}</span>
+          </Chip>
         );
       })}
     </div>

@@ -20,6 +20,7 @@ import {
   Trash2Icon,
   WorkflowIcon,
   XCircleIcon,
+  XIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -30,10 +31,12 @@ import { Chip } from '@/components/ui/chip';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ListBox } from '@/components/ui/list-box';
 import { EmptyHint } from '@/components/empty-hint';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { Card } from '@/components/ui/card';
-import { ScheduleEditorDialog } from './ScheduleEditorDialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ScheduleEditorDrawer } from './ScheduleEditorDrawer';
 import { ScheduleLogDrawer } from './ScheduleLogDrawer';
 import { useScheduleStore } from '@/store/schedule';
 import { useApp } from '@/store/app';
@@ -75,6 +78,7 @@ export function SchedulesView() {
   const activeCount = useMemo(() => tasks.filter((t) => t.enabled).length, [tasks]);
   const runningCount = useMemo(() => tasks.filter((t) => t.lastStatus === 'running').length, [tasks]);
   const failedCount = useMemo(() => tasks.filter((t) => t.lastStatus === 'failed').length, [tasks]);
+  const totalRuns = useMemo(() => tasks.reduce((sum, t) => sum + t.runCount, 0), [tasks]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -153,11 +157,15 @@ export function SchedulesView() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 统一吸顶页头：标题区 + 过滤工具行（筛选与搜索并入 toolbar 槽，页头吸顶固定） */}
+      {/* 统一吸顶页头：compact 紧凑字阶的轻量页头，仅保留标题行；
+          主操作组（查看调度日志 / 全局调度 / 新建定时任务）已下移至「任务列表」卡片标题行右侧，
+          与状态筛选、搜索及任务裸行同域，随正文滚动 */}
       <PageHeader
         sticky
+        density="compact"
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="定时任务工作台"
+        titleClassName="text-sm font-semibold tracking-tight text-foreground"
         titleBadge={
           <Chip
             size="sm"
@@ -167,9 +175,23 @@ export function SchedulesView() {
             {globalPaused ? '调度器已全局暂停' : `${activeCount} 个任务运行中`}
           </Chip>
         }
-        description="自动化执行分支同步合并（谨慎/激进零污染）、流水线部署与云效工作项巡检"
-        actions={
-          <div className="flex items-center gap-2">
+      />
+
+      {/* 正文工作台卡片：Header=标题+功能说明+主操作组；Content=状态筛选/搜索行+任务裸行列表；Footer=聚合摘要 */}
+      <Card className="overflow-hidden">
+        <Card.Header className="flex flex-row items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1.5">
+            <Card.Title className="text-sm font-semibold tracking-tight text-foreground">
+              任务列表
+            </Card.Title>
+            {/* 功能说明（自吸顶页头下移至卡片 Description 槽，随内容滚动） */}
+            <Card.Description className="text-xs text-muted-foreground">
+              自动化执行分支同步合并（谨慎/激进零污染）、流水线部署与云效工作项巡检
+            </Card.Description>
+          </div>
+
+          {/* 主操作组（自吸顶页头 toolbar 槽下移至卡片标题行右侧）：查看日志 / 全局调度 / 新建任务与任务列表同域 */}
+          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -198,8 +220,10 @@ export function SchedulesView() {
               新建定时任务
             </Button>
           </div>
-        }
-        toolbar={
+        </Card.Header>
+
+        <Card.Content className="gap-3">
+          {/* 状态筛选与搜索行（紧邻任务列表） */}
           <div className="flex w-full flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-1.5 text-xs">
               <Tabs
@@ -211,288 +235,368 @@ export function SchedulesView() {
                 <TabsList size="sm">
                   <TabsTrigger value="all" className="gap-1.5">
                     <span>全部</span>
-                    <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                    <Chip
+                      size="sm"
+                      variant="soft"
+                      className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums"
+                    >
                       {tasks.length}
-                    </span>
+                    </Chip>
                   </TabsTrigger>
 
                   <TabsTrigger value="enabled" className="gap-1.5">
                     <span>已启用</span>
-                    <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                    <Chip
+                      size="sm"
+                      variant="soft"
+                      className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums"
+                    >
                       {activeCount}
-                    </span>
+                    </Chip>
                   </TabsTrigger>
 
                   {runningCount > 0 && (
-                    <TabsTrigger value="running" className="gap-1.5 text-amber-600 dark:text-amber-400">
+                    <TabsTrigger value="running" className="gap-1.5">
                       <span>执行中</span>
-                      <span className="rounded-full bg-amber-500/10 dark:bg-amber-500/20 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                      <Chip
+                        size="sm"
+                        variant="soft"
+                        color="warning"
+                        className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums"
+                      >
                         {runningCount}
-                      </span>
+                      </Chip>
                     </TabsTrigger>
                   )}
 
                   {failedCount > 0 && (
-                    <TabsTrigger value="failed" className="gap-1.5 text-destructive">
+                    <TabsTrigger value="failed" className="gap-1.5">
                       <span>失败告警</span>
-                      <span className="rounded-full bg-destructive/20 px-1.5 py-0.2 font-mono text-[10px] tabular-nums">
+                      <Chip
+                        size="sm"
+                        variant="soft"
+                        color="danger"
+                        className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums"
+                      >
                         {failedCount}
-                      </span>
+                      </Chip>
                     </TabsTrigger>
                   )}
                 </TabsList>
               </Tabs>
             </div>
 
-            {/* 搜索框 */}
+            {/* 搜索框：复用统一 Input 组件（与总览工作项速览表一致：前置搜索图标 + 一键清空） */}
             <div className="relative w-full sm:w-64">
-              <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索任务名称、分支、Cron..."
-                className="h-7 pl-8 text-xs"
+                className="h-8 pl-8 pr-7 text-xs"
               />
+              {search && (
+                <Button
+                  isIconOnly
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => setSearch('')}
+                  className="absolute right-1 top-1/2 size-6 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="清空搜索"
+                >
+                  <XIcon className="size-3" />
+                </Button>
+              )}
             </div>
           </div>
-        }
-      />
 
-      {/* 任务列表区域 */}
-      {filteredTasks.length === 0 ? (
-        <div className="py-8">
-          {tasks.length === 0 ? (
-            <div className="space-y-6">
-              <EmptyHint
-                title="尚未创建任何定时任务"
-                description="定时任务可在后台自动化完成分支合并、流水线构建或数据同步。你可以选择从推荐模版快速创建："
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-4xl mx-auto">
-                <TemplateCard
-                  title="开发分支合入主干 (谨慎)"
-                  description="每天凌晨 02:00 自动比对 dev 与 master，若有冲突则安全终止"
-                  icon={<GitMergeIcon className="size-4 text-blue-600 dark:text-blue-400" />}
-                  onClick={() => {
-                    addTask({
-                      name: '开发分支合入主干 (谨慎策略)',
-                      description: '每日凌晨比对 dev 分支与 master，若无冲突则自动合入',
-                      enabled: true,
-                      cron: '0 2 * * *',
-                      cronLabel: '每天 02:00',
-                      action: {
-                        type: 'branch_merge',
-                        repoId: 0,
-                        sourceBranch: 'dev',
-                        targetBranch: 'master',
-                        strategy: 'cautious',
-                      },
-                      notifyOnSuccess: true,
-                      notifyOnFailure: true,
-                    });
-                    setEditorOpen(true);
-                  }}
-                />
+          {/* 任务列表区域 */}
+          {filteredTasks.length === 0 ? (
+            <div className="py-8">
+              {tasks.length === 0 ? (
+                <div className="space-y-6">
+                  <EmptyHint
+                    title="尚未创建任何定时任务"
+                    description="定时任务可在后台自动化完成分支合并、流水线构建或数据同步。你可以选择从推荐模版快速创建："
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-4xl mx-auto">
+                    <TemplateCard
+                      title="开发分支合入主干 (谨慎)"
+                      description="每天凌晨 02:00 自动比对 dev 与 master，若有冲突则安全终止"
+                      icon={<GitMergeIcon className="size-4 text-blue-600 dark:text-blue-400" />}
+                      onClick={() => {
+                        addTask({
+                          name: '开发分支合入主干 (谨慎策略)',
+                          description: '每日凌晨比对 dev 分支与 master，若无冲突则自动合入',
+                          enabled: true,
+                          cron: '0 2 * * *',
+                          cronLabel: '每天 02:00',
+                          action: {
+                            type: 'branch_merge',
+                            repoId: 0,
+                            sourceBranch: 'dev',
+                            targetBranch: 'master',
+                            strategy: 'cautious',
+                          },
+                          notifyOnSuccess: true,
+                          notifyOnFailure: true,
+                        });
+                        setEditorOpen(true);
+                      }}
+                    />
 
-                <TemplateCard
-                  title="开发分支合入主干 (激进零污染)"
-                  description="每天凌晨 03:00 遇冲突自动隔离至影子分支并提审，绝不污染原分支"
-                  icon={<ShieldCheckIcon className="size-4 text-amber-600 dark:text-amber-400" />}
-                  onClick={() => {
-                    addTask({
-                      name: '开发分支合入主干 (激进零污染)',
-                      description: '每日凌晨自动解决冲突并在隔离分支创建 MR，严格不污染原分支',
-                      enabled: true,
-                      cron: '0 3 * * *',
-                      cronLabel: '每天 03:00',
-                      action: {
-                        type: 'branch_merge',
-                        repoId: 0,
-                        sourceBranch: 'dev',
-                        targetBranch: 'master',
-                        strategy: 'aggressive',
-                        aggressiveConflictPreference: 'theirs',
-                      },
-                      notifyOnSuccess: true,
-                      notifyOnFailure: true,
-                    });
-                    setEditorOpen(true);
-                  }}
-                />
+                    <TemplateCard
+                      title="开发分支合入主干 (激进零污染)"
+                      description="每天凌晨 03:00 遇冲突自动隔离至影子分支并提审，绝不污染原分支"
+                      icon={<ShieldCheckIcon className="size-4 text-amber-600 dark:text-amber-400" />}
+                      onClick={() => {
+                        addTask({
+                          name: '开发分支合入主干 (激进零污染)',
+                          description: '每日凌晨自动解决冲突并在隔离分支创建 MR，严格不污染原分支',
+                          enabled: true,
+                          cron: '0 3 * * *',
+                          cronLabel: '每天 03:00',
+                          action: {
+                            type: 'branch_merge',
+                            repoId: 0,
+                            sourceBranch: 'dev',
+                            targetBranch: 'master',
+                            strategy: 'aggressive',
+                            aggressiveConflictPreference: 'theirs',
+                          },
+                          notifyOnSuccess: true,
+                          notifyOnFailure: true,
+                        });
+                        setEditorOpen(true);
+                      }}
+                    />
 
-                <TemplateCard
-                  title="云效需求每小时自动同步"
-                  description="每小时整点自动刷新云效工作项与最新迭代进展"
-                  icon={<RefreshCwIcon className="size-4 text-emerald-600 dark:text-emerald-400" />}
-                  onClick={() => {
-                    addTask({
-                      name: '云效需求每小时同步',
-                      description: '整点定时拉取云效迭代内最新工作项状态',
-                      enabled: true,
-                      cron: '0 * * * *',
-                      cronLabel: '每小时整点',
-                      action: { type: 'sync_workitems' },
-                      notifyOnSuccess: false,
-                      notifyOnFailure: true,
-                    });
-                  }}
+                    <TemplateCard
+                      title="云效需求每小时自动同步"
+                      description="每小时整点自动刷新云效工作项与最新迭代进展"
+                      icon={<RefreshCwIcon className="size-4 text-emerald-600 dark:text-emerald-400" />}
+                      onClick={() => {
+                        addTask({
+                          name: '云效需求每小时同步',
+                          description: '整点定时拉取云效迭代内最新工作项状态',
+                          enabled: true,
+                          cron: '0 * * * *',
+                          cronLabel: '每小时整点',
+                          action: { type: 'sync_workitems' },
+                          notifyOnSuccess: false,
+                          notifyOnFailure: true,
+                        });
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <EmptyHint
+                  title="未找到匹配的定时任务"
+                  description="尝试更换关键词或清除筛选标签"
                 />
-              </div>
+              )}
             </div>
           ) : (
-            <EmptyHint
-              title="未找到匹配的定时任务"
-              description="尝试更换关键词或清除筛选标签"
-            />
-          )}
-        </div>
-      ) : (
-        <Card className="divide-y divide-border/60 p-0 overflow-hidden">
-          {filteredTasks.map((task) => {
-            const isRunning =
-              runningIds.has(task.id) || task.lastStatus === 'running';
+            /* HeroUI ListBox：方向键 ↑↓ 在任务间漫游焦点，Enter / 单击行空白处打开编辑对话框；
+               行内操作按钮 / 开关不冒泡，不会误触发行级动作 */
+            <ListBox
+              aria-label="定时任务列表"
+              selectionMode="none"
+              onAction={(key) => {
+                const target = filteredTasks.find((t) => t.id === key);
+                if (target) handleOpenEdit(target);
+              }}
+              className="w-full p-0 [&>*+*]:mt-0"
+            >
+              {filteredTasks.map((task) => {
+                const isRunning =
+                  runningIds.has(task.id) || task.lastStatus === 'running';
 
-            return (
-              <div
-                key={task.id}
-                className={cn(
-                  'group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 transition-colors hover:bg-muted/30',
-                  !task.enabled && 'opacity-60 bg-muted/10',
-                )}
-              >
-                {/* 状态点与任务主体 */}
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="pt-0.5 shrink-0">
-                    {isRunning ? (
-                      <Spinner className="size-4 text-amber-600 dark:text-amber-400 animate-spin" />
-                    ) : task.lastStatus === 'success' ? (
-                      <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
-                    ) : task.lastStatus === 'failed' ? (
-                      <XCircleIcon className="size-4 text-destructive" />
-                    ) : (
-                      <div className="size-2.5 rounded-full bg-muted-foreground/40 m-0.5" />
+                return (
+                  <ListBox.Item
+                    key={task.id}
+                    id={task.id}
+                    textValue={task.name}
+                    className={cn(
+                      'group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 transition-colors hover:bg-muted/30 cursor-default outline-none data-[focused=true]:bg-muted/40 border-b border-border/60 last:border-b-0',
+                      !task.enabled && 'opacity-60 bg-muted/10',
                     )}
-                  </div>
+                  >
+                    {/* 状态点与任务主体 */}
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className="pt-0.5 shrink-0">
+                        {isRunning ? (
+                          <Spinner className="size-4 text-amber-600 dark:text-amber-400 animate-spin" />
+                        ) : task.lastStatus === 'success' ? (
+                          <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
+                        ) : task.lastStatus === 'failed' ? (
+                          <XCircleIcon className="size-4 text-destructive" />
+                        ) : (
+                          <div className="size-2.5 rounded-full bg-muted-foreground/40 m-0.5" />
+                        )}
+                      </div>
 
-                  <div className="space-y-2 min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <OverflowTooltip
-                        text={task.name}
-                        className="min-w-0 max-w-full truncate font-semibold text-foreground text-sm tracking-tight"
-                      />
-                      {/* 执行动作类型 Tag */}
-                      <ActionTypeTag type={task.action.type} />
-                      {/* 调度周期 Cron Tag */}
-                      <Badge
-                        variant="outline"
-                        className="font-mono text-[10px] text-muted-foreground bg-muted/20 border-border/70"
+                      <div className="space-y-2 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <OverflowTooltip
+                            text={task.name}
+                            className="min-w-0 max-w-full truncate font-semibold text-foreground text-sm tracking-tight"
+                          />
+                          {/* 执行动作类型 Tag */}
+                          <ActionTypeTag type={task.action.type} />
+                          {/* 调度周期 Cron Tag */}
+                          <Badge
+                            variant="outline"
+                            className="font-mono text-[10px] text-muted-foreground bg-muted/20 border-border/70"
+                          >
+                            <ClockIcon className="mr-1 size-2.5 text-muted-foreground" />
+                            {task.cronLabel || task.cron}
+                          </Badge>
+                        </div>
+
+                        {/* 专属动作类型详细信息 Tag 簇行（如分支合并展示仓库名、分支流向、策略） */}
+                        <div className="pt-0.5">
+                          <ActionDetailTags
+                            action={task.action}
+                            repositories={repositories}
+                            pipelines={pipelines}
+                          />
+                        </div>
+
+                        {task.description && (
+                          <p className="text-xs text-muted-foreground/80 truncate max-w-xl">
+                            {task.description}
+                          </p>
+                        )}
+
+                        {/* 辅助元数据行 */}
+                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground font-mono">
+                          <span>已运行 {task.runCount} 次</span>
+                          {task.lastRunAt && (
+                            <span>
+                              上次：{formatCompactDateTime(task.lastRunAt)}
+                              {typeof task.lastDurationMs === 'number' &&
+                                ` (${(task.lastDurationMs / 1000).toFixed(1)}s)`}
+                            </span>
+                          )}
+                          {task.nextRunAt && task.enabled && !globalPaused && (
+                            <span className="text-primary/90">
+                              预计下次：{formatCompactDateTime(task.nextRunAt)}
+                            </span>
+                          )}
+                          {task.lastError && (
+                            <span className="max-w-sm whitespace-normal break-words text-destructive">
+                              错误: {task.lastError}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 右侧动作操作位 */}
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={isRunning || globalPaused}
+                              onClick={() => handleRunNow(task)}
+                              className="h-7 text-xs hover:bg-muted font-medium"
+                              title="立即执行此任务一次"
+                              aria-label="立即执行此任务一次"
+                            >
+                              {isRunning ? (
+                                <Spinner className="mr-1.5 size-3.5" />
+                              ) : (
+                                <PlayCircleIcon className="mr-1.5 size-3.5 text-primary" />
+                              )}
+                              立即运行
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>立即执行此任务一次</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Switch
+                              checked={task.enabled}
+                              onCheckedChange={() => toggleTask(task.id)}
+                              aria-label={task.enabled ? '点击暂停此任务' : '点击启用此任务'}
+                            />
+                          }
+                        />
+                        <TooltipContent>{task.enabled ? '点击暂停此任务' : '点击启用此任务'}</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleOpenLogs(task.id)}
+                              className="size-7 text-muted-foreground hover:text-foreground"
+                              title="查看此任务的执行日志"
+                              aria-label="查看此任务的执行日志"
+                            >
+                              <FileTextIcon className="size-3.5" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>查看此任务的执行日志</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleOpenEdit(task)}
+                              className="size-7 text-muted-foreground hover:text-foreground"
+                              title="编辑任务配置"
+                              aria-label="编辑任务配置"
+                            >
+                              <PencilIcon className="size-3.5" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>编辑任务配置</TooltipContent>
+                      </Tooltip>
+
+                      <ConfirmButton
+                        label="删除"
+                        title="删除定时任务"
+                        description={`确定要删除定时任务「${task.name}」吗？历史运行日志仍将予以保留。`}
+                        onConfirm={() => deleteTask(task.id)}
+                        size="icon-sm"
+                        variant="ghost"
                       >
-                        <ClockIcon className="mr-1 size-2.5 text-muted-foreground" />
-                        {task.cronLabel || task.cron}
-                      </Badge>
+                        <Trash2Icon className="size-3.5 text-muted-foreground hover:text-destructive" />
+                      </ConfirmButton>
                     </div>
+                  </ListBox.Item>
+                );
+              })}
+            </ListBox>
+          )}
+        </Card.Content>
 
-                    {/* 专属动作类型详细信息 Tag 簇行（如分支合并展示仓库名、分支流向、策略） */}
-                    <div className="pt-0.5">
-                      <ActionDetailTags
-                        action={task.action}
-                        repositories={repositories}
-                        pipelines={pipelines}
-                      />
-                    </div>
+        {/* Footer：全量聚合摘要（总任务数与累计执行次数，等宽字体对齐数字） */}
+        <Card.Footer className="justify-between gap-2 border-t border-border/60 pt-3">
+          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+            共 {tasks.length} 个任务 · 累计执行 {totalRuns} 次
+          </span>
+        </Card.Footer>
+      </Card>
 
-                    {task.description && (
-                      <p className="text-xs text-muted-foreground/80 truncate max-w-xl">
-                        {task.description}
-                      </p>
-                    )}
-
-                    {/* 辅助元数据行 */}
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground font-mono">
-                      <span>已运行 {task.runCount} 次</span>
-                      {task.lastRunAt && (
-                        <span>
-                          上次：{formatCompactDateTime(task.lastRunAt)}
-                          {typeof task.lastDurationMs === 'number' &&
-                            ` (${(task.lastDurationMs / 1000).toFixed(1)}s)`}
-                        </span>
-                      )}
-                      {task.nextRunAt && task.enabled && !globalPaused && (
-                        <span className="text-primary/90">
-                          预计下次：{formatCompactDateTime(task.nextRunAt)}
-                        </span>
-                      )}
-                      {task.lastError && (
-                        <span className="max-w-sm whitespace-normal break-words text-destructive">
-                          错误: {task.lastError}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 右侧动作操作位 */}
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isRunning || globalPaused}
-                    onClick={() => handleRunNow(task)}
-                    className="h-7 text-xs hover:bg-muted font-medium"
-                    title="立即执行此任务一次"
-                  >
-                    {isRunning ? (
-                      <Spinner className="mr-1.5 size-3.5" />
-                    ) : (
-                      <PlayCircleIcon className="mr-1.5 size-3.5 text-primary" />
-                    )}
-                    立即运行
-                  </Button>
-
-                  <Switch
-                    checked={task.enabled}
-                    onCheckedChange={() => toggleTask(task.id)}
-                    title={task.enabled ? '点击暂停此任务' : '点击启用此任务'}
-                  />
-
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => handleOpenLogs(task.id)}
-                    className="size-7 text-muted-foreground hover:text-foreground"
-                    title="查看此任务的执行日志"
-                  >
-                    <FileTextIcon className="size-3.5" />
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => handleOpenEdit(task)}
-                    className="size-7 text-muted-foreground hover:text-foreground"
-                    title="编辑任务配置"
-                  >
-                    <PencilIcon className="size-3.5" />
-                  </Button>
-
-                  <ConfirmButton
-                    label="删除"
-                    title="删除定时任务"
-                    description={`确定要删除定时任务「${task.name}」吗？历史运行日志仍将予以保留。`}
-                    onConfirm={() => deleteTask(task.id)}
-                    size="icon-sm"
-                    variant="ghost"
-                  >
-                    <Trash2Icon className="size-3.5 text-muted-foreground hover:text-destructive" />
-                  </ConfirmButton>
-                </div>
-              </div>
-            );
-          })}
-        </Card>
-      )}
-
-      {/* 弹窗与抽屉 */}
-      <ScheduleEditorDialog
+      {/* 抽屉 */}
+      <ScheduleEditorDrawer
         open={editorOpen}
         onOpenChange={setEditorOpen}
         initialTask={editingTask}
@@ -583,46 +687,52 @@ export function ActionDetailTags({
       return (
         <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
           {/* 仓库 Tag（重点：展示对应仓库信息） */}
-          <Badge
-            variant="outline"
-            className="border-border/80 text-foreground/90 bg-muted/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+          <Chip
+            size="sm"
+            variant="secondary"
+            color="default"
+            className="font-mono"
             title={`关联代码库: ${repoDisplayName}`}
           >
             <FolderGit2Icon className="size-3 text-muted-foreground shrink-0" />
-            <span className="font-semibold">{repoDisplayName}</span>
-          </Badge>
+            <Chip.Label className="font-semibold">{repoDisplayName}</Chip.Label>
+          </Chip>
 
           {/* 分支流转 Tag */}
-          <Badge
-            variant="outline"
-            className="border-border/80 text-foreground/90 bg-background/80 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+          <Chip
+            size="sm"
+            variant="secondary"
+            color="default"
+            className="font-mono"
             title={`源分支 [${action.sourceBranch}] → 目标分支 [${action.targetBranch}]`}
           >
             <GitBranchIcon className="size-2.5 text-muted-foreground shrink-0" />
-            <span>{action.sourceBranch}</span>
-            <ArrowRightIcon className="size-2.5 text-muted-foreground mx-0.5 shrink-0" />
-            <span className="text-primary font-medium">{action.targetBranch}</span>
-          </Badge>
+            <Chip.Label>{action.sourceBranch}</Chip.Label>
+            <ArrowRightIcon className="mx-0.5 size-2.5 text-muted-foreground shrink-0" />
+            <Chip.Label className="font-medium text-primary">{action.targetBranch}</Chip.Label>
+          </Chip>
 
           {/* 合并策略 Tag */}
           {isAggressive ? (
-            <Badge
-              variant="outline"
-              className="border-amber-500/30 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+            <Chip
+              size="sm"
+              color="warning"
+              variant="soft"
               title="遇冲突将自动在影子隔离分支消解，原分支保持 100% 纯净"
             >
               <ShieldCheckIcon className="size-3 shrink-0" />
-              激进 · 零污染
-            </Badge>
+              <Chip.Label>激进 · 零污染</Chip.Label>
+            </Chip>
           ) : (
-            <Badge
-              variant="outline"
-              className="border-blue-500/30 dark:border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-500/10 dark:bg-blue-500/20 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+            <Chip
+              size="sm"
+              color="accent"
+              variant="soft"
               title="检测到代码冲突立即中止合并，原分支零变更"
             >
               <ShieldAlertIcon className="size-3 shrink-0" />
-              谨慎 · 冲突终止
-            </Badge>
+              <Chip.Label>谨慎 · 冲突终止</Chip.Label>
+            </Chip>
           )}
         </div>
       );

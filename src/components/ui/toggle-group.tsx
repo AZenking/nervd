@@ -1,6 +1,6 @@
 import * as React from "react"
 import { ToggleButtonGroup as HeroUIToggleButtonGroup } from "@heroui/react"
-import { type VariantProps } from "class-variance-authority"
+import { type VariantProps } from "tailwind-variants"
 import { cn } from '@/lib/utils'
 
 import { Toggle, toggleVariants } from "@/components/ui/toggle"

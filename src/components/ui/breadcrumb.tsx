@@ -1,5 +1,3 @@
-"use client"
-
 import * as React from "react"
 import { breadcrumbsVariants } from "@heroui/styles"
 import { cn } from "@/lib/utils"
@@ -48,7 +46,6 @@ function BreadcrumbItem({ className, ...props }: React.ComponentPropsWithRef<"li
 
 export interface BreadcrumbLinkProps extends React.ComponentPropsWithRef<"a"> {
   render?: React.ReactElement | ((props: any) => React.ReactNode)
-  asChild?: boolean
 }
 
 function BreadcrumbLink({

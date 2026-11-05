@@ -13,6 +13,7 @@ import { useUi } from '@/store/ui';
 import { StatusIcon } from '@/components/status-icon';
 import { statusMeta, type StatusTone } from '@/components/StatusBadge';
 import { Chip } from '@/components/ui/chip';
+import { Button } from '@/components/ui/button';
 import { SearchableAssigneePopover } from './assignee-popover';
 import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 
@@ -239,19 +240,21 @@ export function RequirementProperties({
                 </span>
               ),
               children: (
-                <button
+                <Button
                   type="button"
+                  variant="link"
+                  size="xs"
                   onClick={() => {
                     if (onSelectParent && embedded) onSelectParent(parent.workitemId);
                     else openWorkitem(parent.workitemId, parent);
                   }}
-                  className="font-mono text-xs text-primary hover:underline cursor-pointer text-left truncate"
+                  className="font-mono text-xs text-primary hover:underline cursor-pointer text-left truncate justify-start"
                 >
                   <OverflowTooltip
                     text={`${parent.identifier} ${parent.subject}`}
                     className="min-w-0 truncate font-mono text-xs text-primary"
                   />
-                </button>
+                </Button>
               ),
             }] : []),
             {

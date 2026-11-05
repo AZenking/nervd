@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertCircleIcon, RefreshCwIcon, ServerIcon, SparklesIcon, WorkflowIcon } from 'lucide-react';
 import type { JenkinsConnectionView, JenkinsJobSummary, PipelineSummary, RepoCiBinding } from '@/types';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -168,10 +171,10 @@ export function RepoCiBindingFields({
           <span className="text-xs font-semibold text-foreground">关联 CI 流水线 (可选)</span>
         </div>
         {isMatchedRecommendation && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm">
+          <Chip size="sm" color="accent" variant="soft" className="gap-1 text-[11px] font-medium">
             <SparklesIcon className="size-3" />
             <span>智能匹配</span>
-          </span>
+          </Chip>
         )}
       </div>
 
@@ -203,16 +206,26 @@ export function RepoCiBindingFields({
             <div className="flex items-center justify-between h-5 mb-1.5">
               <FieldLabel className="mb-0">云效流水线</FieldLabel>
               {onRefreshPipelines && (
-                <button
-                  type="button"
-                  onClick={() => void handleRefresh()}
-                  disabled={refreshing || loadingPipelines || disabled}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors disabled:opacity-50"
-                  title="刷新云效流水线列表"
-                >
-                  <RefreshCwIcon className={cn('size-3', (refreshing || loadingPipelines) && 'animate-spin')} />
-                  <span>刷新</span>
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => void handleRefresh()}
+                        disabled={refreshing || loadingPipelines || disabled}
+                        className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
+                        title="刷新云效流水线列表"
+                        aria-label="刷新云效流水线列表"
+                      >
+                        <RefreshCwIcon className={cn('size-3', (refreshing || loadingPipelines) && 'animate-spin')} />
+                        <span>刷新</span>
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>刷新云效流水线列表</TooltipContent>
+                </Tooltip>
               )}
             </div>
             <SearchableSelect
@@ -313,16 +326,26 @@ export function RepoCiBindingFields({
             <Field className="w-full">
               <div className="flex items-center justify-between h-5 mb-1.5">
                 <FieldLabel className="mb-0">Job 全路径</FieldLabel>
-                <button
-                  type="button"
-                  onClick={() => setJenkinsJobsRefresh((c) => c + 1)}
-                  disabled={loadingJenkinsJobs || disabled || !selectedConnectionId}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors disabled:opacity-50"
-                  title="刷新 Jenkins Job 列表"
-                >
-                  <RefreshCwIcon className={cn('size-3', loadingJenkinsJobs && 'animate-spin')} />
-                  <span>刷新</span>
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setJenkinsJobsRefresh((c) => c + 1)}
+                        disabled={loadingJenkinsJobs || disabled || !selectedConnectionId}
+                        className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
+                        title="刷新 Jenkins Job 列表"
+                        aria-label="刷新 Jenkins Job 列表"
+                      >
+                        <RefreshCwIcon className={cn('size-3', loadingJenkinsJobs && 'animate-spin')} />
+                        <span>刷新</span>
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>刷新 Jenkins Job 列表</TooltipContent>
+                </Tooltip>
               </div>
               <SearchableSelect
                 className="text-xs font-mono w-full"

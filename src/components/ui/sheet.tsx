@@ -61,14 +61,12 @@ function Sheet({
 type SheetTriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
   React.HTMLAttributes<HTMLDivElement> & {
     render?: any
-    asChild?: boolean
   }
 
 function SheetTrigger({
   className,
   children,
   render,
-  asChild: _asChild,
   ...props
 }: SheetTriggerProps) {
   if (render) {
@@ -101,14 +99,12 @@ function SheetPortal({ children }: { children?: React.ReactNode }) {
 
 type SheetCloseProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   render?: any
-  asChild?: boolean
 }
 
 function SheetClose({
   className,
   children,
   render,
-  asChild: _asChild,
   ...props
 }: SheetCloseProps) {
   if (render) {

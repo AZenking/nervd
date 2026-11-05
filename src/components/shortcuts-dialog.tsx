@@ -1,5 +1,6 @@
 import { Modal } from '@heroui/react';
 import { useUi } from '@/store/ui';
+import { Kbd } from '@/components/ui/kbd';
 
 /**
  * ? 键盘快捷键面板（Linear 式 `?` 帮助弹层）：
@@ -48,15 +49,6 @@ const LAYOUT_ROWS: ShortcutRow[] = [
   { keys: ['Esc'], label: '窄窗详情中返回列表' },
 ];
 
-/** 键位胶囊（与 command-menu 底部提示同款形态） */
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="rounded border border-border bg-background px-1 font-mono text-[11px] leading-4 text-muted-foreground">
-      {children}
-    </kbd>
-  );
-}
-
 /** 一组快捷键：组标题 + 说明/键位行 */
 function ShortcutGroup({ title, rows }: { title: string; rows: ShortcutRow[] }) {
   return (
@@ -70,7 +62,7 @@ function ShortcutGroup({ title, rows }: { title: string; rows: ShortcutRow[] }) 
               {row.keys.map((key, i) => (
                 <span key={key} className="flex items-center gap-1">
                   {i > 0 && <span className="text-xs text-muted-foreground">或</span>}
-                  <Kbd>{key}</Kbd>
+                  <Kbd className="h-5! px-1.5! font-mono! text-[11px]!">{key}</Kbd>
                 </span>
               ))}
             </span>

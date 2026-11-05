@@ -4,9 +4,12 @@ import {
   CheckIcon, RocketIcon, FlaskConicalIcon, Wand2Icon, ChevronDownIcon,
   ChevronUpIcon,
 } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { TagGroup, Tag } from '@heroui/react';
+import { Kbd } from '@/components/ui/kbd';
 import { Card } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { RichEditor } from '@/components/ui/rich-editor';
 import { cn } from '@/lib/utils';
 import { EmptyHint } from '@/components/empty-hint';
@@ -215,21 +218,35 @@ export function RequirementActivity({
               <span>讨论纪要 TL;DR</span>
             </div>
             <div className="flex items-center gap-1">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 onClick={() => void handleCopySummary()}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/60 transition-colors cursor-pointer"
+                className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
               >
                 {copiedSummary ? <CheckIcon className="size-3 text-emerald-600 dark:text-emerald-400" /> : <CopyIcon className="size-3" />}
                 {copiedSummary ? '已复制' : '复制纪要'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSummaryExpanded(!summaryExpanded)}
-                className="p-1 text-muted-foreground hover:text-foreground rounded cursor-pointer"
-              >
-                {summaryExpanded ? <ChevronUpIcon className="size-3.5" /> : <ChevronDownIcon className="size-3.5" />}
-              </button>
+              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={(
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => setSummaryExpanded(!summaryExpanded)}
+                      className="size-6 text-muted-foreground hover:text-foreground"
+                      title={summaryExpanded ? '收起纪要' : '展开纪要'}
+                    >
+                      {summaryExpanded ? <ChevronUpIcon className="size-3.5" /> : <ChevronDownIcon className="size-3.5" />}
+                    </Button>
+                  )}
+                />
+                <TooltipContent>
+                  {summaryExpanded ? '收起纪要' : '展开纪要'}
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -294,8 +311,8 @@ export function RequirementActivity({
 
             return (
               <article key={i} className="relative flex items-start gap-3">
-                <Avatar className="size-6 shrink-0 mt-0.5 ring-2 ring-background">
-                  <AvatarFallback className="text-[10px] bg-muted text-muted-foreground font-medium">
+                <Avatar className={cn('size-6 shrink-0 mt-0.5 ring-2 ring-background border', getAvatarColorClass(authorName))}>
+                  <AvatarFallback className="text-[10px] bg-transparent font-medium">
                     {authorName.charAt(0) || '—'}
                   </AvatarFallback>
                 </Avatar>
@@ -321,43 +338,55 @@ export function RequirementActivity({
       {/* 底部 Linear 风格评论快速发表框 */}
       {workitemId && (
         <div className="mt-2 flex flex-col gap-2 rounded-md border border-border/80 bg-background/50 p-3 focus-within:border-primary/50 transition-colors">
-          {/* AI 快捷生成助手胶囊栏 */}
+          {/* AI 快捷生成助手：TagGroup 快捷动作（RAC Tag 自带 hover/禁用态） */}
           <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b border-border/50">
             <span className="text-[11px] text-muted-foreground mr-1 flex items-center gap-1">
               <SparklesIcon className="size-3 text-primary" />
               AI 助手:
             </span>
-            <button
-              type="button"
-              disabled={Boolean(generatingDraft)}
-              onClick={() => void handleGenerateDraft('progress')}
-              className="cursor-pointer inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 px-2.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              {generatingDraft === 'progress' ? <Loader2Icon className="size-3 animate-spin" /> : <RocketIcon className="size-3" />}
-              研发进度同步
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(generatingDraft)}
-              onClick={() => void handleGenerateDraft('test_delivery')}
-              className="cursor-pointer inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 px-2.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              {generatingDraft === 'test_delivery' ? <Loader2Icon className="size-3 animate-spin" /> : <FlaskConicalIcon className="size-3" />}
-              提测交付说明
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(generatingDraft) || !commentDraft.trim()}
-              onClick={() => void handleGenerateDraft('polish')}
-              className={cn(
-                'cursor-pointer inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 px-2.5 py-0.5 text-[11px] transition-colors',
-                commentDraft.trim() ? 'text-primary hover:bg-primary/10' : 'text-muted-foreground/50 opacity-60 cursor-not-allowed',
-              )}
-              title={commentDraft.trim() ? '将当前输入框内容整理润色为专业评论' : '先输入要点后再点击润色'}
-            >
-              {generatingDraft === 'polish' ? <Loader2Icon className="size-3 animate-spin" /> : <Wand2Icon className="size-3" />}
-              智能润色
-            </button>
+            <TagGroup aria-label="AI 评论文案快捷生成" size="sm">
+              <TagGroup.List>
+                <Tag
+                  id="progress"
+                  textValue="研发进度同步"
+                  isDisabled={Boolean(generatingDraft)}
+                  onAction={() => void handleGenerateDraft('progress')}
+                >
+                  {generatingDraft === 'progress' ? <Loader2Icon className="size-3 animate-spin" /> : <RocketIcon className="size-3" />}
+                  <span>研发进度同步</span>
+                </Tag>
+                <Tag
+                  id="test_delivery"
+                  textValue="提测交付说明"
+                  isDisabled={Boolean(generatingDraft)}
+                  onAction={() => void handleGenerateDraft('test_delivery')}
+                >
+                  {generatingDraft === 'test_delivery' ? <Loader2Icon className="size-3 animate-spin" /> : <FlaskConicalIcon className="size-3" />}
+                  <span>提测交付说明</span>
+                </Tag>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={(
+                      <Tag
+                        id="polish"
+                        textValue="智能润色"
+                        isDisabled={Boolean(generatingDraft) || !commentDraft.trim()}
+                        onAction={() => void handleGenerateDraft('polish')}
+                        className={cn(
+                          commentDraft.trim() && 'text-primary hover:bg-primary/10',
+                        )}
+                      >
+                        {generatingDraft === 'polish' ? <Loader2Icon className="size-3 animate-spin" /> : <Wand2Icon className="size-3" />}
+                        <span>智能润色</span>
+                      </Tag>
+                    )}
+                  />
+                  <TooltipContent>
+                    {commentDraft.trim() ? '将当前输入框内容整理润色为专业评论' : '先输入要点后再点击润色'}
+                  </TooltipContent>
+                </Tooltip>
+              </TagGroup.List>
+            </TagGroup>
           </div>
 
           <RichEditor
@@ -375,7 +404,7 @@ export function RequirementActivity({
           />
           <div className="flex items-center justify-between pt-2 border-t border-border/50">
             <span className="text-[11px] text-muted-foreground">
-              按 <kbd className="font-mono px-1 py-0.5 rounded bg-muted text-[10px]">⌘ + Enter</kbd> 快速发送
+              按 <Kbd className="h-5! px-1.5! text-[10px]!">⌘ + Enter</Kbd> 快速发送
             </span>
             <Button
               type="button"

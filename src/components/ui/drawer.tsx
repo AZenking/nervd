@@ -139,6 +139,8 @@ interface DrawerContentProps extends Omit<React.ComponentPropsWithoutRef<typeof 
   isDismissable?: boolean
   backdropVariant?: React.ComponentPropsWithoutRef<typeof HeroUIDrawer.Backdrop>["variant"]
   children?: React.ReactNode | ((opts: any) => React.ReactNode)
+  /** Peek 抽屉标记：透传到 Dialog 元素，供键盘层做「仅 Peek 抽屉开启」的浮层让路判定 */
+  "data-workspace-peek-drawer"?: string | boolean
 }
 
 function DrawerContent({

@@ -166,7 +166,7 @@ export default function App() {
       useUi.getState().setShortcutsOpen(true);
     });
     const unNav = listen<string>('navigate-view', (e) => {
-      const views: WorkspaceView[] = ['iteration', 'requirement', 'integration', 'overview', 'recents', 'full-settings', 'schedules', 'local-tasks'];
+      const views: WorkspaceView[] = ['iteration', 'requirement', 'integration', 'overview', 'recents', 'full-settings', 'schedules'];
       if (views.includes(e.payload as WorkspaceView)) {
         useUi.getState().setView(e.payload as WorkspaceView);
       }

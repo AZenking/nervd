@@ -5,6 +5,7 @@ import { findRemoteBranch } from '@/lib/iteration-branches';
 import { comparisonCommits } from '../BranchDivergenceCheck';
 import { getCustomDevBranch } from '@/lib/dev-branch-settings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -191,15 +192,26 @@ export function IterationDevDivergence({
         )}
       </div>
 
-      <button
-        type="button"
-        disabled={status.state === 'loading'}
-        onClick={() => setRefreshKey((k) => k + 1)}
-        className="text-muted-foreground hover:text-foreground disabled:opacity-40 p-0.5 rounded transition-colors cursor-pointer shrink-0"
-        title="刷新与 dev/集成主干的差异检测"
-      >
-        <RefreshCwIcon className={cn('size-3', status.state === 'loading' && 'animate-spin text-primary')} />
-      </button>
+      <Tooltip>
+        <TooltipTrigger
+          render={(
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={status.state === 'loading'}
+              onClick={() => setRefreshKey((k) => k + 1)}
+              className="size-5 text-muted-foreground hover:text-foreground disabled:opacity-40 p-0 shrink-0"
+              title="刷新与 dev/集成主干的差异检测"
+            >
+              <RefreshCwIcon className={cn('size-3', status.state === 'loading' && 'animate-spin text-primary')} />
+            </Button>
+          )}
+        />
+        <TooltipContent>
+          刷新与 dev/集成主干的差异检测
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }

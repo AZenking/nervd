@@ -49,11 +49,22 @@ export function openRepoBuildLogs(
   repoId: number,
   runId: string,
   title: string,
-  options?: { internal?: boolean },
+  options?: { internal?: boolean; connectionId?: string; jobFullName?: string },
 ) {
-  const target: BuildWorkbenchTarget = { kind: 'repo', repoId, title, runId };
+  const target: BuildWorkbenchTarget = {
+    kind: 'repo',
+    repoId,
+    title,
+    runId,
+    connectionId: options?.connectionId,
+    jobFullName: options?.jobFullName,
+  };
   navigateToWorkbenchLogs(target, options?.internal === true);
-  void useApp.getState().openRepoCiLogs(repoId, runId, title);
+  if (options?.connectionId && options?.jobFullName) {
+    void useApp.getState().openTargetJenkinsLogs(options.connectionId, options.jobFullName, runId, title, repoId);
+  } else {
+    void useApp.getState().openRepoCiLogs(repoId, runId, title);
+  }
 }
 
 function firstPipelineJobId(detail: unknown): number {

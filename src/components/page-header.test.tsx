@@ -171,15 +171,18 @@ describe('PageHeader 密度与吸顶', () => {
     expect(header.className).not.toContain('pt-8');
     expect(header.className).toContain('pb-2.5');
     expect(header.className).toContain('gap-2'); // compact 行距
-    expect(header.querySelector('div[class*="min-h-8"]')).not.toBeNull(); // 主行紧凑高度
+    expect(header.dataset.density).toBe('compact');
+    expect(header.querySelector('div[class*="h-8"]')).not.toBeNull(); // 主行紧凑高度
   });
 
-  it('keeps regular density defaults untouched', async () => {
+  it('uses one traffic-light inset and a stable regular row height', async () => {
     const header = await render({ title: '总览', sticky: true });
-    expect(header.className).toContain('pt-8');
-    expect(header.className).toContain('pb-3.5');
+    expect(header.dataset.density).toBe('regular');
+    expect(header.className).toContain('pt-7');
+    expect(header.className).not.toContain('pt-8');
+    expect(header.className).toContain('pb-3');
     expect(header.className).toContain('gap-3');
-    expect(header.querySelector('div[class*="min-h-9"]')).not.toBeNull();
+    expect(header.querySelector('div[class*="h-9"]')).not.toBeNull();
   });
 });
 
@@ -215,9 +218,9 @@ describe('PageHeader 旧 props 向后兼容', () => {
     expect(header.querySelector('.border-t')).not.toBeNull();
   });
 
-  it('keeps STICKY_PAGE_HEADER_CLASS export stable for existing importers', () => {
+  it('exposes the sticky layout contract for existing importers', () => {
     expect(STICKY_PAGE_HEADER_CLASS).toContain('sticky top-0');
-    expect(STICKY_PAGE_HEADER_CLASS).toContain('pt-8');
+    expect(STICKY_PAGE_HEADER_CLASS).toContain('pt-7');
     expect(STICKY_PAGE_HEADER_CLASS).toContain('sm:-mx-8 sm:px-8');
     expect(STICKY_PAGE_HEADER_CLASS).toContain('lg:-mx-10 lg:px-10');
   });

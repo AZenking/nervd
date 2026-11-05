@@ -10,19 +10,12 @@ import {
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
+import { Kbd } from '@/components/ui/kbd';
 import {
   extractConfiguredBuildTargets,
   useQuickBuild,
   type QuickBuildTarget,
 } from '@/store/quick-build';
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="rounded border border-border bg-background px-1 font-mono text-[11px] leading-4 text-muted-foreground">
-      {children}
-    </kbd>
-  );
-}
 
 function formatRelativeTime(timestamp?: number): string {
   if (!timestamp) return '';

@@ -14,20 +14,23 @@ export type TextareaProps = BaseHeroUITextAreaProps &
     isDisabled?: boolean
   }
 
-const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, disabled, isDisabled, ...props }, ref) => {
-    return (
-      <HeroUITextArea
-        ref={ref}
-        data-slot="textarea"
-        isDisabled={isDisabled ?? disabled}
-        className={cn("min-h-16 text-[13px]", className)}
-        {...(props as any)}
-      />
-    )
-  }
-)
-Textarea.displayName = "Textarea"
+function Textarea({
+  ref,
+  className,
+  disabled,
+  isDisabled,
+  ...props
+}: TextareaProps) {
+  return (
+    <HeroUITextArea
+      ref={ref}
+      data-slot="textarea"
+      isDisabled={isDisabled ?? disabled}
+      className={cn("min-h-16 text-[13px]", className)}
+      {...(props as any)}
+    />
+  )
+}
 
 const TextareaWithCompound = Object.assign(Textarea, {
   Root: HeroUITextArea.Root,

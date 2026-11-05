@@ -281,13 +281,15 @@ export function MrInlineItem({
                 ) : (
                   <span>
                     两分支当前已对齐。历史完整变更请通过下方
-                    <button
+                    <Button
                       type="button"
+                      variant="link"
+                      size="xs"
                       onClick={() => void openExternal(mrUrl)}
-                      className="ml-1 text-primary hover:underline cursor-pointer"
+                      className="inline p-0 h-auto ml-1 text-primary hover:underline cursor-pointer align-baseline"
                     >
                       「云效直达」
-                    </button>
+                    </Button>
                     查看。
                   </span>
                 )}

@@ -184,7 +184,14 @@ async function gate(cmd: string, args: unknown[] = []): Promise<void> {
   reset() { mockCalls.length = 0; mockFailures.clear(); mockDelays.clear(); },
 };
 
-export async function getSettings(): Promise<SettingsView> { await gate('get_settings'); return { ...settings }; }
+export async function getSettings(): Promise<SettingsView> {
+  await gate('get_settings');
+  // #onboarding 首启演示模式：返回零凭据的全新安装形态（首启引导页就绪检查全部「待填」）
+  if (typeof window !== 'undefined' && window.location.hash.toLowerCase() === '#onboarding') {
+    return { ...settings, hasPat: false, organizationId: '', defaultSpaceIdentifier: '' };
+  }
+  return { ...settings };
+}
 export async function saveSettings(s: Settings): Promise<SettingsView> {
   await gate('save_settings', [s]);
   Object.assign(settings, s, {

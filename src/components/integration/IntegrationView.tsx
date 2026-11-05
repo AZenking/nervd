@@ -2,14 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   FolderIcon,
   GitBranchIcon,
   RefreshCwIcon,
-  SearchIcon,
   SparklesIcon,
 } from 'lucide-react';
+import { Alert, Button, Chip, Input, ListBox, Pagination, Select, Table, Tooltip } from '@heroui/react';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { parseBranchList } from '@/lib/iteration-branches';
@@ -20,10 +18,8 @@ import { useApp } from '@/store/app';
 import { useShallow } from 'zustand/react/shallow';
 import type { BranchInfo } from '@/types';
 import { useDebounce } from '@/hooks/use-debounce';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { SearchableSelect } from '../searchable-select';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { PageHeader } from '../page-header';
 import { EmptyHint } from '../empty-hint';
@@ -374,73 +370,84 @@ export function IntegrationView() {
   const repoName = repoOptions.find((option) => Number(option.value) === repoId)?.label ?? '';
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
+      {/* 页头（sticky 单行）：navigation=侧栏开关｜title=集成分支｜actions=刷新；筛选工具行下放正文 */}
       <PageHeader
         sticky
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="集成分支"
         titleClassName="text-sm font-semibold tracking-tight text-foreground"
         actions={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="刷新"
-            title="重新拉取分支数据"
-            onClick={handleRefresh}
-          >
-            <RefreshCwIcon className={cn(branchPhase === 'loading' && 'animate-spin')} />
-          </Button>
-        }
-        toolbar={
-          <>
-            <SearchableSelect
-              className="w-56 text-xs"
-              ariaLabel="切换仓库"
-              value={repoId == null ? null : String(repoId)}
-              onValueChange={(value) => {
-                if (value) setRepoId(Number(value));
-              }}
-              items={repoOptions}
-            />
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-xs">
-              <GitBranchIcon className="size-3 text-muted-foreground" />
-              <span className="text-[11px] font-medium text-muted-foreground">基准</span>
-              <input
-                value={base}
-                onChange={(event) => setBase(event.target.value)}
-                placeholder="master"
-                aria-label="基准分支"
-                className="h-6 w-24 bg-transparent font-mono text-xs outline-none"
-              />
-            </div>
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-xs">
-              <SearchIcon className="size-3 text-muted-foreground" />
-              <span className="text-[11px] font-medium text-muted-foreground">匹配模式</span>
-              <input
-                value={patterns}
-                onChange={(event) => setPatterns(event.target.value)}
-                placeholder={DEFAULT_PATTERNS}
-                aria-label="集成分支匹配模式"
-                className="h-6 w-56 bg-transparent font-mono text-xs outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-            {branchPhase === 'ready' && (
-              <OverflowTooltip
-                text={`${repoName} · 命中 ${matchedBranches.length} 条${matchedBranches.length > PAGE_SIZE ? ` (第 ${page}/${totalPages} 页)` : ''}`}
-                className="min-w-0 truncate text-xs text-muted-foreground"
-              />
-            )}
-          </>
+          <Tooltip>
+            <Button
+              variant="ghost"
+              isIconOnly
+              size="sm"
+              aria-label="刷新"
+              onPress={handleRefresh}
+            >
+              <RefreshCwIcon className={cn(branchPhase === 'loading' && 'animate-spin')} />
+            </Button>
+            <Tooltip.Content>重新拉取分支数据</Tooltip.Content>
+          </Tooltip>
         }
       />
 
+      {/* 工具行（自吸顶页头下放正文）：仓库选择 + 基准分支 + 匹配模式 + 命中计数，随页面滚动 */}
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+          <Select
+            className="w-56 text-xs"
+            aria-label="切换仓库"
+            placeholder="切换仓库"
+            selectedKey={repoId == null ? null : String(repoId)}
+            onSelectionChange={(key) => {
+              if (key) setRepoId(Number(key));
+            }}
+          >
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {repoOptions.map((option) => (
+                  <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+                    {option.label}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+          <Input
+            value={base}
+            onChange={(event) => setBase(event.target.value)}
+            placeholder="基准分支 (如 master)"
+            aria-label="基准分支"
+            className="h-8 w-28 font-mono text-xs"
+          />
+          <Input
+            value={patterns}
+            onChange={(event) => setPatterns(event.target.value)}
+            placeholder={DEFAULT_PATTERNS}
+            aria-label="集成分支匹配模式"
+            className="h-8 w-56 font-mono text-xs"
+          />
+          {branchPhase === 'ready' && (
+            <OverflowTooltip
+              text={`${repoName} · 命中 ${matchedBranches.length} 条${matchedBranches.length > PAGE_SIZE ? ` (第 ${page}/${totalPages} 页)` : ''}`}
+              className="ml-auto min-w-0 truncate text-xs text-muted-foreground"
+            />
+          )}
+        </div>
+
         {branchPhase === 'loading' && (
           <div className="flex flex-col gap-1" aria-hidden>
             {[0, 1, 2, 3, 4].map((key) => (
               <div
                 key={key}
-                className="flex h-11 w-full items-center gap-2 rounded-lg px-3 bg-muted/20"
+                className="flex h-11 w-full items-center gap-2 rounded-lg px-4 bg-muted/20"
               >
                 <div className="flex w-64 shrink-0 items-center gap-1.5 pl-5">
                   <Skeleton className="size-3.5 rounded" />
@@ -470,9 +477,9 @@ export function IntegrationView() {
             title="分支列表加载失败"
             description={errorMessage}
             action={(
-              <Button variant="outline" size="sm" onClick={handleRefresh}>
-                <RefreshCwIcon data-icon="inline-start" />
-                重试
+              <Button variant="outline" size="sm" onPress={handleRefresh}>
+                <RefreshCwIcon className="size-3.5" />
+                <span>重试</span>
               </Button>
             )}
           />
@@ -488,207 +495,236 @@ export function IntegrationView() {
 
         {branchPhase === 'ready' && matchedBranches.length > 0 && (
           <>
-            {/* 仓库分组横带（Linear 组头形态） */}
-            <div className="flex h-8 items-center gap-2 rounded-md bg-muted/70 px-3">
-              <FolderIcon className="size-3.5 text-muted-foreground" />
-              <OverflowTooltip text={repoName} className="min-w-0 truncate text-[13px] font-medium" />
-              <span className="text-xs text-muted-foreground tabular-nums">
-                共 {matchedBranches.length} 条
-              </span>
-              <span className="ml-auto flex items-center gap-3 text-xs text-muted-foreground font-mono">
-                <OverflowTooltip
-                  text={`基准 ${debouncedBase}`}
-                  className="max-w-40 truncate"
-                />
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-1 font-sans">
-                    <span className="text-[11px] tabular-nums">
-                      {page} / {totalPages}
-                    </span>
-                    <div className="flex items-center">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        disabled={page <= 1}
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        title="上一页（快捷键 [）"
-                        aria-label="上一页"
-                      >
-                        <ChevronLeftIcon className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        disabled={page >= totalPages}
-                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        title="下一页（快捷键 ]）"
-                        aria-label="下一页"
-                      >
-                        <ChevronRightIcon className="size-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </span>
-            </div>
-
-            {/* 列名提示栏（Linear 式微弱字距表头） */}
-            <div className="flex h-7 items-center gap-2 px-3 text-[11px] font-medium text-muted-foreground">
-              <span className="w-64 shrink-0 pl-5">分支</span>
-              <span className="min-w-0 flex-1">最新提交</span>
-              <span className="w-24 shrink-0">基准对比</span>
-              <span className="w-28 shrink-0">关联需求</span>
-              <span className="w-20 shrink-0 text-right">提交日期</span>
-            </div>
-
-            <div className="flex flex-col gap-0.5">
-              {rows.map((row) => {
-                const requirementButtons = row.keys.map((key) => {
-                  const workitem = items.find(
-                    (i) => i.identifier.toUpperCase() === key.toUpperCase(),
-                  );
-                  if (!workitem) {
-                    return (
-                      <span
-                        key={key}
-                        className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
-                      >
-                        {key}
+            {/* 仓库分组（HeroUI Alert）：仓库名 + 命中数 + 基准，分页靠右 */}
+            <Alert status="default">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>
+                  <OverflowTooltip text={repoName} className="min-w-0 truncate text-[13px]" />
+                </Alert.Title>
+                <Alert.Description className="flex items-center gap-3 text-xs">
+                  <span className="tabular-nums">共 {matchedBranches.length} 条</span>
+                  <OverflowTooltip
+                    text={`基准 ${debouncedBase}`}
+                    className="max-w-40 truncate font-mono"
+                  />
+                </Alert.Description>
+              </Alert.Content>
+              {totalPages > 1 && (
+                <Pagination size="sm" className="ml-auto shrink-0 self-center font-sans text-muted-foreground">
+                  <Pagination.Content>
+                    <Pagination.Item>
+                      <Tooltip>
+                        <Pagination.Previous
+                          aria-label="上一页"
+                          isDisabled={page <= 1}
+                          onPress={() => setPage((p) => Math.max(1, p - 1))}
+                        >
+                          <Pagination.PreviousIcon />
+                        </Pagination.Previous>
+                        <Tooltip.Content>上一页（快捷键 [）</Tooltip.Content>
+                      </Tooltip>
+                    </Pagination.Item>
+                    <Pagination.Item>
+                      <span className="px-1 text-[11px] tabular-nums">
+                        {page} / {totalPages}
                       </span>
-                    );
-                  }
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      className={cn(
-                        'cursor-pointer rounded px-1.5 py-0.5 font-mono text-xs transition-colors',
-                        workitem.workitemId === drawerWorkitemId
-                          ? 'bg-primary text-primary-foreground font-semibold'
-                          : 'bg-accent text-foreground hover:bg-accent/70',
-                      )}
-                      onClick={() => {
-                        setDrawerWorkitemId(workitem.workitemId);
-                        void useApp.getState().select(workitem.workitemId);
-                      }}
-                    >
-                      {key}
-                    </button>
-                  );
-                });
+                    </Pagination.Item>
+                    <Pagination.Item>
+                      <Tooltip>
+                        <Pagination.Next
+                          aria-label="下一页"
+                          isDisabled={page >= totalPages}
+                          onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        >
+                          <Pagination.NextIcon />
+                        </Pagination.Next>
+                        <Tooltip.Content>下一页（快捷键 ]）</Tooltip.Content>
+                      </Tooltip>
+                    </Pagination.Item>
+                  </Pagination.Content>
+                </Pagination>
+              )}
+            </Alert>
 
-                const diverged =
-                  row.ahead != null && row.behind != null && (row.ahead > 0 || row.behind > 0);
+            {/* 分支表格（HeroUI Table）：严格组件默认样式（secondary 变体自带分隔线/悬停/排印），不复写组件 CSS */}
+            <Table variant="secondary">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="集成分支列表">
+                  <Table.Header>
+                    <Table.Column isRowHeader>分支</Table.Column>
+                    <Table.Column>最新提交</Table.Column>
+                    <Table.Column>基准对比</Table.Column>
+                    <Table.Column>关联需求</Table.Column>
+                    <Table.Column className="text-end">提交日期</Table.Column>
+                    <Table.Column>操作</Table.Column>
+                  </Table.Header>
 
-                return (
-                  <div
-                    key={row.name}
-                    className="group flex h-11 w-full items-center gap-2 rounded-lg px-3 transition-colors hover:bg-muted/60"
-                  >
-                    <GitBranchIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                    <OverflowTooltip
-                      text={row.name}
-                      className="w-64 shrink-0 truncate font-mono text-xs text-foreground"
-                    />
-                    <OverflowTooltip
-                      text={row.commitMessage || '—'}
-                      className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground"
-                    />
+                  <Table.Body>
+                    {rows.map((row) => {
+                      const requirementButtons = row.keys.map((key) => {
+                        const workitem = items.find(
+                          (i) => i.identifier.toUpperCase() === key.toUpperCase(),
+                        );
+                        if (!workitem) {
+                          return (
+                            <Chip key={key} size="sm" variant="soft" className="font-mono">
+                              {key}
+                            </Chip>
+                          );
+                        }
+                        return (
+                          <Chip
+                            key={key}
+                            size="sm"
+                            variant="soft"
+                            color={workitem.workitemId === drawerWorkitemId ? 'accent' : 'default'}
+                            className="cursor-pointer font-mono"
+                            onClick={() => {
+                              setDrawerWorkitemId(workitem.workitemId);
+                              void useApp.getState().select(workitem.workitemId);
+                            }}
+                          >
+                            {key}
+                          </Chip>
+                        );
+                      });
 
-                    {/* 领先 / 落后基准（比对中展示微动画，比对完成即时呈现） */}
-                    <span
-                      className={cn(
-                        'flex w-24 shrink-0 items-center gap-1 text-xs tabular-nums',
-                        row.comparing
-                          ? 'text-muted-foreground/60'
+                      const diverged =
+                        row.ahead != null && row.behind != null && (row.ahead > 0 || row.behind > 0);
+
+                      const compareTooltip = row.comparing
+                        ? '正在比对与基准分支的双向落差...'
+                        : row.ahead == null || row.behind == null
+                          ? '与基准的比较失败'
                           : diverged
-                            ? 'text-foreground font-medium'
-                            : 'text-muted-foreground',
-                      )}
-                      title={
-                        row.comparing
-                          ? '正在比对与基准分支的双向落差...'
-                          : row.ahead == null || row.behind == null
-                            ? '与基准的比较失败'
-                            : diverged
-                              ? `领先 ${row.ahead} 个提交 · 落后 ${row.behind} 个提交`
-                              : '与基准一致'
-                      }
-                    >
-                      {row.comparing ? (
-                        <span className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground/50 animate-pulse">
-                          <RefreshCwIcon className="size-2.5 animate-spin" />
-                          <span>比对中</span>
-                        </span>
-                      ) : (
-                        <>
-                          <ArrowUpIcon className="size-3" />
-                          {row.ahead ?? '—'}
-                          <ArrowDownIcon className="ml-1 size-3" />
-                          {row.behind ?? '—'}
-                        </>
-                      )}
-                    </span>
+                            ? `领先 ${row.ahead} 个提交 · 落后 ${row.behind} 个提交`
+                            : '与基准一致';
 
-                    {/* 命中的需求编号：有工作项则可点击进入详情 */}
-                    <span className="flex w-28 shrink-0 items-center gap-1 truncate">
-                      {requirementButtons.length ? (
-                        requirementButtons
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </span>
+                      return (
+                        <Table.Row key={row.name} className="group">
+                          <Table.Cell>
+                            <div className="flex items-center gap-2 font-mono">
+                              <GitBranchIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                              <OverflowTooltip text={row.name} />
+                            </div>
+                          </Table.Cell>
 
-                    <span className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-                      {dayOf(row.committedDate)}
-                    </span>
+                          <Table.Cell>
+                            <OverflowTooltip
+                              text={row.commitMessage || '—'}
+                              className="text-muted-foreground"
+                            />
+                          </Table.Cell>
 
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-1">
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        className="h-6 text-[11px] px-1.5 text-primary hover:text-primary hover:bg-primary/10"
-                        title="AI 生成此分支的发版交付报告 (Release Notes)"
-                        onClick={() => setSelectedReleaseBranch(row)}
-                      >
-                        <SparklesIcon className="size-3 mr-1 text-primary" />
-                        交付报告
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                          {/* 领先 / 落后基准（比对中展示微动画，比对完成即时呈现） */}
+                          <Table.Cell>
+                            <Tooltip>
+                              <span
+                                className={cn(
+                                  'flex items-center gap-1 tabular-nums',
+                                  row.comparing
+                                    ? 'text-muted-foreground/60'
+                                    : diverged
+                                      ? 'text-foreground font-medium'
+                                      : 'text-muted-foreground',
+                                )}
+                              >
+                                {row.comparing ? (
+                                  <span className="flex items-center gap-1 animate-pulse">
+                                    <RefreshCwIcon className="size-2.5 animate-spin" />
+                                    <span>比对中</span>
+                                  </span>
+                                ) : (
+                                  <>
+                                    <ArrowUpIcon className="size-3" />
+                                    {row.ahead ?? '—'}
+                                    <ArrowDownIcon className="ml-1 size-3" />
+                                    {row.behind ?? '—'}
+                                  </>
+                                )}
+                              </span>
+                              <Tooltip.Content>{compareTooltip}</Tooltip.Content>
+                            </Tooltip>
+                          </Table.Cell>
+
+                          {/* 命中的需求编号：有工作项则可点击进入详情 */}
+                          <Table.Cell>
+                            <span className="flex items-center gap-1">
+                              {requirementButtons.length ? (
+                                requirementButtons
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </span>
+                          </Table.Cell>
+
+                          <Table.Cell className="text-end">
+                            <span className="text-muted-foreground tabular-nums">
+                              {dayOf(row.committedDate)}
+                            </span>
+                          </Table.Cell>
+
+                          <Table.Cell>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Tooltip>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onPress={() => setSelectedReleaseBranch(row)}
+                                >
+                                  <SparklesIcon className="size-3 text-primary" />
+                                  <span>交付报告</span>
+                                </Button>
+                                <Tooltip.Content>AI 生成此分支的发版交付报告 (Release Notes)</Tooltip.Content>
+                              </Tooltip>
+                            </div>
+                          </Table.Cell>
+                        </Table.Row>
+                      );
+                    })}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table>
 
             {/* 底部导航与说明 */}
             <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
               <p>纯查看视图：比较结果来自云效 Codeup，打包/触发等写操作请前往对应流水线。</p>
               {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <span className="tabular-nums">
+                <Pagination size="sm" className="text-muted-foreground">
+                  <Pagination.Summary className="tabular-nums">
                     第 {page} / {totalPages} 页（共 {matchedBranches.length} 条分支）
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="xs"
-                      disabled={page <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    >
-                      <ChevronLeftIcon className="size-3 mr-0.5" />
-                      上一页 [
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="xs"
-                      disabled={page >= totalPages}
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    >
-                      下一页 ]
-                      <ChevronRightIcon className="size-3 ml-0.5" />
-                    </Button>
-                  </div>
-                </div>
+                  </Pagination.Summary>
+                  <Pagination.Content>
+                    <Pagination.Item>
+                      <Pagination.Previous
+                        aria-label="上一页（快捷键 [）"
+                        isDisabled={page <= 1}
+                        onPress={() => setPage((p) => Math.max(1, p - 1))}
+                      >
+                        <Pagination.PreviousIcon />
+                      </Pagination.Previous>
+                    </Pagination.Item>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <Pagination.Item key={p}>
+                        <Pagination.Link isActive={p === page} onPress={() => setPage(p)}>
+                          {p}
+                        </Pagination.Link>
+                      </Pagination.Item>
+                    ))}
+                    <Pagination.Item>
+                      <Pagination.Next
+                        aria-label="下一页（快捷键 ]）"
+                        isDisabled={page >= totalPages}
+                        onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      >
+                        <Pagination.NextIcon />
+                      </Pagination.Next>
+                    </Pagination.Item>
+                  </Pagination.Content>
+                </Pagination>
               )}
             </div>
           </>

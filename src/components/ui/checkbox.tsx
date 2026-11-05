@@ -19,59 +19,54 @@ export type CheckboxProps = BaseHeroUICheckboxProps & {
   id?: string
 }
 
-const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
-  (
-    {
-      className,
-      checked,
-      defaultChecked,
-      onCheckedChange,
-      onChange,
-      disabled,
-      isDisabled,
-      isSelected,
-      defaultSelected,
-      isIndeterminate: isIndeterminateProp,
-      children,
-      ...props
-    },
-    ref
-  ) => {
-    const effectiveSelected = isSelected ?? (checked === "indeterminate" ? undefined : checked)
-    const effectiveDefaultSelected =
-      defaultSelected ?? (defaultChecked === "indeterminate" ? undefined : defaultChecked)
-    const effectiveIndeterminate =
-      isIndeterminateProp ?? (checked === "indeterminate" || defaultChecked === "indeterminate")
-    const effectiveDisabled = isDisabled ?? disabled
+function Checkbox({
+  ref,
+  className,
+  checked,
+  defaultChecked,
+  onCheckedChange,
+  onChange,
+  disabled,
+  isDisabled,
+  isSelected,
+  defaultSelected,
+  isIndeterminate: isIndeterminateProp,
+  children,
+  ...props
+}: CheckboxProps) {
+  const effectiveSelected = isSelected ?? (checked === "indeterminate" ? undefined : checked)
+  const effectiveDefaultSelected =
+    defaultSelected ?? (defaultChecked === "indeterminate" ? undefined : defaultChecked)
+  const effectiveIndeterminate =
+    isIndeterminateProp ?? (checked === "indeterminate" || defaultChecked === "indeterminate")
+  const effectiveDisabled = isDisabled ?? disabled
 
-    const handleChange = (selected: boolean) => {
-      onChange?.(selected)
-      onCheckedChange?.(selected)
-    }
-
-    return (
-      <HeroUICheckbox
-        ref={ref}
-        data-slot="checkbox"
-        className={cn("inline-flex", className)}
-        isSelected={effectiveSelected}
-        defaultSelected={effectiveDefaultSelected}
-        isIndeterminate={effectiveIndeterminate}
-        isDisabled={effectiveDisabled}
-        onChange={handleChange}
-        {...(props as any)}
-      >
-        <HeroUICheckbox.Content className="p-0">
-          <HeroUICheckbox.Control>
-            <HeroUICheckbox.Indicator />
-          </HeroUICheckbox.Control>
-          {children}
-        </HeroUICheckbox.Content>
-      </HeroUICheckbox>
-    )
+  const handleChange = (selected: boolean) => {
+    onChange?.(selected)
+    onCheckedChange?.(selected)
   }
-)
-Checkbox.displayName = "Checkbox"
+
+  return (
+    <HeroUICheckbox
+      ref={ref}
+      data-slot="checkbox"
+      className={cn("inline-flex", className)}
+      isSelected={effectiveSelected}
+      defaultSelected={effectiveDefaultSelected}
+      isIndeterminate={effectiveIndeterminate}
+      isDisabled={effectiveDisabled}
+      onChange={handleChange}
+      {...(props as any)}
+    >
+      <HeroUICheckbox.Content className="p-0">
+        <HeroUICheckbox.Control>
+          <HeroUICheckbox.Indicator />
+        </HeroUICheckbox.Control>
+        {children}
+      </HeroUICheckbox.Content>
+    </HeroUICheckbox>
+  )
+}
 
 const CheckboxWithCompound = Object.assign(Checkbox, {
   Root: HeroUICheckbox.Root,

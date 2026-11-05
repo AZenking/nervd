@@ -83,7 +83,7 @@ describe('RecentsView test', () => {
         );
       });
 
-      const row = host.querySelector('#recent-row-0') as HTMLElement;
+      const row = host.querySelector('[data-key="w-101"]') as HTMLElement;
       expect(row).toBeTruthy();
 
       await act(async () => {

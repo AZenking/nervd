@@ -14,23 +14,26 @@ export type LabelProps = BaseHeroUILabelProps &
     isDisabled?: boolean
   }
 
-const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
-  ({ className, disabled, isDisabled, ...props }, ref) => {
-    return (
-      <HeroUILabel
-        ref={ref}
-        data-slot="label"
-        isDisabled={isDisabled ?? disabled}
-        className={cn(
-          "flex items-center gap-2 text-[13px] leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
-          className
-        )}
-        {...(props as any)}
-      />
-    )
-  }
-)
-Label.displayName = "Label"
+function Label({
+  ref,
+  className,
+  disabled,
+  isDisabled,
+  ...props
+}: LabelProps) {
+  return (
+    <HeroUILabel
+      ref={ref}
+      data-slot="label"
+      isDisabled={isDisabled ?? disabled}
+      className={cn(
+        "flex items-center gap-2 text-[13px] leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
+        className
+      )}
+      {...(props as any)}
+    />
+  )
+}
 
 const LabelWithCompound = Object.assign(Label, {
   Root: HeroUILabel.Root,

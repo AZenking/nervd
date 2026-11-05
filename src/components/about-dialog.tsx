@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Kbd } from '@/components/ui/kbd';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { useAppUpdate } from '@/hooks/use-app-update';
@@ -83,8 +84,8 @@ export function AboutDialog() {
             {/* 无障碍隐藏标题 */}
             <Modal.Heading className="sr-only">关于 nervd</Modal.Heading>
 
-            {/* 右上角关闭按钮 */}
-            <Modal.CloseTrigger />
+            {/* 右上角关闭按钮：z-10 压过后续 relative 品牌区，避免透明命中层吞掉点击 */}
+            <Modal.CloseTrigger className="z-10" />
 
             {/* 顶部 Hero 品牌区 */}
           <div className="relative flex flex-col items-center px-6 pt-7 pb-5 text-center">
@@ -283,14 +284,14 @@ export function AboutDialog() {
           </div>
 
           {/* 底部导航与外链条 */}
-          <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-5 py-3 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between border-t border-border/60 px-5 py-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleOpenShortcuts}
                 className="cursor-pointer hover:text-foreground transition-colors"
               >
-                快捷键 (<kbd className="font-mono text-[10px]">?</kbd>)
+                快捷键 (<Kbd variant="light" className="h-5! px-1.5! text-[11px]!">?</Kbd>)
               </button>
               <span aria-hidden="true" className="text-border">·</span>
               <button

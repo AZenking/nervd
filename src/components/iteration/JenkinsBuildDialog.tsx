@@ -18,8 +18,8 @@ import { useQuickBuild } from '@/store/quick-build';
 import { isBranchParameterName, isEnvironmentParameterName, sortJenkinsJobsWithRecommendation } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
 import { errorLog, humanizeError } from '@/lib/error-format';
+import { Alert, Card } from '@heroui/react';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -505,9 +505,13 @@ export function JenkinsBuildParameters({
   return (
     <div className="flex flex-col gap-4">
         {!connections.length ? (
-          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            请先在「设置 → CI 集成」中配置 Jenkins 实例并保存 API Token。
-          </div>
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>未配置 Jenkins 实例</Alert.Title>
+              <Alert.Description>请先在「设置 → CI 集成」中配置 Jenkins 实例并保存 API Token。</Alert.Description>
+            </Alert.Content>
+          </Alert>
         ) : (
           <div className="flex flex-col gap-4">
             <Field>
@@ -558,38 +562,39 @@ export function JenkinsBuildParameters({
 
             {jobFullName && !parametersLoading && parameters.length > 0 && (
               <>
-                <Card className="p-3">
-                  <div className="flex items-center justify-between pb-1">
+                <Card>
+                  <Card.Header className="flex flex-row items-center justify-between pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-foreground">
+                      <Card.Title className="text-xs font-semibold text-foreground">
                         Job 构建参数 ({parameters.length})
-                      </span>
+                      </Card.Title>
                       {branchesLoading && (
                         <span className="text-[11px] text-muted-foreground animate-pulse">
                           (正在拉取分支…)
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-muted-foreground">
+                    <Card.Description className="text-[11px]">
                       需要如下参数用于构建项目
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    {parameters.map((parameter) => (
-                      <ParameterField
-                        key={parameter.name}
-                        parameter={parameter}
-                        value={parameterValues[parameter.name] ?? ''}
-                        isBranch={parameter.name === branchParameter}
-                        isEnv={parameter.name === environmentParameter}
-                        branchOptions={allBranchOptions}
-                        branchesLoading={branchesLoading}
-                        defaultBranch={defaultBranch}
-                        onChange={(val) => updateParameter(parameter.name, val)}
-                      />
-                    ))}
-                  </div>
+                    </Card.Description>
+                  </Card.Header>
+                  <Card.Content className="pt-1">
+                    <div className="flex flex-col gap-3">
+                      {parameters.map((parameter) => (
+                        <ParameterField
+                          key={parameter.name}
+                          parameter={parameter}
+                          value={parameterValues[parameter.name] ?? ''}
+                          isBranch={parameter.name === branchParameter}
+                          isEnv={parameter.name === environmentParameter}
+                          branchOptions={allBranchOptions}
+                          branchesLoading={branchesLoading}
+                          defaultBranch={defaultBranch}
+                          onChange={(val) => updateParameter(parameter.name, val)}
+                        />
+                      ))}
+                    </div>
+                  </Card.Content>
                 </Card>
 
                 <Collapsible className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs">
@@ -644,9 +649,12 @@ export function JenkinsBuildParameters({
             )}
 
             {jobFullName && !parametersLoading && !parameters.length && !error && (
-              <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                此 Job 无需 Jenkins 参数，将按 Job 默认配置直接触发构建。
-              </p>
+              <Alert status="accent">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Description>此 Job 无需 Jenkins 参数，将按 Job 默认配置直接触发构建。</Alert.Description>
+                </Alert.Content>
+              </Alert>
             )}
 
             {parametersLoading && (
@@ -664,7 +672,15 @@ export function JenkinsBuildParameters({
               </div>
             )}
 
-            {error && <p className="rounded-md bg-destructive/5 p-2 text-xs text-destructive">{error}</p>}
+            {error && (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>错误</Alert.Title>
+                  <Alert.Description>{error}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
 
             <Label className="font-normal text-xs flex items-center gap-2 cursor-pointer select-none">
               <Checkbox

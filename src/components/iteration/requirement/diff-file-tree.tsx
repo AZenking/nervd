@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface DiffFileTreeProps {
@@ -105,7 +106,7 @@ export function DiffFileTree({
       aria-label="代码变更文件列表"
     >
       {/* 顶部搜索与操作区 */}
-      <div className="p-2.5 border-b border-border/40 flex flex-col gap-2 shrink-0 bg-muted/20">
+      <div className="p-2.5 border-b border-border/40 flex flex-col gap-2 shrink-0">
         <div className="relative flex items-center">
           <SearchIcon className="absolute left-2 size-3.5 text-muted-foreground pointer-events-none" />
           <Input
@@ -120,14 +121,24 @@ export function DiffFileTree({
             className="h-7 text-xs pl-7 pr-6 rounded bg-background/80"
           />
           {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 text-muted-foreground hover:text-foreground"
-              title="清空搜索"
-            >
-              <XIcon className="size-3" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-1 text-muted-foreground hover:text-foreground size-5"
+                    title="清空搜索"
+                    aria-label="清空搜索"
+                  >
+                    <XIcon className="size-3" />
+                  </Button>
+                }
+              />
+              <TooltipContent>清空搜索</TooltipContent>
+            </Tooltip>
           )}
         </div>
 
@@ -139,26 +150,42 @@ export function DiffFileTree({
           </span>
 
           <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-5 text-muted-foreground hover:text-foreground"
-              onClick={expandAll}
-              title="展开全部目录"
-            >
-              <UnfoldVerticalIcon className="size-3.5" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-5 text-muted-foreground hover:text-foreground"
-              onClick={collapseAll}
-              title="折叠全部目录"
-            >
-              <FoldVerticalIcon className="size-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-5 text-muted-foreground hover:text-foreground"
+                    onClick={expandAll}
+                    title="展开全部目录"
+                    aria-label="展开全部目录"
+                  >
+                    <UnfoldVerticalIcon className="size-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>展开全部目录</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-5 text-muted-foreground hover:text-foreground"
+                    onClick={collapseAll}
+                    title="折叠全部目录"
+                    aria-label="折叠全部目录"
+                  >
+                    <FoldVerticalIcon className="size-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>折叠全部目录</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>

@@ -269,7 +269,7 @@ components:
 
 Linear looks like a precision instrument under studio light. The canvas is pure white `{colors.canvas}` (#ffffff) — cool, neutral, deliberately clinical — and structure is carried almost entirely by 1px hairlines (`{colors.hairline}` — #e8e9eb) rather than shadows or coloured fills. Type is Inter in near-black `{colors.ink}` (#26282d) at a compact, workmanlike scale: the largest size in the whole system is 40px (`{typography.display-1}` with −0.8px of tracking), and most of the interface lives at 13–15px. Everything speaks in cool greys, then says exactly one thing in colour: a single violet, `{colors.primary}` (#5E6AD2), reserved for the primary action, inline links, and focus.
 
-The temperament is a developer workbench, not a marketing page: high density, a tight 4px-based spacing scale, compact 32px controls, and a persistent light-grey sidebar (#f9f9f9) framing a pure-white main area. Surfaces are hairline-first — cards, panels, and table rows are defined by 1px borders, and shadows are so light they barely register, reserved for overlays that genuinely float. Status colour exists (emerald / red / amber) but only ever as status — a passed check, a failed run, a pending review — never as decoration, never as structure.
+The temperament is a developer workbench, not a marketing page: high density, a tight 4px-based spacing scale, compact 32px controls, and a persistent light-grey app backdrop (`{colors.canvas-soft}` #f7f8f8) framing two white floating panels — the sidebar and the main workbench. Surfaces are hairline-first — cards, panels, and table rows are defined by 1px borders, and shadows are so light they barely register, reserved for overlays that genuinely float. Status colour exists (emerald / red / amber) but only ever as status — a passed check, a failed run, a pending review — never as decoration, never as structure.
 
 **Key Characteristics:**
 - Cool-neutral grey ramp on a pure white canvas — never warm, never paper-toned
@@ -277,7 +277,7 @@ The temperament is a developer workbench, not a marketing page: high density, a 
 - Exactly one structural accent — Linear violet `{colors.primary}` (#5E6AD2) — for CTAs, links, and focus only
 - Hairline-first surfaces: 1px `{colors.hairline}` borders; micro-shadows only for true overlays
 - High density: 4px base spacing, 8px-radius buttons, 14px button and body text
-- Grey sidebar (#f9f9f9) vs white main area as the single figure/ground move
+- Grey desktop (`{colors.canvas-soft}`) vs two white floating panels (sidebar + main area) as the single figure/ground move
 - Status colours (`{colors.status-emerald}`, `{colors.status-red}`, `{colors.status-amber}`) carry state semantics only
 
 ## Colors
@@ -292,7 +292,7 @@ There is no secondary brand colour and no decorative palette. Everything else is
 
 ### Surface
 - **White** (`{colors.canvas}` / `{colors.surface}` — #ffffff): the main content region, cards, panels, nav bar, and form fields.
-- **Cool Soft** (`{colors.canvas-soft}` — #f7f8f8): soft page zones, table headers, empty states, and the footer band; the sidebar renders a hair deeper at #f9f9f9.
+- **Cool Soft** (`{colors.canvas-soft}` — #f7f8f8): the app desktop backdrop the sidebar and main-area panels float on; also soft page zones, table headers, empty states, and the footer band.
 - **Hairline** (`{colors.hairline}` — #e8e9eb): 1px card borders, dividers, table row rules, and the nav-bar underside.
 - **Accent Fill** (`{colors.accent}` — #f2f3f5): the quiet interactive grey — hover rows, selected states, ghost chips, utility buttons, featured tiers.
 
@@ -339,10 +339,10 @@ Inter is open-source and used as-is — no proprietary cut, no substitute requir
 - Card interiors land at `{spacing.lg}` (20px); table rows pad at `{spacing.sm}`–`{spacing.md}`; sections separate by `{spacing.xl}`–`{spacing.xxl}`. Density is a feature, not a bug.
 
 ### Grid & Container
-The information architecture is workbench-style and deliberately retained: a **page header flush-left at full content width**, then **body content centred at max-w-5xl (64rem)**. A persistent sidebar (~240px, #f9f9f9) frames a pure-white main region; the `{components.nav-bar}` spans the top as a slim white bar with a hairline underside. Detail and settings pages repeat the same rhythm — header left, centred column below — so every page reads as the same product.
+The information architecture is workbench-style and deliberately retained: a **page header flush-left at full content width**, then **body content centred at max-w-5xl (64rem)**. A persistent white sidebar panel (~240px) and the pure-white main region both float on the grey `{colors.canvas-soft}` desktop; the `{components.nav-bar}` spans the top as a slim white bar with a hairline underside. Detail and settings pages repeat the same rhythm — header left, centred column below — so every page reads as the same product.
 
 ### Whitespace Philosophy
-Whitespace is tight and structural. Grouping is done by hairlines and 12–16px gaps rather than large voids; the eye should scan a full page of dense information without ever meeting a decorative empty band. Figure/ground is established exactly once per screen: grey sidebar vs white content.
+Whitespace is tight and structural. Grouping is done by hairlines and 12–16px gaps rather than large voids; the eye should scan a full page of dense information without ever meeting a decorative empty band. Figure/ground is established exactly once per screen: grey desktop vs the two white panels floating on it.
 
 ### Responsive Strategy
 
@@ -526,7 +526,7 @@ Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a h
 |---|---|---|
 | 信息架构 | **Linear 式工作台**：页头贴左全宽 + 正文居中限宽（max-w-5xl）+ 常驻侧栏（浅灰 #f9f9f9、主区纯白）、hover 属性行、键盘优先 | `PageHeader` / `app-sidebar` / `Collapsible` 区块 |
 | 详情组件 | **antd Descriptions 模式**：items 声明式、响应式列数、label 列对齐、copyable/editable 值插槽 | `src/components/ui/descriptions.tsx` |
-| 视觉 token | **shadcn/ui 语义色** 映射到本文档上半部分的 Linear 色板（如 `border`↔hairline、`muted`↔canvas-soft、`foreground`↔ink） | `Button / Table / Drawer / Tooltip` 等基础件 |
+| 视觉 token | **HeroUI v3 语义 token** 对齐本文档上半部分的 Linear 色板（如 `border`↔hairline、`muted`↔canvas-soft、`foreground`↔ink） | `Button / Table / Drawer / Tooltip` 等基础件 |
 
 ## B. 形态分工（决策表）
 
@@ -570,10 +570,9 @@ Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a h
 
 - Tremor（统计带 / 图表组件化思路，`Stat` / `StatBand` 的形态来源）：<https://www.pinterest.com/pin/245798092157509142/>
 
-### D.3 token 层参照（Tailwind / shadcn 后台）
+### D.3 token 层参照（Tailwind 后台模板）
 
 - TailAdmin 开源模板：<https://www.pinterest.com/pin/167759154866881659/>
-- shadcn Admin Dashboard Templates：<https://www.pinterest.com/pin/349029039903632888/>
 - Techwind 浅色极简后台：<https://www.pinterest.com/pin/360710251422516287/>
 
 ### D.4 页面形态参照（任务 / 迭代管理面板）
@@ -614,21 +613,20 @@ Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a h
 | 区域 | 默认宽度 | 宽度限制 | 持久化 |
 |---|---:|---:|---|
 | 导航侧栏 | 256px | 200–300px | `nervd-layout` |
-| 工作项列表 | 360px | 280–480px | `nervd-layout` |
-| 需求详情 | 剩余空间 | 最小 480px | —（由列表钳制间接保证） |
 
-- 分隔线（`PaneSeparator`）：1px 可见线（`bg-border`）+ 8px 透明命中区；`role="separator"` + `aria-valuenow/min/max`，可访问名称含尺寸范围。
+- 分隔线（`PaneSeparator`）：1px 可见线（`bg-border`）+ 8px 透明命中区；`role="separator"` + `aria-valuenow/min/max`，可访问名称含尺寸范围（当前仅用于导航侧栏）。
 - 键盘：方向键 ±8px（Shift ×4）、Home/End 到上下限、双击恢复默认；聚焦时隔离页面单键快捷键（j/k 让路），⌘ 组合键放行。
-- 拖动结束 150ms debounce 持久化；**窗口收窄只做展示期钳制（`effectiveListWidth`），绝不写回已保存偏好**。
+- 拖动结束 150ms debounce 持久化；**窗口收窄只做展示期钳制，绝不写回已保存偏好**。
 - 拖动不重载数据、不改变选择 / 光标 / 导航状态；列表与详情独立滚动。
+- 工作项列表已取消独立分栏：列表常驻全宽渲染，详情检视统一经右侧 Peek 抽屉（`WorkitemPeekDrawer`，宽 `min(58rem, 92vw)`）就地滑出，列表现场（滚动/筛选/分页/多选/光标）不卸载。
 
 ### F.3 窄窗口适配（阈值均为产品约定）
 
 | 条件 | 行为 |
 |---|---|
 | 应用容器 < **1180px** | 侧栏自动收为图标栏；页头 / 侧栏入口可**临时展开**（会话态，不写偏好） |
-| 工作区（扣除侧栏）≥ **760px** | 列表 + 详情双栏，分栏宽度按上表钳制 |
-| 工作区 < **760px** | 单栏：选工作项进入详情，「返回列表」恢复原列表现场（筛选/分页/多选/光标/折叠/滚动） |
+| 工作区（扣除侧栏）≥ **760px** | 全宽列表 + Peek 抽屉详情（列表现场保留） |
+| 工作区 < **760px** | 页头 compact 密度；详情仍走 Peek 抽屉（抽屉占满可用宽度），无需「返回列表」 |
 | 浏览器 < **768px** | 沿用移动侧栏抽屉（Sheet） |
 | macOS 桌面 | 窗口最小 **800×640**，默认 1360×860 |
 

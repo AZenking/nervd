@@ -57,13 +57,16 @@ function Tooltip({
 type TooltipTriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
   React.HTMLAttributes<HTMLDivElement> & {
     render?: any
-    asChild?: boolean
+    ref?: React.Ref<any>
   }
 
-const TooltipTrigger = React.forwardRef<
-  any,
-  TooltipTriggerProps
->(({ className, children, render, asChild: _asChild, ...props }, ref) => {
+function TooltipTrigger({
+  className,
+  children,
+  render,
+  ref,
+  ...props
+}: TooltipTriggerProps) {
   if (render) {
     if (typeof render === "function") {
       return render({ ref, "data-slot": "tooltip-trigger", ...props, className })
@@ -88,8 +91,7 @@ const TooltipTrigger = React.forwardRef<
       {children}
     </TooltipHero.Trigger>
   )
-})
-TooltipTrigger.displayName = "TooltipTrigger"
+}
 
 interface TooltipContentProps extends React.HTMLAttributes<HTMLElement> {
   side?: TooltipSide

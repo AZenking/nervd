@@ -127,7 +127,7 @@ export function AiReleaseNotesDialog({
         </DialogHeader>
 
         {/* 顶部控制栏 */}
-        <div className="flex items-center justify-between border-y border-border/60 py-2 shrink-0 bg-muted/20 -mx-5 px-5">
+        <div className="flex items-center justify-between border-y border-border/60 py-2 shrink-0 -mx-5 px-5">
           <Tabs value={tab} onValueChange={(v) => setTab(v as 'preview' | 'source')}>
             <TabsList size="sm">
               <TabsTrigger value="preview">

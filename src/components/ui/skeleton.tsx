@@ -10,10 +10,12 @@ function Skeleton({
   ...props
 }: SkeletonProps) {
   return (
+    // 底色交给 HeroUI .skeleton 基类（bg-surface-tertiary/70，随明暗主题切换）；
+    // 勿在此追加 bg-muted —— 本主题 --muted 是文字灰，utilities 层会盖掉基类浅灰底
     <HeroSkeleton
       data-slot="skeleton"
       animationType={animationType}
-      className={cn("rounded-md bg-muted", className)}
+      className={cn("rounded-md", className)}
       {...props}
     />
   )

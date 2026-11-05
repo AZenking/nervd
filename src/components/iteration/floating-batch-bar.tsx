@@ -1,6 +1,8 @@
 import { ChevronRightIcon } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,10 +53,16 @@ export function FloatingBatchBar({
 
   return (
     <div data-testid="floating-batch-bar" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-popover/95 backdrop-blur-md border border-border shadow-level-3 rounded-lg px-3.5 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
-      <span data-testid="batch-bar-count" className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold tabular-nums font-mono">
+      <Chip
+        data-testid="batch-bar-count"
+        size="sm"
+        color="accent"
+        variant="soft"
+        className="font-mono text-xs font-semibold tabular-nums"
+      >
         已选 {selectedIds.size} 项
-      </span>
-      <div className="h-4 w-px bg-border" />
+      </Chip>
+      <Separator orientation="vertical" className="h-4" />
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

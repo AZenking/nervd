@@ -443,15 +443,22 @@ export function ChildDetailDrawer({
                 <TooltipContent>在独立工作台全屏打开</TooltipContent>
               </Tooltip>
 
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={onClose}
-                aria-label="关闭抽屉 (Esc)"
-                title="关闭抽屉 (Esc)"
-              >
-                <XIcon className="size-3.5" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={onClose}
+                      aria-label="关闭抽屉 (Esc)"
+                      title="关闭抽屉 (Esc)"
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>关闭抽屉 (Esc)</TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -506,7 +513,7 @@ export function ChildDetailDrawer({
         </div>
 
         {/* 底部操作条 */}
-        <div className="flex items-center justify-between border-t border-border/70 px-5 py-3 bg-muted/20">
+        <div className="flex items-center justify-between border-t border-border/70 px-5 py-3">
           <span className="text-xs text-muted-foreground font-mono">
             Esc 或点击外部关闭
           </span>

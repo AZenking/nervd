@@ -10,13 +10,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import {
   ArrowLeftIcon,
   CalendarClockIcon,
   CalendarDaysIcon,
-  CheckSquareIcon,
   ClockIcon,
   GitBranchIcon,
   LayoutDashboardIcon,
@@ -28,6 +26,7 @@ import { useUi } from '@/store/ui';
 import { useRecentWorkitems } from '@/store/recent-workitems';
 import { useScheduleStore } from '@/store/schedule';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Kbd } from '@/components/ui/kbd';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { SETTINGS_SECTIONS, getSectionErrorCount } from '../settings/sections';
 import { cn } from '@/lib/utils';
@@ -105,10 +104,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </div>
             </div>
           </button>
-
-          <div className="flex items-center gap-1 shrink-0 group-data-[collapsible=icon]:hidden" data-no-drag>
-            <SidebarTrigger aria-label="折叠/展开侧栏" className="size-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" />
-          </div>
         </div>
 
         {/* 搜索与快速操作区：软胶囊输入框 */}
@@ -122,9 +117,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               >
                 <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate text-left">搜索或跳转…</span>
-                <kbd className="shrink-0 rounded-md border border-neutral-200/80 bg-background px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground shadow-2xs dark:border-neutral-700">
+                <Kbd className="shrink-0 h-5! px-1.5! font-mono! text-[10.5px]! leading-none!">
                   ⌘K
-                </kbd>
+                </Kbd>
               </button>
             </div>
             {/* 折叠模式下的图标按钮 */}
@@ -227,11 +222,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     New
                   </span>
                 ),
-              },
-              {
-                title: '本地任务',
-                icon: <CheckSquareIcon />,
-                view: 'local-tasks',
               },
               {
                 title: '定时任务',

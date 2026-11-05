@@ -6,9 +6,33 @@ export function isEditing(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"]'));
 }
 
-export function hasWorkspaceOverlay(): boolean {
+/**
+ * 收集当前可见浮层元素（排除 hidden / aria-hidden / 关闭动画中的 data-closed）。
+ * 常驻页面内的原生集合容器（如迭代列表 HeroUI ListBox 渲染的 role="listbox"）不是浮层：
+ * 仅统计 portal 到工作区内容根（[data-workspace-content]）之外的浮层；
+ * 已被 inert 化的元素（React Aria 弹层开启时对底层内容的处理）同样不算可见。
+ */
+function visibleWorkspaceOverlays(): HTMLElement[] {
+  const workspaceRoot = document.querySelector<HTMLElement>('[data-workspace-content]');
   return [...document.querySelectorAll<HTMLElement>(WORKSPACE_OVERLAY_SELECTOR)]
-    .some((el) => !el.hidden && el.getAttribute('aria-hidden') !== 'true' && !el.hasAttribute('data-closed'));
+    .filter((el) => !el.hidden
+      && el.getAttribute('aria-hidden') !== 'true'
+      && !el.hasAttribute('data-closed')
+      && !(workspaceRoot && workspaceRoot.contains(el))
+      && !el.closest('[inert]'));
+}
+
+export function hasWorkspaceOverlay(): boolean {
+  return visibleWorkspaceOverlays().length > 0;
+}
+
+/**
+ * 可见浮层是否「仅有」工作项 Peek 抽屉（Dialog 带 data-workspace-peek-drawer 标记）。
+ * 迭代列表在该态下放行 j/k 连续检视导航；Esc 与其余按键仍由抽屉及上层浮层原生接管。
+ */
+export function isWorkspacePeekDrawerOnly(): boolean {
+  const overlays = visibleWorkspaceOverlays();
+  return overlays.length === 1 && overlays[0].hasAttribute('data-workspace-peek-drawer');
 }
 
 /** Route menu and keyboard commands through the same existing controls. */

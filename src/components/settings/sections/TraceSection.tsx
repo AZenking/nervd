@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox, Chip, Input, ScrollShadow } from '@heroui/react';
 import { getCustomDevBranch, setCustomDevBranch } from '@/lib/dev-branch-settings';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 
@@ -40,10 +37,10 @@ export function TraceSection() {
         description="集成分支视图默认扫描 release/*、integration/*、temp/*、hotfix/* 交付分支，并依据上方关联正则提取需求编号计算双向落差。"
         control={(
           <div className="flex flex-wrap gap-1 font-mono text-xs text-muted-foreground">
-            <span className="rounded bg-muted/70 px-1.5 py-0.5">release/*</span>
-            <span className="rounded bg-muted/70 px-1.5 py-0.5">integration/*</span>
-            <span className="rounded bg-muted/70 px-1.5 py-0.5">temp/*</span>
-            <span className="rounded bg-muted/70 px-1.5 py-0.5">hotfix/*</span>
+            <Chip size="sm" variant="soft">release/*</Chip>
+            <Chip size="sm" variant="soft">integration/*</Chip>
+            <Chip size="sm" variant="soft">temp/*</Chip>
+            <Chip size="sm" variant="soft">hotfix/*</Chip>
           </div>
         )}
       />
@@ -127,27 +124,35 @@ function RepoChecklist() {
             onChange={(e) => setFilter(e.target.value)}
           />
           {archivedCount > 0 && (
-            <Label className="cursor-pointer text-xs font-normal text-muted-foreground">
-              <Checkbox
-                checked={showArchived}
-                onCheckedChange={(v) => setShowArchived(v === true)}
-              />
-              显示已归档（{archivedCount}）
-            </Label>
+            <Checkbox
+              isSelected={showArchived}
+              onChange={(v) => setShowArchived(v)}
+              className="cursor-pointer text-xs font-normal text-muted-foreground"
+            >
+              <Checkbox.Content>
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                显示已归档（{archivedCount}）
+              </Checkbox.Content>
+            </Checkbox>
           )}
-          <ScrollArea className="h-48 rounded-md border border-border/60 bg-background/50">
+          <ScrollShadow className="h-48 rounded-md border border-border/60 bg-background/50">
             <div className="flex flex-col gap-0.5 p-1.5">
               {visibleRepos.map((r) => (
-                <Label
+                <Checkbox
                   key={r.id}
+                  isSelected={watched.includes(r.id)}
+                  onChange={() => toggleRepo(r.id)}
                   className="cursor-pointer rounded-md px-2 py-1.5 font-normal text-foreground hover:bg-muted"
                 >
-                  <Checkbox
-                    checked={watched.includes(r.id)}
-                    onCheckedChange={() => toggleRepo(r.id)}
-                  />
-                  <span className="font-mono text-xs">{r.pathWithNamespace || r.name}</span>
-                </Label>
+                  <Checkbox.Content>
+                    <Checkbox.Control>
+                      <Checkbox.Indicator />
+                    </Checkbox.Control>
+                    <span className="font-mono text-xs">{r.pathWithNamespace || r.name}</span>
+                  </Checkbox.Content>
+                </Checkbox>
               ))}
               {!visibleRepos.length && (
                 <div className="p-2 text-sm text-muted-foreground">
@@ -159,7 +164,7 @@ function RepoChecklist() {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </ScrollShadow>
         </div>
       )}
     />

@@ -25,6 +25,8 @@ export interface LogViewState {
   text: string;
   repoId?: number;
   runId?: string;
+  connectionId?: string;
+  jobFullName?: string;
   pipelineId?: number;
   jobId?: number;
   stages?: api.CiStageItem[];
@@ -115,6 +117,40 @@ export interface IterationsSlice {
   loadIterations(): Promise<void>;
 }
 
+export type OverviewLoadStatus =
+  | 'idle'
+  | 'loading'
+  | 'refreshing'
+  | 'success'
+  | 'partial'
+  | 'error';
+
+export interface OverviewCategoryState {
+  items: api.WorkitemRow[];
+  loadedCount: number;
+  nextToken: string | null;
+  complete: boolean;
+  status: OverviewLoadStatus;
+  error: string | null;
+  fetchedAt: number | null;
+}
+
+export interface OverviewIterationsState {
+  items: IterationSummary[];
+  status: 'idle' | 'loading' | 'success' | 'error';
+  error: string | null;
+  fetchedAt: number | null;
+}
+
+export interface OverviewSlice {
+  overviewByCategory: Record<Category, OverviewCategoryState>;
+  overviewIterations: OverviewIterationsState;
+  overviewContextKey: string | null;
+  loadOverviewCategory(category: Category, options?: { refresh?: boolean }): Promise<void>;
+  loadOverviewIterations(options?: { refresh?: boolean }): Promise<void>;
+  resetOverviewData(): void;
+}
+
 export interface TraceSlice {
   trace: TraceResult | null;
   traceLoading: boolean;
@@ -148,11 +184,18 @@ export interface PipelinesSlice {
 export interface LogsSlice {
   logView: LogViewState | null;
   openRepoCiLogs(repoId: number, runId: string, title: string): Promise<void>;
+  openTargetJenkinsLogs(
+    connectionId: string,
+    jobFullName: string,
+    runId: string,
+    title: string,
+    repoId?: number,
+  ): Promise<void>;
   refreshRepoCiLogs(): Promise<void>;
   openLogs(pipelineId: number, runId: number, jobId: number, title: string): Promise<void>;
   closeLogs(): void;
 }
 
-export type AppStore = CoreSlice & WorkitemsSlice & IterationsSlice & TraceSlice & RepoCiSlice & PipelinesSlice & LogsSlice;
+export type AppStore = CoreSlice & WorkitemsSlice & IterationsSlice & OverviewSlice & TraceSlice & RepoCiSlice & PipelinesSlice & LogsSlice;
 
 export type AppSliceCreator<T> = StateCreator<AppStore, [], [], T>;

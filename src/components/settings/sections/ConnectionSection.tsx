@@ -1,18 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { RefreshCwIcon, UserCheckIcon } from 'lucide-react';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Avatar, Button, Chip, Input } from '@heroui/react';
 import { Switch } from '@/components/ui/switch';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { SearchableSelect } from '@/components/searchable-select';
 import { StatusBadge, connectionStatus } from '@/components/StatusBadge';
-import { SettingsGroup, SettingsRow, SettingsRowError } from '../settings-group';
+import { SettingsGroup, SettingsRow } from '../settings-group';
+import { OrgRow, PatRow, SpaceRow } from './connection-fields';
 
 export function ConnectionSection() {
   const {
@@ -25,33 +22,7 @@ export function ConnectionSection() {
     setWorkitemHighlight,
   } = useApp();
   const draft = useSettingsDraft();
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [testResult, setTestResult] = useState<string | null>(null);
-
-  const loadProjects = async () => {
-    try {
-      // 若草稿中有未持久化的 PAT 或组织 ID 改动，先刷入保存，确保后端以最新凭据请求接口
-      const orgChanged = Boolean(
-        draft.draft && draft.baseline && draft.draft.organizationId !== draft.baseline.organizationId,
-      );
-      if (draft.pat.trim() || orgChanged) {
-        await draft.flushAutoSave();
-      }
-      const list = await api.listProjects();
-      setProjects(list);
-      if (!list.length) useSettingsDraft.getState().setFieldError('space', '未返回项目（检查令牌权限或组织 ID）');
-      else useSettingsDraft.getState().setFieldError('space', null);
-    } catch (e) {
-      errorLog('settings-fetch-projects', e);
-      useSettingsDraft.getState().setFieldError('space', `项目拉取失败：${humanizeError(e)}`);
-    }
-  };
-
-  useEffect(() => {
-    if (settings?.hasPat && settings.organizationId) {
-      void loadProjects();
-    }
-  }, [settings?.hasPat, settings?.organizationId]);
 
   const test = async () => {
     setTestResult('测试中…');
@@ -72,99 +43,20 @@ export function ConnectionSection() {
     }
   };
 
-  const spaceError = draft.fieldErrors.space;
-  const projectItems = [
-    {
-      label: projects.length ? '— 选择项目 —' : settings?.hasPat ? '项目加载中…，可点击右侧刷新' : '先保存令牌后自动加载',
-      value: null as string | null,
-    },
-    ...projects.map((p) => ({ label: p.name, value: p.id as string | null })),
-  ];
-
   return (
     <div className="flex flex-col gap-6">
       <SettingsGroup
         title="令牌与组织"
         description="令牌与组织信息，用于访问云效 DevOps API。"
       >
-        <SettingsRow
-          orientation="horizontal"
-          controlWidth="w-72"
-          label={(
-            <span className="flex items-center gap-1.5">
-              个人访问令牌
-              {settings?.hasPat && <Badge variant="secondary">已保存</Badge>}
-            </span>
-          )}
-          description="令牌仅保存在本机，留空表示保持现有令牌不变。"
-          htmlFor="pat"
-          control={(
-            <Input
-              id="pat"
-              type="password"
-              className="font-mono"
-              value={draft.pat}
-              onChange={(e) => draft.setPat(e.target.value)}
-              onBlur={() => {
-                if (draft.pat.trim()) void draft.save({ silent: true });
-              }}
-              placeholder={settings?.hasPat ? '已保存（留空则不修改）' : 'agp_…'}
-            />
-          )}
-        />
+        <PatRow />
 
-        <SettingsRow
-          orientation="horizontal"
-          controlWidth="w-72"
-          label="组织 ID"
-          description="浏览器地址 devops.aliyun.com/organization/<组织 ID> 中的一段。"
-          htmlFor="org"
-          control={(
-            <Input
-              id="org"
-              className="font-mono"
-              value={draft.draft?.organizationId ?? ''}
-              onChange={(e) => draft.update({ organizationId: e.target.value })}
-              onBlur={() => void draft.flushAutoSave()}
-              placeholder="60de7a68…"
-            />
-          )}
-        />
+        <OrgRow />
 
-        {/* UX A4：校验错误内联到字段，不再走底部文案条 */}
-        <SettingsRow
-          orientation="horizontal"
-          controlWidth="w-72"
-          label="默认项目空间"
-          description="工作项列表从此项目空间读取。"
-          htmlFor="space"
-          error={spaceError ? <SettingsRowError>{spaceError}</SettingsRowError> : undefined}
-          control={(
-            <div className="flex gap-2">
-              <SearchableSelect
-                id="space"
-                className="min-w-0 flex-1 font-mono"
-                value={draft.draft?.defaultSpaceIdentifier || null}
-                onValueChange={(v) => {
-                  draft.setFieldError('space', null);
-                  draft.update({ defaultSpaceIdentifier: v ?? '' }, true);
-                }}
-                items={projectItems}
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="重新拉取项目列表"
-                onClick={() => void loadProjects()}
-              >
-                <RefreshCwIcon />
-              </Button>
-            </div>
-          )}
-        />
+        <SpaceRow />
 
         {/* 云效连接测试与状态 */}
-        <div className="flex flex-col gap-2 border-t border-border/50 bg-muted/15 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 border-t border-border/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2.5">
             <StatusBadge status={connectionStatus(connection)} />
             {testResult ? (
@@ -175,10 +67,10 @@ export function ConnectionSection() {
           </div>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             className="shrink-0 self-start sm:self-auto"
-            onClick={() => void test()}
+            onPress={() => void test()}
           >
             测试连接
           </Button>
@@ -191,13 +83,13 @@ export function ConnectionSection() {
         description="基于当前访问令牌自动识别云效用户身份，并在需求列表中高亮处理人（我负责）与关联人（我参与）。"
       >
         {/* 用户身份识别卡片 */}
-        <div className="flex flex-col gap-3 p-4 border-b border-border/50 bg-muted/15 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 p-4 border-b border-border/50 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <Avatar className="size-10 shrink-0 border border-border/60">
-              {currentUser?.avatarUrl && <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} />}
-              <AvatarFallback className="text-sm font-medium bg-primary/10 text-primary">
+            <Avatar size="md" className="border border-border/60 shrink-0">
+              {currentUser?.avatarUrl && <Avatar.Image src={currentUser.avatarUrl} alt={currentUser.name} />}
+              <Avatar.Fallback className="text-sm font-medium bg-primary/10 text-primary">
                 {currentUser?.name ? currentUser.name.charAt(0) : <UserCheckIcon className="size-4" />}
-              </AvatarFallback>
+              </Avatar.Fallback>
             </Avatar>
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex items-center gap-2">
@@ -205,9 +97,9 @@ export function ConnectionSection() {
                   {currentUser?.name || (loadingCurrentUser ? '正在识别云效用户…' : settings?.hasPat ? '未识别到用户' : '待配置访问令牌')}
                 </span>
                 {currentUser && (
-                  <Badge variant="secondary" className="h-4.5 px-1.5 text-[10px] font-mono text-muted-foreground">
+                  <Chip size="sm" variant="secondary" className="h-4.5 px-1.5 text-[10px] font-mono text-muted-foreground">
                     {currentUser.id.slice(0, 8)}…
-                  </Badge>
+                  </Chip>
                 )}
               </div>
               <span className="truncate text-xs text-muted-foreground">
@@ -223,10 +115,10 @@ export function ConnectionSection() {
           </div>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
-            disabled={loadingCurrentUser || !settings?.hasPat}
-            onClick={() => void loadCurrentUser()}
+            isDisabled={loadingCurrentUser || !settings?.hasPat}
+            onPress={() => void loadCurrentUser()}
             className="shrink-0 self-start sm:self-auto gap-1.5"
           >
             <RefreshCwIcon className={cn('size-3.5', loadingCurrentUser && 'animate-spin')} />
@@ -243,8 +135,10 @@ export function ConnectionSection() {
           control={(
             <Switch
               id="highlight-enabled"
-              checked={workitemHighlight.enabled}
-              onCheckedChange={(checked) => setWorkitemHighlight({ enabled: checked })}
+              aria-label="开启需求列表高亮标记"
+              size="md"
+              isSelected={workitemHighlight.enabled}
+              onChange={(checked) => setWorkitemHighlight({ enabled: checked })}
             />
           )}
         />
@@ -255,9 +149,14 @@ export function ConnectionSection() {
           label={(
             <span className="flex items-center gap-2">
               <span>高亮我负责的需求</span>
-              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none bg-primary/10 text-primary border border-primary/20">
+              <Chip
+                size="sm"
+                variant="soft"
+                color="accent"
+                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-full select-none"
+              >
                 我负责
-              </span>
+              </Chip>
             </span>
           )}
           description="当您为需求处理人（Assignee）时，行首显示紫色标记与「我负责」徽标。"
@@ -265,9 +164,11 @@ export function ConnectionSection() {
           control={(
             <Switch
               id="highlight-assignee"
-              disabled={!workitemHighlight.enabled}
-              checked={workitemHighlight.highlightAssignee}
-              onCheckedChange={(checked) => setWorkitemHighlight({ highlightAssignee: checked })}
+              aria-label="高亮我负责的需求"
+              size="md"
+              isDisabled={!workitemHighlight.enabled}
+              isSelected={workitemHighlight.highlightAssignee}
+              onChange={(checked) => setWorkitemHighlight({ highlightAssignee: checked })}
             />
           )}
         />
@@ -278,9 +179,14 @@ export function ConnectionSection() {
           label={(
             <span className="flex items-center gap-2">
               <span>高亮我参与的需求</span>
-              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              <Chip
+                size="sm"
+                variant="soft"
+                color="warning"
+                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full select-none"
+              >
                 我参与
-              </span>
+              </Chip>
             </span>
           )}
           description="当您在需求关联人 / 参与人（Participants）列表中时，行首显示琥珀色标记与「我参与」徽标。"
@@ -288,9 +194,11 @@ export function ConnectionSection() {
           control={(
             <Switch
               id="highlight-related"
-              disabled={!workitemHighlight.enabled}
-              checked={workitemHighlight.highlightRelated}
-              onCheckedChange={(checked) => setWorkitemHighlight({ highlightRelated: checked })}
+              aria-label="高亮我参与的需求"
+              size="md"
+              isDisabled={!workitemHighlight.enabled}
+              isSelected={workitemHighlight.highlightRelated}
+              onChange={(checked) => setWorkitemHighlight({ highlightRelated: checked })}
             />
           )}
         />

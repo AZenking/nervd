@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ProgressBar } from '@heroui/react';
 import { formatElapsedTime } from '@/hooks/use-elapsed-time';
 import { cn } from '@/lib/utils';
 
@@ -126,39 +127,38 @@ export function BuildProgressBar({
 
   if (compact) {
     return (
-      <div className={cn('flex flex-col gap-1 w-full', className)}>
-        <div className="flex items-center justify-between text-[10px] font-mono tabular-nums text-muted-foreground">
+      <div className={cn('flex w-full min-w-0 flex-col gap-1', className)}>
+        <div className="flex min-w-0 items-center justify-between gap-2 font-mono text-xs leading-4 tabular-nums text-muted">
           <span className="flex items-center gap-1">
             <span className="text-foreground font-medium">{elapsedText}</span>
             {hasEstimate && <span>/ 约 {estimatedText}</span>}
             {isOvertime && (
-              <span className="text-amber-600 dark:text-amber-400 font-semibold">{overtimeText}</span>
+              <span className="font-semibold text-warning">{overtimeText}</span>
             )}
           </span>
           <span>{hasEstimate ? `${percent}%` : '首次运行中'}</span>
         </div>
-        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
-          {hasEstimate ? (
-            <div
-              className={cn(
-                'h-full rounded-full transition-all duration-500 ease-out',
-                isOvertime ? 'bg-amber-500 animate-pulse' : 'bg-sig-run',
-              )}
-              style={{ width: `${percent}%` }}
-            />
-          ) : (
-            <div className="h-full w-full rounded-full bg-sig-run/60 animate-pulse" />
-          )}
-        </div>
+        <ProgressBar
+          aria-label={hasEstimate ? `执行进度 ${percent}%` : '首次运行中'}
+          value={hasEstimate ? percent : undefined}
+          isIndeterminate={!hasEstimate}
+          color={isOvertime ? 'warning' : 'accent'}
+          size="sm"
+          className="w-full"
+        >
+          <ProgressBar.Track>
+            <ProgressBar.Fill />
+          </ProgressBar.Track>
+        </ProgressBar>
       </div>
     );
   }
 
   return (
     <div className={cn('flex flex-col gap-1.5 w-full', className)}>
-      <div className="flex items-center justify-between text-[11px] font-mono tabular-nums text-muted-foreground">
+      <div className="flex items-center justify-between font-mono text-xs tabular-nums text-muted">
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">已用:</span>
+          <span className="text-muted">已用:</span>
           <span className="font-semibold text-foreground">{elapsedText}</span>
           {hasEstimate && (
             <>
@@ -167,7 +167,7 @@ export function BuildProgressBar({
             </>
           )}
           {isOvertime && (
-            <span className="rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1 py-0.2 text-[10px] font-bold">
+            <span className="rounded-md border border-warning/30 bg-warning-soft px-1.5 py-0.5 text-[10px] font-semibold text-warning-soft-foreground">
               超出预估 {overtimeText}
             </span>
           )}
@@ -175,35 +175,28 @@ export function BuildProgressBar({
 
         <div className="flex items-center gap-2">
           {hasEstimate && !isOvertime && (
-            <span className="text-muted-foreground/80">
+            <span className="text-muted/80">
               剩余约 <span className="text-foreground/90 font-medium">{remainingText}</span>
             </span>
           )}
-          <span className="font-semibold text-sig-run">
+          <span className="font-semibold text-warning">
             {hasEstimate ? `${percent}%` : '首次运行预估中'}
           </span>
         </div>
       </div>
 
-      {/* 进度条轨道 */}
-      <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted/70">
-        {hasEstimate ? (
-          <div
-            className={cn(
-              'h-full rounded-full transition-all duration-500 ease-out relative',
-              isOvertime
-                ? 'bg-amber-500 animate-pulse'
-                : 'bg-gradient-to-r from-sig-run/90 to-sig-run',
-            )}
-            style={{ width: `${percent}%` }}
-          >
-            {/* 柔和流光扫光效果 */}
-            <div className="absolute inset-0 bg-white/20 -skew-x-12 animate-pulse" />
-          </div>
-        ) : (
-          <div className="h-full w-full rounded-full bg-sig-run/40 animate-pulse" />
-        )}
-      </div>
+      <ProgressBar
+        aria-label={hasEstimate ? `执行进度 ${percent}%` : '首次运行预估中'}
+        value={hasEstimate ? percent : undefined}
+        isIndeterminate={!hasEstimate}
+        color={isOvertime ? 'warning' : 'accent'}
+        size="sm"
+        className="w-full"
+      >
+        <ProgressBar.Track>
+          <ProgressBar.Fill />
+        </ProgressBar.Track>
+      </ProgressBar>
     </div>
   );
 }

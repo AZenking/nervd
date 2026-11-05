@@ -51,7 +51,7 @@ The MCP server returns "not initialized." Ask the user: *"I notice this project 
   - **跨平台桌面壳**：Tauri 2 (Rust IPC Core)
   - **前端视图层**：React 19 + TypeScript + Zustand
   - **样式与设计系统**：Tailwind CSS v4 (`@tailwindcss/vite` + CSS-first 主题变量)
-  - **无障碍交互原语**：`@base-ui/react` (Headless 交互原语)
+  - **无障碍组件基座**：`@heroui/react` v3（React Aria 系无障碍组件库）
   - **图形与图表**：Lucide React + `@xyflow/react`
 
 ---
@@ -67,9 +67,10 @@ The MCP server returns "not initialized." Ask the user: *"I notice this project 
 * **分页机制 (Pagination)**：
   - 固定每页 30 条，消除长列表无限滚动的内存累积与渲染卡顿。
   - 支持键盘 `[` / `]` 翻页；换页未命中已缓存数据时，由前台自动向云效接口补拉（Backfilling），直到填满页面或取尽远端数据。
-* **双栏连续检视 (Master-Detail Split)**：
-  - 点击行、按 `Enter` 或右键选择“查看详情”就地在右侧展开需求详情分栏。
-  - **联动检视心智**：在分栏打开状态下，用户使用 `j`/`k` 上下移动光标，右侧详情**实时联动刷新**，无需反复开合面板，提供极速连续审查体验。
+* **侧边抽屉连续检视 (Linear Peek Drawer)**：
+  - 点击行、按 `Enter` 或右键选择“查看详情”就地在右侧滑出需求详情抽屉（`WorkitemPeekDrawer`），列表现场（滚动/筛选/分页/多选/光标）完整保留不卸载。
+  - **联动检视心智**：在抽屉开启状态下，用户使用 `j`/`k` 上下移动光标，抽屉详情**实时联动刷新**，无需反复开合面板，提供极速连续审查体验。
+  - 双击行或抽屉内“全屏打开”转入独立工作台模态。
 * **行内原地流转 (In-place Popover)**：
   - 行首 `RowStatusDropdown` 原语：点击工作项行首状态图标直接弹出状态流转菜单，就地切换状态，无需进入详情页。
 * **多选与浮动批量操作条 (Floating Batch Bar)**：
@@ -78,12 +79,12 @@ The MCP server returns "not initialized." Ask the user: *"I notice this project 
 
 ### 2.2 需求详情工作台 (Requirement Details Workbench)
 * **双模态架构 (Dual-Mode Rendering)**：
-  - **嵌入模态 (`embedded`)**：作为 Master-Detail 右侧面板或侧边抽屉嵌入，顶部自适应收敛为紧凑元数据条（Compact Metadata Bar，包含状态流转 Popover、处理人、类别、父需求跳转、关联仓库数），正文单列呼吸感布局，释放横向视口。
+  - **嵌入模态 (`embedded`)**：作为侧边 Peek 抽屉嵌入（列表/总览/集成分支共用），顶部自适应收敛为紧凑元数据条（Compact Metadata Bar，包含状态流转 Popover、处理人、类别、父需求跳转、关联仓库数），正文单列呼吸感布局，释放横向视口。
   - **独立工作台模态 (Full Workbench)**：通过“全屏打开”按钮调起，包含完整面包屑导航、大标题、右侧 Linear 式属性列表（`Descriptions` 裸行）及两栏工作台。
 * **子任务与缺陷快速管理 (Inline Fast Create & Drill-down)**：
   - **行内快捷新建**：废弃独立 Modal 弹窗，子任务/缺陷卡片底部直接提供行内创建输入行，输入标题按回车即时创建。
   - **行内原地状态流转**：子任务行首 `InlineStatusDropdown` 支持就地更新子任务工作流状态。
-  - **子任务就地钻取与逐层退回**：在 Master-Detail 分栏内点击子任务，右侧平滑切换为子任务详情，顶部显示“返回父需求”面包屑；按 `Esc` 逐层退回父需求。
+  - **子任务就地钻取与逐层退回**：在详情抽屉内点击子任务，抽屉平滑切换为子任务详情，顶部显示“返回父需求”面包屑；按 `Esc` 逐层退回父需求（钻取退回优先于关闭抽屉）。
 * **交付链路与分支同步图谱**：
   - 关联云效仓库卡片（`LinkedRepoCard`）：展示分支规则模板匹配、开发分支、已关联 MR 及 CI 运行状态。
   - 可视化分支图谱（`BranchStateDiagram`）：以需求为根，真实展示基准分支、迭代分支与开发分支的分叉与超前/落后状态。
@@ -176,17 +177,17 @@ nervd 的交互体验严格遵循 Linear 风格的标准操作心智，确保双
   [ 光标移动与检视 ]      [ 批量操作与流转 ]       [ 单手前缀跳转 ]
   • j / ↓ : 下一项        • x : 选中/取消多选     • g o : 总览
   • k / ↑ : 上一项        • Esc : 取消多选        • g i : 当前迭代
-  • Enter : 展开分栏详情  • 底部浮动批量操作条    • g b : 集成分支
-  • 分栏下 j/k 实时联动   • 行首 Popover 就地变更 • g s : 系统设置
+  • Enter : 打开抽屉详情    • 底部浮动批量操作条    • g b : 集成分支
+  • 抽屉下 j/k 实时联动   • 行首 Popover 就地变更 • g s : 系统设置
 ```
 
 ### 4.1 核心键盘快捷键
 * **列表移动**：
   - `j` / `↓`：光标移动至下一项，跟随滚动（`block: 'nearest'`）。
   - `k` / `↑`：光标移动至上一项。
-  - **连续检视**：分栏打开时，`j`/`k` 移动光标即时触发右侧详情刷新。
+  - **连续检视**：Peek 抽屉打开时，`j`/`k` 移动光标即时触发抽屉详情刷新。
 * **选择与流转**：
-  - `Enter`：打开选中项详情分栏。
+  - `Enter`：打开选中项详情抽屉。
   - `x`：切换当前光标所在行的多选 Checkbox 状态。
 * **翻页**：
   - `[`：上一页。
@@ -199,8 +200,8 @@ nervd 的交互体验严格遵循 Linear 风格的标准操作心智，确保双
 按 `Esc` 键时，按照严格的层级优先级依次退回，不得越级跳关：
 1. **第一优先级（浮层优先）**：若有右键菜单 / 下拉菜单 / 弹窗打开，`Esc` 仅关闭最顶层浮层。
 2. **第二优先级（多选优先）**：若当前有多选条目（`selectedIds.size > 0`），`Esc` 清空全部多选。
-3. **第三优先级（钻取优先）**：若在详情分栏中钻取了子工作项，`Esc` 退回父需求详情。
-4. **第四优先级（分栏优先）**：若处于 Master-Detail 详情分栏，`Esc` 关闭分栏退回全宽列表。
+3. **第三优先级（钻取优先）**：若在详情抽屉中钻取了子工作项，`Esc` 退回父需求详情。
+4. **第四优先级（抽屉优先）**：若处于详情 Peek 抽屉，`Esc` 关闭抽屉退回全宽列表。
 5. **第五优先级（整页优先）**：若处于独立详情全屏页或系统设置页，`Esc` 或 `⌘←` 返回上一级并恢复前序滚动位置。
 
 ### 4.3 单手前缀跳转序列 (G-Sequence Navigation)
@@ -251,7 +252,7 @@ nervd 面向企业真实云效与仓库，所有写操作必须通过前端组�
 
 | 任务场景 | 推荐使用 Skill | 说明与职责 |
 |---|---|---|
-| **前端样式 / UI 组件开发** | **`modern-web-guidance`** | **HTML/CSS/JS 开发前强制执行**。遵循现代 Web 标准、Tailwind v4 语法、Base UI 无障碍原语与 React 19 最佳实践。 |
+| **前端样式 / UI 组件开发** | **`modern-web-guidance`** | **HTML/CSS/JS 开发前强制执行**。遵循现代 Web 标准、Tailwind v4 语法、HeroUI v3（React Aria）无障碍组件与 React 19 最佳实践。 |
 | **页面交互走查 / UI 验收** | **`ego-browser`** | 配合 `pnpm preview:dev`（运行于 `http://localhost:1423`），免启动 Tauri 进行浏览器视觉核对、多视图走查与截图留痕。 |
 | **DOM / 网络 / 运行时排查** | **`chrome-devtools`** | 针对控制台报错、网络请求异常、布局坍塌、计算样式（`getComputedStyle`）进行深度调试。 |
 | **无障碍 / 快捷键 / 焦点流** | **`a11y-debugging`** | 校验键盘导航（`j`/`k`、`Tab`、`⌘K`）、`focus-visible` 焦点环、屏幕阅读器标签及对比度（WCAG 2.1 AA）。 |

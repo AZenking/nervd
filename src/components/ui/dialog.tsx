@@ -51,14 +51,12 @@ const Dialog = Object.assign(DialogRoot, {
 
 interface DialogTriggerProps extends Omit<React.ComponentPropsWithoutRef<typeof HeroUIModal.Trigger>, "render"> {
   render?: React.ReactNode | ((props: any) => React.ReactNode)
-  asChild?: boolean
 }
 
 function DialogTrigger({
   className,
   children,
   render,
-  asChild: _asChild,
   ...props
 }: DialogTriggerProps) {
   if (render) {

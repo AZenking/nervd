@@ -7,6 +7,7 @@ import { HelpCircleIcon, MonitorIcon, MoonIcon, SettingsIcon, SunIcon } from 'lu
 import { useUi } from '@/store/ui';
 import { useAppUpdate } from '@/hooks/use-app-update';
 import { APP_VERSION } from '@/lib/app-info';
+import { Kbd } from '@/components/ui/kbd';
 
 /** 侧栏底部操作区：对齐现代 SaaS 风格底部（帮助与信息、界面主题切换、系统设置） */
 export function NavUser() {
@@ -65,9 +66,9 @@ export function NavUser() {
         >
           <SettingsIcon className="size-[18px] shrink-0" />
           <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">系统设置</span>
-          <kbd className="ml-auto rounded-md border border-neutral-200/80 bg-background dark:border-neutral-700 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden leading-none">
+          <Kbd className="ml-auto h-5! px-1.5! font-mono! text-[10px]! leading-none! group-data-[collapsible=icon]:hidden">
             g s
-          </kbd>
+          </Kbd>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>

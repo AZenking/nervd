@@ -1,21 +1,96 @@
 /* ============================================================
    nervd · Linear (light) theme
    Source of truth: design.md
-   Tailwind CSS v4 (CSS-first) + shadcn/ui (Base UI)
+   Tailwind CSS v4 (CSS-first) + HeroUI v3 (React Aria)
    ============================================================ */
 @import "tailwindcss";
 @import "@heroui/styles";
-@import "@heroui/styles/components/toast.css";
-@import "@heroui/styles/components/progress-bar.css";
-@import "@heroui/styles/components/accordion.css";
+/* 组件样式显式归入 components 层：与主入口 @heroui/styles 的分层架构一致。
+   切勿去掉 layer() —— 无 layer 的样式优先级高于 @layer utilities，
+   会导致 Card 槽位上的工具类（flex-row / grid / sm:p-5 / text-[13px] 等）全部失效，
+   表现为卡片头部竖排居中（flex-row 被 .card__header 的 flex-col 压制）。 */
+@import "@heroui/styles/components/toast.css" layer(components);
+@import "@heroui/styles/components/progress-bar.css" layer(components);
+@import "@heroui/styles/components/accordion.css" layer(components);
+@import "@heroui/styles/components/table.css" layer(components);
+@import "@heroui/styles/components/breadcrumbs.css" layer(components);
+@import "@heroui/styles/components/select.css" layer(components);
+@import "@heroui/styles/components/tabs.css" layer(components);
+@import "@heroui/styles/components/alert.css" layer(components);
+@import "@heroui/styles/components/chip.css" layer(components);
+@import "@heroui/styles/components/toolbar.css" layer(components);
+@import "@heroui/styles/components/card.css" layer(components);
+@import "@heroui/styles/components/button.css" layer(components);
+@import "@heroui/styles/components/avatar.css" layer(components);
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
 @import '@fontsource/inter/600.css';
 @import '@fontsource/inter/700.css';
 
 @custom-variant dark (&:is(.dark *));
+
+/* ---------- 交互状态变体（内联，替代原第三方包的 @import，去 npm 依赖） ----------
+   HeroUI/React Aria 组件以 data-* 属性表达交互状态。以下变体同时匹配
+   [data-state="x"] 属性风格与裸 [data-x] 属性风格，仅保留仓库实际消费的
+   7 个变体与 no-scrollbar 工具类（dropdown-menu / sidebar / combobox /
+   separator / toggle-group / field / searchable-select / LogViewer 在用）。 */
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-checked {
+  &:where([data-state="checked"]),
+  &:where([data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
+
+/* 隐藏滚动条但保留滚动能力（LogViewer / SearchableSelect / Combobox / Sidebar 使用） */
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
 
 :root,
 .light,
@@ -69,7 +144,7 @@
   /* 等宽字体栈（标识符、分支名、运行号、统计数字与快捷键） */
   --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 
-  /* ---------- shadcn / Base UI semantic tokens mapped to design.md ---------- */
+  /* ---------- HeroUI v3 语义 token（对齐 design.md）---------- */
   /* Linear 式分层：侧栏灰底（--sidebar）、主区白底（--background / SidebarInset） */
   --background: #ffffff;
   --foreground: #26282d;
@@ -81,8 +156,9 @@
   --primary-foreground: #ffffff;
   --secondary: #f7f8f8;
   --secondary-foreground: #6b7075;
-  --muted: #f7f8f8;
-  --muted-foreground: #8a8f98;
+  --muted-bg: #f7f8f8;
+  --muted: #6b7075;
+  --muted-foreground: #6b7075;
   --accent: #5e6ad2;
   --accent-foreground: #ffffff;
   --destructive: #e5484d;
@@ -110,10 +186,16 @@
   /* ---------- HeroUI semantic token alignments ---------- */
   --surface: #ffffff;
   --surface-foreground: #26282d;
+  --surface-secondary: #f4f5f7;
+  --surface-secondary-foreground: #26282d;
+  --surface-tertiary: #e8e9eb;
+  --surface-tertiary-foreground: #26282d;
   --overlay: #ffffff;
   --overlay-foreground: #26282d;
   --default: #f4f5f7;
   --default-foreground: #26282d;
+  --segment: #ffffff;
+  --segment-foreground: #18181b;
   --field-background: #ffffff;
   --field-foreground: #26282d;
   --field-placeholder: #8a8f98;
@@ -163,8 +245,9 @@
   --primary-foreground: #ffffff;
   --secondary: #1e1e24;
   --secondary-foreground: #8a8f98;
-  --muted: #1e1e24;
-  --muted-foreground: #8a8f98;
+  --muted-bg: #1e1e24;
+  --muted: #a1a1aa;
+  --muted-foreground: #a1a1aa;
   --accent: #5e6ad2;
   --accent-foreground: #ffffff;
   --destructive: #e5484d;
@@ -174,7 +257,7 @@
   --ring: #5e6ad2;
   --focus: var(--accent);
 
-  --sidebar: #0b0b0e;
+  --sidebar: #121215;
   --sidebar-foreground: #f7f8f8;
   --sidebar-primary: #5e6ad2;
   --sidebar-primary-foreground: #ffffff;
@@ -186,10 +269,16 @@
   /* ---------- HeroUI semantic token alignments ---------- */
   --surface: #18181c;
   --surface-foreground: #f7f8f8;
+  --surface-secondary: #1e1e24;
+  --surface-secondary-foreground: #f7f8f8;
+  --surface-tertiary: #222228;
+  --surface-tertiary-foreground: #f7f8f8;
   --overlay: #1e1e24;
   --overlay-foreground: #f7f8f8;
   --default: #222228;
   --default-foreground: #f7f8f8;
+  --segment: #2a2a32;
+  --segment-foreground: #ffffff;
   --field-background: #18181c;
   --field-foreground: #f7f8f8;
   --field-placeholder: #8a8f98;
@@ -221,6 +310,8 @@
   --color-overlay-foreground: var(--overlay-foreground);
   --color-default: var(--default);
   --color-default-foreground: var(--default-foreground);
+  --color-segment: var(--segment);
+  --color-segment-foreground: var(--segment-foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -229,6 +320,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-bg: var(--muted-bg);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
@@ -250,6 +342,8 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
+  --color-canvas: var(--canvas);
+  --color-canvas-soft: var(--canvas-soft);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -312,7 +406,7 @@
     }
   }
 
-  /* 需求详情切项内容浅淡入与微浮（j/k 连续切项时柔和过渡） */
+  /* 需求详情切项内容浅淡入与微浮（j/k 连续切项时柔和过渡；首启向导步骤切换复用） */
   --animate-content-fade: content-fade 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   @keyframes content-fade {
     from {
@@ -322,6 +416,19 @@
     to {
       opacity: 1;
       transform: translate3d(0, 0, 0);
+    }
+  }
+
+  /* 首启向导：步骤节点对勾弹入（HeroUI press-scale 语义的入场镜像） */
+  --animate-step-check: step-check 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  @keyframes step-check {
+    from {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 }
@@ -461,3 +568,40 @@
 .dark::view-transition-new(root) {
   z-index: 1;
 }
+
+/* HeroUI Tabs: 禁止选项卡文字换行，水平模式自适应内容宽度 */
+.tabs__tab,
+[role="tab"],
+.tabs__tab *,
+[role="tab"] * {
+  white-space: nowrap !important;
+  flex-shrink: 0;
+}
+
+.tabs[data-orientation="horizontal"] .tabs__tab,
+.tabs__list[data-orientation="horizontal"] .tabs__tab,
+.tabs__list-container .tabs__tab,
+[role="tablist"][aria-orientation="horizontal"] [role="tab"] {
+  width: auto !important;
+  min-width: fit-content;
+  flex: 0 0 auto;
+}
+
+/* 彻底隐藏所有 Tabs 滚动指示箭头与滚动阴影，避免误显示和遮挡选项卡 */
+.tabs__list-container__scroll-prev,
+.tabs__list-container__scroll-next,
+[data-slot="tabs-scroll-prev"],
+[data-slot="tabs-scroll-next"] {
+  display: none !important;
+}
+
+/* HeroUI Accordion: 优化触发器背景，避免呈现死灰大长条，保持通透精致风格 */
+.accordion__trigger {
+  background-color: transparent !important;
+}
+.accordion__trigger:hover {
+  background-color: rgba(120, 120, 128, 0.08) !important;
+}
+
+
+

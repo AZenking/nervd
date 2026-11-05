@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { OverviewView } from './OverviewView';
 
@@ -24,6 +23,13 @@ beforeAll(() => {
       dispatchEvent: vi.fn(),
     })),
   });
+  if (typeof globalThis.ResizeObserver === 'undefined') {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as typeof ResizeObserver;
+  }
   Element.prototype.scrollIntoView = vi.fn();
 });
 
@@ -47,6 +53,7 @@ describe('OverviewView Component', () => {
       connection: 'ok',
       settings: {
         organizationId: 'org-test-123',
+        defaultSpaceIdentifier: 'space-test',
         allowWriteOps: true,
         watchedRepos: [101],
         repoCiBindings: {
@@ -124,6 +131,75 @@ describe('OverviewView Component', () => {
       loadingList: false,
       loadList: vi.fn(),
       loadIterations: vi.fn(),
+      overviewIterations: {
+        items: [
+          {
+            id: 'sprint-1',
+            name: 'Sprint-20261029',
+            title: '十月冲刺',
+            state: '进行中',
+            startDate: '2026-10-16',
+            endDate: '2026-11-15',
+          },
+          {
+            id: 'sprint-2',
+            name: 'Sprint-20261113',
+            title: '十一月计划',
+            state: '未开始',
+            startDate: '2026-11-01',
+            endDate: '2026-11-12',
+          },
+        ],
+        status: 'success',
+        error: null,
+        fetchedAt: Date.now(),
+      },
+      overviewByCategory: {
+        Req: {
+          items: [
+            {
+              workitemId: 'wi-101',
+              identifier: 'REQ-101',
+              subject: '支持 Jenkins 活跃构建监听',
+              status: '进行中',
+              category: 'Req',
+              sprintId: 'sprint-1',
+              updatedAt: '2026-10-29T10:00:00Z',
+              assignedTo: 'Alice',
+            },
+            {
+              workitemId: 'wi-102',
+              identifier: 'REQ-102',
+              subject: '细长复合进度条设计落地',
+              status: '已完成',
+              category: 'Req',
+              sprintId: 'sprint-1',
+              updatedAt: '2026-10-28T10:00:00Z',
+              assignedTo: 'Bob',
+            },
+            {
+              workitemId: 'wi-201',
+              identifier: 'REQ-201',
+              subject: '十一月新需求规划',
+              status: '未开始',
+              category: 'Req',
+              sprintId: 'sprint-2',
+              updatedAt: '2026-10-29T12:00:00Z',
+              assignedTo: 'Charlie',
+            },
+          ],
+          loadedCount: 3,
+          nextToken: null,
+          complete: true,
+          status: 'success',
+          error: null,
+          fetchedAt: Date.now(),
+        },
+        Bug: { items: [], loadedCount: 0, nextToken: null, complete: false, status: 'idle', error: null, fetchedAt: null },
+        Task: { items: [], loadedCount: 0, nextToken: null, complete: false, status: 'idle', error: null, fetchedAt: null },
+      },
+      loadOverviewCategory: vi.fn(),
+      loadOverviewIterations: vi.fn(),
       loadPipelines: vi.fn(),
       loadRepoCi: vi.fn(),
       select: vi.fn(),
@@ -144,14 +220,12 @@ describe('OverviewView Component', () => {
     }
   });
 
-  it('完整渲染总览：CycleHeaderBanner、4 格指标带、状态分布图谱与最近更新', () => {
+  it('完整渲染总览：类别范围、交付状态、两张统计图与最近更新', () => {
     act(() => {
       root?.render(
-        <TooltipProvider>
-          <SidebarProvider>
-            <OverviewView />
-          </SidebarProvider>
-        </TooltipProvider>,
+        <SidebarProvider>
+          <OverviewView />
+        </SidebarProvider>,
       );
     });
 
@@ -161,34 +235,56 @@ describe('OverviewView Component', () => {
     // 2. Linear CycleHeaderBanner
     expect(container?.textContent).toContain('Sprint-20261029');
     expect(container?.textContent).toContain('进入迭代工作台');
-    expect(container?.textContent).toContain('1 / 2');
-    expect(container?.textContent).toContain('50%');
+    expect(container?.textContent).toContain('共 2 项');
 
-    // 3. 4 格指标带
-    expect(container?.textContent).toContain('正常');
-    expect(container?.textContent).toContain('流水线');
-    expect(container?.textContent).toContain('通过率 100%');
+    // 3. 连接与交付状态
+    expect(container?.textContent).toContain('已连接');
     expect(container?.textContent).toContain('仓库 CI');
+    expect(container?.textContent).toContain('组织级 Flow');
 
     // 4. 工作项速览与生命周期状态
     expect(container?.textContent).toContain('工作项速览');
     expect(container?.textContent).toContain('最近更新');
+    expect(container?.textContent).toContain('更新时间分布');
     expect(container?.textContent).toContain('REQ-101');
     expect(container?.textContent).toContain('REQ-102');
+    expect(container?.textContent).not.toContain('通过率');
 
     // 5. 静态的冗长流水线墙与仓库卡片已被成功去除
     expect(container?.textContent).not.toContain('去绑定 CI');
     expect(container?.textContent).not.toContain('设置中的默认云效仓库');
   });
 
+  it('迭代接口失败时显示错误态，不注入示例迭代', () => {
+    useApp.setState({
+      overviewIterations: {
+        items: [],
+        status: 'error',
+        error: '迭代接口暂时不可用',
+        fetchedAt: null,
+      },
+    });
+
+    act(() => {
+      root?.render(
+        <SidebarProvider>
+          <OverviewView />
+        </SidebarProvider>,
+      );
+    });
+
+    expect(container?.textContent).toContain('迭代加载失败');
+    expect(container?.textContent).toContain('迭代接口暂时不可用');
+    expect(container?.textContent).not.toContain('示例迭代');
+    expect(container?.textContent).not.toContain('Benz-20261016');
+  });
+
   it('在总览下拉菜单中切换迭代时，就地更新当前迭代数据且保持 view 为 overview，不发生跨页跳转', () => {
     act(() => {
       root?.render(
-        <TooltipProvider>
-          <SidebarProvider>
-            <OverviewView />
-          </SidebarProvider>
-        </TooltipProvider>,
+        <SidebarProvider>
+          <OverviewView />
+        </SidebarProvider>,
       );
     });
 
@@ -202,7 +298,7 @@ describe('OverviewView Component', () => {
       triggerBtn?.click();
     });
 
-    const items = document.querySelectorAll('[data-slot="dropdown-menu-item"]');
+    const items = document.querySelectorAll('[data-slot="menu-item"], [role="menuitem"]');
     const targetItem = Array.from(items).find((el) => el.textContent?.includes('Sprint-20261113')) as HTMLElement | undefined;
     expect(targetItem).toBeDefined();
 
@@ -233,28 +329,24 @@ describe('OverviewView Component', () => {
 
     act(() => {
       root?.render(
-        <TooltipProvider>
-          <SidebarProvider>
-            <OverviewView />
-          </SidebarProvider>
-        </TooltipProvider>,
+        <SidebarProvider>
+          <OverviewView />
+        </SidebarProvider>,
       );
     });
 
     expect(container?.textContent).toContain('活跃构建中');
     expect(container?.textContent).toContain('Jenkins');
     expect(container?.textContent).toContain('#100');
-    expect(container?.textContent).toContain('就地盯盘');
+    expect(container?.textContent).toContain('查看日志');
   });
 
   it('点击进入迭代工作台按钮时，正确切换视图至 iteration', () => {
     act(() => {
       root?.render(
-        <TooltipProvider>
-          <SidebarProvider>
-            <OverviewView />
-          </SidebarProvider>
-        </TooltipProvider>,
+        <SidebarProvider>
+          <OverviewView />
+        </SidebarProvider>,
       );
     });
 

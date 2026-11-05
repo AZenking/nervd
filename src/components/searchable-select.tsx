@@ -226,25 +226,19 @@ export function SearchableSelect<V extends string | number | null>({
       <Autocomplete.Trigger
         id={id}
         aria-label={ariaLabel}
-        className={cn(
-          'flex h-8 w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 rounded-md border border-border bg-background py-1 pr-2 pl-2.5 text-left text-[13px] whitespace-nowrap transition-colors outline-none select-none hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50',
-          className,
-        )}
+        // 视觉对齐 HeroUI 原生 field 触发器（rounded-field / bg-field / 悬停聚焦态由
+        // .autocomplete__trigger 提供），仅保留宽度与透传样式，严禁叠加 HeroUI 原生形态之外的样式。
+        className={cn('w-full', className)}
       >
         {selected || showRawValue ? (
           <OverflowTooltip
             text={selected?.label ?? String(value)}
-            className={cn(
-              'flex min-w-0 flex-1 items-center truncate',
-              !selected && showRawValue && 'text-foreground',
-            )}
+            className="flex min-w-0 flex-1 items-center truncate"
           >
             {showRawValue ? String(value) : selected?.label}
           </OverflowTooltip>
         ) : (
-          <span className="flex min-w-0 flex-1 items-center truncate text-muted-foreground">
-            <Autocomplete.Value placeholder={placeholder} />
-          </span>
+          <Autocomplete.Value placeholder={placeholder} />
         )}
         <Autocomplete.Indicator />
       </Autocomplete.Trigger>

@@ -58,6 +58,7 @@ fn validate_settings(settings: &Settings) -> Result<(), String> {
             credentials::RepoCiBinding::Flow {
                 pipeline_id,
                 pipeline_name,
+                ..
             } => {
                 if *pipeline_id <= 0 || pipeline_name.trim().is_empty() {
                     return Err(format!("仓库 #{repo_id} 的云效流水线绑定无效"));

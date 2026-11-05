@@ -14,6 +14,8 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CopyButton } from '@/components/ui/copy-button';
 import { EmptyHint } from '@/components/empty-hint';
 import { useScheduleStore } from '@/store/schedule';
@@ -82,15 +84,23 @@ export function ScheduleLogDrawer({
                   清空此项日志
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="size-7"
-                onClick={() => onOpenChange(false)}
-                aria-label="关闭"
-              >
-                <XIcon className="size-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-7"
+                      onClick={() => onOpenChange(false)}
+                      title="关闭 (Esc)"
+                      aria-label="关闭"
+                    >
+                      <XIcon className="size-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>关闭 (Esc)</TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -250,16 +260,18 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
 
       {/* 详细数据 Payload 展开 */}
       {log.details && (
-        <details className="mt-2 text-[11px] font-mono text-muted-foreground">
-          <summary className="cursor-pointer hover:text-foreground">
+        <Collapsible className="mt-2 text-[11px] font-mono text-muted-foreground">
+          <CollapsibleTrigger className="cursor-pointer hover:text-foreground text-left py-0.5">
             查看原始输出
-          </summary>
-          <pre className="mt-1.5 max-h-40 overflow-y-auto rounded bg-muted/60 p-2 text-[10px] text-foreground/80 leading-normal whitespace-pre-wrap break-all">
-            {typeof log.details === 'object'
-              ? JSON.stringify(log.details, null, 2)
-              : String(log.details)}
-          </pre>
-        </details>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <pre className="mt-1.5 max-h-40 overflow-y-auto rounded bg-muted/60 p-2 text-[10px] text-foreground/80 leading-normal whitespace-pre-wrap break-all">
+              {typeof log.details === 'object'
+                ? JSON.stringify(log.details, null, 2)
+                : String(log.details)}
+            </pre>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </Card>
   );
