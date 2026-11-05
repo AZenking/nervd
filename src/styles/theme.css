@@ -120,6 +120,18 @@
   --sticker-teal: #12a594;
   --sticker-green: #30a46c;
   --sticker-brown: #6e5a4b;
+
+  /* ---------- Avatar identity palette（首字母身份色 · 明档）----------
+     仅定义文字主色（对白底 ≥4.5:1）；底色/描边由 color-mix 从主色派生
+     （bg-(--avatar-*)/15 · border-(--avatar-*)/30），随主题自动切换。
+     用途仅限 UserAvatar 首字母身份区分，不作状态语义。 */
+  --avatar-indigo: #3e63dd;
+  --avatar-sky: #0072ce;
+  --avatar-emerald: #187738;
+  --avatar-amber: #8a4a10;
+  --avatar-rose: #be123c;
+  --avatar-purple: #6e56cf;
+  --avatar-teal: #0f766e;
   --line: #e8e9eb;
   --line-strong: #d5d7da;
   --ink-0: #26282d;
@@ -230,6 +242,15 @@
   --ink-1: #8a8f98;
   --ink-2: #44474e;
   --accent-dim: rgba(94, 106, 210, 0.2);
+
+  /* ---------- Avatar identity palette（首字母身份色 · 暗档）---------- */
+  --avatar-indigo: #a5b4fc;
+  --avatar-sky: #7dd3fc;
+  --avatar-emerald: #6ee7b7;
+  --avatar-amber: #fcd34d;
+  --avatar-rose: #fda4af;
+  --avatar-purple: #d8b4fe;
+  --avatar-teal: #5eead4;
 
   --background: #121215;
   --foreground: #f7f8f8;

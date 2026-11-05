@@ -12,13 +12,13 @@ export function getAvatarColorClass(name?: string, isAssigned?: boolean): string
     return 'bg-muted/50 text-muted-foreground border-border/40'
   }
   const colors = [
-    'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 font-medium',
-    'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30 font-medium',
-    'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-medium',
-    'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-medium',
-    'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 font-medium',
-    'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30 font-medium',
-    'bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30 font-medium',
+    'bg-(--avatar-indigo)/15 text-(--avatar-indigo) border-(--avatar-indigo)/30 font-medium',
+    'bg-(--avatar-sky)/15 text-(--avatar-sky) border-(--avatar-sky)/30 font-medium',
+    'bg-(--avatar-emerald)/15 text-(--avatar-emerald) border-(--avatar-emerald)/30 font-medium',
+    'bg-(--avatar-amber)/15 text-(--avatar-amber) border-(--avatar-amber)/30 font-medium',
+    'bg-(--avatar-rose)/15 text-(--avatar-rose) border-(--avatar-rose)/30 font-medium',
+    'bg-(--avatar-purple)/15 text-(--avatar-purple) border-(--avatar-purple)/30 font-medium',
+    'bg-(--avatar-teal)/15 text-(--avatar-teal) border-(--avatar-teal)/30 font-medium',
   ]
   let hash = 0
   for (let i = 0; i < name.length; i++) {

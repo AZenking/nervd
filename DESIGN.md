@@ -203,6 +203,7 @@ HeroUI 默认 accent 为蓝色；nervd 将整套强调色覆盖为 **Linear Viol
 补充约定：
 
 - **贴纸色**（`--sticker-*`：sky / purple / pink / orange / teal / green / brown / brand-indigo）**只做装饰与状态点**，状态文字一律用墨色（对比度优先）；sig-idle 已按此规范取 `ink-muted`。
+- **身份色** `--avatar-*`（indigo / sky / emerald / amber / rose / purple / teal，7 hue 明暗双档）：仅用于 `UserAvatar` 首字母身份区分，**不作状态语义**；文字主色对底 ≥4.5:1，底色/描边由 color-mix 从主色派生（`bg-(--avatar-*)/15` · `border-(--avatar-*)/30`）。
 - 状态语义闭环由 `StatusIcon` 原语统一渲染，排序遵从生命周期：**运行中（Amber）→ 失败（Red）→ 空闲（Slate）→ 成功（Emerald）**（`STATUS_TONE_ORDER`）。
 - 文本选区：`--accent-dim`（紫 10% / 20% 透明度）。
 
@@ -246,9 +247,9 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 ## 2.6 阴影与已知偏差
 
 - 浮层阴影唯一档位：`--shadow-level-2`（三层近透明合成，`barely-there`）——弹层、菜单、命令面板、Toast 专用；页内卡片一律 hairline 无阴影。全仓 `shadow-level-*` 用法已收敛至该档位（2026-11-05 修复原 level-1/level-3 未定义用法）。
-- 裸调色板类已全量迁移至语义 token（2026-11-05），仅余两处已记录保留项：
-  - `ui/avatar.tsx` 首字母七色哈希调色板——首字母是正文文字需明暗双档可读，贴纸变量不随主题切换且禁作正文文字色；待 theme 层增补 `--avatar-*` 深/浅成对 token 后二次迁移。
-  - `children-card.tsx` 缺陷严重度「一般」使用 yellow——封闭状态集无黄色档，并入 warning 会与「严重」撞色；待产品定夺第四档语义后再迁移。
+- 裸调色板类已于 2026-11-05 **全仓清零**。两处历史保留项的最终处置：
+  - avatar 首字母身份色 → 新增 `--avatar-*` 身份调色板（7 hue，明暗双档文字主色，底/框由 color-mix 派生，见 2.1 补充约定）承载。
+  - 缺陷严重度「一般」→ 采用 informational 蓝 `--sticker-sky`（贴纸色的"状态点/装饰"设计槽位），四档梯度：致命 danger → 严重 warning → 一般 sky → 轻微 success；如需换档位语义只改该一个 class。
 
 ## 2.7 维护规则
 

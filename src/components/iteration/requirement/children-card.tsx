@@ -32,7 +32,7 @@ import { SearchableAssigneePopover, type AssigneeOption } from './assignee-popov
 const SEVERITY_OPTIONS = [
   { label: '致命', color: 'bg-danger' },
   { label: '严重', color: 'bg-warning' },
-  { label: '一般', color: 'bg-yellow-500 dark:bg-yellow-400' },
+  { label: '一般', color: 'bg-(--sticker-sky)' },
   { label: '轻微', color: 'bg-success' },
 ] as const;
 
