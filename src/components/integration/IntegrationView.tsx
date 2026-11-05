@@ -458,7 +458,7 @@ export function IntegrationView() {
                   style={{ width: `${50 + ((key * 13) % 40)}%` }}
                 />
                 <div className="flex w-24 shrink-0 items-center gap-1">
-                  <Skeleton className="h-4 w-16 rounded-full" />
+                  <Skeleton className="h-4 w-16 rounded-sm" />
                 </div>
                 <div className="flex w-28 shrink-0 items-center gap-1">
                   <Skeleton className="h-5 w-16 rounded" />
@@ -574,19 +574,24 @@ export function IntegrationView() {
                           );
                         }
                         return (
-                          <Chip
+                          <button
                             key={key}
-                            size="sm"
-                            variant="soft"
-                            color={workitem.workitemId === drawerWorkitemId ? 'accent' : 'default'}
-                            className="cursor-pointer font-mono"
+                            type="button"
+                            className="inline-flex cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                             onClick={() => {
                               setDrawerWorkitemId(workitem.workitemId);
                               void useApp.getState().select(workitem.workitemId);
                             }}
                           >
-                            {key}
-                          </Chip>
+                            <Chip
+                              size="sm"
+                              variant="soft"
+                              color={workitem.workitemId === drawerWorkitemId ? 'accent' : 'default'}
+                              className="font-mono"
+                            >
+                              {key}
+                            </Chip>
+                          </button>
                         );
                       });
 

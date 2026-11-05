@@ -47,7 +47,7 @@ export function Stepper({ steps, current = 0, className }: StepperProps) {
                   'flex size-8 shrink-0 items-center justify-center rounded-full',
                   'transition-[background-color,border-color,color,box-shadow] duration-150 ease-[var(--ease-smooth)] motion-reduce:transition-none',
                   done
-                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    ? 'bg-primary text-primary-foreground'
                     : isCurrent
                       ? 'border-[1.5px] border-primary bg-background font-medium text-primary'
                       : 'border border-border bg-default text-muted-foreground',

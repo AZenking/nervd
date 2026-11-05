@@ -270,7 +270,7 @@ export function RequirementProperties({
   return (
     <aside className={cn('flex w-full flex-col gap-6 xl:sticky xl:top-20 xl:w-auto', className)}>
       <div className="flex flex-col">
-        <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">属性</p>
+        <p className="eyebrow px-2 pb-1.5">属性</p>
         <Descriptions
           variant="plain"
           items={[
@@ -331,7 +331,7 @@ export function RequirementProperties({
                   type="button"
                   variant="link"
                   size="xs"
-                  onClick={() => {
+                  onPress={() => {
                     if (onSelectParent && embedded) onSelectParent(parent.workitemId);
                     else openWorkitem(parent.workitemId, parent);
                   }}
@@ -382,7 +382,7 @@ export function RequirementProperties({
       </div>
 
       <div className="flex flex-col">
-        <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">交付配置</p>
+        <p className="eyebrow px-2 pb-1.5">交付配置</p>
         <Descriptions
           variant="plain"
           items={[

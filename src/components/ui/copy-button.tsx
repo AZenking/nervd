@@ -44,7 +44,7 @@ export function CopyButton({ text, label = '复制' }: { text: string; label?: s
       aria-label={copied ? '已复制' : label}
       title={copied ? '已复制' : label}
       className="h-5 w-5 shrink-0 rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      onClick={() => {
+      onPress={() => {
         void copyToClipboard(text).then((ok) => setCopied(ok));
       }}
     >

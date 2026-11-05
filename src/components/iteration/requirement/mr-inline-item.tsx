@@ -250,7 +250,7 @@ export function MrInlineItem({
                 size="xs"
                 className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground gap-1"
                 disabled={loadingDiff}
-                onClick={fetchDivergence}
+                onPress={fetchDivergence}
                 title="重新比较两分支最新状态"
               >
                 <RefreshCwIcon className={cn('size-2.5', loadingDiff && 'animate-spin')} />
@@ -271,7 +271,7 @@ export function MrInlineItem({
                   variant="outline"
                   size="xs"
                   className="h-5 px-1.5 text-[10px]"
-                  onClick={fetchDivergence}
+                  onPress={fetchDivergence}
                 >
                   重试
                 </Button>
@@ -287,7 +287,7 @@ export function MrInlineItem({
                       type="button"
                       variant="link"
                       size="xs"
-                      onClick={() => void openExternal(mrUrl)}
+                      onPress={() => void openExternal(mrUrl)}
                       className="inline p-0 h-auto ml-1 text-primary hover:underline cursor-pointer align-baseline"
                     >
                       「云效直达」
@@ -341,7 +341,7 @@ export function MrInlineItem({
                     variant="ghost"
                     size="xs"
                     className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-                    onClick={() => setInlineDiffOpen((v) => !v)}
+                    onPress={() => setInlineDiffOpen((v) => !v)}
                   >
                     {inlineDiffOpen ? '收起改动' : '展开改动'}
                   </Button>
@@ -350,7 +350,7 @@ export function MrInlineItem({
                     variant="outline"
                     size="xs"
                     className="h-5 px-1.5 text-[10px] gap-1"
-                    onClick={() => setDiffDrawerOpen(true)}
+                    onPress={() => setDiffDrawerOpen(true)}
                   >
                     <span>抽屉检视</span>
                     <FileCodeIcon className="size-2.5" />
@@ -374,7 +374,7 @@ export function MrInlineItem({
                 variant="ghost"
                 size="xs"
                 className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5"
-                onClick={() => void openExternal(mrUrl)}
+                onPress={() => void openExternal(mrUrl)}
                 title="在云效 Codeup 中查看完整讨论、历史评审与原始 Diff"
               >
                 <span>云效直达</span>
@@ -387,7 +387,7 @@ export function MrInlineItem({
                   variant="ghost"
                   size="xs"
                   className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5 text-xs"
-                  onClick={() => setDiffDrawerOpen(true)}
+                  onPress={() => setDiffDrawerOpen(true)}
                   title="在本地抽屉中完整查看当前分支差异"
                 >
                   <FileCodeIcon className="size-3 text-primary" />
@@ -417,7 +417,7 @@ export function MrInlineItem({
                     variant="default"
                     size="xs"
                     className="h-6 px-2 text-xs"
-                    onClick={onCreateMr}
+                    onPress={onCreateMr}
                   >
                     创建新 MR
                   </Button>
@@ -454,7 +454,7 @@ export function MrInlineItem({
               variant="default"
               size="xs"
               className="h-7 px-2.5 text-xs"
-              onClick={() => {
+              onPress={() => {
                 setDiffDrawerOpen(false);
                 onCreateMr();
               }}

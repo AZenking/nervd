@@ -27,14 +27,14 @@ export function StartupSplash({ fading = false, className, ...props }: StartupSp
     >
       <div
         data-no-drag
-        className="relative flex aspect-square size-[76px] items-center justify-center rounded-[18px] bg-card border border-border/50 shadow-2xl shadow-black/30 dark:shadow-black/70 overflow-hidden"
+        className="relative flex aspect-square size-[76px] items-center justify-center rounded-2xl bg-card ring-1 ring-border/80 overflow-hidden"
       >
         <img
           src="/nervd-logo.png"
           alt="nervd logo"
           fetchPriority="high"
           loading="eager"
-          className="size-full rounded-[18px] object-cover"
+          className="size-full rounded-2xl object-cover"
         />
       </div>
 

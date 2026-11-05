@@ -119,7 +119,7 @@ export default function App() {
       toast.add({
         title: `Jenkins ${jobFullName} #${runId} → ${status}`,
         type: status === 'SUCCESS' ? 'success' : status === 'FAIL' || status === 'CANCELED' ? 'error' : 'info',
-        ...(url ? { actionProps: { children: '查看', onClick: () => openExternal(url) } } : {}),
+        ...(url ? { actionProps: { children: '查看', onPress: () => openExternal(url) } } : {}),
       });
       void Promise.all(repoIds.map((repoId) => loadRepoCi(repoId)));
     });
@@ -138,7 +138,7 @@ export default function App() {
       toast.add({
         title: `${pipelineName} #${runId} → ${status}`,
         type: status === 'SUCCESS' ? 'success' : status === 'FAIL' ? 'error' : 'info',
-        actionProps: { children: '查看', onClick: () => openExternal(url) },
+        actionProps: { children: '查看', onPress: () => openExternal(url) },
       });
       void loadPipelines();
     });

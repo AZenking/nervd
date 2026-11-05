@@ -15,7 +15,7 @@ export function PipelineCard({
   const latest = runs[0];
 
   return (
-    <Card className="transition-colors hover:bg-muted/40">
+    <Card className="transition-colors">
       <div className="flex items-center gap-2">
         <StatusBadge status={latest?.status} />
         <OverflowTooltip
@@ -27,13 +27,13 @@ export function PipelineCard({
           label="运行"
           title={`触发 ${pipelineName}`}
         />
-        <Button variant="ghost" size="sm" disabled={!latest} onClick={() => latest && void openPipelineRunLogs(pipelineId, latest.pipelineRunId, pipelineName)}>
+        <Button variant="ghost" size="sm" disabled={!latest} onPress={() => latest && void openPipelineRunLogs(pipelineId, latest.pipelineRunId, pipelineName)}>
           日志
         </Button>
       </div>
       {latest && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5 text-xs text-muted-foreground">
-          <span className="flex items-center gap-0.5">
+          <span className="flex items-center gap-0.5 font-mono tabular-nums">
             #{latest.pipelineRunId}
             <CopyButton text={String(latest.pipelineRunId)} label="复制运行号" />
           </span>

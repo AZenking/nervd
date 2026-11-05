@@ -54,7 +54,7 @@ export function LinkedRepoMrStatus({
               type="button"
               variant="ghost"
               size="xs"
-              onClick={() => onViewMr(targetActiveMr)}
+              onPress={() => onViewMr(targetActiveMr)}
               className="group h-auto p-1 gap-1.5 text-xs text-left cursor-pointer max-w-full font-normal"
               title={`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label}`}
               aria-label={`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label}`}
@@ -94,7 +94,7 @@ export function LinkedRepoMrStatus({
                 type="button"
                 variant="link"
                 size="xs"
-                onClick={onCreateMr}
+                onPress={onCreateMr}
                 className="h-auto p-0 text-[11px] text-primary shrink-0"
                 title="代码已就绪，点击发起 MR 合入基准分支"
                 aria-label="代码已就绪，点击发起 MR 合入基准分支"
@@ -126,7 +126,7 @@ export function LinkedRepoMrStatus({
               type="button"
               variant="ghost"
               size="xs"
-              onClick={() => onViewMr(matchingMergedMr)}
+              onPress={() => onViewMr(matchingMergedMr)}
               className="group h-auto p-1 gap-1.5 text-xs text-left cursor-pointer max-w-full font-normal"
               title={`历史合并请求 !${matchingMergedMr.localId} 已成功合入，点击查看详情`}
               aria-label={`历史合并请求 !${matchingMergedMr.localId} 已成功合入，点击查看详情`}
@@ -214,7 +214,7 @@ export function LinkedRepoMrList({
               variant="ghost"
               size="xs"
               className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1"
-              onClick={onCreateMr}
+              onPress={onCreateMr}
             >
               <PlusIcon className="size-3" />
               创建 MR

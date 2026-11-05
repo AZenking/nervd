@@ -96,7 +96,7 @@ export function AboutDialog() {
             />
 
             {/* App Icon */}
-            <div className="relative mb-3 flex size-16 items-center justify-center rounded-2xl bg-sidebar-primary shadow-level-2 ring-1 ring-border/80">
+            <div className="relative mb-3 flex size-16 items-center justify-center rounded-2xl bg-sidebar-primary ring-1 ring-border/80">
               <img
                 src="/nervd-logo.png"
                 alt="nervd logo"
@@ -222,7 +222,7 @@ export function AboutDialog() {
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={() => void startOneClickUpdate()}
+                      onPress={() => void startOneClickUpdate()}
                       className="h-7 flex-1 gap-1.5 text-xs font-medium cursor-pointer"
                     >
                       <SparklesIcon className="size-3.5" />
@@ -231,7 +231,7 @@ export function AboutDialog() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => void openDownload()}
+                      onPress={() => void openDownload()}
                       className="h-7 gap-1 px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground cursor-pointer"
                       title="在浏览器中手动下载安装包"
                     >
@@ -249,7 +249,7 @@ export function AboutDialog() {
                 variant="outline"
                 size="sm"
                 disabled={isChecking}
-                onClick={() => void checkForUpdates(false)}
+                onPress={() => void checkForUpdates(false)}
                 className="h-8 flex-1 gap-1.5 text-xs font-normal cursor-pointer"
               >
                 {status === 'up_to_date' ? (
@@ -273,7 +273,7 @@ export function AboutDialog() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => void copyDiagnosticSnapshot(settings, allowWriteOps)}
+                onPress={() => void copyDiagnosticSnapshot(settings, allowWriteOps)}
                 className="h-8 flex-1 gap-1.5 text-xs font-normal cursor-pointer"
                 title="复制包含版本、系统与脱敏配置的快照"
               >
@@ -289,7 +289,7 @@ export function AboutDialog() {
               <button
                 type="button"
                 onClick={handleOpenShortcuts}
-                className="cursor-pointer hover:text-foreground transition-colors"
+                className="cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 快捷键 (<Kbd variant="light" className="h-5! px-1.5! text-[11px]!">?</Kbd>)
               </button>
@@ -297,7 +297,7 @@ export function AboutDialog() {
               <button
                 type="button"
                 onClick={() => void copyQuarantineCommand()}
-                className="cursor-pointer hover:text-foreground transition-colors"
+                className="cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 title="复制解除 macOS 首次打开拦截命令: xattr -cr /Applications/nervd.app"
               >
                 放行命令
@@ -306,7 +306,7 @@ export function AboutDialog() {
               <button
                 type="button"
                 onClick={handleOpenSettings}
-                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <SettingsIcon className="size-3" />
                 <span>详细设置</span>
@@ -317,7 +317,7 @@ export function AboutDialog() {
               <button
                 type="button"
                 onClick={() => void openExternal(REPO_URL)}
-                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <span>GitHub</span>
                 <ExternalLinkIcon className="size-3" />
@@ -325,7 +325,7 @@ export function AboutDialog() {
               <button
                 type="button"
                 onClick={() => void openExternal(DOCS_URL)}
-                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <span>云效</span>
                 <ExternalLinkIcon className="size-3" />

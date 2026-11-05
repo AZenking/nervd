@@ -71,7 +71,7 @@ export function WriteOpGatedTrigger({
             aria-disabled="true"
             data-testid="write-op-gated"
             className={READONLY_BTN_CLASS}
-            onClick={handleClick}
+            onPress={handleClick}
           >
             {icon}
             <span>{label}</span>
@@ -176,7 +176,7 @@ export function WriteOpButton({
             aria-disabled="true"
             data-testid="write-op-button"
             className={READONLY_BTN_CLASS}
-            onClick={notifyReadonly}
+            onPress={notifyReadonly}
           >
             {label}
           </Button>
@@ -199,7 +199,7 @@ export function WriteOpButton({
               size="sm"
               variant={armed ? 'destructive' : variant}
               disabled={busy || disabled}
-              onClick={handleInlineClick}
+              onPress={handleInlineClick}
             >
               {busy ? (<><Spinner data-icon="inline-start" />{label}…</>) : armed ? confirmLabel : label}
             </Button>
@@ -222,7 +222,7 @@ export function WriteOpButton({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" disabled={busy} onClick={() => void run()}>
+          <AlertDialogAction variant="destructive" disabled={busy} onPress={() => void run()}>
             {busy ? (<><Spinner data-icon="inline-start" />执行中</>) : '确认执行'}
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -238,7 +238,7 @@ export function WriteOpButton({
         <DropdownMenuItem
           disabled={busy || (!blocked && disabled)}
           className={cn('h-auto flex-col items-stretch gap-0.5 py-2', blocked && 'text-muted-foreground')}
-          onClick={() => {
+          onPress={() => {
             if (blocked) {
               notifyReadonly();
               return;
@@ -266,7 +266,7 @@ export function WriteOpButton({
       <Tooltip>
         <TooltipTrigger
           render={
-            <Button size="sm" variant={variant} disabled={busy || disabled} onClick={() => setOpen(true)}>
+            <Button size="sm" variant={variant} disabled={busy || disabled} onPress={() => setOpen(true)}>
               {busy ? (<Spinner data-icon="inline-start" />) : label}
             </Button>
           }

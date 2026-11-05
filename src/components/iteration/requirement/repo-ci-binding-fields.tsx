@@ -213,7 +213,7 @@ export function RepoCiBindingFields({
                         type="button"
                         variant="ghost"
                         size="xs"
-                        onClick={() => void handleRefresh()}
+                        onPress={() => void handleRefresh()}
                         disabled={refreshing || loadingPipelines || disabled}
                         className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
                         title="刷新云效流水线列表"
@@ -333,7 +333,7 @@ export function RepoCiBindingFields({
                         type="button"
                         variant="ghost"
                         size="xs"
-                        onClick={() => setJenkinsJobsRefresh((c) => c + 1)}
+                        onPress={() => setJenkinsJobsRefresh((c) => c + 1)}
                         disabled={loadingJenkinsJobs || disabled || !selectedConnectionId}
                         className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
                         title="刷新 Jenkins Job 列表"

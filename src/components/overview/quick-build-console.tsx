@@ -212,13 +212,13 @@ export function QuickBuildConsole() {
                 <Tooltip.Trigger
                   aria-disabled="true"
                   className="cursor-not-allowed opacity-60"
-                  onClick={() => handleRerun(recentTarget)}
                 >
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     className="gap-1.5"
+                    onPress={() => handleRerun(recentTarget)}
                   >
                     <RotateCwIcon className="size-3" />
                     <span>重跑</span>
@@ -229,7 +229,7 @@ export function QuickBuildConsole() {
                   <button
                     type="button"
                     onClick={() => openSettings('security')}
-                    className="ml-1 underline text-primary cursor-pointer"
+                    className="ml-1 underline text-primary cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
                     设置 → 安全策略
                   </button>

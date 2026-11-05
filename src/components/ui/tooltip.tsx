@@ -123,7 +123,7 @@ function TooltipContent({
       offset={sideOffset}
       crossOffset={alignOffset}
       className={cn(
-        "z-50 inline-flex w-fit max-w-xs items-center gap-1.5 rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md duration-100",
+        "z-50 inline-flex w-fit max-w-xs items-center gap-1.5 rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground duration-100",
         className
       )}
       {...(props as any)}

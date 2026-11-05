@@ -264,7 +264,7 @@ export function SearchableSelect<V extends string | number | null>({
               onChange={(e: any) => setInputValue(typeof e === 'string' ? e : e?.target?.value ?? '')}
             />
             {inputValue && (
-              <SearchField.ClearButton onClick={() => setInputValue('')} />
+              <SearchField.ClearButton onPress={() => setInputValue('')} />
             )}
           </SearchField.Group>
         </SearchField>

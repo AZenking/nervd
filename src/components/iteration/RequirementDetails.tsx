@@ -744,20 +744,21 @@ export function RequirementDetails({
             <span className="flex min-w-0 items-center gap-2.5">
               <StatusIcon status={statusName} className="size-4 shrink-0" />
               {identifier && (
-                <Chip
-                  size="sm"
-                  variant="secondary"
-                  className="font-mono cursor-pointer transition-colors hover:bg-muted/60 gap-1 shrink-0"
+                <button
+                  type="button"
+                  className="inline-flex cursor-pointer rounded-sm shrink-0 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={copyIdentifier}
                   title="点击复制编号"
                 >
-                  <Chip.Label>{identifier}</Chip.Label>
-                  {copiedId ? (
-                    <CheckIcon className="size-3 text-sig-ok shrink-0" />
-                  ) : (
-                    <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
-                  )}
-                </Chip>
+                  <Chip size="sm" variant="secondary" className="font-mono gap-1">
+                    <Chip.Label>{identifier}</Chip.Label>
+                    {copiedId ? (
+                      <CheckIcon className="size-3 text-sig-ok shrink-0" />
+                    ) : (
+                      <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+                    )}
+                  </Chip>
+                </button>
               )}
               <OverflowTooltip
                 text={subject}
@@ -876,10 +877,9 @@ export function RequirementDetails({
               </Chip>
 
               {/* 关联仓库 Chip */}
-              <Chip
-                size="sm"
-                variant="soft"
-                className="gap-1.5 text-foreground/85 cursor-pointer transition-colors hover:bg-muted/60 hover:text-foreground"
+              <button
+                type="button"
+                className="inline-flex cursor-pointer rounded-sm transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 onClick={() => {
                   setActiveTab('repos');
                   const el = document.getElementById('linked-repos-section');
@@ -887,9 +887,11 @@ export function RequirementDetails({
                 }}
                 title={`已关联 ${effectiveRepoIds.length} 个代码仓库，点击切换至关联仓库标签页`}
               >
-                <DatabaseIcon className="size-3.5 text-muted-foreground shrink-0" />
-                <Chip.Label>{effectiveRepoIds.length} 个仓库</Chip.Label>
-              </Chip>
+                <Chip size="sm" variant="soft" className="gap-1.5 text-foreground/85">
+                  <DatabaseIcon className="size-3.5 text-muted-foreground shrink-0" />
+                  <Chip.Label>{effectiveRepoIds.length} 个仓库</Chip.Label>
+                </Chip>
+              </button>
 
               {/* 迭代基准 Chip */}
               {iterationBranchValue && iterationBranchValue !== '—' && (
@@ -934,20 +936,20 @@ export function RequirementDetails({
 
               {/* 父需求 Chip */}
               {parent && (
-                <Chip
-                  size="sm"
-                  variant="soft"
-                  color="accent"
-                  className="gap-1.5 max-w-48 cursor-pointer transition-colors hover:opacity-80 font-mono"
+                <button
+                  type="button"
+                  className="inline-flex cursor-pointer rounded-sm transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={() => {
                     if (onSelectParent) onSelectParent(parent.workitemId);
                     else openWorkitem(parent.workitemId, parent);
                   }}
                   title={`所属父需求：${parent.identifier} ${parent.subject || ''}`}
                 >
-                  <GitForkIcon className="size-3.5 shrink-0" />
-                  <Chip.Label className="truncate">{parent.identifier}</Chip.Label>
-                </Chip>
+                  <Chip size="sm" variant="soft" color="accent" className="gap-1.5 max-w-48 font-mono">
+                    <GitForkIcon className="size-3.5 shrink-0" />
+                    <Chip.Label className="truncate">{parent.identifier}</Chip.Label>
+                  </Chip>
+                </button>
               )}
             </div>
           )}
@@ -965,20 +967,21 @@ export function RequirementDetails({
             </span>
           )}
           titleBadge={identifier ? (
-            <Chip
-              size="sm"
-              variant="secondary"
-              className="font-mono cursor-pointer transition-colors hover:bg-muted/60 gap-1.5"
+            <button
+              type="button"
+              className="inline-flex cursor-pointer rounded-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               onClick={copyIdentifier}
               title="点击复制编号"
             >
-              <Chip.Label>{identifier}</Chip.Label>
-              {copiedId ? (
-                <CheckIcon className="size-3 text-sig-ok shrink-0" />
-              ) : (
-                <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
-              )}
-            </Chip>
+              <Chip size="sm" variant="secondary" className="font-mono gap-1.5">
+                <Chip.Label>{identifier}</Chip.Label>
+                {copiedId ? (
+                  <CheckIcon className="size-3 text-sig-ok shrink-0" />
+                ) : (
+                  <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+                )}
+              </Chip>
+            </button>
           ) : undefined}
           titleClassName="text-2xl font-semibold tracking-tight"
           actions={(
@@ -1076,7 +1079,7 @@ export function RequirementDetails({
                     <span className="flex items-center gap-1.5">
                       <span>关联仓库</span>
                       {effectiveRepoIds.length > 0 && (
-                        <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
+                        <span className="rounded-sm border border-border/40 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
                           {effectiveRepoIds.length}
                         </span>
                       )}
@@ -1088,7 +1091,7 @@ export function RequirementDetails({
                       <span className="flex items-center gap-1.5">
                         <span>子工作项</span>
                         {subtasks.length + defects.length > 0 && (
-                          <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
+                          <span className="rounded-sm border border-border/40 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
                             {subtasks.length + defects.length}
                           </span>
                         )}
@@ -1100,7 +1103,7 @@ export function RequirementDetails({
                     <span className="flex items-center gap-1.5">
                       <span>活动动态</span>
                       {comments.length > 0 && (
-                        <span className="rounded-full border border-border/40 bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] tabular-nums text-foreground/85">
+                        <span className="rounded-sm border border-border/40 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
                           {comments.length}
                         </span>
                       )}
@@ -1372,7 +1375,7 @@ export function RequirementDetails({
 
             {/* AI 推荐结果展示卡片区（直接在关联仓库正下方呈现） */}
             {recommendedRepos.length > 0 && (
-              <div className="flex flex-col gap-2 rounded-lg border border-primary/25 bg-primary/5 p-3.5 shadow-2xs">
+              <div className="flex flex-col gap-2 rounded-lg bg-primary/5 p-3.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-primary flex items-center gap-1.5">
                     <SparklesIcon className="size-3.5" />

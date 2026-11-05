@@ -624,12 +624,12 @@ export function QuickBuildTriggerForm({
                 <Tooltip.Trigger
                   aria-disabled="true"
                   className="cursor-not-allowed opacity-60"
-                  onClick={() => void handleTriggerClick()}
                 >
                   <Button
                     type="button"
                     size="sm"
                     className="h-8 w-full gap-1.5 px-4 text-xs font-medium sm:w-auto"
+                    onPress={() => void handleTriggerClick()}
                   >
                     <PlayIcon className="size-3 fill-current" />
                     <span>立即发起构建</span>
@@ -640,7 +640,7 @@ export function QuickBuildTriggerForm({
                   <button
                     type="button"
                     onClick={() => openSettings('security')}
-                    className="ml-1 underline text-primary cursor-pointer"
+                    className="ml-1 underline text-primary cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
                     设置 → 安全策略
                   </button>

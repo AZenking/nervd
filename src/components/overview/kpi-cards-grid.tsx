@@ -38,7 +38,7 @@ function MetricCard({
   return (
     <Card
       variant="default"
-      className="gap-0 p-0 transition-colors hover:bg-card/90"
+      className="gap-0 p-0"
     >
       <Card.Header className="flex flex-row items-center justify-between gap-2 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
         <Card.Title className="text-xs font-medium text-muted-foreground">
@@ -47,7 +47,7 @@ function MetricCard({
         {icon}
       </Card.Header>
       <Card.Content className="flex items-baseline justify-between gap-2 px-4 pt-3 pb-4 sm:px-5 sm:pb-5">
-        <div className="font-mono text-2xl font-bold tracking-tight text-foreground">
+        <div className="font-mono tabular-nums text-2xl font-bold tracking-tight text-foreground">
           {value}
           <span className="ml-1 text-xs font-normal text-muted-foreground">{suffix}</span>
         </div>

@@ -169,7 +169,7 @@ export function CodeDiffViewer({
               type="button"
               variant="outline"
               size="xs"
-              onClick={() => setVisibleLimit((v) => v + 30)}
+              onPress={() => setVisibleLimit((v) => v + 30)}
               className="text-xs"
             >
               加载更多文件 (还有 {diffs.length - visibleLimit} 个)
@@ -209,7 +209,7 @@ export function CodeDiffViewer({
               variant="ghost"
               size="icon"
               className="size-6 text-muted-foreground hover:text-foreground"
-              onClick={() => setIsSidebarOpen((v) => !v)}
+              onPress={() => setIsSidebarOpen((v) => !v)}
               title={isSidebarOpen ? '收起文件列表' : '展开文件列表'}
             >
               {isSidebarOpen ? (
@@ -234,7 +234,7 @@ export function CodeDiffViewer({
                     variant="ghost"
                     size="xs"
                     className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
-                    onClick={expandAllDiffs}
+                    onPress={expandAllDiffs}
                     title="展开全部代码差异"
                     aria-label="展开全部代码差异"
                   >
@@ -253,7 +253,7 @@ export function CodeDiffViewer({
                     variant="ghost"
                     size="xs"
                     className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
-                    onClick={collapseAllDiffs}
+                    onPress={collapseAllDiffs}
                     title="折叠全部代码差异"
                     aria-label="折叠全部代码差异"
                   >
@@ -294,7 +294,7 @@ export function CodeDiffViewer({
                 type="button"
                 variant="outline"
                 size="xs"
-                onClick={() => setVisibleLimit((v) => v + 30)}
+                onPress={() => setVisibleLimit((v) => v + 30)}
                 className="text-xs"
               >
                 加载更多文件 (还有 {diffs.length - visibleLimit} 个)
@@ -341,7 +341,7 @@ function DiffItemCard({
           )}
         >
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <span className="p-0.5 text-muted-foreground hover:text-foreground">
+            <span className="p-0.5 text-muted-foreground">
               {isCollapsed ? (
                 <ChevronRightIcon className="size-3.5" />
               ) : (

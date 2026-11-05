@@ -141,7 +141,7 @@ export function SettingsView({
         className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-sidebar/70 pl-20 pr-4 sm:pl-24 sm:pr-6 select-none"
       >
         <div className="flex items-center gap-2">
-          <span className="size-2 rounded-sm bg-primary shadow-[0_0_0_3px_var(--accent-dim)]" />
+          <span className="size-2 rounded-sm bg-primary ring-3 ring-(--accent-dim)" />
           <span className="text-sm font-medium tracking-tight">nervd</span>
           <span className="text-xs text-muted-foreground">初始配置</span>
         </div>
@@ -153,7 +153,7 @@ export function SettingsView({
             variant="ghost"
             size="sm"
             className="size-7 cursor-pointer text-muted-foreground hover:text-foreground"
-            onClick={(e) => toggleTheme({ clientX: e.clientX, clientY: e.clientY })}
+            onPress={(e) => toggleTheme({ clientX: e.x, clientY: e.y })}
             aria-label={
               theme === 'system'
                 ? `主题：跟随系统（当前${resolvedTheme === 'dark' ? '深色' : '浅色'}）`
@@ -177,7 +177,7 @@ export function SettingsView({
               size="sm"
               isDisabled={!canEnterWorkbench}
               onPress={onComplete}
-              className="h-7 cursor-pointer gap-1.5 px-3 text-xs shadow-xs"
+              className="h-7 cursor-pointer gap-1.5 px-3 text-xs"
               aria-label={!canEnterWorkbench ? '请先配置云效访问令牌与组织 ID' : '进入 nervd 桌面工作台'}
             >
               <span>进入工作台</span>

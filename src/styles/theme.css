@@ -200,6 +200,10 @@
   --surface-tertiary-foreground: #26282d;
   --overlay: #ffffff;
   --overlay-foreground: #26282d;
+  /* §A 浮层阴影统一：HeroUI 浮层组件（.popover/.dropdown/.tooltip 等）默认
+     box-shadow: var(--overlay-shadow)，此处覆盖为 nervd level-2 档
+     （值同下方 @theme inline 的 --shadow-level-2），浮层阴影唯一档位。 */
+  --overlay-shadow: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
   --default: #f4f5f7;
   --default-foreground: #26282d;
   --segment: #ffffff;
@@ -292,6 +296,8 @@
   --surface-tertiary-foreground: #f7f8f8;
   --overlay: #1e1e24;
   --overlay-foreground: #f7f8f8;
+  /* §A 浮层阴影统一：同 :root，覆盖 HeroUI --overlay-shadow 为 level-2 档（barely-there） */
+  --overlay-shadow: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
   --default: #222228;
   --default-foreground: #f7f8f8;
   --segment: #2a2a32;

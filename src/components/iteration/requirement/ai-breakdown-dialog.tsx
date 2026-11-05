@@ -263,7 +263,7 @@ export function AiBreakdownDialog({
             size="xs"
             variant="ghost"
             disabled={loading || creating}
-            onClick={() => void handleGenerate(selectedTags)}
+            onPress={() => void handleGenerate(selectedTags)}
             className="h-7 text-xs"
           >
             <RefreshCwIcon className={cn('size-3.5 mr-1', loading && 'animate-spin')} />
@@ -281,7 +281,7 @@ export function AiBreakdownDialog({
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
               <p className="text-xs">未能拆解出任务条目</p>
-              <Button size="xs" variant="outline" onClick={() => void handleGenerate(selectedTags)}>
+              <Button size="xs" variant="outline" onPress={() => void handleGenerate(selectedTags)}>
                 点击重试
               </Button>
             </div>
@@ -376,7 +376,7 @@ export function AiBreakdownDialog({
                             return (
                               <DropdownMenuItem
                                 key={c.id || c.name}
-                                onClick={() => updateAssignee(item.id, c.id, c.name)}
+                                onSelect={() => updateAssignee(item.id, c.id, c.name)}
                                 className={cn('text-xs cursor-pointer flex items-center justify-between', isSelected && 'font-medium text-primary')}
                               >
                                 <OverflowTooltip text={c.name} className="min-w-0 truncate" />
@@ -399,7 +399,7 @@ export function AiBreakdownDialog({
                             variant="ghost"
                             size="icon-xs"
                             disabled={creating}
-                            onClick={() => deleteItem(item.id)}
+                            onPress={() => deleteItem(item.id)}
                             className="text-muted-foreground hover:text-destructive size-6 rounded"
                             title="删除此项"
                             aria-label="删除此项"
@@ -423,7 +423,7 @@ export function AiBreakdownDialog({
                   type="button"
                   variant="ghost"
                   size="xs"
-                  onClick={toggleSelectAll}
+                  onPress={toggleSelectAll}
                   className="h-7 text-xs text-muted-foreground hover:text-foreground"
                 >
                   {items.every((i) => i.selected) ? '全不选' : '全选'}
@@ -448,7 +448,7 @@ export function AiBreakdownDialog({
                       {candidateAssignees.map((c) => (
                         <DropdownMenuItem
                           key={c.id || c.name}
-                          onClick={() => handleBatchAssign(c.id, c.name)}
+                          onSelect={() => handleBatchAssign(c.id, c.name)}
                           className="text-xs cursor-pointer flex items-center justify-between"
                         >
                           <span>{c.name}</span>
@@ -464,7 +464,7 @@ export function AiBreakdownDialog({
                 type="button"
                 variant="ghost"
                 size="xs"
-                onClick={addItem}
+                onPress={addItem}
                 className="h-7 gap-1 text-xs text-primary hover:text-primary hover:bg-primary/10"
               >
                 <PlusIcon className="size-3" />
@@ -492,14 +492,14 @@ export function AiBreakdownDialog({
                 variant="outline"
                 size="sm"
                 disabled={creating}
-                onClick={() => onOpenChange(false)}
+                onPress={() => onOpenChange(false)}
               >
                 取消
               </Button>
               <Button
                 size="sm"
                 disabled={creating || loading || selectedCount === 0}
-                onClick={() => void handleConfirmBatchCreate()}
+                onPress={() => void handleConfirmBatchCreate()}
               >
                 {creating ? (
                   <>

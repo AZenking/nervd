@@ -139,7 +139,7 @@ function SheetOverlay({
     <SheetHero.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/40 transition-opacity duration-150",
+        "fixed inset-0 z-50 bg-backdrop transition-opacity duration-150",
         className
       )}
       {...props}
@@ -166,7 +166,7 @@ function SheetContent({
   return (
     <SheetHero.Backdrop
       data-slot="sheet-overlay"
-      className="fixed inset-0 z-50 bg-black/40 transition-opacity duration-150"
+      className="fixed inset-0 z-50 bg-backdrop transition-opacity duration-150"
     >
       <SheetHero.Content>
         <SheetHero.Dialog
@@ -187,7 +187,7 @@ function SheetContent({
             <SheetHero.CloseTrigger
               data-slot="sheet-close"
               aria-label="Close"
-              className="absolute top-3 right-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:opacity-100 hover:bg-muted focus:outline-none"
+              className="absolute top-3 right-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:opacity-100 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               <XIcon className="size-4" />
               <span className="sr-only">Close</span>

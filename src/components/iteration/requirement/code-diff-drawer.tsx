@@ -89,7 +89,7 @@ export function CodeDiffDrawer({
                         variant="outline"
                         size="xs"
                         className="gap-1 text-xs h-7 px-2"
-                        onClick={() => onOpenExternal(mrUrl)}
+                        onPress={() => onOpenExternal(mrUrl)}
                         title="在云效中查看"
                         aria-label="在云效中查看"
                       >
@@ -109,8 +109,8 @@ export function CodeDiffDrawer({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-7 text-muted-foreground hover:text-foreground rounded-full"
-                      onClick={() => onOpenChange(false)}
+                      className="size-7 text-muted-foreground hover:text-foreground rounded-sm"
+                      onPress={() => onOpenChange(false)}
                       title="关闭 (Esc)"
                       aria-label="关闭 (Esc)"
                     >

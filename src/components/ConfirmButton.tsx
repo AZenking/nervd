@@ -64,7 +64,7 @@ export function ConfirmButton({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction variant={destructive ? 'destructive' : undefined} disabled={busy} onClick={() => void run()}>
+          <AlertDialogAction variant={destructive ? 'destructive' : undefined} disabled={busy} onPress={() => void run()}>
             {busy ? (<><Spinner data-icon="inline-start" />执行中</>) : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

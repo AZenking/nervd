@@ -190,7 +190,7 @@ export function RichDescription({
                     variant="ghost"
                     size="xs"
                     onClick={handleStartEdit}
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground bg-background/80 backdrop-blur-xs border border-border/60 shadow-2xs"
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground bg-background/80 backdrop-blur-xs border border-border/60 shadow-level-2"
                     title="编辑描述 (双击正文亦可快速编辑)"
                   >
                     <PencilIcon className="size-3 mr-1" />
@@ -244,7 +244,7 @@ export function RichDescription({
                   src={resolved[img.url]}
                   alt={img.name}
                   title={img.name}
-                  className="h-auto max-h-80 w-auto max-w-full rounded border border-border shadow-xs"
+                  className="h-auto max-h-80 w-auto max-w-full rounded border border-border"
                 />
               ))}
             </div>

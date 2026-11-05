@@ -48,7 +48,7 @@ export function AboutSection() {
       >
         <div className="flex flex-col gap-4 border-b border-border/50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary shadow-xs ring-1 ring-border">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary ring-1 ring-border">
               <img
                 src="/nervd-logo.png"
                 alt="nervd logo"

@@ -191,7 +191,7 @@ export function RequirementActivity({
             size="xs"
             variant="ghost"
             disabled={summarizing}
-            onClick={() => void handleSummarize()}
+            onPress={() => void handleSummarize()}
             className="h-7 text-xs text-primary hover:bg-primary/10 transition-colors"
           >
             {summarizing ? (
@@ -222,7 +222,7 @@ export function RequirementActivity({
                 type="button"
                 variant="ghost"
                 size="xs"
-                onClick={() => void handleCopySummary()}
+                onPress={() => void handleCopySummary()}
                 className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
               >
                 {copiedSummary ? <CheckIcon className="size-3 text-success" /> : <CopyIcon className="size-3" />}
@@ -235,7 +235,7 @@ export function RequirementActivity({
                       type="button"
                       variant="ghost"
                       size="icon-xs"
-                      onClick={() => setSummaryExpanded(!summaryExpanded)}
+                      onPress={() => setSummaryExpanded(!summaryExpanded)}
                       className="size-6 text-muted-foreground hover:text-foreground"
                       title={summaryExpanded ? '收起纪要' : '展开纪要'}
                     >
@@ -410,8 +410,9 @@ export function RequirementActivity({
               type="button"
               variant={allowWrite ? 'default' : 'outline'}
               size="xs"
-              onClick={() => void handleSendComment()}
+              onPress={() => void handleSendComment()}
               disabled={submitting}
+              aria-disabled={!allowWrite}
               className={cn(!allowWrite && 'opacity-60 cursor-not-allowed')}
               title={allowWrite ? '发送评论 (⌘+Enter)' : '只读模式不可用'}
             >

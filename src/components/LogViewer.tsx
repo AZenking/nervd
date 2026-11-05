@@ -62,15 +62,15 @@ function StageStatusIcon({ status }: { status: string }) {
 function stageStatusBadgeClass(status: string): string {
   const s = status.toUpperCase();
   if (s === 'SUCCESS') {
-    return 'border-sig-ok/25 bg-sig-ok/10 text-sig-ok hover:bg-sig-ok/20';
+    return 'border-sig-ok/25 bg-sig-ok/10 text-sig-ok';
   }
   if (s === 'IN_PROGRESS' || s === 'RUNNING') {
-    return 'border-sig-run/30 bg-sig-run/10 text-sig-run hover:bg-sig-run/20';
+    return 'border-sig-run/30 bg-sig-run/10 text-sig-run';
   }
   if (s === 'FAILED' || s === 'FAILURE' || s === 'FAIL') {
-    return 'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20';
+    return 'border-destructive/30 bg-destructive/10 text-destructive';
   }
-  return 'border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60';
+  return 'border-border/60 bg-muted/30 text-muted-foreground';
 }
 
 /**
@@ -413,7 +413,7 @@ export function LogViewerContent({
                     <Accordion.Item
                       key={section.id}
                       id={section.id}
-                      className="rounded-lg border border-border/70 bg-card/60 transition-colors data-[expanded=true]:bg-card/90 data-[expanded=true]:shadow-2xs overflow-hidden"
+                      className="rounded-lg border border-border/70 bg-card/60 transition-colors data-[expanded=true]:bg-card/90 overflow-hidden"
                     >
                       <Accordion.Heading>
                         <Accordion.Trigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/60">
@@ -455,7 +455,7 @@ export function LogViewerContent({
                           ) : (
                             <Surface
                               variant="secondary"
-                              className="my-1 rounded-md border border-border/60 overflow-hidden shadow-2xs"
+                              className="my-1 rounded-md border border-border/60 overflow-hidden"
                             >
                               <ScrollArea
                                 orientation={wrapLines ? 'vertical' : 'horizontal'}

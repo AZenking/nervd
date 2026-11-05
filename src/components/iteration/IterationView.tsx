@@ -100,7 +100,7 @@ function WorkitemSkeletonRows() {
           <div className="flex items-center gap-2 px-1">
             <Skeleton className="size-3.5 rounded shrink-0" />
             <Skeleton className="h-4 w-16 rounded" />
-            <Skeleton className="h-3.5 w-6 rounded-full" />
+            <Skeleton className="h-3.5 w-6 rounded-sm" />
           </div>
           {/* 组内工作项骨架行 */}
           <div className="flex flex-col gap-0.5 ml-2.5 pl-3 border-l border-border/40 py-0.5">
@@ -110,7 +110,7 @@ function WorkitemSkeletonRows() {
                 className="flex h-10 w-full items-center gap-2.5 rounded-md px-2.5 bg-muted-bg"
               >
                 <Skeleton className="size-3.5 rounded-sm shrink-0" />
-                <Skeleton className="h-5 w-14 rounded-full shrink-0" />
+                <Skeleton className="h-5 w-14 rounded-sm shrink-0" />
                 <Skeleton className="h-3.5 w-16 shrink-0" />
                 <Skeleton
                   className="h-3.5 rounded"
@@ -658,7 +658,7 @@ export function IterationView() {
                     size="sm"
                     variant="soft"
                     className={cn(
-                      "h-4.5 min-w-5 px-1.5 text-[10.5px] font-mono tabular-nums border rounded-full transition-colors",
+                      "h-4.5 min-w-5 px-1.5 text-[10.5px] font-mono tabular-nums border rounded-sm transition-colors",
                       getStatusGroupChipClass(group.status)
                     )}
                   >
@@ -736,7 +736,7 @@ export function IterationView() {
                         className={cn(
                           'group relative flex w-full cursor-pointer items-center gap-2.5 rounded-md text-left transition-colors min-h-0',
                           'hover:bg-muted/60',
-                          'data-[active=true]:bg-muted-bg data-[active=true]:shadow-2xs',
+                          'data-[active=true]:bg-muted-bg',
                           'h-10 px-2.5 pl-3',
                         )}
                       >
@@ -780,7 +780,7 @@ export function IterationView() {
                             size="sm"
                             variant="soft"
                             color="accent"
-                            className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-full select-none"
+                            className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-sm select-none"
                           >
                             我负责
                           </Chip>
@@ -789,7 +789,7 @@ export function IterationView() {
                             size="sm"
                             variant="soft"
                             color="warning"
-                            className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-full select-none"
+                            className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-sm select-none"
                           >
                             我参与
                           </Chip>

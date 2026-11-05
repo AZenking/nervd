@@ -227,6 +227,7 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 - 区块标题：h2 15px semibold（`SectionHeader`）/ h3 13px medium；eyebrow 标签 12px / 600。
 - 字体栈：`--font-sans` = Inter（含 PingFang SC / Microsoft YaHei 回退）；`--font-mono` = SF Mono 系（标识符、分支名、SHA、运行号、`kbd`、统计数字，一律 `font-mono tabular-nums`）；`--font-log` = 日志/终端专用等宽族。
 - 12px 档与上游契约一致：正文活动集中在 12–15px，标题靠字重（600/700）表达层级，不用颜色和装饰。
+- **微字阶（meta/徽标专用，2026-11-05 收编为规范）**：`text-[11px]` 为默认微字档（表格元数据、Chip、状态行）；`text-[10px]` 用于徽标/计数；`text-[9px]` 仅限极小头像徽标（avatar xs）等极端受限场景。侧栏/导航存量过渡档 `text-[12.5px]` / `text-[13.5px]` 保留不再新增使用点。微字阶禁止用于段落正文与表单标签。
 
 ## 2.4 明暗模式与切换
 
@@ -246,7 +247,7 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 
 ## 2.6 阴影与已知偏差
 
-- 浮层阴影唯一档位：`--shadow-level-2`（三层近透明合成，`barely-there`）——弹层、菜单、命令面板、Toast 专用；页内卡片一律 hairline 无阴影。全仓 `shadow-level-*` 用法已收敛至该档位（2026-11-05 修复原 level-1/level-3 未定义用法）。
+- 浮层阴影唯一档位：`--shadow-level-2`（三层近透明合成，`barely-there`）——弹层、菜单、命令面板、Toast 专用；页内卡片一律 hairline 无阴影。实现机制（2026-11-05 全仓治理完成）：theme.css 以 `--overlay-shadow` 覆盖 HeroUI 浮层默认阴影为 level-2 值，popover / dropdown / tooltip 由组件默认出影（原语层不再自定义阴影，杜绝 stacking）；sheet 无默认阴影仍显式 `shadow-level-2`；全仓 Tailwind 默认阴影档（xs–2xl）已清零。
 - 裸调色板类已于 2026-11-05 **全仓清零**。两处历史保留项的最终处置：
   - avatar 首字母身份色 → 新增 `--avatar-*` 身份调色板（7 hue，明暗双档文字主色，底/框由 color-mix 派生，见 2.1 补充约定）承载。
   - 缺陷严重度「一般」→ 采用 informational 蓝 `--sticker-sky`（贴纸色的"状态点/装饰"设计槽位），四档梯度：致命 danger → 严重 warning → 一般 sky → 轻微 success；如需换档位语义只改该一个 class。

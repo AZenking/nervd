@@ -66,21 +66,26 @@ export function AiBreakdownTags({
         };
 
         return (
-          <Chip
+          <button
             key={tag}
-            size="sm"
-            variant={isSelected ? 'soft' : 'secondary'}
+            type="button"
+            className="inline-flex cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             onClick={() => toggle(tag)}
-            className={cn(
-              'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-medium transition-all cursor-pointer',
-              isSelected
-                ? cn(color.bg, color.text, color.border, 'shadow-xs font-semibold')
-                : 'border-border/50 bg-background/50 text-muted-foreground hover:bg-muted hover:text-foreground',
-            )}
           >
-            {isSelected && <CheckIcon className="size-3" />}
-            <span>{tag}</span>
-          </Chip>
+            <Chip
+              size="sm"
+              variant={isSelected ? 'soft' : 'secondary'}
+              className={cn(
+                'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-medium transition-all',
+                isSelected
+                  ? cn(color.bg, color.text, color.border, 'font-semibold')
+                  : 'border-border/50 bg-background/50 text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {isSelected && <CheckIcon className="size-3" />}
+              <span>{tag}</span>
+            </Chip>
+          </button>
         );
       })}
     </div>

@@ -435,7 +435,7 @@ export function AiSection() {
                       'gap-1 font-mono text-xs',
                       // 选中态：Linear Violet 实色胶囊（utilities 层覆盖 heroui accent-soft 弱底色）；悬停/按压加深一档
                       active
-                        ? 'border-primary/70 bg-primary font-medium text-primary-foreground shadow-xs data-[hovered=true]:bg-primary/90 data-[pressed=true]:bg-primary/85'
+                        ? 'border-primary/70 bg-primary font-medium text-primary-foreground data-[hovered=true]:bg-primary/90 data-[pressed=true]:bg-primary/85'
                         : 'text-muted-foreground data-[hovered=true]:text-foreground',
                     )}
                     aria-label={`切换默认拆解标签 ${tag}`}

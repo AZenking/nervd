@@ -36,7 +36,7 @@ export function NavUser() {
           <HelpCircleIcon className="size-[18px] shrink-0" />
           <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">帮助与信息</span>
           {hasUpdate ? (
-            <span className="ml-auto rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary group-data-[collapsible=icon]:hidden animate-pulse leading-none">
+            <span className="ml-auto rounded-sm bg-primary/10 border border-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary group-data-[collapsible=icon]:hidden animate-pulse leading-none">
               新版本
             </span>
           ) : (

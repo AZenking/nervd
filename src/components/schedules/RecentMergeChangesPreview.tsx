@@ -179,7 +179,7 @@ export function RecentMergeChangesPreview({
                 type="button"
                 onClick={(e) => handleWorkitemClick(wi, e)}
                 title={`查看或复制需求 ${wi}`}
-                className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 bg-primary/10 text-primary hover:bg-primary/20 text-[9px] font-mono font-medium transition-colors shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 bg-primary/10 text-primary hover:bg-primary/20 text-[9px] font-mono font-medium transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
                 <span>{wi}</span>
               </button>
@@ -204,7 +204,7 @@ export function RecentMergeChangesPreview({
               <button
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
-                className="inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline font-mono shrink-0 ml-1 cursor-pointer"
+                className="inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline font-mono shrink-0 ml-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
                 <span>{expanded ? '收起' : `+${displayCommits.length - 1} 条`}</span>
                 {expanded ? (
@@ -279,7 +279,7 @@ export function RecentMergeChangesPreview({
                       type="button"
                       onClick={(e) => handleWorkitemClick(wi, e)}
                       title={`查看或复制需求 ${wi}`}
-                      className="inline-flex items-center rounded px-0.5 bg-primary/10 text-primary hover:bg-primary/20 text-[9px] font-mono cursor-pointer"
+                      className="inline-flex items-center rounded px-0.5 bg-primary/10 text-primary hover:bg-primary/20 text-[9px] font-mono cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     >
                       {wi}
                     </button>
@@ -332,7 +332,7 @@ export function RecentMergeChangesPreview({
             type="button"
             onClick={handleProbeChanges}
             disabled={probing}
-            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium cursor-pointer ml-1"
+            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium cursor-pointer ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
             <RefreshCwIcon className={cn('size-2.5', probing && 'animate-spin text-primary')} />
             <span>探测待合入变更</span>

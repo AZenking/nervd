@@ -129,7 +129,7 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={handleClear}
+                onPress={handleClear}
                 disabled={saving}
                 className="text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 text-xs"
               >
@@ -144,7 +144,7 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => onOpenChange(false)}
+              onPress={() => onOpenChange(false)}
               disabled={saving}
             >
               取消
@@ -153,7 +153,7 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
               type="button"
               variant="default"
               size="sm"
-              onClick={handleSave}
+              onPress={handleSave}
               disabled={saving}
               className="gap-1.5"
             >

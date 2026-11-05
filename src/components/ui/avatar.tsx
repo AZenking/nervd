@@ -209,9 +209,9 @@ export function UserAvatar({
     return (
       <span
         className={cn(
-          'group/user-badge inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5 transition-colors',
-          'bg-muted/40 hover:bg-muted/70 border border-transparent hover:border-border/40',
-          isAssigned && 'bg-primary/10 border-primary/25 hover:bg-primary/15',
+          'group/user-badge inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 transition-colors',
+          'bg-muted/40 border border-transparent',
+          isAssigned && 'bg-primary/10 border-primary/25',
           className
         )}
       >

@@ -86,7 +86,7 @@ export function LinkedRepoHeader({
         {/* 仓库图标位：HeroUI Avatar 原语（调色板渐变 + GitBranch 图标回退） */}
         <Avatar
           className={cn(
-            'size-9.5 shrink-0 select-none rounded-lg border bg-card bg-linear-to-br shadow-xs',
+            'size-9.5 shrink-0 select-none rounded-lg border bg-card bg-linear-to-br',
             palette,
           )}
           aria-hidden="true"

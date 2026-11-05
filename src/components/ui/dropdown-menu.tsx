@@ -128,7 +128,7 @@ function DropdownMenuContent({
       offset={sideOffset}
       crossOffset={alignOffset}
       className={cn(
-        "z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) rounded-lg border border-border bg-popover text-popover-foreground shadow-level-2 ring-1 ring-black/5 duration-100 outline-none",
+        "z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) rounded-lg border border-border bg-popover text-popover-foreground duration-100 outline-none",
         className
       )}
       {...(props as any)}
@@ -194,6 +194,22 @@ interface DropdownMenuItemProps extends Omit<React.ComponentPropsWithoutRef<type
   children?: React.ReactNode
 }
 
+// R9 onClick 兼容事件桩：回退触发历史 onClick 时，残留调用方可能消费
+// e.stopPropagation() / e.preventDefault()（真实 DOM 事件已由 onAction press 链路接管），
+// 提供 no-op 桩避免运行时异常。
+const COMPAT_CLICK_EVENT = {
+  stopPropagation() {},
+  preventDefault() {},
+} as unknown as React.MouseEvent<any>
+
+// R9 onPress 兼容事件桩：fixer 将 DropdownMenuItem 的 onClick 迁移为 onPress 后，
+// 由 handleAction 回退触发（PressEvent 桩含 continuePropagation 备用 API）。
+const COMPAT_PRESS_EVENT = {
+  stopPropagation() {},
+  preventDefault() {},
+  continuePropagation() {},
+} as any
+
 function DropdownMenuItem({
   className,
   inset,
@@ -201,9 +217,22 @@ function DropdownMenuItem({
   disabled,
   onSelect,
   onClick,
+  onPress,
+  onAction,
   children,
   ...props
 }: DropdownMenuItemProps) {
+  // R9 onClick/onPress 兼容回退：调用方传 onClick/onPress（未传 onAction）时并入 onAction press 链路 ——
+  // 键盘 Enter 也触发（修复残留调用方的键盘可达性）；传了 onAction 时优先 onAction，onClick/onPress 不再透传（避免双触发）。
+  const handleAction = () => {
+    onSelect?.({} as any)
+    if (onAction) {
+      ;(onAction as any)()
+    } else {
+      onPress?.(COMPAT_PRESS_EVENT)
+      onClick?.(COMPAT_CLICK_EVENT)
+    }
+  }
   return (
     <DropdownHero.Item
       data-slot="dropdown-menu-item"
@@ -211,10 +240,7 @@ function DropdownMenuItem({
       data-variant={variant}
       variant={variant === "destructive" ? "danger" : undefined}
       isDisabled={disabled ?? props.isDisabled}
-      onAction={() => {
-        onSelect?.({} as any)
-      }}
-      onClick={onClick}
+      onAction={handleAction}
       className={cn(
         "group/dropdown-menu-item relative flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:data-highlighted:bg-destructive/10 data-[variant=destructive]:data-highlighted:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:data-highlighted:bg-destructive/20 dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:text-muted-foreground [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
         inset && "pl-8",
@@ -271,7 +297,7 @@ function DropdownMenuSubContent({
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
       className={cn(
-        "w-auto min-w-[96px] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-level-2 ring-1 ring-black/5 duration-100",
+        "w-auto min-w-[96px] rounded-lg border border-border bg-popover p-1 text-popover-foreground duration-100",
         className
       )}
       align={align}
@@ -306,8 +332,10 @@ function DropdownMenuCheckboxItem({
       data-slot="dropdown-menu-checkbox-item"
       data-inset={inset}
       data-checked={checked}
-      onClick={(e) => {
-        onClick?.(e)
+      // R9 onClick 包装逻辑并入 onAction：键盘 Enter 同样切换 checkbox；
+      // 时序保持 onClick（兼容别名）先于 onCheckedChange。
+      onAction={() => {
+        onClick?.(COMPAT_CLICK_EVENT)
         onCheckedChange?.(!checked)
       }}
       className={cn(

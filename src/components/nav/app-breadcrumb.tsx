@@ -7,22 +7,23 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
+import { cn } from '@/lib/utils';
 import { SETTINGS_SECTIONS } from '../settings/sections';
 
 /** 应用面包屑（UX A2）：可点层级 + 需求详情的 父 › 子 链；页头（breadcrumb 槽）与顶栏共用 */
 export function AppBreadcrumb() {
   const { view, iterationKey, chain, history, setView, back, settingsSection } = useUi();
 
-  const crumbLink = (label: string, onClick: () => void) => (
+  const crumbLink = (label: string, onClick: () => void, className?: string) => (
     <BreadcrumbItem key={`link-${label}`}>
-      <BreadcrumbLink className="cursor-pointer" render={<button type="button" onClick={onClick} />}>
+      <BreadcrumbLink className={cn('cursor-pointer', className)} render={<button type="button" onClick={onClick} />}>
         {label}
       </BreadcrumbLink>
     </BreadcrumbItem>
   );
-  const crumbPage = (label: string) => (
+  const crumbPage = (label: string, className?: string) => (
     <BreadcrumbItem key={`page-${label}`}>
-      <BreadcrumbPage className="max-w-48 truncate font-medium">{label}</BreadcrumbPage>
+      <BreadcrumbPage className={cn('max-w-48 truncate font-medium', className)}>{label}</BreadcrumbPage>
     </BreadcrumbItem>
   );
   const sep = (key: string) => <BreadcrumbSeparator key={`separator-${key}`} />;
@@ -40,13 +41,13 @@ export function AppBreadcrumb() {
         chain.forEach((crumb, index) => {
           if (index > 0) items.push(sep(String(index)));
           if (index === chain.length - 1) {
-            items.push(crumbPage(crumb.identifier));
+            items.push(crumbPage(crumb.identifier, 'font-mono'));
           } else {
             items.push(crumbLink(crumb.identifier, () => {
               const nextChain = chain.slice(0, index + 1);
               useUi.setState({ chain: nextChain });
               void useApp.getState().select(crumb.workitemId);
-            }));
+            }, 'font-mono'));
           }
         });
       }
@@ -76,7 +77,7 @@ export function AppBreadcrumb() {
               className="size-6 text-muted-foreground"
               aria-label="后退（⌘←）"
               disabled={!history.length}
-              onClick={back}
+              onPress={back}
             />
           }
         >

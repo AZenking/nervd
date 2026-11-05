@@ -352,7 +352,7 @@ export function CreateMrDialog({
               size="xs"
               variant="outline"
               disabled={aiGenerating || submitting || !sourceBranch.trim() || !targetBranch.trim() || sourceBranch === targetBranch}
-              onClick={() => void handleAiGenerate()}
+              onPress={() => void handleAiGenerate()}
               className="h-6 text-xs text-primary border-primary/30 hover:bg-primary/10"
               title="根据当前分支落差与工作项，AI 智能拟定 MR 标题与说明"
             >
@@ -432,7 +432,7 @@ export function CreateMrDialog({
               variant="outline"
               size="sm"
               disabled={submitting}
-              onClick={() => onOpenChange(false)}
+              onPress={() => onOpenChange(false)}
             >
               取消
             </Button>

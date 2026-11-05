@@ -154,7 +154,7 @@ function ParameterField({
                     <OverflowTooltip text={b} className="min-w-0 truncate" />
                     <div className="flex items-center gap-1 shrink-0 font-sans">
                       {b === defaultBranch && (
-                        <span className="text-[10px] text-success font-medium bg-success/10 px-1 py-0.2 rounded">
+                        <span className="text-[10px] text-success font-medium bg-success/10 px-1 py-0.5 rounded">
                           推荐
                         </span>
                       )}

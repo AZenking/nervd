@@ -41,7 +41,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
   };
 
   return (
-    <Card className="transition-colors hover:bg-muted/40">
+    <Card className="transition-colors">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={snapshot?.status} />
         <OverflowTooltip
@@ -57,7 +57,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
                 size="icon-sm"
                 aria-label="刷新 CI 状态"
                 disabled={refreshing || entry?.loading}
-                onClick={() => void refresh()}
+                onPress={() => void refresh()}
               />
             }
           >
@@ -89,10 +89,10 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
             {snapshot.runs.map((run) => (
               <Surface key={run.runId} variant="secondary" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/50 px-2.5 py-2 text-xs">
                 <StatusBadge status={run.status} size="sm" />
-                <span className="font-log text-foreground">#{run.runId}</span>
+                <span className="font-mono text-foreground">#{run.runId}</span>
                 <span className="ml-auto text-muted-foreground">{when(run.startTime)}</span>
                 <span className="text-muted-foreground">{duration(run.durationMs)}</span>
-                <Button variant="ghost" size="xs" onClick={() => openRepoBuildLogs(repoId, run.runId, `${repoName} · ${snapshot.name} #${run.runId}`)}>
+                <Button variant="ghost" size="xs" onPress={() => openRepoBuildLogs(repoId, run.runId, `${repoName} · ${snapshot.name} #${run.runId}`)}>
                   查看日志
                 </Button>
               </Surface>

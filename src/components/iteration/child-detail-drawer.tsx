@@ -243,7 +243,7 @@ export function ChildDetailDrawer({
             size="sm"
             color={statusColor}
             variant="soft"
-            className={cn('cursor-pointer', updatingStatus && 'pointer-events-none opacity-60')}
+            className={cn('cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring', updatingStatus && 'pointer-events-none opacity-60')}
             title="点击快速更改状态"
           >
             {updatingStatus ? (
@@ -271,7 +271,7 @@ export function ChildDetailDrawer({
             <DropdownMenuItem
               key={s.id}
               className={cn('flex cursor-pointer items-center justify-between text-xs', isCurrent && 'font-medium text-primary')}
-              onClick={() => void handleSelectStatus(s)}
+              onSelect={() => void handleSelectStatus(s)}
             >
               <div className="flex items-center gap-2">
                 <StatusIcon status={s.name} className="size-3" />
@@ -392,20 +392,21 @@ export function ChildDetailDrawer({
               </Chip>
 
               {child?.identifier && (
-                <Chip
-                  size="sm"
-                  variant="secondary"
-                  className="font-mono cursor-pointer transition-colors hover:bg-muted/60 gap-1 shrink-0"
+                <button
+                  type="button"
+                  className="inline-flex cursor-pointer rounded-sm shrink-0 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={copyIdentifier}
                   title="点击复制编号"
                 >
-                  <Chip.Label>{child.identifier}</Chip.Label>
-                  {copied ? (
-                    <CheckIcon className="size-3 text-sig-ok shrink-0" />
-                  ) : (
-                    <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
-                  )}
-                </Chip>
+                  <Chip size="sm" variant="secondary" className="font-mono gap-1">
+                    <Chip.Label>{child.identifier}</Chip.Label>
+                    {copied ? (
+                      <CheckIcon className="size-3 text-sig-ok shrink-0" />
+                    ) : (
+                      <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+                    )}
+                  </Chip>
+                </button>
               )}
             </div>
 
@@ -416,7 +417,7 @@ export function ChildDetailDrawer({
                     <Button
                       variant="ghost"
                       size="icon-xs"
-                      onClick={handleOpenInYunxiao}
+                      onPress={handleOpenInYunxiao}
                       aria-label="在云效中打开"
                     />
                   }
@@ -432,7 +433,7 @@ export function ChildDetailDrawer({
                     <Button
                       variant="ghost"
                       size="icon-xs"
-                      onClick={() => {
+                      onPress={() => {
                         if (child) onOpenInWorkbench(child);
                       }}
                       aria-label="在工作台全屏打开"
@@ -450,7 +451,7 @@ export function ChildDetailDrawer({
                     <Button
                       variant="ghost"
                       size="icon-xs"
-                      onClick={onClose}
+                      onPress={onClose}
                       aria-label="关闭抽屉 (Esc)"
                       title="关闭抽屉 (Esc)"
                     >
@@ -519,14 +520,14 @@ export function ChildDetailDrawer({
             Esc 或点击外部关闭
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onClose}>
+            <Button variant="ghost" size="sm" onPress={onClose}>
               关闭
             </Button>
             {child && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onOpenInWorkbench(child)}
+                onPress={() => onOpenInWorkbench(child)}
                 className="gap-1.5"
               >
                 <ArrowUpRightIcon className="size-3.5" />

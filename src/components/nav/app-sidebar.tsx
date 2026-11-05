@@ -67,11 +67,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <button
             type="button"
             onClick={() => openSettings('connection')}
-            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl p-1.5 text-left transition-all hover:bg-sidebar-accent group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:p-0"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl p-1.5 text-left transition-all hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:p-0"
             title={`${displayName} (${displayRole}) · 点击进入账号设置`}
             data-no-drag
           >
-            <div className="relative size-10 shrink-0 overflow-hidden rounded-full shadow-2xs ring-1 ring-border/40">
+            <div className="relative size-10 shrink-0 overflow-hidden rounded-full ring-1 ring-border/40">
               {currentUser?.avatarUrl ? (
                 <img
                   src={currentUser.avatarUrl}
@@ -112,7 +112,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <button
                 type="button"
                 onClick={() => useUi.getState().setCommandOpen(true)}
-                className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-xl bg-sidebar-accent/70 px-3 text-[12.5px] text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-foreground"
+                className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-xl bg-sidebar-accent/70 px-3 text-[12.5px] text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               >
                 <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate text-left">搜索或跳转…</span>
@@ -130,7 +130,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       type="button"
                       onClick={() => useUi.getState().setCommandOpen(true)}
                       aria-label="搜索或跳转 (⌘K)"
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-sidebar-accent/70 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-sidebar-accent/70 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                     />
                   }
                 >
@@ -145,7 +145,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       type="button"
                       onClick={() => setQuickBuildOpen(true)}
                       aria-label="快速构建 (⌘B)"
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-sidebar-accent/70 text-warning hover:bg-sidebar-accent"
+                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-sidebar-accent/70 text-warning hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                     />
                   }
                 >
@@ -217,7 +217,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 icon: <CalendarClockIcon />,
                 view: 'schedules',
                 badge: activeScheduleCount > 0 ? (
-                  <span className="ml-auto rounded-full bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
+                  <span className="ml-auto rounded-sm bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
                     {activeScheduleCount}
                   </span>
                 ) : null,
@@ -227,7 +227,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 icon: <ClockIcon />,
                 view: 'recents',
                 badge: recentCount > 0 ? (
-                  <span className="ml-auto rounded-full bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
+                  <span className="ml-auto rounded-sm bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
                     {recentCount}
                   </span>
                 ) : null,

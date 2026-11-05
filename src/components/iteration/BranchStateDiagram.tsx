@@ -74,7 +74,7 @@ type DiagramNode = RootNodeT | RepoNodeT | BranchNodeT;
 
 function RootNode({ data }: NodeProps<RootNodeT>) {
   return (
-    <Card className="w-[280px] p-3 border-primary/40 shadow-md">
+    <Card className="w-[280px] p-3 border-primary/40">
       <Handle id="tt" type="target" position={Position.Top} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
       <div className="font-mono text-[11px] text-muted-foreground">{data.identifier}</div>
@@ -91,7 +91,7 @@ function RootNode({ data }: NodeProps<RootNodeT>) {
 
 function RepoNode({ data }: NodeProps<RepoNodeT>) {
   return (
-    <Card className="w-[300px] p-2.5 shadow-sm">
+    <Card className="w-[300px] p-2.5">
       <Handle id="tt" type="target" position={Position.Top} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="ttr" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
@@ -116,7 +116,7 @@ const KIND_CLASS: Record<BranchData['kind'], string> = {
 function BranchNode({ data }: NodeProps<BranchNodeT>) {
   const dashed = data.missing;
   return (
-    <Card className={`w-[300px] p-2.5 shadow-sm ${dashed ? 'border-dashed' : ''}`}>
+    <Card className={`w-[300px] p-2.5 ${dashed ? 'border-dashed' : ''}`}>
       <Handle id="tt" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '50%' }} isConnectable={false} />
       <Handle id="ttr" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
       <Handle id="tbl" type="target" position={Position.Bottom} style={{ ...HIDDEN_HANDLE, left: '22%' }} isConnectable={false} />
@@ -124,13 +124,13 @@ function BranchNode({ data }: NodeProps<BranchNodeT>) {
       <Handle id="sbr" type="source" position={Position.Bottom} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
       <Handle id="stl" type="source" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '22%' }} isConnectable={false} />
       <div className="flex items-center justify-between gap-2">
-        <span className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4 ${KIND_CLASS[data.kind]}`}>
+        <span className={`inline-block rounded-sm border px-2 py-0.5 text-[11px] font-semibold leading-4 ${KIND_CLASS[data.kind]}`}>
           {data.kind}
         </span>
         {data.stateLabel && (
           <OverflowTooltip
             text={data.stateLabel}
-            className={`inline-block max-w-[170px] truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4 ${BADGE_CLASS[data.stateTone ?? 'muted']}`}
+            className={`inline-block max-w-[170px] truncate rounded-sm border px-2 py-0.5 text-[11px] font-semibold leading-4 ${BADGE_CLASS[data.stateTone ?? 'muted']}`}
           />
         )}
       </div>

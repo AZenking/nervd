@@ -166,7 +166,7 @@ export function LinkRepoModal({
                     type="button"
                     variant="ghost"
                     size="xs"
-                    onClick={onClearRecommendations}
+                    onPress={onClearRecommendations}
                     className="h-6 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     清空推荐
@@ -176,8 +176,8 @@ export function LinkRepoModal({
                   variant="outline"
                   size="xs"
                   disabled={recommendingRepos}
-                  onClick={() => void onRecommendRepos()}
-                  className="h-7 text-xs border-primary/30 bg-background hover:bg-primary/10 text-primary gap-1.5 cursor-pointer shadow-2xs"
+                  onPress={() => void onRecommendRepos()}
+                  className="h-7 text-xs border-primary/30 bg-background hover:bg-primary/10 text-primary gap-1.5 cursor-pointer"
                 >
                   {recommendingRepos ? (
                     <Loader2Icon className="size-3.5 animate-spin" />
@@ -205,7 +205,7 @@ export function LinkRepoModal({
                     <Card
                       key={rec.repoId}
                       className={cn(
-                        'justify-between p-3 transition-colors shadow-2xs',
+                        'justify-between p-3 transition-colors',
                         isAlreadyLinked
                           ? 'border-sig-ok/30 bg-sig-ok/5'
                           : 'border-primary/25 hover:border-primary/50',
@@ -259,7 +259,7 @@ export function LinkRepoModal({
                           <Button
                             size="xs"
                             disabled={savingRepos || isCurrentLinking}
-                            onClick={() => void handleQuickLink(rec.repoId)}
+                            onPress={() => void handleQuickLink(rec.repoId)}
                             className="h-6.5 px-3 text-xs gap-1"
                           >
                             {isCurrentLinking ? (
@@ -361,7 +361,7 @@ export function LinkRepoModal({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => onOpenChange(false)}
+            onPress={() => onOpenChange(false)}
             disabled={savingRepos}
           >
             取消
@@ -370,7 +370,7 @@ export function LinkRepoModal({
             type="button"
             variant="default"
             size="sm"
-            onClick={handleManualLink}
+            onPress={handleManualLink}
             disabled={!selectedRepoPath || savingRepos}
             className="gap-1.5"
           >

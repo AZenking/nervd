@@ -241,7 +241,7 @@ export function IterationRepoCard({
                   <GitBranchIcon className="size-3 text-muted-foreground" />
                   <OverflowTooltip
                     text={runningBranch}
-                    className="rounded bg-background/80 px-1.5 py-0.2 border border-border/50 text-[11px]"
+                    className="rounded bg-background/80 px-1.5 py-0.5 border border-border/50 text-[11px]"
                   />
                 </div>
               )}
@@ -250,7 +250,7 @@ export function IterationRepoCard({
                   <ServerIcon className="size-3 text-muted-foreground" />
                   <OverflowTooltip
                     text={runningEnvironment}
-                    className="rounded bg-background/80 px-1.5 py-0.2 border border-border/50 text-[11px]"
+                    className="rounded bg-background/80 px-1.5 py-0.5 border border-border/50 text-[11px]"
                   />
                 </div>
               )}
@@ -320,24 +320,25 @@ export function IterationRepoCard({
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {workitems.map((item) => (
-                <Chip
+                <button
                   key={item.workitemId}
-                  size="sm"
-                  variant="soft"
+                  type="button"
+                  className="inline-flex cursor-pointer rounded-sm transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={() => onOpenDetail?.(item)}
-                  className="cursor-pointer gap-1.5 px-2 py-1 text-xs text-foreground/90 transition-colors hover:border-primary/50"
                 >
-                  <StatusIcon status={item.status} className="size-3 shrink-0" />
-                  <span className="font-mono text-[11px] font-medium text-muted-foreground">
-                    {item.identifier}
-                  </span>
-                  <OverflowTooltip
-                    text={item.subject}
-                    tooltip={`${item.identifier} · ${item.subject} (${item.status})`}
-                    className="max-w-36 truncate text-[11px] text-foreground/80"
-                  />
-                  <ChevronRightIcon className="size-3 text-muted-foreground/40" />
-                </Chip>
+                  <Chip size="sm" variant="soft" className="gap-1.5 px-2 py-1 text-xs text-foreground/90">
+                    <StatusIcon status={item.status} className="size-3 shrink-0" />
+                    <span className="font-mono text-[11px] font-medium text-muted-foreground">
+                      {item.identifier}
+                    </span>
+                    <OverflowTooltip
+                      text={item.subject}
+                      tooltip={`${item.identifier} · ${item.subject} (${item.status})`}
+                      className="max-w-36 truncate text-[11px] text-foreground/80"
+                    />
+                    <ChevronRightIcon className="size-3 text-muted-foreground/40" />
+                  </Chip>
+                </button>
               ))}
             </div>
           </div>
@@ -525,7 +526,7 @@ export function IterationRepoTab({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => openSettings('trace')}
+                onPress={() => openSettings('trace')}
               >
                 前往设置默认仓库
               </Button>

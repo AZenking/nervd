@@ -109,7 +109,7 @@ function DirtyGuardDialog() {
         <AlertDialogFooter>
           <AlertDialogCancel>继续编辑</AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => {
+            onPress={() => {
               const dest = useSettingsDraft.getState().pendingView;
               discard();
               navigateTo(dest);
@@ -120,7 +120,7 @@ function DirtyGuardDialog() {
           <AlertDialogAction
             variant="destructive"
             disabled={saving}
-            onClick={() => {
+            onPress={() => {
               setSaving(true);
               const dest = useSettingsDraft.getState().pendingView;
               void save().then((ok) => {

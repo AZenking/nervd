@@ -5,7 +5,8 @@ import { Card } from '@/components/ui/card';
 /**
  * Linear 设置页原语（全面迁移至 HeroUI Card 复合组件，借足 Card 全部插槽与属性）：
  * - SettingsGroup：
- *   · Card.Root —— 整组容器（variant 默认 bg-surface + shadow-surface；p-0 gap-0 + overflow-hidden
+ *   · Card.Root —— 整组容器（variant 默认 bg-surface + 显式 shadow-none：nervd 2.6 页内卡片
+ *     一律 hairline 无阴影；p-0 gap-0 + overflow-hidden
  *     裁切行悬停底色于圆角内）；
  *   · Card.Header —— 组标题（Card.Title 默认 h3 字阶）+ 组说明（HeroUI Alert default 态紧凑呈现，
  *     Indicator + Description 结构，收敛 text-xs）+ 标题行右侧动作（action），
@@ -34,7 +35,7 @@ export function SettingsGroup({
   const hasHeader = title != null || description != null || action != null;
 
   return (
-    <Card className="gap-0 overflow-hidden p-0">
+    <Card className="gap-0 overflow-hidden p-0 shadow-none">
       {hasHeader && (
         <Card.Header className="flex-row items-start justify-between gap-4 border-b border-border/50 px-4 py-3.5">
           <div className="flex min-w-0 flex-col gap-1">

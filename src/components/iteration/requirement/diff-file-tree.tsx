@@ -129,7 +129,7 @@ export function DiffFileTree({
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    onClick={() => setSearchQuery('')}
+                    onPress={() => setSearchQuery('')}
                     className="absolute right-1 text-muted-foreground hover:text-foreground size-5"
                     title="清空搜索"
                     aria-label="清空搜索"
@@ -159,7 +159,7 @@ export function DiffFileTree({
                     variant="ghost"
                     size="icon"
                     className="size-5 text-muted-foreground hover:text-foreground"
-                    onClick={expandAll}
+                    onPress={expandAll}
                     title="展开全部目录"
                     aria-label="展开全部目录"
                   >
@@ -177,7 +177,7 @@ export function DiffFileTree({
                     variant="ghost"
                     size="icon"
                     className="size-5 text-muted-foreground hover:text-foreground"
-                    onClick={collapseAll}
+                    onPress={collapseAll}
                     title="折叠全部目录"
                     aria-label="折叠全部目录"
                   >
@@ -299,15 +299,16 @@ function TreeNodeItem({
   const isActive = activeFilePath === node.path;
 
   return (
-    <div
+    <button
+      type="button"
       role="treeitem"
       aria-selected={isActive}
       aria-current={isActive ? 'true' : undefined}
       onClick={() => onSelectFile(node.path)}
       className={cn(
-        'group flex items-center justify-between gap-1.5 py-1 px-1.5 rounded-sm text-xs cursor-pointer transition-colors border-l-2 border-transparent',
+        'group flex w-full items-center justify-between gap-1.5 py-1 px-1.5 rounded-sm text-left text-xs cursor-pointer transition-colors border-l-2 border-transparent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
         isActive
-          ? 'bg-primary/10 text-primary border-primary font-medium shadow-xs'
+          ? 'bg-primary/10 text-primary border-primary font-medium'
           : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground',
       )}
       style={{ paddingLeft: `${Math.max(6, level * 12 + 6)}px` }}
@@ -350,6 +351,6 @@ function TreeNodeItem({
           </span>
         )}
       </div>
-    </div>
+    </button>
   );
 }

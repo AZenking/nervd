@@ -112,7 +112,7 @@ function PageHeaderSecondaryActions({ items }: { items: PageHeaderSecondaryActio
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             {items.map((item) => (
-              <DropdownMenuItem key={item.key} onClick={() => item.onSelect?.()}>
+              <DropdownMenuItem key={item.key} onPress={() => item.onSelect?.()}>
                 {item.icon}
                 <span className="truncate">{item.label}</span>
               </DropdownMenuItem>

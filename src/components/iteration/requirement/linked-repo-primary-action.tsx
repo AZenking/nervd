@@ -58,7 +58,7 @@ export function LinkedRepoPrimaryAction({
   switch (action) {
     case 'configure-rule':
       return (
-        <Button type="button" size="sm" variant="outline" onClick={onConfigureRule}>
+        <Button type="button" size="sm" variant="outline" onPress={onConfigureRule}>
           <GitBranchIcon data-icon="inline-start" />
           配置分支规则
         </Button>
@@ -85,14 +85,14 @@ export function LinkedRepoPrimaryAction({
       );
     case 'view-mr':
       return (
-        <Button type="button" size="sm" variant="outline" onClick={() => onViewMr(targetActiveMr)}>
+        <Button type="button" size="sm" variant="outline" onPress={() => onViewMr(targetActiveMr)}>
           <GitPullRequestIcon data-icon="inline-start" />
           查看 MR !{targetActiveMr?.localId}
         </Button>
       );
     case 'create-mr':
       return (
-        <Button type="button" size="sm" variant="default" onClick={onCreateMr}>
+        <Button type="button" size="sm" variant="default" onPress={onCreateMr}>
           <PlusIcon data-icon="inline-start" />
           创建 MR
         </Button>
@@ -104,7 +104,7 @@ export function LinkedRepoPrimaryAction({
             type="button"
             size="sm"
             variant="default"
-            onClick={onOpenCiModal}
+            onPress={onOpenCiModal}
             title="代码已合入，请关联 CI 流水线并准备发起构建"
           >
             <WorkflowIcon data-icon="inline-start" />
@@ -127,7 +127,7 @@ export function LinkedRepoPrimaryAction({
           size="sm"
           variant="outline"
           disabled={cardRefreshing}
-          onClick={onRefresh}
+          onPress={onRefresh}
         >
           <RefreshCwIcon data-icon="inline-start" className={cardRefreshing ? 'animate-spin' : ''} />
           重试查询
@@ -141,10 +141,18 @@ export function LinkedRepoPrimaryAction({
         </Button>
       );
     case 'blocked':
-      return <Button type="button" size="sm" variant="outline" disabled>暂不可创建</Button>;
+      return (
+        <WriteOpButton
+          label="暂不可创建"
+          variant="outline"
+          disabled
+          disabledReason="交付链路被阻塞，暂不可创建"
+          onAction={async () => {}}
+        />
+      );
     case 'details':
       return (
-        <Button type="button" size="sm" variant="outline" onClick={onOpenDetails}>
+        <Button type="button" size="sm" variant="outline" onPress={onOpenDetails}>
           查看详情
         </Button>
       );

@@ -209,7 +209,7 @@ export function LinkedRepoBranchSection({
                   variant="ghost"
                   size="xs"
                   className="h-5 px-1 text-[10px] text-destructive"
-                  onClick={onRetryBaseline}
+                  onPress={onRetryBaseline}
                 >
                   重试
                 </Button>

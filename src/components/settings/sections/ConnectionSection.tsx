@@ -153,7 +153,7 @@ export function ConnectionSection() {
                 size="sm"
                 variant="soft"
                 color="accent"
-                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-full select-none"
+                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-sm select-none"
               >
                 我负责
               </Chip>
@@ -183,7 +183,7 @@ export function ConnectionSection() {
                 size="sm"
                 variant="soft"
                 color="warning"
-                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-full select-none"
+                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-sm select-none"
               >
                 我参与
               </Chip>

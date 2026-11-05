@@ -450,7 +450,7 @@ export function ChildrenCard({
             variant="outline"
             className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[11px] font-medium text-destructive"
           >
-            {openDefectsCount} 待修复
+            <span className="font-mono tabular-nums">{openDefectsCount}</span> 待修复
           </Badge>
         ) : (
           <Badge
@@ -470,7 +470,13 @@ export function ChildrenCard({
               : 'border-border/60 bg-muted/50 text-muted-foreground',
           )}
         >
-          {completedCount === items.length ? '全部完成' : `${completedCount}/${items.length} 完成`}
+          {completedCount === items.length
+            ? '全部完成'
+            : (
+              <>
+                <span className="font-mono tabular-nums">{completedCount}/{items.length}</span> 完成
+              </>
+            )}
         </Badge>
       )}
     </div>
@@ -669,7 +675,7 @@ export function ChildrenCard({
         <Button
           size="xs"
           disabled={submitting || !newSubject.trim()}
-          onClick={() => void handleCreate()}
+          onPress={() => void handleCreate()}
           className="h-7 rounded-md px-2.5 text-xs font-medium"
         >
           {submitting ? '创建中…' : '创建'}
@@ -678,7 +684,7 @@ export function ChildrenCard({
           size="xs"
           variant="ghost"
           disabled={submitting}
-          onClick={cancelAdding}
+          onPress={cancelAdding}
           className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground"
         >
           取消
@@ -700,7 +706,7 @@ export function ChildrenCard({
                 variant="ghost"
                 size="sm"
                 disabled={aiDirectLoading}
-                onClick={() => void handleAiBreakdown()}
+                onPress={() => void handleAiBreakdown()}
                 className="text-primary hover:text-primary hover:bg-primary/10"
                 title="根据需求描述一键智能拆解前端、后端与自测子任务"
               >
@@ -712,7 +718,7 @@ export function ChildrenCard({
                 {aiDirectLoading ? 'AI 拆解生成中…' : 'AI 智能拆解'}
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={startAdding}>
+            <Button variant="ghost" size="sm" onPress={startAdding}>
               <PlusIcon data-icon="inline-start" />
               新建{title}
             </Button>
@@ -807,7 +813,7 @@ export function ChildrenCard({
               variant="ghost"
               size="sm"
               className="w-full justify-start rounded-none border-t border-border/40 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground h-8 font-normal"
-              onClick={startAdding}
+              onPress={startAdding}
             >
               <PlusIcon className="size-3.5 shrink-0" />
               <span>添加{title}…</span>

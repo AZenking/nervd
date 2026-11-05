@@ -40,7 +40,7 @@ export function CycleHeaderBanner({
   return (
     <Card
       className={cn(
-        'group gap-0 overflow-hidden p-0 transition-colors hover:bg-card/90',
+        'group gap-0 overflow-hidden p-0',
         className,
       )}
     >

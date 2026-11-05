@@ -426,7 +426,7 @@ export function SchedulesView() {
                     <Surface
                       variant="secondary"
                       className={cn(
-                        'w-full group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 rounded-xl border border-border/70 transition-all hover:border-border cursor-pointer shadow-2xs group-data-[focused=true]:ring-2 group-data-[focused=true]:ring-primary/40',
+                        'w-full group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 rounded-xl border border-border/70 transition-all hover:border-border cursor-pointer group-data-[focused=true]:ring-2 group-data-[focused=true]:ring-primary/40',
                         !task.enabled && 'opacity-60 bg-muted/20',
                       )}
                     >
@@ -853,7 +853,7 @@ function TemplateCard({
           onClick();
         }
       }}
-      className="cursor-pointer text-left transition-all hover:bg-muted/40 hover:border-primary/50 group"
+      className="cursor-pointer text-left transition-all hover:bg-muted/40 hover:border-primary/50 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <Card.Header className="flex flex-row items-center gap-2 pb-0">
         {icon}

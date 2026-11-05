@@ -53,7 +53,7 @@ export function LinkedRepoCiStatus({
               type="button"
               variant="ghost"
               size="xs"
-              onClick={onOpenCiModal}
+              onPress={onOpenCiModal}
               className="group h-auto p-1 gap-1 text-xs text-muted-foreground hover:text-foreground font-normal"
               title="点击关联流水线"
               aria-label="点击关联流水线"
@@ -83,7 +83,7 @@ export function LinkedRepoCiStatus({
               type="button"
               variant="ghost"
               size="xs"
-              onClick={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
+              onPress={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
               className="group h-auto p-1 gap-1.5 text-xs text-left max-w-full font-normal truncate"
               title={`${ciSummary}，点击查看构建记录`}
               aria-label={`${ciSummary}，点击查看构建记录`}
@@ -123,7 +123,7 @@ export function LinkedRepoCiStatus({
             type="button"
             variant="ghost"
             size="xs"
-            onClick={onOpenCiModal}
+            onPress={onOpenCiModal}
             className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground truncate font-normal"
             title="该仓库暂无运行记录，点击查看配置"
             aria-label="该仓库暂无运行记录，点击查看配置"
@@ -165,7 +165,7 @@ export function LinkedRepoBuildAction({
       type="button"
       size="sm"
       variant="outline"
-      onClick={onOpenCiModal}
+      onPress={onOpenCiModal}
       className="h-7 text-xs gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
     >
       <PlusIcon className="size-3.5" />
@@ -200,10 +200,13 @@ export function LinkedRepoCiSection({
         <Tooltip>
           <TooltipTrigger
             render={
-              <InfoIcon
-                className="size-3.5 text-muted-foreground/70 hover:text-foreground cursor-help"
-                aria-label="构建说明"
-              />
+              <button
+                type="button"
+                aria-label="说明"
+                className="inline-flex cursor-help items-center rounded-sm text-muted-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <InfoIcon className="size-3.5" aria-hidden="true" />
+              </button>
             }
           />
           <TooltipContent className="max-w-72 text-xs">
@@ -218,7 +221,7 @@ export function LinkedRepoCiSection({
                   type="button"
                   variant="ghost"
                   size="xs"
-                  onClick={onOpenCiModal}
+                  onPress={onOpenCiModal}
                   className="group h-auto p-0 gap-1 font-mono text-[11px] text-muted-foreground hover:text-foreground truncate max-w-48 font-normal"
                   title="点击修改关联的 CI 流水线"
                   aria-label="点击修改关联的 CI 流水线"
@@ -240,7 +243,7 @@ export function LinkedRepoCiSection({
                   type="button"
                   variant="ghost"
                   size="xs"
-                  onClick={onOpenCiModal}
+                  onPress={onOpenCiModal}
                   className="h-auto px-1.5 py-0.5 gap-1 rounded text-[11px] font-medium text-warning bg-warning/10 hover:bg-warning/20"
                   title="该仓库尚未关联 CI，点击就地配置云效 Flow 或 Jenkins"
                   aria-label="该仓库尚未关联 CI，点击就地配置云效 Flow 或 Jenkins"

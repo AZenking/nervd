@@ -190,7 +190,7 @@ export function QuickBuildDialog() {
                             onMouseEnter={() => setSelectedIndex(idx)}
                             disabled={isTriggering}
                             className={cn(
-                              'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors',
+                              'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                               isSelected
                                 ? 'bg-accent text-accent-foreground'
                                 : 'hover:bg-muted/60 text-foreground',
@@ -264,7 +264,7 @@ export function QuickBuildDialog() {
                             onMouseEnter={() => setSelectedIndex(idx)}
                             disabled={isTriggering}
                             className={cn(
-                              'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors',
+                              'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                               isSelected
                                 ? 'bg-accent text-accent-foreground'
                                 : 'hover:bg-muted/60 text-foreground',

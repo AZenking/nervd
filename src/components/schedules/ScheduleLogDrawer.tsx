@@ -155,7 +155,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
     <Surface
       variant="default"
       className={cn(
-        'rounded-xl border border-border/70 p-4 transition-all hover:border-border text-xs space-y-3 shadow-2xs',
+        'rounded-xl border border-border/70 p-4 transition-all hover:border-border text-xs space-y-3',
         !isSuccess && 'border-destructive/30 bg-destructive/5',
       )}
     >
@@ -331,7 +331,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
             <Disclosure.Body className="p-0 pt-2">
               <Surface
                 variant="secondary"
-                className="overflow-hidden rounded-lg border border-border/70 shadow-2xs"
+                className="overflow-hidden rounded-lg border border-border/70"
               >
                 <Surface
                   variant="tertiary"
