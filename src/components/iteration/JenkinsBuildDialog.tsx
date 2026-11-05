@@ -605,7 +605,10 @@ export function JenkinsBuildParameters({
                     </span>
                     <ChevronDownIcon className="size-3.5 transition-transform" />
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2.5 flex flex-col gap-3 pt-2 border-t border-border/40">
+                  {/* 内边距/分隔线放内层 div：收合态 DisclosurePanel 高度为 0，
+                      装饰留在面板自身会残留空白条。 */}
+                  <CollapsibleContent>
+                    <div className="mt-2.5 flex flex-col gap-3 pt-2 border-t border-border/40">
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
                       指定哪个 Jenkins 参数对应「代码分支」与「部署环境」，用于在 nervd 的构建记录与迭代仓库列表中展示。已自动完成智能推断。
                     </p>

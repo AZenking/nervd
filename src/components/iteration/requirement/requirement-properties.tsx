@@ -1,23 +1,22 @@
 import {
-  CalendarIcon, ClockIcon, DatabaseIcon, FolderIcon, GitBranchIcon, LayersIcon, UserIcon, CheckIcon, ChevronDownIcon,
+  CalendarIcon, ClockIcon, DatabaseIcon, FolderIcon, GitBranchIcon, LayersIcon, UserIcon,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { Descriptions } from '@/components/ui/descriptions';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { useUi } from '@/store/ui';
+import { useApp } from '@/store/app';
 import { StatusIcon } from '@/components/status-icon';
-import { statusMeta, type StatusTone } from '@/components/StatusBadge';
-import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
-import { SearchableAssigneePopover } from './assignee-popover';
+import { Select } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
+import { toast } from '@/components/ui/toast';
+import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
 import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 
-/** 原地快速流转详情状态 Popover */
+/** 原地快速流转详情状态（Select 下拉，打开时拉取状态流程） */
 export function DetailStatusPopover({
   status,
   statusId,
@@ -31,91 +30,50 @@ export function DetailStatusPopover({
   variant?: 'badge' | 'cell';
   className?: string;
 }) {
-  const [open, setOpen] = useState(false);
   const { statuses, loadingStatuses, fetchStatuses, changeStatus } = useWorkitemWorkflowStatuses({
     workitemId,
     currentStatusId: statusId,
     currentStatusName: status,
   });
 
-  useEffect(() => {
-    if (open) void fetchStatuses();
-  }, [fetchStatuses, open]);
-
-  const renderTrigger = () => {
-    if (variant === 'badge') {
-      const meta = statusMeta(status);
-      const colorMap: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
-        ok: 'success',
-        run: 'warning',
-        fail: 'danger',
-        idle: 'default',
-      };
-      const color = colorMap[meta.tone] ?? 'default';
-
-      return (
-        <DropdownMenuTrigger
-          className="cursor-pointer"
-          render={
-            <Chip
-              size="sm"
-              color={color}
-              variant="soft"
-              className={className}
-              title="点击原地流转状态"
-            >
-              <StatusIcon status={status} className="size-3 shrink-0" />
-              <Chip.Label>{status || '未知状态'}</Chip.Label>
-              <ChevronDownIcon className="size-3 shrink-0 opacity-60 ml-0.5" />
-            </Chip>
-          }
-        />
-      );
-    }
-
-    return (
-      <DropdownMenuTrigger
-        className={cn(
-          'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none rounded-sm hover:bg-muted/80 px-1.5 py-0.5 text-xs font-medium',
-          className,
-        )}
-        title="点击原地流转状态"
-      >
-        <StatusIcon status={status} className="size-3.5 shrink-0" />
-        <span>{status || '未知状态'}</span>
-      </DropdownMenuTrigger>
-    );
-  };
-
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      {renderTrigger()}
-      <DropdownMenuContent align="start" className="w-36 p-1 z-50 bg-popover/95 backdrop-blur-md border border-border shadow-level-2">
-        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-          流转状态
-        </div>
-        {loadingStatuses && <div className="px-2 py-1.5 text-xs text-muted-foreground">读取状态流程…</div>}
-        {!loadingStatuses && statuses.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>}
-        {!loadingStatuses && statuses.map((st) => (
-          <DropdownMenuItem
-            key={st.id}
-            onClick={() => void changeStatus(st)}
-            className={cn(
-              'flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm cursor-pointer',
-              status === st.name && 'bg-accent font-medium text-accent-foreground',
-            )}
-          >
-            <StatusIcon status={st.name} className="size-3.5" />
-            <span className="flex-1">{st.name}</span>
-            {status === st.name && <CheckIcon className="size-3 text-primary" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Select
+      aria-label="流转状态"
+      value={statusId ?? null}
+      onOpenChange={(open) => {
+        if (open) void fetchStatuses();
+      }}
+      onValueChange={(key) => {
+        const st = statuses.find((s) => s.id === key);
+        if (st) void changeStatus(st);
+      }}
+      className={cn('min-w-0 max-w-44', className)}
+    >
+      <Select.Trigger className={cn('h-7 gap-1.5 text-xs', variant === 'cell' && 'h-6')}>
+        <StatusIcon status={status} className="size-3.5 shrink-0" />
+        <Select.Value className="truncate">{status || '未知状态'}</Select.Value>
+      </Select.Trigger>
+      <Select.Content className="min-w-36">
+        {loadingStatuses ? (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">读取状态流程…</div>
+        ) : statuses.length === 0 ? (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>
+        ) : (
+          statuses.map((st) => (
+            <Select.Item key={st.id} value={st.id} textValue={st.name} className="text-xs">
+              <span className="flex items-center gap-2">
+                <StatusIcon status={st.name} className="size-3.5 shrink-0" />
+                <span>{st.name}</span>
+              </span>
+            </Select.Item>
+          ))
+        )}
+      </Select.Content>
+    </Select>
   );
 }
 
-/** 原地快速流转详情负责人 Popover（支持搜索与键盘快捷导航） */
+/** 原地快速流转详情负责人（Select 下拉；只读门控 + 乐观更新） */
 export function DetailAssigneePopover({
   assignedToName,
   workitemId,
@@ -129,16 +87,87 @@ export function DetailAssigneePopover({
   variant?: 'badge' | 'cell';
   className?: string;
 }) {
+  const openSettings = useUi((s) => s.openSettings);
+  const { settings, updateWorkitemAssigneeOptimistic } = useApp();
+  const readOnly = !(settings?.allowWriteOps ?? false);
+  const [updating, setUpdating] = useState(false);
+
+  // 当前负责人可能不在候选列表（仅姓名已知）：补入选项以保证回显与可选
+  const candidates = useMemo(() => {
+    const list = [...(candidateAssignees ?? [])];
+    if (assignedToName && !list.some((c) => c.name === assignedToName || c.id === assignedToName)) {
+      list.unshift({ id: assignedToName, name: assignedToName });
+    }
+    return list;
+  }, [candidateAssignees, assignedToName]);
+
+  const selectedId = useMemo(
+    () => candidates.find((c) => c.name === assignedToName || c.id === assignedToName)?.id ?? null,
+    [candidates, assignedToName],
+  );
+
+  const handleValueChange = (key: string) => {
+    if (readOnly) {
+      toast.add({
+        title: '当前处于只读模式',
+        description: '更改负责人需在「设置 → 安全」中开启写操作。',
+        type: 'warning',
+        actionProps: {
+          children: '前往设置',
+          onClick: () => openSettings('security'),
+        },
+      });
+      return; // 受控 selectedKey 不变，选择自动回弹
+    }
+    const candidate = candidates.find((c) => c.id === key);
+    if (!candidate || !workitemId) return;
+    setUpdating(true);
+    void updateWorkitemAssigneeOptimistic(workitemId, candidate.id, candidate.name)
+      .finally(() => setUpdating(false));
+  };
+
   return (
-    <SearchableAssigneePopover
-      assignedToName={assignedToName}
-      workitemId={workitemId}
-      candidateAssignees={candidateAssignees}
-      variant={variant}
-      checkWriteOps
-      align="start"
-      className={className}
-    />
+    <Select
+      aria-label="更改负责人"
+      value={selectedId}
+      onValueChange={handleValueChange}
+      className={cn('min-w-0 max-w-44', className)}
+    >
+      <Select.Trigger className={cn('h-7 gap-1.5 text-xs', variant === 'cell' && 'h-6')}>
+        {updating ? (
+          <Spinner className="size-3.5 shrink-0" />
+        ) : assignedToName ? (
+          <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
+            <AvatarFallback className="text-[9px] bg-transparent font-medium">
+              {assignedToName.charAt(0)}
+            </AvatarFallback>
+          </Avatar>
+        ) : (
+          <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
+        )}
+        <Select.Value className="truncate">{assignedToName || '未分配'}</Select.Value>
+      </Select.Trigger>
+      <Select.Content>
+        {candidates.length === 0 && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无候选成员</div>
+        )}
+        {candidates.map((c) => (
+          <Select.Item key={c.id} value={c.id} textValue={c.name} className="text-xs">
+            <span className="flex min-w-0 items-center gap-2">
+              <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(c.name))}>
+                <AvatarFallback className="text-[9px] bg-transparent font-medium">
+                  {c.name.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="truncate">{c.name}</span>
+              {c.role && (
+                <span className="shrink-0 text-[10px] text-muted-foreground/80">({c.role})</span>
+              )}
+            </span>
+          </Select.Item>
+        ))}
+      </Select.Content>
+    </Select>
   );
 }
 

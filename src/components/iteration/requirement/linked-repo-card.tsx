@@ -441,8 +441,10 @@ export function LinkedRepoCard({
         onOpenChange={(open) => setDetailsOpen(open)}
         className="min-w-0"
       >
-        <CollapsibleContent className="border-t border-border/50 px-4 py-3.5 transition-all">
-          <div className="flex flex-col gap-3">
+        {/* 收合态下 DisclosurePanel 仅保留 height/clip；内边距与分隔线必须在内层，
+            否则收起后仍残留 py + border 的空白条（卡片底部假下边距）。 */}
+        <CollapsibleContent className="transition-all">
+          <div className="flex flex-col gap-3 border-t border-border/50 px-4 py-3.5">
             {/* 展开面板顶栏（收合由表头展开按钮控制，HeroUI Separator 分隔） */}
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-semibold text-foreground">
