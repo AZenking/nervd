@@ -9,10 +9,11 @@ cd "$(dirname "$0")/.."
 fail() { echo "[ERROR] $1" >&2; exit 1; }
 
 echo "== 1/5 TypeScript 类型检查 =="
-pnpm exec tsc --noEmit || fail "tsc 报错"
+export PATH=/opt/homebrew/bin:$PATH
+./node_modules/.bin/tsc --noEmit || fail "tsc 报错"
 
 echo "== 2/5 单元测试 (vitest) =="
-pnpm exec vitest run || fail "vitest 失败"
+./node_modules/.bin/vitest run || fail "vitest 失败"
 
 echo "== 3/5 Rust cargo check =="
 (cd src-tauri && cargo check -q 2>&1 | tail -20) || fail "cargo check 报错"

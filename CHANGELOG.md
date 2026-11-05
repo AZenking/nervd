@@ -3,6 +3,42 @@
 All notable changes to **nervd** will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.0.0](https://github.com/AZenking/nervd/releases/tag/v1.0.0) - 2026-11-05
+
+### 🚀 Features
+
+- *(ui)* 全面迁移至 HeroUI v3 无障碍规范体系并引入线性侧边抽屉 (Peek Drawer) ([eb3c67f](https://github.com/AZenking/nervd/commit/eb3c67f5eea5eb4cbe42faaa64ddf71904120a17))
+- *(ui)* 原生 HeroUI Card 统一 StatBand、Stat 与 QuickBuildConsole 容器 ([435c051](https://github.com/AZenking/nervd/commit/435c0519bfd078ba15e1db28f521cf3e09886a8b))
+- *(ui)* 下拉检索框迁移至原生 HeroUI Autocomplete ([5ec3413](https://github.com/AZenking/nervd/commit/5ec3413cb17f54c2596e1919aa786c25345d3c8a))
+- *(theme)* HeroUI v3 主题 Token 与双模数据同步，完善全站深浅色自适应 ([4570e0b](https://github.com/AZenking/nervd/commit/4570e0b37807c4d51cb20f2690d5ae684534f5df))
+- *(ui)* 启动与总览加载采用 HeroUI ProgressBar 及原生 Label ([9792de9](https://github.com/AZenking/nervd/commit/9792de9aa250ef31a980eb63dcba48740d12e697))
+- *(ui)* 模态弹窗与侧栏抽屉全量采用 HeroUI Modal / Drawer 复合组件原语 ([9201464](https://github.com/AZenking/nervd/commit/92014643c137452db89487c53d1007d4fa4c4989))
+- *(ui)* 侧边栏与工作项折叠迁移至 HeroUI Accordion 与 ListBox 原语 ([52fbb82](https://github.com/AZenking/nervd/commit/52fbb82103f5509cbdbbc882791834ee5110ebf1))
+- *(ui)* 状态标识与需求元数据标签全面迁移至 HeroUI Chip ([aa0cd09](https://github.com/AZenking/nervd/commit/aa0cd09fd7180ff9ba47a9ffca53760bc21a6e9a))
+- *(ui)* 标签页迁移至 HeroUI 浮动分段式 Tabs ([f4fdfb8](https://github.com/AZenking/nervd/commit/f4fdfb80a1ae11c8d1976bb2559b32e67a7806f3))
+- *(overview)* 合并快捷构建台与活跃构建流，支持方案B预估进度条与自由选择Job ([00bd3a1](https://github.com/AZenking/nervd/commit/00bd3a18357774ae7003c4046d337f71b12b5b19))
+
+### 🐛 Bug Fixes
+
+- *(iteration)* 修复行首多选 Checkbox 点击与快捷键交互 ([a50e301](https://github.com/AZenking/nervd/commit/a50e301844b2f1e2920786cf81f9f25757876a47))
+- *(recents)* 键盘光标选中行规范化为柔和背景，避免动作色过度填色 ([fb7da7f](https://github.com/AZenking/nervd/commit/fb7da7fc7ae62df3273eef0762946777558ec48c))
+- *(design)* 全仓设计系统与无障碍对齐排查（交互、阴影、圆角、焦点环） ([f393c96](https://github.com/AZenking/nervd/commit/f393c96c4b9e2cb92b5168010839f1c7d8137351))
+- *(requirement)* 子任务/缺陷行内创建及元数据字段严格遵循 HeroUI 原生 Select 规范 ([e2c9525](https://github.com/AZenking/nervd/commit/e2c95251a37c0438ec6f44d9f676435c2b67f1ee))
+- *(schedules)* 定时任务支持最近合并变更点展示、列表宽度自适应与工具栏对齐 ([edfa750](https://github.com/AZenking/nervd/commit/edfa750697ad321528bc4bf33ce00c6eb230a113))
+
+### 🎨 UI & Styling
+
+- *(theme)* 清理残余调色板硬编码，头像身份标识与严重程度色阶规范化 ([340c427](https://github.com/AZenking/nervd/commit/340c4270b2404b901a18206d933ca24d3fe27e85))
+- *(theme)* 深度对齐 DESIGN.md v2 主题变量契约与分层阴影规范 ([4591bfc](https://github.com/AZenking/nervd/commit/4591bfcbf47e3a9dd78c9ea24d2757279cb39257))
+
+### ♻️ Refactor
+
+- *(requirement)* 负责人、严重程度及类型选择器重构为 HeroUI Select 复合组件 ([5d2aff8](https://github.com/AZenking/nervd/commit/5d2aff8085d7b5bf3a71b1aa893661eb1bbdb42a))
+
+### 📚 Documentation
+
+- *(design)* 重写 DESIGN.md — HeroUI v3 契约基准 + nervd 覆盖层及全流程交互规范 ([2919e71](https://github.com/AZenking/nervd/commit/2919e715e21976a4ba032dfa9eeb0eef00c7a828))
+
 ## [0.4.2](https://github.com/AZenking/nervd/releases/tag/v0.4.2) - 2026-11-02
 
 ### 🚀 Features
