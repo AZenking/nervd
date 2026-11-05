@@ -2,6 +2,8 @@ import { CheckIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { StatusIcon } from '@/components/status-icon';
+import { statusMeta, type StatusTone } from '../StatusBadge';
+import { Chip } from '@/components/ui/chip';
 import { Spinner } from '@/components/ui/spinner';
 import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 import {
@@ -77,14 +79,41 @@ export function WorkitemStatusDropdown({
       );
     }
 
+    if (variant === 'badge') {
+      const meta = statusMeta(status);
+      const colorMap: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
+        ok: 'success',
+        run: 'warning',
+        fail: 'danger',
+        idle: 'default',
+      };
+      const color = colorMap[meta.tone] ?? 'default';
+
+      return (
+        <DropdownMenuTrigger
+          onClick={(e) => e.stopPropagation()}
+          className="cursor-pointer"
+          render={
+            <Chip
+              size="sm"
+              color={color}
+              variant="soft"
+              className={className}
+              title="点击原地流转状态"
+            >
+              <StatusIcon status={status} className="size-3 shrink-0" />
+              <Chip.Label>{status || '未知状态'}</Chip.Label>
+            </Chip>
+          }
+        />
+      );
+    }
+
     return (
       <DropdownMenuTrigger
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer rounded-sm hover:bg-muted/80 text-foreground',
-          variant === 'badge'
-            ? 'border border-border/70 bg-background px-2 py-0.5 text-xs font-medium'
-            : 'px-1.5 py-0.5 text-xs font-medium',
+          'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer rounded-sm hover:bg-muted/80 text-foreground px-1.5 py-0.5 text-xs font-medium',
           className,
         )}
         title="点击原地流转状态"

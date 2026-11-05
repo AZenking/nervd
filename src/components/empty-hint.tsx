@@ -6,7 +6,7 @@ import {
 import { cn } from '@/lib/utils';
 
 /**
- * 统一空态（shadcn Empty 封装）：图标 + 标题 + 描述 + 可选下一步动作，全应用同一形态，
+ * 统一空态（基于 ui/empty 统一封装）：图标 + 标题 + 描述 + 可选下一步动作，全应用同一形态，
  * 取代各处手写的 dashed/empty-state div。
  */
 export function EmptyHint({
@@ -27,7 +27,7 @@ export function EmptyHint({
 }) {
   return (
     <Empty className={cn(
-      'border-border bg-muted/15',
+      'border-border bg-muted-bg',
       compact && 'flex-none flex-row justify-start gap-3 px-3 py-2 text-left',
       className,
     )}>

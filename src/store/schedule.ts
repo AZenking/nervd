@@ -8,6 +8,7 @@ import { executeBranchMerge } from '@/lib/branch-merge-runner';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
 import type {
+  MergeExecutionChanges,
   ScheduleAction,
   ScheduleExecutionLog,
   ScheduledTask,
@@ -283,6 +284,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     let details: string | undefined;
     let errorMessage: string | undefined;
     let mergeResult: ScheduleExecutionLog['mergeResult'];
+    let lastMergeChanges: MergeExecutionChanges | undefined;
 
     try {
       const act = task.action;
@@ -325,6 +327,25 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
             conflictResolved: res.conflictResolved,
             shadowBranch: res.shadowBranch,
             mrId: res.mrId,
+            commitsCount: res.commitsCount,
+            diffsCount: res.diffsCount,
+            commits: res.commits,
+          };
+          lastMergeChanges = {
+            commitsCount: res.commitsCount,
+            diffsCount: res.diffsCount,
+            commits: res.commits,
+            diffs: res.diffs,
+            mrId: res.mrId,
+            targetBranch: res.targetBranch,
+            sourceBranch: res.sourceBranch,
+            strategy: res.strategy,
+            shadowBranch: res.shadowBranch,
+            syncedAt: startIso,
+            status: !res.success
+              ? (res.conflictDetected ? 'conflict_aborted' : 'failed')
+              : (res.commitsCount === 0 ? 'up_to_date' : (res.shadowBranch ? 'isolated_shadow' : 'merged')),
+            summary: res.message,
           };
           break;
         }
@@ -368,6 +389,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
         nextRunAt: nextRun ? nextRun.toISOString() : t.nextRunAt,
         runCount: t.runCount + 1,
         updatedAt: finishedIso,
+        lastMergeChanges: lastMergeChanges ?? t.lastMergeChanges,
       };
     });
 

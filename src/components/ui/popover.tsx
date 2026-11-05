@@ -1,14 +1,87 @@
-
 import * as React from "react"
-import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
-import { cn } from '@/lib/utils'
+import { Popover as PopoverHero } from "@heroui/react"
+import { cn } from "@/lib/utils"
 
-function Popover({ ...props }: PopoverPrimitive.Root.Props) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />
+interface PopoverProps {
+  open?: boolean
+  isOpen?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+  children?: React.ReactNode
 }
 
-function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
+function Popover({
+  open,
+  isOpen,
+  defaultOpen,
+  onOpenChange,
+  children,
+  ...props
+}: PopoverProps & Omit<React.ComponentPropsWithoutRef<typeof PopoverHero>, "isOpen" | "defaultOpen" | "onOpenChange">) {
+  const controlledOpen = open !== undefined ? open : isOpen
+  return (
+    <PopoverHero
+      isOpen={controlledOpen}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      {...props}
+    >
+      {children}
+    </PopoverHero>
+  )
+}
+
+type PopoverTriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
+  React.HTMLAttributes<HTMLDivElement> & {
+    render?: any
+  }
+
+function PopoverTrigger({
+  className,
+  children,
+  render,
+  ...props
+}: PopoverTriggerProps) {
+  if (render) {
+    if (typeof render === "function") {
+      return render({ "data-slot": "popover-trigger", ...props, className })
+    }
+    if (React.isValidElement(render)) {
+      return React.cloneElement(render as React.ReactElement<any>, {
+        "data-slot": "popover-trigger",
+        ...props,
+        className: cn((render.props as { className?: string }).className, className),
+        children: (render.props as { children?: React.ReactNode }).children ?? children,
+      })
+    }
+  }
+  return (
+    <PopoverHero.Trigger
+      data-slot="popover-trigger"
+      className={className}
+      {...(props as any)}
+    >
+      {children}
+    </PopoverHero.Trigger>
+  )
+}
+
+type PopoverSide = "top" | "bottom" | "left" | "right"
+type PopoverAlign = "start" | "center" | "end"
+
+function resolvePopoverPlacement(side?: PopoverSide, align?: PopoverAlign) {
+  if (!side) return undefined
+  if (!align || align === "center") return side
+  return `${side} ${align}` as const
+}
+
+type PopoverContentProps = React.HTMLAttributes<HTMLDivElement> & {
+  align?: PopoverAlign
+  alignOffset?: number
+  side?: PopoverSide
+  sideOffset?: number
+  placement?: any
+  children?: React.ReactNode
 }
 
 function PopoverContent({
@@ -17,31 +90,27 @@ function PopoverContent({
   alignOffset = 0,
   side = "bottom",
   sideOffset = 4,
+  placement: placementProp,
+  children,
   ...props
-}: PopoverPrimitive.Popup.Props &
-  Pick<
-    PopoverPrimitive.Positioner.Props,
-    "align" | "alignOffset" | "side" | "sideOffset"
-  >) {
+}: PopoverContentProps) {
+  const placement = placementProp ?? resolvePopoverPlacement(side, align)
   return (
-    <PopoverPrimitive.Portal>
-      <PopoverPrimitive.Positioner
-        align={align}
-        alignOffset={alignOffset}
-        side={side}
-        sideOffset={sideOffset}
-        className="isolate z-50"
-      >
-        <PopoverPrimitive.Popup
-          data-slot="popover-content"
-          className={cn(
-            "z-50 flex w-72 origin-(--transform-origin) flex-col gap-1 rounded-lg border border-border bg-popover p-1 text-[13px] text-popover-foreground shadow-level-2 ring-1 ring-black/5 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-            className
-          )}
-          {...props}
-        />
-      </PopoverPrimitive.Positioner>
-    </PopoverPrimitive.Portal>
+    <PopoverHero.Content
+      data-slot="popover-content"
+      placement={placement}
+      offset={sideOffset}
+      crossOffset={alignOffset}
+      className={cn(
+        "z-50 flex w-72 flex-col gap-1 rounded-lg border border-border bg-popover p-1 text-[13px] text-popover-foreground outline-hidden duration-100",
+        className
+      )}
+      {...(props as any)}
+    >
+      <PopoverHero.Dialog className="outline-none">
+        {children}
+      </PopoverHero.Dialog>
+    </PopoverHero.Content>
   )
 }
 
@@ -55,9 +124,9 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
+function PopoverTitle({ className, ...props }: React.ComponentProps<typeof PopoverHero.Heading>) {
   return (
-    <PopoverPrimitive.Title
+    <PopoverHero.Heading
       data-slot="popover-title"
       className={cn("text-[13px] font-medium", className)}
       {...props}
@@ -68,9 +137,9 @@ function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
 function PopoverDescription({
   className,
   ...props
-}: PopoverPrimitive.Description.Props) {
+}: React.ComponentProps<"p">) {
   return (
-    <PopoverPrimitive.Description
+    <p
       data-slot="popover-description"
       className={cn("text-[13px] text-muted-foreground", className)}
       {...props}

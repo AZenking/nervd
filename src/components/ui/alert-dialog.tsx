@@ -1,77 +1,133 @@
-"use client"
-
 import * as React from "react"
-import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog"
-import { cn } from '@/lib/utils'
-
+import { AlertDialog as HeroUIAlertDialog } from "@heroui/react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
-function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+interface AlertDialogProps {
+  open?: boolean
+  isOpen?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+  children?: React.ReactNode
 }
 
-function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
+function AlertDialogRoot({
+  open,
+  isOpen,
+  defaultOpen,
+  onOpenChange,
+  children,
+  ...props
+}: AlertDialogProps & Omit<React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog>, "isOpen" | "defaultOpen" | "onOpenChange">) {
+  const controlledOpen = open !== undefined ? open : isOpen
   return (
-    <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />
+    <HeroUIAlertDialog
+      isOpen={controlledOpen}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      {...props}
+    >
+      {children}
+    </HeroUIAlertDialog>
   )
 }
 
-function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
+/**
+ * HeroUI 原生复合确认弹窗组件
+ * 支持 `<AlertDialog.Backdrop>`, `<AlertDialog.Container>`, `<AlertDialog.Dialog>`, `<AlertDialog.Header>`, `<AlertDialog.Heading>`, `<AlertDialog.Body>`, `<AlertDialog.Footer>`, `<AlertDialog.Icon>`
+ */
+const AlertDialog = Object.assign(AlertDialogRoot, {
+  Root: AlertDialogRoot,
+  Trigger: HeroUIAlertDialog.Trigger,
+  Backdrop: HeroUIAlertDialog.Backdrop,
+  Container: HeroUIAlertDialog.Container,
+  Dialog: HeroUIAlertDialog.Dialog,
+  Header: HeroUIAlertDialog.Header,
+  Heading: HeroUIAlertDialog.Heading,
+  Body: HeroUIAlertDialog.Body,
+  Footer: HeroUIAlertDialog.Footer,
+  Icon: HeroUIAlertDialog.Icon,
+  CloseTrigger: HeroUIAlertDialog.CloseTrigger,
+})
+
+interface AlertDialogTriggerProps extends Omit<React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog.Trigger>, "render"> {
+  render?: React.ReactNode | ((props: any) => React.ReactNode)
+}
+
+function AlertDialogTrigger({
+  className,
+  children,
+  render,
+  ...props
+}: AlertDialogTriggerProps) {
+  if (render) {
+    if (typeof render === "function") {
+      return render({ ...props, className })
+    }
+    if (React.isValidElement(render)) {
+      return React.cloneElement(render as React.ReactElement<any>, {
+        ...props,
+        className: cn((render.props as { className?: string }).className, className),
+        children: (render.props as { children?: React.ReactNode }).children ?? children,
+      })
+    }
+  }
   return (
-    <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
+    <HeroUIAlertDialog.Trigger
+      className={className}
+      {...props}
+    >
+      {children}
+    </HeroUIAlertDialog.Trigger>
   )
+}
+
+function AlertDialogPortal({ children }: { children?: React.ReactNode }) {
+  return <>{children}</>
 }
 
 function AlertDialogOverlay({
   className,
   ...props
-}: AlertDialogPrimitive.Backdrop.Props) {
-  return (
-    <AlertDialogPrimitive.Backdrop
-      data-slot="alert-dialog-overlay"
-      className={cn(
-        "fixed inset-0 isolate z-50 bg-black/20 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
-        className
-      )}
-      {...props}
-    />
-  )
+}: React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog.Backdrop>) {
+  return <HeroUIAlertDialog.Backdrop className={className} {...props} />
+}
+
+interface AlertDialogContentProps extends Omit<React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog.Dialog>, "children"> {
+  size?: React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog.Container>["size"]
+  placement?: React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog.Container>["placement"]
+  children?: React.ReactNode | ((opts: any) => React.ReactNode)
 }
 
 function AlertDialogContent({
   className,
-  size = "default",
+  size = "sm",
+  placement = "center",
+  children,
   ...props
-}: AlertDialogPrimitive.Popup.Props & {
-  size?: "default" | "sm"
-}) {
+}: AlertDialogContentProps) {
   return (
-    <AlertDialogPortal>
-      <AlertDialogOverlay />
-      <AlertDialogPrimitive.Popup
-        data-slot="alert-dialog-content"
-        data-size={size}
-        className={cn(
-          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-border bg-popover p-5 text-[13px] text-popover-foreground shadow-level-2 ring-1 ring-black/8 duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
-        )}
-        {...props}
-      />
-    </AlertDialogPortal>
+    <HeroUIAlertDialog.Backdrop>
+      <HeroUIAlertDialog.Container placement={placement} size={size}>
+        <HeroUIAlertDialog.Dialog
+          role="alertdialog"
+          className={cn("relative flex flex-col", className)}
+          {...props}
+        >
+          {typeof children === "function" ? (children as any) : children}
+        </HeroUIAlertDialog.Dialog>
+      </HeroUIAlertDialog.Container>
+    </HeroUIAlertDialog.Backdrop>
   )
 }
 
 function AlertDialogHeader({
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<typeof HeroUIAlertDialog.Header>) {
   return (
-    <div
-      data-slot="alert-dialog-header"
-      className={cn(
-        "grid grid-rows-[auto_1fr] place-items-center gap-1.5 text-center has-data-[slot=alert-dialog-media]:grid-rows-[auto_auto_1fr] has-data-[slot=alert-dialog-media]:gap-x-4 sm:group-data-[size=default]/alert-dialog-content:place-items-start sm:group-data-[size=default]/alert-dialog-content:text-left sm:group-data-[size=default]/alert-dialog-content:has-data-[slot=alert-dialog-media]:grid-rows-[auto_1fr]",
-        className
-      )}
+    <HeroUIAlertDialog.Header
+      className={cn("flex flex-col gap-1.5 text-left", className)}
       {...props}
     />
   )
@@ -80,30 +136,10 @@ function AlertDialogHeader({
 function AlertDialogFooter({
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<typeof HeroUIAlertDialog.Footer>) {
   return (
-    <div
-      data-slot="alert-dialog-footer"
-      className={cn(
-        "-mx-5 -mb-5 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-5 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function AlertDialogMedia({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="alert-dialog-media"
-      className={cn(
-        "mb-2 inline-flex size-10 items-center justify-center rounded-md bg-muted sm:group-data-[size=default]/alert-dialog-content:row-span-2 *:[svg:not([class*='size-'])]:size-6",
-        className
-      )}
+    <HeroUIAlertDialog.Footer
+      className={cn("mt-auto flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
       {...props}
     />
   )
@@ -112,14 +148,10 @@ function AlertDialogMedia({
 function AlertDialogTitle({
   className,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
+}: React.ComponentProps<typeof HeroUIAlertDialog.Heading>) {
   return (
-    <AlertDialogPrimitive.Title
-      data-slot="alert-dialog-title"
-      className={cn(
-        "text-base leading-[1.4] font-semibold sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2",
-        className
-      )}
+    <HeroUIAlertDialog.Heading
+      className={cn("text-base font-semibold leading-normal", className)}
       {...props}
     />
   )
@@ -128,14 +160,11 @@ function AlertDialogTitle({
 function AlertDialogDescription({
   className,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Description>) {
+}: React.ComponentProps<"p">) {
   return (
-    <AlertDialogPrimitive.Description
+    <p
       data-slot="alert-dialog-description"
-      className={cn(
-        "text-[13px] text-balance text-muted-foreground md:text-pretty *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
-        className
-      )}
+      className={cn("text-[13px] text-muted-foreground", className)}
       {...props}
     />
   )
@@ -143,32 +172,40 @@ function AlertDialogDescription({
 
 function AlertDialogAction({
   className,
+  variant = "destructive",
+  children,
   ...props
 }: React.ComponentProps<typeof Button>) {
   return (
     <Button
-      data-slot="alert-dialog-action"
-      className={cn(className)}
+      variant={variant}
+      className={className}
       {...props}
-    />
+    >
+      {children}
+    </Button>
   )
 }
 
 function AlertDialogCancel({
   className,
   variant = "outline",
-  size = "default",
+  children = "取消",
   ...props
-}: AlertDialogPrimitive.Close.Props &
-  Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+}: React.ComponentProps<typeof Button>) {
   return (
-    <AlertDialogPrimitive.Close
-      data-slot="alert-dialog-cancel"
-      className={cn(className)}
-      render={<Button variant={variant} size={size} />}
+    <Button
+      variant={variant}
+      className={className}
       {...props}
-    />
+    >
+      {children}
+    </Button>
   )
+}
+
+function AlertDialogBody({ className, ...props }: React.ComponentProps<typeof HeroUIAlertDialog.Body>) {
+  return <HeroUIAlertDialog.Body className={className} {...props} />
 }
 
 export {
@@ -179,9 +216,9 @@ export {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogMedia,
   AlertDialogOverlay,
   AlertDialogPortal,
   AlertDialogTitle,
   AlertDialogTrigger,
+  AlertDialogBody,
 }

@@ -157,6 +157,7 @@ pub async fn get_repo_ci_snapshot(
         RepoCiBinding::Flow {
             pipeline_id,
             pipeline_name,
+            ..
         } => {
             let runs = flow_runs(&state, pipeline_id, limit).await?;
             let status = runs.first().and_then(|run| run.get("status")).cloned();
@@ -186,18 +187,37 @@ pub async fn get_repo_ci_snapshot(
 }
 
 #[tauri::command]
-pub async fn trigger_repo_ci(state: State<'_, AppState>, repo_id: i64) -> Result<Value, String> {
+pub async fn trigger_repo_ci(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    params: Option<Value>,
+) -> Result<Value, String> {
     ensure_write(&state)?;
     let settings = state.settings.lock().unwrap().clone();
     match repo_binding(&settings, repo_id)? {
-        RepoCiBinding::Flow { pipeline_id, .. } => {
+        RepoCiBinding::Flow {
+            pipeline_id,
+            parameters: default_params,
+            ..
+        } => {
             let client = client_of(&state)?;
             let org = org_of(&state)?;
+            let mut final_map = serde_json::Map::new();
+            for (k, v) in default_params {
+                final_map.insert(k, Value::String(v));
+            }
+            if let Some(passed) = params {
+                if let Some(passed_obj) = passed.as_object() {
+                    for (k, v) in passed_obj {
+                        final_map.insert(k.clone(), v.clone());
+                    }
+                }
+            }
             client
                 .post(
                     &format!("/oapi/v1/flow/organizations/{org}/pipelines/{pipeline_id}/runs"),
                     &[],
-                    json!({ "params": {} }),
+                    json!({ "params": Value::Object(final_map) }),
                 )
                 .await
         }
@@ -217,6 +237,7 @@ pub async fn trigger_repo_ci(state: State<'_, AppState>, repo_id: i64) -> Result
             let queue_url = client
                 .trigger_build_with_parameters(&job_full_name, &parameters)
                 .await?;
+            let queue_id = queue_url.as_deref().and_then(crate::jenkins::extract_queue_id);
             state
                 .jenkins_trigger_baselines
                 .lock()
@@ -224,7 +245,13 @@ pub async fn trigger_repo_ci(state: State<'_, AppState>, repo_id: i64) -> Result
                 .entry(jenkins_job_key(&connection_id, &job_full_name))
                 .or_default()
                 .push(baseline);
-            Ok(json!({ "queueUrl": queue_url }))
+            Ok(json!({
+                "queueUrl": queue_url,
+                "queueId": queue_id,
+                "repoId": repo_id,
+                "connectionId": connection_id,
+                "jobFullName": job_full_name
+            }))
         }
     }
 }
@@ -252,6 +279,7 @@ pub async fn trigger_jenkins_job(
     let queue_url = client
         .trigger_build_with_parameters(&job_full_name, &parameters)
         .await?;
+    let queue_id = queue_url.as_deref().and_then(crate::jenkins::extract_queue_id);
     state
         .jenkins_trigger_baselines
         .lock()
@@ -259,7 +287,76 @@ pub async fn trigger_jenkins_job(
         .entry(jenkins_job_key(&connection_id, &job_full_name))
         .or_default()
         .push(baseline);
-    Ok(json!({ "queueUrl": queue_url, "repoId": repo_id, "jobFullName": job_full_name }))
+    Ok(json!({
+        "queueUrl": queue_url,
+        "queueId": queue_id,
+        "repoId": repo_id,
+        "connectionId": connection_id,
+        "jobFullName": job_full_name
+    }))
+}
+
+#[tauri::command]
+pub async fn get_jenkins_queue_item(
+    state: State<'_, AppState>,
+    connection_id: String,
+    queue_id: String,
+) -> Result<Value, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let client = jenkins_client(&settings, &connection_id)?;
+    client.get_queue_item(&queue_id).await
+}
+
+#[tauri::command]
+pub async fn get_jenkins_job_runs(
+    state: State<'_, AppState>,
+    connection_id: String,
+    job_full_name: String,
+    limit: Option<i64>,
+) -> Result<Vec<crate::jenkins::CiRunSummary>, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let client = jenkins_client(&settings, &connection_id)?;
+    let max = limit.unwrap_or(5).clamp(1, 50) as usize;
+    client.list_runs(&job_full_name, max).await
+}
+
+#[tauri::command]
+pub async fn get_jenkins_job_logs(
+    state: State<'_, AppState>,
+    connection_id: String,
+    job_full_name: String,
+    run_id: String,
+) -> Result<String, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let client = jenkins_client(&settings, &connection_id)?;
+    client.console_text(&job_full_name, &run_id).await
+}
+
+#[tauri::command]
+pub async fn get_jenkins_job_log_chunk(
+    state: State<'_, AppState>,
+    connection_id: String,
+    job_full_name: String,
+    run_id: String,
+    start_offset: u64,
+) -> Result<crate::jenkins::JenkinsLogChunk, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let client = jenkins_client(&settings, &connection_id)?;
+    client
+        .progressive_console_chunk(&job_full_name, &run_id, start_offset)
+        .await
+}
+
+#[tauri::command]
+pub async fn get_jenkins_job_stages(
+    state: State<'_, AppState>,
+    connection_id: String,
+    job_full_name: String,
+    run_id: String,
+) -> Result<Vec<crate::jenkins::JenkinsPipelineStage>, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let client = jenkins_client(&settings, &connection_id)?;
+    client.pipeline_stages(&job_full_name, &run_id).await
 }
 
 #[tauri::command]
@@ -460,7 +557,7 @@ pub fn latest_jenkins_run(runs: &[crate::jenkins::CiRunSummary]) -> Option<(Stri
 
 #[cfg(test)]
 mod tests {
-    use super::should_notify_jenkins_completion;
+    use super::*;
 
     #[test]
     fn only_notifies_observed_or_recently_triggered_completion() {
@@ -481,5 +578,57 @@ mod tests {
             "SUCCESS",
             true
         ));
+    }
+
+    #[test]
+    fn flow_binding_supports_branch_parameter_and_custom_params() {
+        let json_str = r#"{
+            "provider": "flow",
+            "pipelineId": 12345,
+            "pipelineName": "test-pipeline",
+            "branchParameter": "custom_branch",
+            "parameters": {
+                "ENV": "staging"
+            }
+        }"#;
+        let binding: RepoCiBinding = serde_json::from_str(json_str).unwrap();
+        match binding {
+            RepoCiBinding::Flow {
+                pipeline_id,
+                pipeline_name,
+                branch_parameter,
+                parameters,
+            } => {
+                assert_eq!(pipeline_id, 12345);
+                assert_eq!(pipeline_name, "test-pipeline");
+                assert_eq!(branch_parameter, Some("custom_branch".to_string()));
+                assert_eq!(parameters.get("ENV"), Some(&"staging".to_string()));
+            }
+            _ => panic!("Expected Flow binding"),
+        }
+    }
+
+    #[test]
+    fn flow_binding_backward_compatible_without_optional_fields() {
+        let json_str = r#"{
+            "provider": "flow",
+            "pipelineId": 67890,
+            "pipelineName": "legacy-flow"
+        }"#;
+        let binding: RepoCiBinding = serde_json::from_str(json_str).unwrap();
+        match binding {
+            RepoCiBinding::Flow {
+                pipeline_id,
+                pipeline_name,
+                branch_parameter,
+                parameters,
+            } => {
+                assert_eq!(pipeline_id, 67890);
+                assert_eq!(pipeline_name, "legacy-flow");
+                assert_eq!(branch_parameter, None);
+                assert!(parameters.is_empty());
+            }
+            _ => panic!("Expected Flow binding"),
+        }
     }
 }

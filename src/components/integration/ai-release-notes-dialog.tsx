@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Surface } from '@heroui/react';
 import {
   CheckIcon, CopyIcon, FileTextIcon, Loader2Icon, RefreshCwIcon,
 } from 'lucide-react';
@@ -7,6 +8,7 @@ import { aiGenerateReleaseNotes } from '@/lib/ai-api';
 import { comparisonCommits } from '../iteration/BranchDivergenceCheck';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -126,7 +128,7 @@ export function AiReleaseNotesDialog({
         </DialogHeader>
 
         {/* 顶部控制栏 */}
-        <div className="flex items-center justify-between border-y border-border/60 py-2 shrink-0 bg-muted/20 -mx-5 px-5">
+        <div className="flex items-center justify-between border-y border-border/60 py-2 shrink-0 -mx-5 px-5">
           <Tabs value={tab} onValueChange={(v) => setTab(v as 'preview' | 'source')}>
             <TabsList size="sm">
               <TabsTrigger value="preview">
@@ -156,14 +158,14 @@ export function AiReleaseNotesDialog({
               onClick={() => void handleCopy()}
               className="h-7 text-xs"
             >
-              {copied ? <CheckIcon className="size-3.5 mr-1 text-emerald-500" /> : <CopyIcon className="size-3.5 mr-1" />}
+              {copied ? <CheckIcon className="size-3.5 mr-1 text-success" /> : <CopyIcon className="size-3.5 mr-1" />}
               {copied ? '已复制' : '复制 Markdown'}
             </Button>
           </div>
         </div>
 
         {/* 内容区 */}
-        <div className="flex-1 min-h-0 overflow-y-auto workspace-scroll py-2">
+        <ScrollArea className="flex-1 min-h-0 workspace-scroll py-2">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
               <Loader2Icon className="size-6 animate-spin text-primary" />
@@ -177,17 +179,19 @@ export function AiReleaseNotesDialog({
               </Button>
             </div>
           ) : tab === 'preview' ? (
-            <div className="rounded-lg border border-border/50 bg-background/50 p-4 text-xs font-mono whitespace-pre-wrap leading-relaxed text-foreground select-text">
+            <Surface variant="secondary" className="rounded-lg border border-border/50 p-4 text-xs font-mono whitespace-pre-wrap leading-relaxed text-foreground select-text">
               {content}
-            </div>
+            </Surface>
           ) : (
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="h-full min-h-[350px] text-xs font-mono bg-background resize-none"
-            />
+            <Surface variant="secondary" className="rounded-lg border border-border/50 p-1">
+              <Textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="h-full min-h-[350px] border-0 bg-transparent text-xs font-mono resize-none focus-visible:ring-0 shadow-none"
+              />
+            </Surface>
           )}
-        </div>
+        </ScrollArea>
 
         {/* 底部关闭 */}
         <DialogFooter className="shrink-0 pt-3 border-t border-border/60">

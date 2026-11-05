@@ -1,11 +1,28 @@
 /* ============================================================
    nervd · Linear (light) theme
    Source of truth: design.md
-   Tailwind CSS v4 (CSS-first) + shadcn/ui (Base UI)
+   Tailwind CSS v4 (CSS-first) + HeroUI v3 (React Aria)
    ============================================================ */
 @import "tailwindcss";
+@import "@heroui/styles";
+/* 组件样式显式归入 components 层：与主入口 @heroui/styles 的分层架构一致。
+   切勿去掉 layer() —— 无 layer 的样式优先级高于 @layer utilities，
+   会导致 Card 槽位上的工具类（flex-row / grid / sm:p-5 / text-[13px] 等）全部失效，
+   表现为卡片头部竖排居中（flex-row 被 .card__header 的 flex-col 压制）。 */
+@import "@heroui/styles/components/toast.css" layer(components);
+@import "@heroui/styles/components/progress-bar.css" layer(components);
+@import "@heroui/styles/components/accordion.css" layer(components);
+@import "@heroui/styles/components/table.css" layer(components);
+@import "@heroui/styles/components/breadcrumbs.css" layer(components);
+@import "@heroui/styles/components/select.css" layer(components);
+@import "@heroui/styles/components/tabs.css" layer(components);
+@import "@heroui/styles/components/alert.css" layer(components);
+@import "@heroui/styles/components/chip.css" layer(components);
+@import "@heroui/styles/components/toolbar.css" layer(components);
+@import "@heroui/styles/components/card.css" layer(components);
+@import "@heroui/styles/components/button.css" layer(components);
+@import "@heroui/styles/components/avatar.css" layer(components);
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
 @import '@fontsource/inter/600.css';
@@ -13,7 +30,71 @@
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
+/* ---------- 交互状态变体（内联，替代原第三方包的 @import，去 npm 依赖） ----------
+   HeroUI/React Aria 组件以 data-* 属性表达交互状态。以下变体同时匹配
+   [data-state="x"] 属性风格与裸 [data-x] 属性风格，仅保留仓库实际消费的
+   7 个变体与 no-scrollbar 工具类（dropdown-menu / sidebar / combobox /
+   separator / toggle-group / field / searchable-select / LogViewer 在用）。 */
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-checked {
+  &:where([data-state="checked"]),
+  &:where([data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
+
+/* 隐藏滚动条但保留滚动能力（LogViewer / SearchableSelect / Combobox / Sidebar 使用） */
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+:root,
+.light,
+[data-theme="light"] {
   color-scheme: light;
 
   /* ---------- Linear palette ---------- */
@@ -23,7 +104,6 @@
   --bg-3: #e8e9eb;
   --canvas: #ffffff;
   --canvas-soft: #f7f8f8;
-  --surface: #ffffff;
   --hairline: #e8e9eb;
   --ink: #26282d;
   --ink-secondary: #6b7075;
@@ -40,6 +120,18 @@
   --sticker-teal: #12a594;
   --sticker-green: #30a46c;
   --sticker-brown: #6e5a4b;
+
+  /* ---------- Avatar identity palette（首字母身份色 · 明档）----------
+     仅定义文字主色（对白底 ≥4.5:1）；底色/描边由 color-mix 从主色派生
+     （bg-(--avatar-*)/15 · border-(--avatar-*)/30），随主题自动切换。
+     用途仅限 UserAvatar 首字母身份区分，不作状态语义。 */
+  --avatar-indigo: #3e63dd;
+  --avatar-sky: #0072ce;
+  --avatar-emerald: #187738;
+  --avatar-amber: #8a4a10;
+  --avatar-rose: #be123c;
+  --avatar-purple: #6e56cf;
+  --avatar-teal: #0f766e;
   --line: #e8e9eb;
   --line-strong: #d5d7da;
   --ink-0: #26282d;
@@ -55,16 +147,12 @@
   --sig-fail: #e5484d;
   --sig-idle: #8a8f98;
 
-  /* ---------- Workspace layout ---------- */
-  --rail-w: 260px;
-  --trace-w: 320px;
-
   /* ---------- Typography ---------- */
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   /* 等宽字体栈（标识符、分支名、运行号、统计数字与快捷键） */
   --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 
-  /* ---------- shadcn semantic tokens mapped to design.md ---------- */
+  /* ---------- HeroUI v3 语义 token（对齐 design.md）---------- */
   /* Linear 式分层：侧栏灰底（--sidebar）、主区白底（--background / SidebarInset） */
   --background: #ffffff;
   --foreground: #26282d;
@@ -76,15 +164,17 @@
   --primary-foreground: #ffffff;
   --secondary: #f7f8f8;
   --secondary-foreground: #6b7075;
-  --muted: #f7f8f8;
-  --muted-foreground: #8a8f98;
-  --accent: #f2f3f5;
-  --accent-foreground: #26282d;
+  --muted-bg: #f7f8f8;
+  --muted: #6b7075;
+  --muted-foreground: #6b7075;
+  --accent: #5e6ad2;
+  --accent-foreground: #ffffff;
   --destructive: #e5484d;
   --destructive-foreground: #ffffff;
   --border: #e8e9eb;
   --input: #d5d7da;
   --ring: #5e6ad2;
+  --focus: var(--accent);
   --chart-1: #5e6ad2;
   --chart-2: #57a4f5;
   --chart-3: #c0bcf7;
@@ -92,17 +182,49 @@
   --chart-5: #30a46c;
   /* Linear 控件基准 10px；rounded-md(6px)/rounded-xl(12px) 等由下方刻度细分 */
   --radius: 0.625rem;
-  --sidebar: #f9f9f9;
+  --sidebar: #ffffff;
   --sidebar-foreground: #26282d;
   --sidebar-primary: #5e6ad2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef0f2;
-  --sidebar-accent-foreground: #26282d;
-  --sidebar-border: #e8e9eb;
+  --sidebar-accent: #f4f5f7;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #f0f1f3;
   --sidebar-ring: #5e6ad2;
+
+  /* ---------- HeroUI semantic token alignments ---------- */
+  --surface: #ffffff;
+  --surface-foreground: #26282d;
+  --surface-secondary: #f4f5f7;
+  --surface-secondary-foreground: #26282d;
+  --surface-tertiary: #e8e9eb;
+  --surface-tertiary-foreground: #26282d;
+  --overlay: #ffffff;
+  --overlay-foreground: #26282d;
+  /* §A 浮层阴影统一：HeroUI 浮层组件（.popover/.dropdown/.tooltip 等）默认
+     box-shadow: var(--overlay-shadow)，此处覆盖为 nervd level-2 档
+     （值同下方 @theme inline 的 --shadow-level-2），浮层阴影唯一档位。 */
+  --overlay-shadow: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
+  --default: #f4f5f7;
+  --default-foreground: #26282d;
+  --segment: #ffffff;
+  --segment-foreground: #18181b;
+  --field-background: #ffffff;
+  --field-foreground: #26282d;
+  --field-placeholder: #8a8f98;
+  --field-border: #e8e9eb;
+  --success: #30a46c;
+  --success-foreground: #ffffff;
+  --warning: #d9730d;
+  --warning-foreground: #ffffff;
+  --danger: #e5484d;
+  --danger-foreground: #ffffff;
+  --scrollbar-thumb: color-mix(in oklch, var(--foreground) 15%, transparent);
+  --scrollbar-track: transparent;
+  --muted-text: var(--muted-foreground);
 }
 
-.dark {
+.dark,
+[data-theme="dark"] {
   color-scheme: dark;
 
   /* ---------- Linear Dark Mode (LCH-based) ---------- */
@@ -123,6 +245,16 @@
   --ink-0: #f7f8f8;
   --ink-1: #8a8f98;
   --ink-2: #44474e;
+  --accent-dim: rgba(94, 106, 210, 0.2);
+
+  /* ---------- Avatar identity palette（首字母身份色 · 暗档）---------- */
+  --avatar-indigo: #a5b4fc;
+  --avatar-sky: #7dd3fc;
+  --avatar-emerald: #6ee7b7;
+  --avatar-amber: #fcd34d;
+  --avatar-rose: #fda4af;
+  --avatar-purple: #d8b4fe;
+  --avatar-teal: #5eead4;
 
   --background: #121215;
   --foreground: #f7f8f8;
@@ -134,17 +266,19 @@
   --primary-foreground: #ffffff;
   --secondary: #1e1e24;
   --secondary-foreground: #8a8f98;
-  --muted: #1e1e24;
-  --muted-foreground: #8a8f98;
-  --accent: #22232a;
-  --accent-foreground: #f7f8f8;
+  --muted-bg: #1e1e24;
+  --muted: #a1a1aa;
+  --muted-foreground: #a1a1aa;
+  --accent: #5e6ad2;
+  --accent-foreground: #ffffff;
   --destructive: #e5484d;
   --destructive-foreground: #ffffff;
   --border: rgba(255, 255, 255, 0.08);
   --input: rgba(255, 255, 255, 0.12);
   --ring: #5e6ad2;
+  --focus: var(--accent);
 
-  --sidebar: #0b0b0e;
+  --sidebar: #121215;
   --sidebar-foreground: #f7f8f8;
   --sidebar-primary: #5e6ad2;
   --sidebar-primary-foreground: #ffffff;
@@ -152,6 +286,35 @@
   --sidebar-accent-foreground: #f7f8f8;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #5e6ad2;
+
+  /* ---------- HeroUI semantic token alignments ---------- */
+  --surface: #18181c;
+  --surface-foreground: #f7f8f8;
+  --surface-secondary: #1e1e24;
+  --surface-secondary-foreground: #f7f8f8;
+  --surface-tertiary: #222228;
+  --surface-tertiary-foreground: #f7f8f8;
+  --overlay: #1e1e24;
+  --overlay-foreground: #f7f8f8;
+  /* §A 浮层阴影统一：同 :root，覆盖 HeroUI --overlay-shadow 为 level-2 档（barely-there） */
+  --overlay-shadow: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
+  --default: #222228;
+  --default-foreground: #f7f8f8;
+  --segment: #2a2a32;
+  --segment-foreground: #ffffff;
+  --field-background: #18181c;
+  --field-foreground: #f7f8f8;
+  --field-placeholder: #8a8f98;
+  --field-border: rgba(255, 255, 255, 0.08);
+  --success: #30a46c;
+  --success-foreground: #ffffff;
+  --warning: #d9730d;
+  --warning-foreground: #ffffff;
+  --danger: #e5484d;
+  --danger-foreground: #ffffff;
+  --scrollbar-thumb: color-mix(in oklch, var(--foreground) 15%, transparent);
+  --scrollbar-track: transparent;
+  --muted-text: var(--muted-foreground);
 }
 
 /* ---------- 工具类映射（Tailwind v4 CSS-first） ---------- */
@@ -164,6 +327,14 @@
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-overlay: var(--overlay);
+  --color-overlay-foreground: var(--overlay-foreground);
+  --color-default: var(--default);
+  --color-default-foreground: var(--default-foreground);
+  --color-segment: var(--segment);
+  --color-segment-foreground: var(--segment-foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -172,12 +343,19 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-bg: var(--muted-bg);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -187,6 +365,8 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
+  --color-canvas: var(--canvas);
+  --color-canvas-soft: var(--canvas-soft);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -213,10 +393,6 @@
   --color-ink-1: var(--ink-1);
   --color-ink-2: var(--ink-2);
 
-  /* 侧栏宽度 → w-rail */
-  --spacing-rail: var(--rail-w);
-  --spacing-trace: var(--trace-w);
-
   /* 浮层阴影档位（barely-there 三层近透明）→ shadow-level-2 */
   --shadow-level-2: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
 
@@ -225,9 +401,9 @@
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
-  --radius-2xl: 0.75rem;
-  --radius-3xl: 0.75rem;
-  --radius-4xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 2rem;
 
   /* 状态点脉冲（RUNNING 呼吸灯） */
   --animate-sig-pulse: sig-pulse 1.6s ease-in-out infinite;
@@ -249,7 +425,7 @@
     }
   }
 
-  /* 需求详情切项内容浅淡入与微浮（j/k 连续切项时柔和过渡） */
+  /* 需求详情切项内容浅淡入与微浮（j/k 连续切项时柔和过渡；首启向导步骤切换复用） */
   --animate-content-fade: content-fade 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   @keyframes content-fade {
     from {
@@ -259,6 +435,19 @@
     to {
       opacity: 1;
       transform: translate3d(0, 0, 0);
+    }
+  }
+
+  /* 首启向导：步骤节点对勾弹入（HeroUI press-scale 语义的入场镜像） */
+  --animate-step-check: step-check 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  @keyframes step-check {
+    from {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 }
@@ -311,32 +500,9 @@
   }
 }
 
-/* ---------- Workspace layout ---------- */
-.workspace-grid {
-  display: grid;
-  grid-template-columns: var(--rail-w) minmax(420px, 1fr) var(--trace-w);
-}
-
-.workspace-grid[data-trace-open="false"] {
-  grid-template-columns: var(--rail-w) minmax(420px, 1fr);
-}
-
-.workspace-grid[data-sidebar-open="false"] {
-  grid-template-columns: minmax(420px, 1fr) var(--trace-w);
-}
-
-.workspace-grid[data-sidebar-open="false"][data-trace-open="false"] {
-  grid-template-columns: minmax(420px, 1fr);
-}
-
 /* ---------- Workspace surfaces ---------- */
 [data-slot="sidebar-inset"] {
   background: var(--background);
-}
-
-.workspace-topbar {
-  background: var(--surface, #ffffff);
-  border-bottom: 1px solid var(--line);
 }
 
 .workspace-scroll {
@@ -354,8 +520,8 @@
 
 /* ---------- Light, quiet scrollbars ---------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track, transparent); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, var(--line-strong)); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-2); }
 
 /* ---------- Reduced motion（规范：尊重系统减弱动态偏好） ---------- */
@@ -398,3 +564,40 @@
 .dark::view-transition-new(root) {
   z-index: 1;
 }
+
+/* HeroUI Tabs: 禁止选项卡文字换行，水平模式自适应内容宽度 */
+.tabs__tab,
+[role="tab"],
+.tabs__tab *,
+[role="tab"] * {
+  white-space: nowrap !important;
+  flex-shrink: 0;
+}
+
+.tabs[data-orientation="horizontal"] .tabs__tab,
+.tabs__list[data-orientation="horizontal"] .tabs__tab,
+.tabs__list-container .tabs__tab,
+[role="tablist"][aria-orientation="horizontal"] [role="tab"] {
+  width: auto !important;
+  min-width: fit-content;
+  flex: 0 0 auto;
+}
+
+/* 彻底隐藏所有 Tabs 滚动指示箭头与滚动阴影，避免误显示和遮挡选项卡 */
+.tabs__list-container__scroll-prev,
+.tabs__list-container__scroll-next,
+[data-slot="tabs-scroll-prev"],
+[data-slot="tabs-scroll-next"] {
+  display: none !important;
+}
+
+/* HeroUI Accordion: 优化触发器背景，避免呈现死灰大长条，保持通透精致风格 */
+.accordion__trigger {
+  background-color: transparent !important;
+}
+.accordion__trigger:hover {
+  background-color: rgba(120, 120, 128, 0.08) !important;
+}
+
+
+

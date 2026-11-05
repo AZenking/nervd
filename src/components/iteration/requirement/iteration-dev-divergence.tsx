@@ -5,6 +5,7 @@ import { findRemoteBranch } from '@/lib/iteration-branches';
 import { comparisonCommits } from '../BranchDivergenceCheck';
 import { getCustomDevBranch } from '@/lib/dev-branch-settings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -141,7 +142,7 @@ export function IterationDevDivergence({
 
         {status.state === 'dev-missing' && (
           <Tooltip>
-            <TooltipTrigger render={<span className="truncate text-muted-foreground cursor-help" />}>
+            <TooltipTrigger render={<span tabIndex={0} className="rounded-sm truncate text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />}>
               无 {status.checkedDevBranch} 分支
             </TooltipTrigger>
             <TooltipContent>
@@ -152,7 +153,7 @@ export function IterationDevDivergence({
 
         {status.state === 'error' && (
           <Tooltip>
-            <TooltipTrigger render={<span className="inline-flex items-center gap-1 text-destructive truncate cursor-help" />}>
+            <TooltipTrigger render={<span tabIndex={0} className="inline-flex items-center gap-1 rounded-sm text-destructive truncate cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />}>
               <AlertCircleIcon className="size-3 shrink-0" />比较失败
             </TooltipTrigger>
             <TooltipContent>{status.message}</TooltipContent>
@@ -162,18 +163,23 @@ export function IterationDevDivergence({
         {status.state === 'ready' && (
           <div className="flex min-w-0 items-center gap-1.5">
             {status.aheadDev === 0 ? (
-              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.2 font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 font-medium text-success">
                 <CheckIcon className="size-3 shrink-0" />
-                <span>已合入 {status.devBranch}</span>
+                <span>
+                  已合入 <span className="font-mono">{status.devBranch}</span>
+                </span>
               </span>
             ) : (
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.2 font-medium text-amber-600 dark:text-amber-400 cursor-help truncate" />
+                    <span tabIndex={0} className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 font-medium text-warning cursor-help truncate focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
                   }
                 >
-                  <span>待合入 {status.devBranch} ({status.aheadDev} 条)</span>
+                  <span>
+                    待合入 <span className="font-mono">{status.devBranch}</span>{' '}
+                    (<span className="font-mono tabular-nums">{status.aheadDev}</span> 条)
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent>
                   迭代分支有 {status.aheadDev} 条提交尚未合入 {status.devBranch}
@@ -191,15 +197,26 @@ export function IterationDevDivergence({
         )}
       </div>
 
-      <button
-        type="button"
-        disabled={status.state === 'loading'}
-        onClick={() => setRefreshKey((k) => k + 1)}
-        className="text-muted-foreground hover:text-foreground disabled:opacity-40 p-0.5 rounded transition-colors cursor-pointer shrink-0"
-        title="刷新与 dev/集成主干的差异检测"
-      >
-        <RefreshCwIcon className={cn('size-3', status.state === 'loading' && 'animate-spin text-primary')} />
-      </button>
+      <Tooltip>
+        <TooltipTrigger
+          render={(
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={status.state === 'loading'}
+              onPress={() => setRefreshKey((k) => k + 1)}
+              className="size-5 text-muted-foreground hover:text-foreground data-disabled:opacity-40 p-0 shrink-0"
+              title="刷新与 dev/集成主干的差异检测"
+            >
+              <RefreshCwIcon className={cn('size-3', status.state === 'loading' && 'animate-spin text-primary')} />
+            </Button>
+          )}
+        />
+        <TooltipContent>
+          刷新与 dev/集成主干的差异检测
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }

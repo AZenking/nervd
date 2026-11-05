@@ -2,7 +2,7 @@
 
 use reqwest::{redirect::Policy, Client, Response, Url};
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -354,6 +354,55 @@ impl JenkinsClient {
             .collect())
     }
 
+    pub async fn get_queue_item(&self, queue_id: &str) -> Result<Value, String> {
+        if !queue_id.chars().all(|c| c.is_ascii_digit()) {
+            return Err("Jenkins 队列 ID 格式无效".into());
+        }
+        let url = self.append_segments(&[
+            "queue".into(),
+            "item".into(),
+            queue_id.into(),
+            "api".into(),
+            "json".into(),
+        ])?;
+        let response = self
+            .http
+            .get(url)
+            .basic_auth(&self.username, Some(&self.token))
+            .send()
+            .await
+            .map_err(|e| format!("查询 Jenkins 队列状态失败: {e}"))?;
+
+        let status = response.status();
+        if status.as_u16() == 404 {
+            return Ok(json!({ "leftQueue": true, "queueId": queue_id }));
+        }
+        if !status.is_success() {
+            return Err(format!("查询 Jenkins 队列状态失败 HTTP {status}"));
+        }
+        let val: Value = response.json().await.map_err(|e| format!("解析队列响应失败: {e}"))?;
+        let cancelled = val.get("cancelled").and_then(Value::as_bool).unwrap_or(false);
+        let why = val.get("why").and_then(Value::as_str).unwrap_or("").to_string();
+        let executable_number = val
+            .get("executable")
+            .and_then(|e| e.get("number"))
+            .and_then(Value::as_i64);
+        let executable_url = val
+            .get("executable")
+            .and_then(|e| e.get("url"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+
+        Ok(json!({
+            "queueId": queue_id,
+            "leftQueue": false,
+            "cancelled": cancelled,
+            "why": why,
+            "executableNumber": executable_number,
+            "executableUrl": executable_url,
+        }))
+    }
+
     pub async fn trigger_build(&self, full_name: &str) -> Result<Option<String>, String> {
         let mut segments = Self::job_segments(full_name)?;
         segments.push("build".into());
@@ -559,6 +608,18 @@ impl JenkinsClient {
             .unwrap_or_default();
         Ok(stages)
     }
+}
+
+pub fn extract_queue_id(location: &str) -> Option<String> {
+    let parts: Vec<&str> = location.split('/').filter(|s| !s.is_empty()).collect();
+    for i in 0..parts.len() {
+        if parts[i] == "item" && i > 0 && parts[i - 1] == "queue" && i + 1 < parts.len() {
+            if parts[i + 1].chars().all(|c| c.is_ascii_digit()) {
+                return Some(parts[i + 1].to_string());
+            }
+        }
+    }
+    None
 }
 
 fn json_value_text(value: &Value) -> Option<String> {
@@ -878,5 +939,13 @@ mod tests {
         assert_eq!(requests.len(), 2);
         assert!(requests[0].contains("/job/team/job/mobile/job/compile/19/wfapi/describe"));
         assert!(requests[1].contains("/job/freestyle-job/1/wfapi/describe"));
+    }
+
+    #[test]
+    fn extract_queue_id_parses_location_headers() {
+        assert_eq!(extract_queue_id("http://localhost:8080/queue/item/142/"), Some("142".to_string()));
+        assert_eq!(extract_queue_id("/jenkins/queue/item/999"), Some("999".to_string()));
+        assert_eq!(extract_queue_id("http://example.com/job/test/1"), None);
+        assert_eq!(extract_queue_id(""), None);
     }
 }

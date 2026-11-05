@@ -1,12 +1,11 @@
-"use client"
-
-import { Toggle as TogglePrimitive } from "@base-ui/react/toggle"
-import { cva, type VariantProps } from "class-variance-authority"
+import * as React from "react"
+import { ToggleButton as HeroUIToggleButton } from "@heroui/react"
+import { tv, type VariantProps } from "tailwind-variants"
 import { cn } from '@/lib/utils'
 
-const toggleVariants = cva(
-  "group/toggle inline-flex items-center justify-center gap-1 rounded-md text-[13px] font-medium whitespace-nowrap transition-all outline-none hover:bg-foreground/5 hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 aria-pressed:bg-muted data-[state=on]:bg-muted dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+const toggleVariants = tv(
   {
+    base: "",
     variants: {
       variant: {
         default: "bg-transparent",
@@ -23,22 +22,81 @@ const toggleVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
+  { twMerge: false }
 )
 
+type BaseHeroUIToggleButtonProps = Omit<
+  React.ComponentPropsWithRef<typeof HeroUIToggleButton>,
+  "variant" | "size" | "color" | "className" | "children"
+>
+
+export type ToggleProps = BaseHeroUIToggleButtonProps &
+  VariantProps<typeof toggleVariants> & {
+    className?: string
+    disabled?: boolean
+    pressed?: boolean
+    defaultPressed?: boolean
+    onPressedChange?: (pressed: boolean) => void
+    title?: string
+    id?: string
+    children?: React.ReactNode
+  } & Omit<
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    keyof BaseHeroUIToggleButtonProps | "children" | "className" | "color"
+  >
+
 function Toggle({
+  ref,
   className,
   variant = "default",
   size = "default",
+  pressed,
+  defaultPressed,
+  onPressedChange,
+  onChange,
+  disabled,
+  isDisabled,
+  isSelected,
+  defaultSelected,
+  children,
   ...props
-}: TogglePrimitive.Props & VariantProps<typeof toggleVariants>) {
+}: ToggleProps) {
+  const effectiveSelected = isSelected ?? pressed
+  const effectiveDefaultSelected = defaultSelected ?? defaultPressed
+  const effectiveDisabled = isDisabled ?? disabled
+
+  const herouiSize: "sm" | "md" | "lg" =
+    size === "lg" ? "lg" : "sm"
+
+  const herouiVariant: "default" | "ghost" =
+    variant === "outline" || variant === "default" ? "ghost" : "default"
+
+  const handleChange = (selected: boolean) => {
+    onChange?.(selected)
+    onPressedChange?.(selected)
+  }
+
   return (
-    <TogglePrimitive
+    <HeroUIToggleButton
+      ref={ref}
       data-slot="toggle"
-      className={cn(toggleVariants({ variant, size, className }))}
-      {...props}
-    />
+      variant={herouiVariant}
+      size={herouiSize}
+      isSelected={effectiveSelected}
+      defaultSelected={effectiveDefaultSelected}
+      isDisabled={effectiveDisabled}
+      onChange={handleChange}
+      className={cn(toggleVariants({ variant, size }), className)}
+      {...(props as any)}
+    >
+      {children}
+    </HeroUIToggleButton>
   )
 }
 
-export { Toggle, toggleVariants }
+const ToggleWithCompound = Object.assign(Toggle, {
+  Root: HeroUIToggleButton.Root,
+})
+
+export { ToggleWithCompound as Toggle, toggleVariants }

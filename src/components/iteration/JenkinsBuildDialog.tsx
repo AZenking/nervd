@@ -18,6 +18,7 @@ import { useQuickBuild } from '@/store/quick-build';
 import { isBranchParameterName, isEnvironmentParameterName, sortJenkinsJobsWithRecommendation } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
 import { errorLog, humanizeError } from '@/lib/error-format';
+import { Alert, Card, Surface } from '@heroui/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -98,7 +99,7 @@ function ParameterField({
             </Badge>
           )}
           {isEnv && (
-            <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-4 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+            <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-4 bg-warning/10 text-warning border-warning/20">
               部署环境
             </Badge>
           )}
@@ -153,7 +154,7 @@ function ParameterField({
                     <OverflowTooltip text={b} className="min-w-0 truncate" />
                     <div className="flex items-center gap-1 shrink-0 font-sans">
                       {b === defaultBranch && (
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-500/10 px-1 py-0.2 rounded">
+                        <span className="text-[10px] text-success font-medium bg-success/10 px-1 py-0.5 rounded">
                           推荐
                         </span>
                       )}
@@ -431,7 +432,7 @@ export function JenkinsBuildParameters({
           );
         } else if (item.isRecommended) {
           badge = (
-            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-sans">
+            <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success border border-success/20 font-sans">
               <SparklesIcon className="size-2.5" />
               推荐
             </span>
@@ -504,9 +505,13 @@ export function JenkinsBuildParameters({
   return (
     <div className="flex flex-col gap-4">
         {!connections.length ? (
-          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            请先在「设置 → CI 集成」中配置 Jenkins 实例并保存 API Token。
-          </div>
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>未配置 Jenkins 实例</Alert.Title>
+              <Alert.Description>请先在「设置 → CI 集成」中配置 Jenkins 实例并保存 API Token。</Alert.Description>
+            </Alert.Content>
+          </Alert>
         ) : (
           <div className="flex flex-col gap-4">
             <Field>
@@ -557,95 +562,105 @@ export function JenkinsBuildParameters({
 
             {jobFullName && !parametersLoading && parameters.length > 0 && (
               <>
-                <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-card/40 p-3">
-                  <div className="flex items-center justify-between pb-1">
+                <Card>
+                  <Card.Header className="flex flex-row items-center justify-between pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-foreground">
+                      <Card.Title className="text-xs font-semibold text-foreground">
                         Job 构建参数 ({parameters.length})
-                      </span>
+                      </Card.Title>
                       {branchesLoading && (
                         <span className="text-[11px] text-muted-foreground animate-pulse">
                           (正在拉取分支…)
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-muted-foreground">
+                    <Card.Description className="text-[11px]">
                       需要如下参数用于构建项目
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    {parameters.map((parameter) => (
-                      <ParameterField
-                        key={parameter.name}
-                        parameter={parameter}
-                        value={parameterValues[parameter.name] ?? ''}
-                        isBranch={parameter.name === branchParameter}
-                        isEnv={parameter.name === environmentParameter}
-                        branchOptions={allBranchOptions}
-                        branchesLoading={branchesLoading}
-                        defaultBranch={defaultBranch}
-                        onChange={(val) => updateParameter(parameter.name, val)}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <Collapsible className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs">
-                  <CollapsibleTrigger className="flex w-full items-center justify-between font-medium text-muted-foreground hover:text-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <Settings2Icon className="size-3.5" />
-                      CI 记录展示映射（高级）
-                    </span>
-                    <ChevronDownIcon className="size-3.5 transition-transform" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2.5 flex flex-col gap-3 pt-2 border-t border-border/40">
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      指定哪个 Jenkins 参数对应「代码分支」与「部署环境」，用于在 nervd 的构建记录与迭代仓库列表中展示。已自动完成智能推断。
-                    </p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field className="gap-1">
-                        <FieldLabel className="text-xs">代码分支参数</FieldLabel>
-                        <SearchableSelect
-                          value={branchParameter || '__none'}
-                          onValueChange={(v) => setBranchParameter(v && v !== '__none' ? v : '')}
-                          items={[
-                            { label: '不映射', value: '__none' },
-                            ...parameters.map((p) => ({
-                              label: p.name,
-                              value: p.name,
-                              disabled: p.name === environmentParameter,
-                            })),
-                          ]}
-                          className="text-xs h-8"
+                    </Card.Description>
+                  </Card.Header>
+                  <Card.Content className="pt-1">
+                    <div className="flex flex-col gap-3">
+                      {parameters.map((parameter) => (
+                        <ParameterField
+                          key={parameter.name}
+                          parameter={parameter}
+                          value={parameterValues[parameter.name] ?? ''}
+                          isBranch={parameter.name === branchParameter}
+                          isEnv={parameter.name === environmentParameter}
+                          branchOptions={allBranchOptions}
+                          branchesLoading={branchesLoading}
+                          defaultBranch={defaultBranch}
+                          onChange={(val) => updateParameter(parameter.name, val)}
                         />
-                      </Field>
-                      <Field className="gap-1">
-                        <FieldLabel className="text-xs">部署环境参数</FieldLabel>
-                        <SearchableSelect
-                          value={environmentParameter || '__none'}
-                          onValueChange={(v) => setEnvironmentParameter(v && v !== '__none' ? v : '')}
-                          items={[
-                            { label: '不映射', value: '__none' },
-                            ...parameters.map((p) => ({
-                              label: p.name,
-                              value: p.name,
-                              disabled: p.name === branchParameter,
-                            })),
-                          ]}
-                          className="text-xs h-8"
-                        />
-                      </Field>
+                      ))}
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                  </Card.Content>
+                </Card>
+
+                <Surface variant="secondary" className="rounded-md border border-border/60 overflow-hidden">
+                  <Collapsible className="px-3 py-2 text-xs">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between font-medium text-muted-foreground hover:text-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <Settings2Icon className="size-3.5" />
+                        CI 记录展示映射（高级）
+                      </span>
+                      <ChevronDownIcon className="size-3.5 transition-transform" />
+                    </CollapsibleTrigger>
+                    {/* 内边距/分隔线放内层 div：收合态 DisclosurePanel 高度为 0，
+                        装饰留在面板自身会残留空白条。 */}
+                    <CollapsibleContent>
+                      <div className="mt-2.5 flex flex-col gap-3 pt-2 border-t border-border/40">
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          指定哪个 Jenkins 参数对应「代码分支」与「部署环境」，用于在 nervd 的构建记录与迭代仓库列表中展示。已自动完成智能推断。
+                        </p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field className="gap-1">
+                            <FieldLabel className="text-xs">代码分支参数</FieldLabel>
+                            <SearchableSelect
+                              value={branchParameter || '__none'}
+                              onValueChange={(v) => setBranchParameter(v && v !== '__none' ? v : '')}
+                              items={[
+                                { label: '不映射', value: '__none' },
+                                ...parameters.map((p) => ({
+                                  label: p.name,
+                                  value: p.name,
+                                  disabled: p.name === environmentParameter,
+                                })),
+                              ]}
+                              className="text-xs h-8"
+                            />
+                          </Field>
+                          <Field className="gap-1">
+                            <FieldLabel className="text-xs">部署环境参数</FieldLabel>
+                            <SearchableSelect
+                              value={environmentParameter || '__none'}
+                              onValueChange={(v) => setEnvironmentParameter(v && v !== '__none' ? v : '')}
+                              items={[
+                                { label: '不映射', value: '__none' },
+                                ...parameters.map((p) => ({
+                                  label: p.name,
+                                  value: p.name,
+                                  disabled: p.name === branchParameter,
+                                })),
+                              ]}
+                              className="text-xs h-8"
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </Surface>
               </>
             )}
 
             {jobFullName && !parametersLoading && !parameters.length && !error && (
-              <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                此 Job 无需 Jenkins 参数，将按 Job 默认配置直接触发构建。
-              </p>
+              <Alert status="accent">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Description>此 Job 无需 Jenkins 参数，将按 Job 默认配置直接触发构建。</Alert.Description>
+                </Alert.Content>
+              </Alert>
             )}
 
             {parametersLoading && (
@@ -663,7 +678,15 @@ export function JenkinsBuildParameters({
               </div>
             )}
 
-            {error && <p className="rounded-md bg-destructive/5 p-2 text-xs text-destructive">{error}</p>}
+            {error && (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>错误</Alert.Title>
+                  <Alert.Description>{error}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
 
             <Label className="font-normal text-xs flex items-center gap-2 cursor-pointer select-none">
               <Checkbox

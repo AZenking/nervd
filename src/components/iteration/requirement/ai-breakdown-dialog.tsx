@@ -9,7 +9,9 @@ import { useApp } from '@/store/app';
 import type { AiBreakdownItem } from '@/types/ai';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -18,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toast';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { AiBreakdownTags, TAG_COLORS } from './ai-breakdown-tags';
 
@@ -248,7 +251,7 @@ export function AiBreakdownDialog({
         </DialogHeader>
 
         {/* 维度 Tags 与重新生成控制条 */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-y border-border/60 py-2.5 shrink-0 bg-muted/20 -mx-5 px-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-y border-border/60 py-2.5 shrink-0 -mx-5 px-5">
           <AiBreakdownTags
             selectedTags={selectedTags}
             onChange={(tags) => {
@@ -260,7 +263,7 @@ export function AiBreakdownDialog({
             size="xs"
             variant="ghost"
             disabled={loading || creating}
-            onClick={() => void handleGenerate(selectedTags)}
+            onPress={() => void handleGenerate(selectedTags)}
             className="h-7 text-xs"
           >
             <RefreshCwIcon className={cn('size-3.5 mr-1', loading && 'animate-spin')} />
@@ -269,7 +272,7 @@ export function AiBreakdownDialog({
         </div>
 
         {/* 候选子任务清单区 */}
-        <div className="flex-1 min-h-0 overflow-y-auto workspace-scroll py-2 flex flex-col gap-2">
+        <ScrollArea className="flex-1 min-h-0 workspace-scroll py-2 flex flex-col gap-2">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
               <Loader2Icon className="size-6 animate-spin text-primary" />
@@ -278,12 +281,12 @@ export function AiBreakdownDialog({
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
               <p className="text-xs">未能拆解出任务条目</p>
-              <Button size="xs" variant="outline" onClick={() => void handleGenerate(selectedTags)}>
+              <Button size="xs" variant="outline" onPress={() => void handleGenerate(selectedTags)}>
                 点击重试
               </Button>
             </div>
           ) : (
-            <div className="flex flex-col divide-y divide-border/40 rounded-lg border border-border/50 bg-background/50 overflow-hidden">
+            <Card className="flex flex-col divide-y divide-border/40 rounded-lg border border-border/50 bg-background/50 overflow-hidden">
               {items.map((item) => {
                 const color = TAG_COLORS[item.tag] || {
                   bg: 'bg-muted/50',
@@ -346,11 +349,14 @@ export function AiBreakdownDialog({
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="xs"
                             disabled={creating}
-                            className="flex items-center gap-1 shrink-0 rounded px-2 py-1 text-xs border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors max-w-28"
+                            className="h-7 flex items-center gap-1 shrink-0 px-2 text-xs font-normal max-w-28"
                             title="选择该子任务的处理人"
+                            aria-label="选择该子任务的处理人"
                           />
                         }
                       >
@@ -370,7 +376,7 @@ export function AiBreakdownDialog({
                             return (
                               <DropdownMenuItem
                                 key={c.id || c.name}
-                                onClick={() => updateAssignee(item.id, c.id, c.name)}
+                                onSelect={() => updateAssignee(item.id, c.id, c.name)}
                                 className={cn('text-xs cursor-pointer flex items-center justify-between', isSelected && 'font-medium text-primary')}
                               >
                                 <OverflowTooltip text={c.name} className="min-w-0 truncate" />
@@ -385,39 +391,53 @@ export function AiBreakdownDialog({
                     </DropdownMenu>
 
                     {/* 删除单个条目 */}
-                    <button
-                      type="button"
-                      disabled={creating}
-                      onClick={() => deleteItem(item.id)}
-                      className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors"
-                      title="删除此项"
-                    >
-                      <Trash2Icon className="size-3.5" />
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            disabled={creating}
+                            onPress={() => deleteItem(item.id)}
+                            className="text-muted-foreground hover:text-destructive size-6 rounded"
+                            title="删除此项"
+                            aria-label="删除此项"
+                          >
+                            <Trash2Icon className="size-3.5" />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>删除此项</TooltipContent>
+                    </Tooltip>
                   </div>
                 );
               })}
-            </div>
+            </Card>
           )}
 
           {!loading && items.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
               <div className="flex items-center gap-3">
-                <button
+                <Button
                   type="button"
-                  onClick={toggleSelectAll}
-                  className="text-muted-foreground hover:text-foreground underline cursor-pointer"
+                  variant="ghost"
+                  size="xs"
+                  onPress={toggleSelectAll}
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
                 >
                   {items.every((i) => i.selected) ? '全不选' : '全选'}
-                </button>
+                </Button>
 
                 {candidateAssignees.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       render={
-                        <button
+                        <Button
                           type="button"
-                          className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground cursor-pointer text-xs"
+                          variant="ghost"
+                          size="xs"
+                          className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
                         />
                       }
                     >
@@ -428,7 +448,7 @@ export function AiBreakdownDialog({
                       {candidateAssignees.map((c) => (
                         <DropdownMenuItem
                           key={c.id || c.name}
-                          onClick={() => handleBatchAssign(c.id, c.name)}
+                          onSelect={() => handleBatchAssign(c.id, c.name)}
                           className="text-xs cursor-pointer flex items-center justify-between"
                         >
                           <span>{c.name}</span>
@@ -440,17 +460,19 @@ export function AiBreakdownDialog({
                 )}
               </div>
 
-              <button
+              <Button
                 type="button"
-                onClick={addItem}
-                className="inline-flex items-center gap-1 text-primary hover:underline cursor-pointer"
+                variant="ghost"
+                size="xs"
+                onPress={addItem}
+                className="h-7 gap-1 text-xs text-primary hover:text-primary hover:bg-primary/10"
               >
                 <PlusIcon className="size-3" />
                 新增一条
-              </button>
+              </Button>
             </div>
           )}
-        </div>
+        </ScrollArea>
 
         {/* 底部确认操作栏 */}
         <DialogFooter className="shrink-0 pt-3 border-t border-border/60">
@@ -470,14 +492,14 @@ export function AiBreakdownDialog({
                 variant="outline"
                 size="sm"
                 disabled={creating}
-                onClick={() => onOpenChange(false)}
+                onPress={() => onOpenChange(false)}
               >
                 取消
               </Button>
               <Button
                 size="sm"
                 disabled={creating || loading || selectedCount === 0}
-                onClick={() => void handleConfirmBatchCreate()}
+                onPress={() => void handleConfirmBatchCreate()}
               >
                 {creating ? (
                   <>

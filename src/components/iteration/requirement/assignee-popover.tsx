@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckIcon, ChevronDownIcon, SearchIcon, UserIcon, XIcon } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useMemo, useState } from 'react';
+import { UserIcon } from 'lucide-react';
+import { ListBox } from '@heroui/react';
+import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
+import { Chip } from '@/components/ui/chip';
+import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -26,7 +28,7 @@ export interface SearchableAssigneePopoverProps {
   onSelect?: (candidate: AssigneeOption) => void | Promise<void>;
   /** 触发器视觉形态：'row' 列表紧凑行 | 'cell' 属性栏表单格 | 'badge' 顶部徽标 | 'button' 独立微按钮 */
   variant?: 'row' | 'cell' | 'badge' | 'button';
-  /** 是否在点击触发器时校验只读门控（默认 true） */
+  /** 是否在选择时校验只读门控（默认 true）；开启后只读模式下弹层不可展开 */
   checkWriteOps?: boolean;
   /** 是否禁用 */
   disabled?: boolean;
@@ -38,8 +40,12 @@ export interface SearchableAssigneePopoverProps {
   className?: string;
 }
 
+const EMPTY_STATE_KEY = '__assignee-empty';
+
 /**
- * 带有实时搜索、全键盘导航的候选处理人选择下拉（Linear 体验对齐）
+ * 候选处理人选择下拉（HeroUI Select 规范实现）：
+ * 与属性栏 DetailAssigneePopover、快速创建行指定人选择器同一套交互与视觉，
+ * 键盘方向键 / Enter / Esc / 首字母 typeahead 由 Select 原生提供。
  */
 export function SearchableAssigneePopover({
   assignedToName = '',
@@ -57,62 +63,27 @@ export function SearchableAssigneePopover({
   const { settings, updateWorkitemAssigneeOptimistic } = useApp();
   const allowWriteOps = settings?.allowWriteOps ?? false;
 
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // 打开时重置搜索词与高亮项，自动聚焦输入框
-  useEffect(() => {
-    if (open) {
-      setQuery('');
-      setHighlightedIndex(0);
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
+  // 当前负责人可能不在候选列表（仅姓名已知）：补入选项以保证回显与可选
+  const candidates = useMemo(() => {
+    const list = [...candidateAssignees];
+    if (assignedToName && !list.some((c) => c.name === assignedToName || c.id === assignedToName)) {
+      list.unshift({ id: assignedToName, name: assignedToName });
     }
-  }, [open]);
+    return list;
+  }, [candidateAssignees, assignedToName]);
 
-  // 实时搜索过滤（支持按姓名、角色、ID 不区分大小写匹配）
-  const filteredCandidates = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return candidateAssignees;
-    return candidateAssignees.filter((c) => {
-      const nameMatch = c.name?.toLowerCase().includes(q);
-      const roleMatch = c.role?.toLowerCase().includes(q);
-      const idMatch = c.id?.toLowerCase().includes(q);
-      return Boolean(nameMatch || roleMatch || idMatch);
-    });
-  }, [candidateAssignees, query]);
+  const selectedId = useMemo(
+    () => candidates.find((c) => c.name === assignedToName || c.id === assignedToName)?.id ?? null,
+    [candidates, assignedToName],
+  );
 
-  // 边界保护：高亮索引不超过过滤后长度
-  useEffect(() => {
-    if (highlightedIndex >= filteredCandidates.length) {
-      setHighlightedIndex(Math.max(0, filteredCandidates.length - 1));
-    }
-  }, [filteredCandidates.length, highlightedIndex]);
-
-  const handleSelect = async (candidate: AssigneeOption) => {
-    setOpen(false);
-    if (onSelect) {
-      await onSelect(candidate);
-    }
-    if (workitemId) {
-      setUpdating(true);
-      try {
-        await updateWorkitemAssigneeOptimistic(workitemId, candidate.id, candidate.name);
-      } finally {
-        setUpdating(false);
-      }
-    }
-  };
-
-  const handleTriggerClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  // 只读门控：受控 isOpen 直接拦截展开（比展开后回弹更符合 WriteOpGatedTrigger 心智）
+  const handleOpenChange = (nextOpen: boolean) => {
     if (disabled || updating) return;
-    if (checkWriteOps && !allowWriteOps) {
+    if (nextOpen && checkWriteOps && !allowWriteOps) {
       toast.add({
         title: '当前处于只读模式',
         description: '更改负责人需在「设置 → 安全」中开启写操作。',
@@ -124,199 +95,195 @@ export function SearchableAssigneePopover({
       });
       return;
     }
-    setOpen((prev) => !prev);
+    setIsOpen(nextOpen);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 阻止向外层冒泡，避免触发 j/k 列表跳转或全局快捷键
-    e.stopPropagation();
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setHighlightedIndex((i) => Math.min(i + 1, filteredCandidates.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlightedIndex((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const target = filteredCandidates[highlightedIndex] || filteredCandidates[0];
-      if (target) {
-        void handleSelect(target);
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setOpen(false);
+  const handleSelectionChange = (key: unknown) => {
+    if (key === null || key === undefined) return;
+    const candidate = candidates.find((c) => c.id === String(key));
+    if (!candidate) return;
+    if (checkWriteOps && !allowWriteOps) {
+      // 关闭态 typeahead 等路径仍可能触发选择，此处兜底拦截；受控 value 不变自动回弹
+      toast.add({
+        title: '当前处于只读模式',
+        description: '更改负责人需在「设置 → 安全」中开启写操作。',
+        type: 'warning',
+        actionProps: {
+          children: '前往设置',
+          onClick: () => openSettings('security'),
+        },
+      });
+      return;
     }
+    void (async () => {
+      if (onSelect) {
+        await onSelect(candidate);
+      }
+      if (workitemId) {
+        setUpdating(true);
+        try {
+          await updateWorkitemAssigneeOptimistic(workitemId, candidate.id, candidate.name);
+        } finally {
+          setUpdating(false);
+        }
+      }
+    })();
   };
 
-  // 触发器样式分发
+  const updatingCls = cn(updating && 'pointer-events-none opacity-60', disabled && 'pointer-events-none opacity-50');
+
+  // 触发器视觉分发（Select.Trigger 本身是 button，严禁再嵌套 Button）
   const renderTriggerContent = () => {
+    const face =
+      updating ? (
+        <Spinner className="size-3.5 shrink-0" />
+      ) : assignedToName ? (
+        <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
+          <AvatarFallback className="text-[9px] bg-transparent font-medium">{assignedToName.charAt(0)}</AvatarFallback>
+        </Avatar>
+      ) : (
+        <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
+      );
+    const label = (
+      <OverflowTooltip text={assignedToName || placeholder} className="min-w-0 truncate" />
+    );
+
     if (variant === 'row') {
       return (
-        <button
-          type="button"
-          onClick={handleTriggerClick}
-          className={cn(
-            'group/assignee inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer',
-            updating && 'pointer-events-none opacity-60',
-            disabled && 'pointer-events-none opacity-50',
-            className,
-          )}
+        <span
           title="点击更改负责人"
-        >
-          {updating ? (
-            <Spinner className="size-3.5" />
-          ) : assignedToName ? (
-            <Avatar className="size-4 shrink-0">
-              <AvatarFallback className="text-[9px]">{assignedToName.charAt(0)}</AvatarFallback>
-            </Avatar>
-          ) : (
-            <UserIcon className="size-3.5 text-muted-foreground/60" />
+          className={cn(
+            'group/assignee flex h-6 items-center gap-1.5 rounded-sm px-1.5 text-xs text-muted-foreground hover:text-foreground',
+            updatingCls,
           )}
+        >
+          {face}
           <OverflowTooltip
             text={assignedToName || placeholder}
-            className="hidden max-w-20 sm:inline truncate"
+            className="hidden max-w-20 truncate sm:inline"
           />
-        </button>
+        </span>
       );
     }
 
     if (variant === 'button') {
       return (
-        <button
-          type="button"
-          onClick={handleTriggerClick}
+        <span
+          title="点击更改负责人"
           className={cn(
-            'inline-flex h-7 shrink-0 items-center gap-1.5 rounded border border-border/60 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-none max-w-44 cursor-pointer transition-colors',
-            updating && 'pointer-events-none opacity-60',
-            disabled && 'pointer-events-none opacity-50',
-            className,
+            'flex h-7 max-w-44 items-center gap-1.5 truncate rounded-md border border-border/70 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted',
+            updatingCls,
           )}
-          title="选择处理人"
         >
-          {updating ? (
-            <Spinner className="size-3" />
-          ) : (
-            <UserIcon className="size-3 text-muted-foreground shrink-0" />
-          )}
-          <OverflowTooltip text={assignedToName || placeholder} className="truncate" />
-          <ChevronDownIcon className="size-3 text-muted-foreground opacity-60 shrink-0" />
-        </button>
+          <UserIcon className="size-3 shrink-0 text-muted-foreground" />
+          {label}
+          <Select.Indicator className="static size-3 shrink-0 text-muted-foreground opacity-60" />
+        </span>
       );
     }
 
-    // 'cell' 或 'badge'
-    const isBadge = variant === 'badge';
+    if (variant === 'badge') {
+      return (
+        <Chip
+          size="sm"
+          color="default"
+          variant="soft"
+          title="点击更改负责人"
+          className={cn(
+            'group/assignee max-w-32 cursor-pointer gap-1.5 rounded-md text-foreground transition-colors select-none hover:bg-muted/60',
+            updatingCls,
+          )}
+        >
+          {updating ? (
+            <Spinner className="size-3.5 shrink-0" />
+          ) : assignedToName ? (
+            <Avatar className={cn('size-3.5 shrink-0 border', getAvatarColorClass(assignedToName))}>
+              <AvatarFallback className="text-[9px] bg-transparent font-medium">{assignedToName.charAt(0)}</AvatarFallback>
+            </Avatar>
+          ) : (
+            <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
+          )}
+          <Chip.Label>
+            <OverflowTooltip text={assignedToName || placeholder} className="max-w-28 truncate" />
+          </Chip.Label>
+          <Select.Indicator className="static size-3 ml-0.5 shrink-0 text-muted-foreground/60" />
+        </Chip>
+      );
+    }
+
+    // 'cell'：属性栏表单格
     return (
-      <button
-        type="button"
-        onClick={handleTriggerClick}
-        className={cn(
-          'group/assignee inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer text-foreground select-none',
-          isBadge
-            ? 'h-7 rounded-md border border-border/60 bg-muted/20 hover:bg-muted/60 hover:border-border/80 px-2.5 text-xs font-medium'
-            : 'rounded-sm hover:bg-muted/80 px-1.5 py-0.5 text-xs font-medium',
-          updating && 'pointer-events-none opacity-60',
-          disabled && 'pointer-events-none opacity-50',
-          className,
-        )}
+      <span
         title="点击更改负责人"
-      >
-        {updating ? (
-          <Spinner className="size-3.5 shrink-0" />
-        ) : assignedToName ? (
-          <Avatar className="size-4 shrink-0">
-            <AvatarFallback className="text-[9px]">{assignedToName.charAt(0)}</AvatarFallback>
-          </Avatar>
-        ) : (
-          <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
+        className={cn(
+          'group/assignee flex h-6 items-center gap-1.5 rounded-sm px-1.5 text-xs font-medium text-foreground',
+          updatingCls,
         )}
-        <OverflowTooltip
-          text={assignedToName || placeholder}
-          className={cn('truncate', isBadge ? 'max-w-28' : 'max-w-24')}
-        />
-        <ChevronDownIcon className="size-3 text-muted-foreground/60 shrink-0 ml-0.5 transition-transform group-hover/assignee:opacity-100" />
-      </button>
+      >
+        {face}
+        {label}
+        <Select.Indicator className="static size-3 ml-0.5 shrink-0 text-muted-foreground/60" />
+      </span>
     );
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={renderTriggerContent()} />
-      <PopoverContent
-        align={align}
-        sideOffset={4}
-        className="w-56 p-1.5 z-50 shadow-level-2 bg-popover border border-border"
-        onClick={(e) => e.stopPropagation()}
+    <Select
+      aria-label="更改负责人"
+      variant="secondary"
+      value={selectedId}
+      isOpen={isOpen}
+      onOpenChange={handleOpenChange}
+      onValueChange={handleSelectionChange}
+      isDisabled={disabled}
+      className={cn('min-w-0 max-w-44', className)}
+    >
+      <Select.Trigger
+        showIndicator={false}
+        className={cn(
+          'min-h-0 border-0 bg-transparent p-0 shadow-none',
+          variant === 'row' && 'h-6 px-0',
+          className,
+        )}
       >
-        {/* 搜索框 */}
-        <div className="relative mb-1">
-          <SearchIcon className="absolute left-2 top-2 size-3 text-muted-foreground pointer-events-none" />
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="搜索成员或角色…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setHighlightedIndex(0);
-            }}
-            onKeyDown={handleKeyDown}
-            className="h-7 w-full rounded-md border border-border/70 bg-muted/40 pl-7 pr-6 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 transition-colors"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => {
-                setQuery('');
-                inputRef.current?.focus();
-              }}
-              className="absolute right-1.5 top-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
-              title="清空搜索"
+        {renderTriggerContent()}
+      </Select.Trigger>
+      {/* Select 必须始终保留 ListBox 集合，否则空候选时触发器只能聚焦、无法展开。 */}
+      {candidates.length === 0 ? (
+        <Select.Popover className="min-w-40" placement={align === 'end' ? 'bottom end' : 'bottom start'}>
+          <ListBox selectionMode="none">
+            <ListBox.Item
+              id={EMPTY_STATE_KEY}
+              textValue="暂无候选成员"
+              isDisabled
+              className="text-xs text-muted-foreground"
             >
-              <XIcon className="size-3" />
-            </button>
-          )}
-        </div>
-
-        {/* 候选列表 */}
-        <div className="max-h-56 overflow-y-auto flex flex-col gap-0.5">
-          {filteredCandidates.length === 0 ? (
-            <div className="py-3 text-center text-xs text-muted-foreground">
-              未找到匹配成员{query ? `「${query}」` : ''}
-            </div>
-          ) : (
-            filteredCandidates.map((c, index) => {
-              const isSelected = c.name === assignedToName || c.id === assignedToName;
-              const isHighlighted = index === highlightedIndex;
-              return (
-                <button
-                  key={c.id || c.name}
-                  type="button"
-                  onClick={() => void handleSelect(c)}
-                  onMouseEnter={() => setHighlightedIndex(index)}
-                  className={cn(
-                    'flex items-center justify-between gap-2 px-2 py-1.5 text-xs rounded-sm cursor-pointer transition-colors text-left w-full',
-                    isHighlighted ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/60 text-foreground',
-                    isSelected && 'font-medium text-primary',
+              暂无候选成员
+            </ListBox.Item>
+          </ListBox>
+        </Select.Popover>
+      ) : (
+        <Select.Popover className="min-w-44" placement={align === 'end' ? 'bottom end' : 'bottom start'}>
+          <ListBox>
+            {candidates.map((c) => (
+              <ListBox.Item key={c.id} id={c.id} textValue={c.name} className="text-xs">
+                <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(c.name))}>
+                  <AvatarFallback className="text-[9px] bg-transparent font-medium">
+                    {c.name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                  <span className="truncate">{c.name}</span>
+                  {c.role && (
+                    <span className="shrink-0 text-[10px] text-muted-foreground/80">({c.role})</span>
                   )}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Avatar className="size-4 shrink-0">
-                      <AvatarFallback className="text-[9px]">{c.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <OverflowTooltip text={c.name} className="min-w-0 truncate" />
-                    {c.role && (
-                      <span className="text-[10px] text-muted-foreground/80 shrink-0">({c.role})</span>
-                    )}
-                  </div>
-                  {isSelected && <CheckIcon className="size-3 text-primary shrink-0" />}
-                </button>
-              );
-            })
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+                </div>
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      )}
+    </Select>
   );
 }

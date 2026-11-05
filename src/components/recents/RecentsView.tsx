@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ClockIcon, ExternalLinkIcon, Trash2Icon } from 'lucide-react';
+import { Table } from '@heroui/react';
 import { useRecentWorkitems, type RecentWorkitem } from '@/store/recent-workitems';
 import { useUi } from '@/store/ui';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StatusIcon } from '@/components/status-icon';
 import { EmptyHint } from '@/components/empty-hint';
 import { WorkitemPeekDrawer } from '@/components/workitem-peek-drawer';
@@ -54,19 +57,25 @@ export function RecentsView() {
         e.preventDefault();
         setActiveCursor((prev) => {
           const next = Math.min(items.length - 1, prev + 1);
-          document.getElementById(`recent-row-${next}`)?.scrollIntoView({ block: 'nearest' });
+          document
+            .querySelector(`[data-key="${items[next]?.workitemId}"]`)
+            ?.scrollIntoView({ block: 'nearest' });
           return next;
         });
       } else if (e.key === 'k' || e.key === 'ArrowUp') {
         e.preventDefault();
         setActiveCursor((prev) => {
           const next = Math.max(0, prev - 1);
-          document.getElementById(`recent-row-${next}`)?.scrollIntoView({ block: 'nearest' });
+          document
+            .querySelector(`[data-key="${items[next]?.workitemId}"]`)
+            ?.scrollIntoView({ block: 'nearest' });
           return next;
         });
       } else if (e.key === 'Enter') {
         const item = items[activeCursor];
         if (item) {
+          // 光标行若已被 Table 聚焦，Enter 的行动作由 RAC 触发，避免双重打开
+          if (target?.closest('[role="row"]')) return;
           e.preventDefault();
           handleOpenWorkitem(item);
         }
@@ -86,9 +95,9 @@ export function RecentsView() {
         titleClassName="text-sm font-semibold tracking-tight text-foreground"
         titleBadge={
           items.length > 0 ? (
-            <span className="rounded-md border border-border/80 bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] font-medium text-muted-foreground select-none cursor-default">
+            <Chip size="sm" variant="soft" className="font-mono text-[11px] tabular-nums select-none">
               {items.length} 项
-            </span>
+            </Chip>
           ) : undefined
         }
         description={items.length > 0 ? '仅记录持续深入查看超过 30 秒的需求项' : undefined}
@@ -115,78 +124,122 @@ export function RecentsView() {
           className="rounded-xl border border-dashed py-16"
         />
       ) : (
-        <div className="rounded-xl border border-border/70 bg-card/40 overflow-hidden divide-y divide-border/40">
-          {items.map((item, idx) => {
-            const isCursorActive = activeCursor === idx;
-            return (
-              <div
-                key={item.workitemId}
-                id={`recent-row-${idx}`}
-                onClick={() => handleOpenWorkitem(item)}
-                className={cn(
-                  'group flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer transition-colors select-none text-xs',
-                  isCursorActive ? 'bg-accent/60 text-accent-foreground' : 'hover:bg-muted/40',
-                )}
-              >
-                {/* 左侧：状态图标 + 等宽编号 + 标题 */}
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <StatusIcon status={item.status} className="size-3.5 shrink-0" />
-                  <span className="font-mono font-bold tracking-tight text-primary shrink-0">
-                    {item.identifier}
-                  </span>
-                  <OverflowTooltip
-                    text={item.subject}
-                    className="min-w-0 truncate font-medium text-foreground group-hover:text-primary transition-colors"
-                  />
-                </div>
+        <Table variant="secondary">
+          <Table.ScrollContainer>
+            <Table.Content aria-label="最近查看列表">
+              <Table.Header>
+                <Table.Column isRowHeader>需求</Table.Column>
+                <Table.Column>类别</Table.Column>
+                <Table.Column>所属空间</Table.Column>
+                <Table.Column className="text-end">查看时间</Table.Column>
+                <Table.Column>操作</Table.Column>
+              </Table.Header>
 
-                {/* 右侧：类别徽标 + 30s+ 标记 + 访问时间 + 操作 */}
-                <div className="flex items-center gap-3 shrink-0">
-                  {item.category && (
-                    <span className="rounded bg-muted/80 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      {CATEGORY_LABELS[item.category as Category] || item.category}
-                    </span>
-                  )}
-                  {item.spaceName && (
-                    <OverflowTooltip
-                      text={item.spaceName}
-                      className="hidden max-w-28 truncate text-[11px] text-muted-foreground md:inline"
-                    />
-                  )}
-                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-mono text-amber-600 dark:text-amber-400">
-                    <ClockIcon className="size-2.5" />
-                    30s+
-                  </span>
-                  <span className="text-[11px] text-muted-foreground font-mono w-20 text-right">
-                    {formatRelativeTime(item.viewedAt)}
-                  </span>
-                  <button
-                    type="button"
-                    title="从最近列表中移除"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeRecent(item.workitemId);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive rounded transition-opacity"
-                  >
-                    <Trash2Icon className="size-3" />
-                  </button>
-                  <button
-                    type="button"
-                    title="在工作台中全屏打开"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenWorkbench(item.workitemId, item.identifier, item.subject);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-foreground rounded transition-opacity"
-                  >
-                    <ExternalLinkIcon className="size-3" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              <Table.Body>
+                {items.map((item, idx) => {
+                  const isCursorActive = activeCursor === idx;
+                  return (
+                    <Table.Row
+                      key={item.workitemId}
+                      id={item.workitemId}
+                      onAction={() => handleOpenWorkitem(item)}
+                      className={cn('group', isCursorActive && 'bg-muted-bg')}
+                    >
+                      <Table.Cell>
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <StatusIcon status={item.status} className="size-3.5 shrink-0" />
+                          <span className="shrink-0 font-mono font-bold tracking-tight text-primary">
+                            {item.identifier}
+                          </span>
+                          <OverflowTooltip
+                            text={item.subject}
+                            className="min-w-0 font-medium text-foreground"
+                          />
+                        </div>
+                      </Table.Cell>
+
+                      <Table.Cell>
+                        <span className="flex items-center gap-1.5">
+                          {item.category && (
+                            <Chip size="sm" variant="soft">
+                              {CATEGORY_LABELS[item.category as Category] || item.category}
+                            </Chip>
+                          )}
+                          <Chip size="sm" variant="soft" color="warning" className="font-mono">
+                            <ClockIcon className="size-2.5" />
+                            30s+
+                          </Chip>
+                        </span>
+                      </Table.Cell>
+
+                      <Table.Cell>
+                        {item.spaceName ? (
+                          <OverflowTooltip
+                            text={item.spaceName}
+                            className="max-w-28 text-muted-foreground"
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </Table.Cell>
+
+                      <Table.Cell className="text-end">
+                        <span className="font-mono tabular-nums text-muted-foreground">
+                          {formatRelativeTime(item.viewedAt)}
+                        </span>
+                      </Table.Cell>
+
+                      <Table.Cell>
+                        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  title="从最近列表中移除"
+                                  aria-label="从最近列表中移除"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeRecent(item.workitemId);
+                                  }}
+                                  className="text-muted-foreground hover:text-destructive"
+                                >
+                                  <Trash2Icon className="size-3" />
+                                </Button>
+                              }
+                            />
+                            <TooltipContent>从最近列表中移除</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  title="在工作台中全屏打开"
+                                  aria-label="在工作台中全屏打开"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenWorkbench(item.workitemId, item.identifier, item.subject);
+                                  }}
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  <ExternalLinkIcon className="size-3" />
+                                </Button>
+                              }
+                            />
+                            <TooltipContent>在工作台中全屏打开</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  );
+                })}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table>
       )}
 
       {/* 点击条目打开的 Peek 抽屉 */}

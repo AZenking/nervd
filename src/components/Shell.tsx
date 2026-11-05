@@ -1,20 +1,38 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type WorkspaceView } from '../store/ui';
 import { AppSidebar } from './nav/app-sidebar';
+import { ScrollArea } from './ui/scroll-area';
 import { IterationView } from './iteration/IterationView';
-import { RequirementDetails } from './iteration/RequirementDetails';
-import { IntegrationView } from './integration/IntegrationView';
-import { BuildWorkbenchDrawer } from './build-workbench';
 import { OverviewView } from './OverviewView';
 import { RecentsView } from './recents/RecentsView';
-import { SettingsView } from './SettingsView';
-import { SchedulesView } from './schedules/SchedulesView';
-import { LocalTasksView } from './local-tasks/LocalTasksView';
 import { CommandMenu } from './command-menu';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { AboutDialog } from './about-dialog';
 import { QuickBuildDialog } from './quick-build/quick-build-dialog';
+import {
+  RequirementViewSkeleton,
+  IntegrationViewSkeleton,
+  SchedulesViewSkeleton,
+  SettingsViewSkeleton,
+} from './shell-skeleton';
+
+// 独立视图模块动态分包加载（React.lazy + Suspense），避免非高频页面阻塞首屏主包
+const RequirementDetails = lazy(() =>
+  import('./iteration/RequirementDetails').then((m) => ({ default: m.RequirementDetails }))
+);
+const IntegrationView = lazy(() =>
+  import('./integration/IntegrationView').then((m) => ({ default: m.IntegrationView }))
+);
+const SchedulesView = lazy(() =>
+  import('./schedules/SchedulesView').then((m) => ({ default: m.SchedulesView }))
+);
+const SettingsView = lazy(() =>
+  import('./SettingsView').then((m) => ({ default: m.SettingsView }))
+);
+const BuildWorkbenchDrawer = lazy(() =>
+  import('./build-workbench/BuildWorkbenchDrawer').then((m) => ({ default: m.BuildWorkbenchDrawer }))
+);
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -24,6 +42,7 @@ import { PaneSeparator } from '@/components/ui/resizable';
 import { useElementWidth } from '@/hooks/use-element-width';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useLayout, SIDEBAR_PANE, NARROW_CONTAINER_WIDTH } from '@/store/layout';
+import { Card } from '@heroui/react';
 import { useGlobalCiScheduler } from '@/hooks/use-ci-polling';
 import { useScheduleRunner } from '@/hooks/use-schedule-runner';
 import { useEventListener } from '@/hooks/use-event-listener';
@@ -34,10 +53,10 @@ import { hasWorkspaceOverlay, isEditing, performWorkspaceAction } from '@/lib/wo
 /** g 前缀序列的等待窗口（Linear g+letter：g 后 1200ms 内的下一键才生效） */
 const G_SEQUENCE_TIMEOUT_MS = 1200;
 
-/** Base UI 弹层（AlertDialog.Popup 是 role="alertdialog"，Dialog.Popup 是 role="dialog"）都在 DOM 里即视为有浮层 */
+/** 弹层组件（HeroUI Dialog / AlertDialog，基于 React Aria）渲染 role="dialog" / role="alertdialog"，出现在 DOM 里即视为有浮层 */
 const OPEN_DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]';
 
-/** shadcn sidebar 折叠态 cookie（ui/sidebar.tsx 内部写入）；Shell 受控模式下自读初始偏好 */
+/** 侧栏折叠态 cookie（ui/sidebar.tsx 内部写入）；Shell 受控模式下自读初始偏好 */
 const SIDEBAR_STATE_COOKIE = 'sidebar_state';
 const SIDEBAR_STATE_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 
@@ -90,7 +109,7 @@ function DirtyGuardDialog() {
         <AlertDialogFooter>
           <AlertDialogCancel>继续编辑</AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => {
+            onPress={() => {
               const dest = useSettingsDraft.getState().pendingView;
               discard();
               navigateTo(dest);
@@ -101,7 +120,7 @@ function DirtyGuardDialog() {
           <AlertDialogAction
             variant="destructive"
             disabled={saving}
-            onClick={() => {
+            onPress={() => {
               setSaving(true);
               const dest = useSettingsDraft.getState().pendingView;
               void save().then((ok) => {
@@ -123,6 +142,14 @@ export function Shell() {
   const { view } = useUi();
   const restoreScroll = useUi((s) => s.restoreScroll);
   const loadingDetail = useApp((s) => s.loadingDetail);
+  const buildWorkbenchOpen = useUi((s) => s.buildWorkbenchOpen);
+  const [workbenchMounted, setWorkbenchMounted] = useState(buildWorkbenchOpen);
+
+  useEffect(() => {
+    if (buildWorkbenchOpen) {
+      setWorkbenchMounted(true);
+    }
+  }, [buildWorkbenchOpen]);
 
   // ---- 布局自适应（窄窗口侧栏自动图标化，与用户主动开合分别管理）----
   // 容器宽度 < 1180px：侧栏自动收为图标栏；页头/侧栏入口可临时展开（会话态，不写偏好）。
@@ -251,8 +278,8 @@ export function Shell() {
       return;
     }
 
-    // ② 浮层打开（命令面板 / 快捷键面板 / 关于面板 / 任意 Base UI 弹层）或焦点在输入控件：
-    //    全局单键一律让路（Esc 由 Base UI 自行关闭浮层），并复位 g 序列
+    // ② 浮层打开（命令面板 / 快捷键面板 / 关于面板 / 任意 HeroUI 弹层）或焦点在输入控件：
+    //    全局单键一律让路（Esc 由弹层组件自行关闭浮层），并复位 g 序列
     if (ui.commandOpen || ui.shortcutsOpen || ui.aboutOpen || ui.quickBuildOpen || hasWorkspaceOverlay()) {
       resetGSequence();
       return;
@@ -271,7 +298,6 @@ export function Shell() {
       if (e.key === 'i') return void ui.setView('iteration');
       if (e.key === 'b') return void ui.setView('integration');
       if (e.key === 'c') return void ui.setView('schedules');
-      if (e.key === 't') return void ui.setView('local-tasks');
       if (e.key === 's') return void ui.openSettings('connection');
       // 其他键：已复位，继续落入下方单键逻辑
     } else if (e.key === 'g') {
@@ -315,11 +341,12 @@ export function Shell() {
       onOpenChange={handleSidebarOpenChange}
     >
       <AppSidebar />
-      {/* 侧栏右缘拖动分隔线：1px 可见线 + 透明命中区；键盘可调、双击恢复默认 256px。
-          仅在展开态渲染（图标栏模式下宽度拖动无意义），移动端走抽屉不渲染。 */}
+      {/* 侧栏右缘保留透明拖拽命中区，不再渲染额外竖线，避免与两侧 Card 边框叠成中间线。
+          键盘可调、双击恢复默认 256px；仅在展开态渲染，移动端走抽屉不渲染。 */}
       {!isMobile && sidebarOpen && (
         <PaneSeparator
           aria-label={`调整侧栏宽度，${SIDEBAR_PANE.min} 到 ${SIDEBAR_PANE.max} 像素`}
+          showLine={false}
           className="z-20"
           style={{ left: 'calc(var(--sidebar-width) - 4px)' }}
           value={sidebarWidth}
@@ -329,31 +356,56 @@ export function Shell() {
           onReset={resetSidebarWidth}
         />
       )}
-      {/* Linear 浮动主卡：inset 变体自带 m-2 圆角（ui/sidebar.tsx），这里只管裁切 */}
-      <SidebarInset className="overflow-hidden">
-        <div className="flex h-full min-h-0">
-          <section data-workspace-content className="flex min-w-0 flex-1 flex-col h-full min-h-0 overflow-hidden">
-            {view === 'iteration' ? (
-              <IterationView />
-            ) : (
-              /* 顶部留白不放在滚动容器上（由各视图 / 吸顶页头自带 pt-5）：
-                  吸顶 PageHeader 的 top-0 才能严格贴住可视顶部，避免吸顶缝隙；
-                  overflow-x-hidden 阻断页头负边距在滚动条占位时引发的微量水平溢出 */
-              <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10">
-                {view === 'requirement' && <RequirementDetails />}
-                {view === 'integration' && <IntegrationView />}
-                {view === 'overview' && <OverviewView />}
-                {view === 'recents' && <RecentsView />}
-                {view === 'schedules' && <SchedulesView />}
-                {view === 'local-tasks' && <LocalTasksView />}
-                {/* 设置为全页布局：左侧栏即设置菜单，这里只渲染当前分区内容（宽度由 embedded 视图自带） */}
-                {view === 'full-settings' && <SettingsView embedded />}
-              </div>
-            )}
-          </section>
-        </div>
+      {/* 两侧都使用 HeroUI surface：侧栏在 ui/sidebar.tsx 中承载导航，主区由单一 Card 承载滚动内容。 */}
+      <SidebarInset className="overflow-hidden bg-transparent shadow-none md:peer-data-[variant=inset]:rounded-none md:peer-data-[variant=inset]:ring-0">
+        <Card
+          data-workspace-surface
+          variant="default"
+          className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden rounded-xl border border-border/70 p-0 shadow-none"
+        >
+          <div className="flex h-full min-h-0">
+            <section data-workspace-content className="flex min-w-0 flex-1 flex-col h-full min-h-0 overflow-hidden">
+              {view === 'iteration' ? (
+                <IterationView />
+              ) : (
+                /* 顶部留白不放在滚动容器上（由各视图 / 吸顶页头自带 pt-5）：
+                    吸顶 PageHeader 的 top-0 才能严格贴住可视顶部，避免吸顶缝隙；
+                    overflow-x-hidden 阻断页头负边距在滚动条占位时引发的微量水平溢出 */
+                <ScrollArea className="workspace-scroll min-h-0 flex-1 overflow-x-hidden px-5 pb-14 sm:px-8 lg:px-10">
+                  {view === 'requirement' && (
+                    <Suspense fallback={<RequirementViewSkeleton />}>
+                      <RequirementDetails />
+                    </Suspense>
+                  )}
+                  {view === 'integration' && (
+                    <Suspense fallback={<IntegrationViewSkeleton />}>
+                      <IntegrationView />
+                    </Suspense>
+                  )}
+                  {view === 'overview' && <OverviewView />}
+                  {view === 'recents' && <RecentsView />}
+                  {view === 'schedules' && (
+                    <Suspense fallback={<SchedulesViewSkeleton />}>
+                      <SchedulesView />
+                    </Suspense>
+                  )}
+                  {/* 设置为全页布局：左侧栏即设置菜单，这里只渲染当前分区内容（宽度由 embedded 视图自带） */}
+                  {view === 'full-settings' && (
+                    <Suspense fallback={<SettingsViewSkeleton />}>
+                      <SettingsView embedded />
+                    </Suspense>
+                  )}
+                </ScrollArea>
+              )}
+            </section>
+          </div>
+        </Card>
       </SidebarInset>
-      <BuildWorkbenchDrawer />
+      {workbenchMounted && (
+        <Suspense fallback={null}>
+          <BuildWorkbenchDrawer />
+        </Suspense>
+      )}
       <DirtyGuardDialog />
       <ShortcutsDialog />
       <AboutDialog />

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const ui = vi.hoisted(() => ({ back: vi.fn(), forward: vi.fn(), setCommandOpen: vi.fn() }));
 vi.mock('@/store/ui', () => ({ useUi: { getState: () => ui } }));
-import { hasWorkspaceOverlay, isEditing, performWorkspaceAction } from './workspace-actions';
+import { hasWorkspaceOverlay, isEditing, isWorkspacePeekDrawerOnly, performWorkspaceAction } from './workspace-actions';
 
 beforeEach(() => { document.body.innerHTML = ''; vi.clearAllMocks(); });
 
@@ -20,6 +20,39 @@ describe('workspace command routing', () => {
     expect(ui.back).not.toHaveBeenCalled();
     document.querySelector('div')!.setAttribute('data-closed', '');
     expect(hasWorkspaceOverlay()).toBe(false);
+  });
+  it('detects when the workitem peek drawer is the only visible overlay', () => {
+    document.body.innerHTML = '<div role="dialog" data-workspace-peek-drawer=""></div>';
+    expect(hasWorkspaceOverlay()).toBe(true);
+    expect(isWorkspacePeekDrawerOnly()).toBe(true);
+
+    // 抽屉之上有其他浮层（菜单）时不判定为「仅抽屉」
+    document.body.innerHTML = '<div role="dialog" data-workspace-peek-drawer=""></div><div role="menu"></div>';
+    expect(isWorkspacePeekDrawerOnly()).toBe(false);
+
+    // 其他浮层（无 peek 标记）不算
+    document.body.innerHTML = '<div role="dialog"></div>';
+    expect(isWorkspacePeekDrawerOnly()).toBe(false);
+
+    // 关闭动画中的抽屉（data-closed）不算可见
+    document.body.innerHTML = '<div role="dialog" data-workspace-peek-drawer="" data-closed></div>';
+    expect(isWorkspacePeekDrawerOnly()).toBe(false);
+
+    document.body.innerHTML = '';
+    expect(isWorkspacePeekDrawerOnly()).toBe(false);
+  });
+  it('excludes page-embedded collection containers from overlays', () => {
+    // 页面常驻的 role=listbox（如迭代列表 HeroUI ListBox）不是浮层
+    document.body.innerHTML = '<section data-workspace-content><div role="listbox"></div></section>';
+    expect(hasWorkspaceOverlay()).toBe(false);
+
+    // 但 portal 到工作区根之外的 listbox 仍是浮层
+    document.body.innerHTML = '<section data-workspace-content><p>页面</p></section><div role="listbox"></div>';
+    expect(hasWorkspaceOverlay()).toBe(true);
+
+    // 工作区根存在时，其内的抽屉式 dialog 也按「嵌入内容」处理（真实弹层一律 portal 到根外）
+    document.body.innerHTML = '<section data-workspace-content><div role="dialog" data-workspace-peek-drawer=""></div></section><div role="dialog" data-workspace-peek-drawer=""></div>';
+    expect(isWorkspacePeekDrawerOnly()).toBe(true);
   });
   it('focuses only the current workspace search', () => {
     document.body.innerHTML = '<input placeholder="搜索全局"><section data-workspace-content><input type="search"></section>';

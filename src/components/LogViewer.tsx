@@ -14,19 +14,8 @@ import {
   XCircleIcon,
   XIcon,
 } from 'lucide-react';
+import { Accordion, Button, Surface, Tabs } from '@heroui/react';
 import { useApp } from '../store/app';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Trace,
-  TraceCollapsible,
-  TraceCollapsibleContent,
-  TraceCollapsibleTrigger,
-  TraceDescription,
-  TraceIcon,
-  TraceLine,
-  TraceTitle,
-} from '@/components/ui/trace';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Drawer,
@@ -50,14 +39,6 @@ import type { CiStageItem } from '@/lib/api';
 
 type FilterMode = 'all' | 'error' | 'warning' | 'stage';
 
-function toTraceStatus(status: string): 'running' | 'error' | 'pending' | 'success' {
-  const s = status.toUpperCase();
-  if (s === 'SUCCESS') return 'success';
-  if (s === 'IN_PROGRESS' || s === 'RUNNING' || s === 'QUEUED') return 'running';
-  if (s === 'FAILED' || s === 'FAILURE' || s === 'FAIL') return 'error';
-  return 'pending';
-}
-
 function StageStatusIcon({ status }: { status: string }) {
   const s = status.toUpperCase();
   if (s === 'SUCCESS') {
@@ -73,7 +54,7 @@ function StageStatusIcon({ status }: { status: string }) {
     return <MinusCircleIcon className="size-3.5 text-muted-foreground shrink-0" />;
   }
   if (s.includes('PAUSE')) {
-    return <PauseCircleIcon className="size-3.5 text-purple-400 shrink-0" />;
+    return <PauseCircleIcon className="size-3.5 text-sig-idle shrink-0" />;
   }
   return <div className="size-2 rounded-full bg-muted-foreground/60 shrink-0" />;
 }
@@ -81,15 +62,15 @@ function StageStatusIcon({ status }: { status: string }) {
 function stageStatusBadgeClass(status: string): string {
   const s = status.toUpperCase();
   if (s === 'SUCCESS') {
-    return 'border-sig-ok/25 bg-sig-ok/10 text-sig-ok hover:bg-sig-ok/20';
+    return 'border-sig-ok/25 bg-sig-ok/10 text-sig-ok';
   }
   if (s === 'IN_PROGRESS' || s === 'RUNNING') {
-    return 'border-sig-run/30 bg-sig-run/10 text-sig-run hover:bg-sig-run/20';
+    return 'border-sig-run/30 bg-sig-run/10 text-sig-run';
   }
   if (s === 'FAILED' || s === 'FAILURE' || s === 'FAIL') {
-    return 'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20';
+    return 'border-destructive/30 bg-destructive/10 text-destructive';
   }
-  return 'border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60';
+  return 'border-border/60 bg-muted/30 text-muted-foreground';
 }
 
 /**
@@ -282,10 +263,10 @@ export function LogViewerContent({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  isIconOnly
+                  size="sm"
                   aria-label="返回运行记录"
-                  title="返回运行记录"
-                  onClick={onBack}
+                  onPress={onBack}
                 >
                   <ArrowLeftIcon className="size-4" />
                 </Button>
@@ -308,28 +289,31 @@ export function LogViewerContent({
                 </DrawerDescription>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1">
               <Button
                 variant={wrapLines ? 'secondary' : 'ghost'}
-                size="icon-xs"
-                onClick={() => setWrapLines((v) => !v)}
-                title={wrapLines ? '关闭自动换行 (单行横向滚动)' : '开启自动换行'}
+                isIconOnly
+                size="sm"
+                onPress={() => setWrapLines((v) => !v)}
+                aria-label={wrapLines ? '关闭自动换行 (单行横向滚动)' : '开启自动换行'}
               >
                 <WrapTextIcon className="size-3.5" />
               </Button>
               <Button
                 variant="ghost"
-                size="icon-xs"
-                onClick={copyAll}
-                title="复制全部日志"
+                isIconOnly
+                size="sm"
+                onPress={copyAll}
+                aria-label="复制全部日志"
               >
                 <CopyIcon className="size-3.5" />
               </Button>
               <Button
                 variant="ghost"
-                size="icon-xs"
-                onClick={onClose ?? closeLogs}
-                title="关闭构建工作台 (Esc)"
+                isIconOnly
+                size="sm"
+                onPress={onClose ?? closeLogs}
+                aria-label="关闭构建工作台 (Esc)"
               >
                 <XIcon className="size-3.5" />
               </Button>
@@ -338,48 +322,46 @@ export function LogViewerContent({
         </DrawerHeader>
 
         {/* 过滤工具栏与快速跳转 */}
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-muted/10 px-5 py-2 text-xs">
-          <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-2 text-xs">
+          <ScrollArea orientation="horizontal" hideScrollBar size={24} className="flex min-w-0 flex-1 items-center gap-1">
             <Tabs
-              value={filterMode}
-              onValueChange={(v) => {
-                if (v) setFilterMode(v as FilterMode);
+              selectedKey={filterMode}
+              onSelectionChange={(k) => {
+                if (k) setFilterMode(k as FilterMode);
               }}
             >
-              <TabsList size="xs">
-                <TabsTrigger value="all">
-                  全部 ({stats.totalLines})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="error"
-                  className={cn(
-                    stats.errorCount > 0 && filterMode !== 'error' && 'text-red-500 hover:text-red-600',
-                  )}
-                >
-                  错误 ({stats.errorCount})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="warning"
-                  className={cn(
-                    stats.warningCount > 0 && filterMode !== 'warning' && 'text-amber-500 hover:text-amber-600',
-                  )}
-                >
-                  警告 ({stats.warningCount})
-                </TabsTrigger>
-                <TabsTrigger value="stage">
-                  步骤与命令
-                </TabsTrigger>
-              </TabsList>
+              <Tabs.List aria-label="日志级别筛选" className="flex-nowrap shrink-0 gap-1">
+                <Tabs.Tab id="all" className="whitespace-nowrap shrink-0 px-2.5 text-xs">
+                  <span className="whitespace-nowrap">全部 ({stats.totalLines})</span>
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="error" className="whitespace-nowrap shrink-0 px-2.5 text-xs">
+                  <span className={cn('whitespace-nowrap', stats.errorCount > 0 && filterMode !== 'error' && 'text-destructive font-medium')}>
+                    错误 ({stats.errorCount})
+                  </span>
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="warning" className="whitespace-nowrap shrink-0 px-2.5 text-xs">
+                  <span className={cn('whitespace-nowrap', stats.warningCount > 0 && filterMode !== 'warning' && 'text-warning font-medium')}>
+                    警告 ({stats.warningCount})
+                  </span>
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="stage" className="whitespace-nowrap shrink-0 px-2.5 text-xs">
+                  <span className="whitespace-nowrap">阶段步骤</span>
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              </Tabs.List>
             </Tabs>
-          </div>
+          </ScrollArea>
 
           {stats.firstErrorLine && (
             <Button
               variant="outline"
-              size="xs"
-              onClick={scrollToFirstError}
-              className="h-6.5 gap-1 border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 text-[11px] hover:bg-red-500/20 cursor-pointer"
-              title={`直接滚动至第 ${stats.firstErrorLine} 行报错`}
+              size="sm"
+              onPress={scrollToFirstError}
+              className="h-7 gap-1 border-destructive/30 bg-destructive/10 text-destructive text-[11px] hover:bg-destructive/20 cursor-pointer"
+              aria-label={`直接滚动至第 ${stats.firstErrorLine} 行报错`}
             >
               <AlertTriangleIcon className="size-3" />
               <span>直达首个报错 (第 {stats.firstErrorLine} 行)</span>
@@ -392,12 +374,12 @@ export function LogViewerContent({
         <ScrollArea className="min-h-0 flex-1 bg-muted/5">
           {logView?.loading && (!logView.text || logView.text === '加载中…') ? (
             <div className="flex flex-col gap-2.5 p-5" aria-hidden>
-              <Skeleton className="h-3.5 w-3/4 rounded bg-muted/40" />
-              <Skeleton className="h-3.5 w-1/2 rounded bg-muted/40" />
-              <Skeleton className="h-3.5 w-5/6 rounded bg-muted/40" />
-              <Skeleton className="h-3.5 w-2/3 rounded bg-muted/40" />
-              <Skeleton className="h-3.5 w-4/5 rounded bg-muted/40" />
-              <Skeleton className="h-3.5 w-1/3 rounded bg-muted/40" />
+              <Skeleton className="h-3.5 w-3/4 rounded" />
+              <Skeleton className="h-3.5 w-1/2 rounded" />
+              <Skeleton className="h-3.5 w-5/6 rounded" />
+              <Skeleton className="h-3.5 w-2/3 rounded" />
+              <Skeleton className="h-3.5 w-4/5 rounded" />
+              <Skeleton className="h-3.5 w-1/3 rounded" />
             </div>
           ) : visibleLines.length === 0 ? (
             <div className="p-10 text-center font-mono text-xs text-muted-foreground">
@@ -417,29 +399,26 @@ export function LogViewerContent({
                 <span className="ml-1 text-[11px] font-normal text-muted-foreground">展开步骤查看阶段日志</span>
               </div>
 
-              <Trace className="gap-2.5">
+              <Accordion
+                allowsMultipleExpanded
+                className="w-full px-0 gap-2"
+                expandedKeys={openSectionId ? [openSectionId] : []}
+                onExpandedChange={(keys: any) => {
+                  const arr = Array.from(keys ?? []);
+                  setOpenSectionId((arr[0] as string) || null);
+                }}
+              >
                 {visibleSections.map(({ section, lines: sectionLines }) => {
-                  const isOpen = openSectionId === section.id;
-                  const traceStatus = toTraceStatus(section.status);
-
                   return (
-                    <TraceCollapsible
+                    <Accordion.Item
                       key={section.id}
-                      open={isOpen}
-                      onOpenChange={(nextOpen) => setOpenSectionId(nextOpen ? section.id : null)}
-                      className={cn(
-                        'rounded-lg border border-border/70 transition-colors',
-                        isOpen ? 'bg-card/90 shadow-2xs' : 'bg-card/40 hover:bg-card/70',
-                      )}
+                      id={section.id}
+                      className="rounded-lg border border-border/70 bg-card/60 transition-colors data-[expanded=true]:bg-card/90 overflow-hidden"
                     >
-                      <TraceCollapsibleTrigger>
-                        <TraceLine status={traceStatus}>
-                          <TraceIcon>
-                            <StageStatusIcon status={section.status} />
-                          </TraceIcon>
-                          <TraceTitle className="text-xs font-semibold">
-                            {section.name}
-                          </TraceTitle>
+                      <Accordion.Heading>
+                        <Accordion.Trigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/60">
+                          <StageStatusIcon status={section.status} />
+                          <span className="font-semibold text-foreground truncate">{section.name}</span>
                           <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
                             {section.lines.length} 行
                           </span>
@@ -454,71 +433,81 @@ export function LogViewerContent({
                             </span>
                           )}
                           {section.durationMillis != null && section.durationMillis > 0 && (
-                            <TraceDescription
+                            <span
                               className={cn(
                                 'hidden rounded border px-1.5 py-0.5 text-[10px] sm:inline-flex ml-auto',
                                 stageStatusBadgeClass(section.status),
                               )}
                             >
                               {formatStageDuration(section.durationMillis)}
-                            </TraceDescription>
+                            </span>
                           )}
-                        </TraceLine>
-                      </TraceCollapsibleTrigger>
+                          <Accordion.Indicator className="ms-2 shrink-0 text-muted-foreground" />
+                        </Accordion.Trigger>
+                      </Accordion.Heading>
 
-                      <TraceCollapsibleContent>
-                        {sectionLines.length === 0 ? (
-                          <div className="py-4 text-center font-mono text-xs text-muted-foreground">
-                            {filterMode === 'all' ? '（该阶段暂未输出日志）' : '（当前筛选下无匹配日志）'}
-                          </div>
-                        ) : (
-                          <div
-                            className={cn(
-                              'my-1 rounded-md border border-border/60 bg-background/70 py-2 font-mono text-[12px] leading-snug select-text shadow-2xs',
-                              wrapLines ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto',
-                            )}
-                          >
-                            {sectionLines.map((line: ProcessedLogLine) => {
-                              const isError = line.severity === 'error';
-                              const isWarning = line.severity === 'warning';
-                              const isStage = line.severity === 'stage';
-                              const isCommand = line.severity === 'command';
+                      <Accordion.Panel>
+                        <Accordion.Body className="p-2 pt-0">
+                          {sectionLines.length === 0 ? (
+                            <div className="py-4 text-center font-mono text-xs text-muted-foreground">
+                              {filterMode === 'all' ? '（该阶段暂未输出日志）' : '（当前筛选下无匹配日志）'}
+                            </div>
+                          ) : (
+                            <Surface
+                              variant="secondary"
+                              className="my-1 rounded-md border border-border/60 overflow-hidden"
+                            >
+                              <ScrollArea
+                                orientation={wrapLines ? 'vertical' : 'horizontal'}
+                                size={24}
+                                className={cn(
+                                  'py-2 font-mono text-[12px] leading-snug select-text bg-transparent',
+                                  wrapLines ? 'whitespace-pre-wrap break-words' : 'whitespace-pre',
+                                )}
+                              >
+                                {sectionLines.map((line: ProcessedLogLine) => {
+                                const isError = line.severity === 'error';
+                                const isWarning = line.severity === 'warning';
+                                const isStage = line.severity === 'stage';
+                                const isCommand = line.severity === 'command';
 
-                              return (
-                                <div
-                                  key={line.lineNumber}
-                                  ref={(el) => {
-                                    if (el) lineRefs.current.set(line.lineNumber, el);
-                                    else lineRefs.current.delete(line.lineNumber);
-                                  }}
-                                  className={cn(
-                                    'flex items-start px-3 py-0.5 transition-colors hover:bg-muted/40',
-                                    isError && 'bg-destructive/10 text-destructive border-l-2 border-destructive pl-2.5 font-medium',
-                                    isWarning && 'bg-sig-run/10 text-sig-run border-l-2 border-sig-run pl-2.5',
-                                    isStage && 'bg-sky-500/10 text-sky-600 dark:text-sky-300 border-l-2 border-sky-500 pl-2.5 font-medium',
-                                    isCommand && 'text-purple-600 dark:text-purple-300 font-medium',
-                                  )}
-                                >
-                                  <span className="w-12 shrink-0 pr-3 text-right select-none font-mono text-[11px] text-muted-foreground/40 tabular-nums">
-                                    {line.lineNumber}
-                                  </span>
-                                  <span className="flex-1 min-w-0">
-                                    {line.spans.map((span, sIdx) => (
-                                      <span key={sIdx} className={span.className} style={span.style}>
-                                        {span.text}
-                                      </span>
-                                    ))}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </TraceCollapsibleContent>
-                    </TraceCollapsible>
+                                return (
+                                  <div
+                                    key={line.lineNumber}
+                                    ref={(el) => {
+                                      if (el) lineRefs.current.set(line.lineNumber, el);
+                                      else lineRefs.current.delete(line.lineNumber);
+                                    }}
+                                    className={cn(
+                                      'flex items-start px-3 py-0.5 transition-colors hover:bg-muted/40',
+                                      isError && 'bg-destructive/10 text-destructive border-l-2 border-destructive pl-2.5 font-medium',
+                                      isWarning && 'bg-sig-run/10 text-sig-run border-l-2 border-sig-run pl-2.5',
+                                      isStage && 'bg-primary/10 text-primary border-l-2 border-primary pl-2.5 font-medium',
+                                      isCommand && 'text-(--sticker-purple-deep) dark:text-(--sticker-purple) font-medium',
+                                    )}
+                                  >
+                                    <span className="w-12 shrink-0 pr-3 text-right select-none font-mono text-[11px] text-muted-foreground/40 tabular-nums">
+                                      {line.lineNumber}
+                                    </span>
+                                    <span className="flex-1 min-w-0">
+                                      {line.spans.map((span, sIdx) => (
+                                        <span key={sIdx} className={span.className} style={span.style}>
+                                          {span.text}
+                                        </span>
+                                      ))}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              </ScrollArea>
+                            </Surface>
+                          )}
+                        </Accordion.Body>
+                      </Accordion.Panel>
+                    </Accordion.Item>
                   );
                 })}
-              </Trace>
+              </Accordion>
             </div>
           )}
         </ScrollArea>
@@ -538,9 +527,9 @@ export function LogViewerContent({
             {logView?.repoId && (
               <Button
                 variant="outline"
-                size="xs"
-                disabled={logView.loading}
-                onClick={() => void refreshRepoCiLogs()}
+                size="sm"
+                isDisabled={logView.loading}
+                onPress={() => void refreshRepoCiLogs()}
               >
                 {logView.loading ? '刷新中…' : '刷新日志'}
               </Button>
@@ -556,7 +545,7 @@ export function LogViewer() {
   const { logView, closeLogs } = useApp();
   return (
     <Drawer open={!!logView} onOpenChange={(open) => { if (!open) closeLogs(); }} swipeDirection="right">
-      <DrawerContent className="h-[100dvh] w-[100vw] p-0 sm:w-[min(58rem,94vw)] data-[swipe-axis=x]:sm:[--drawer-content-width:min(58rem,94vw)]">
+      <DrawerContent className="w-full sm:w-[560px] md:w-[600px] lg:w-[640px] sm:max-w-none">
         <LogViewerContent />
       </DrawerContent>
     </Drawer>

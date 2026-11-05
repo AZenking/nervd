@@ -29,7 +29,7 @@ const INLINE_CONFIRM_TIMEOUT_MS = 4000;
 /** 只读门控态的灰阶样式（与 ui/button.tsx 禁用态视觉一致，但保留 hover/focus）。
  *  hover 一并压成灰阶，避免 variant=default 的 hover:bg-primary/90 让只读按钮悬停闪回品牌蓝。 */
 const READONLY_BTN_CLASS =
-  'bg-muted text-muted-foreground border-border shadow-none hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted';
+  'bg-default text-muted-foreground border-border/60 shadow-none hover:bg-default hover:text-muted-foreground cursor-not-allowed opacity-80';
 
 export { READONLY_BTN_CLASS };
 
@@ -71,13 +71,13 @@ export function WriteOpGatedTrigger({
             aria-disabled="true"
             data-testid="write-op-gated"
             className={READONLY_BTN_CLASS}
-            onClick={handleClick}
-          />
+            onPress={handleClick}
+          >
+            {icon}
+            <span>{label}</span>
+          </Button>
         }
-      >
-        {icon}
-        {label}
-      </TooltipTrigger>
+      />
       <TooltipContent>写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）</TooltipContent>
     </Tooltip>
   );
@@ -176,12 +176,12 @@ export function WriteOpButton({
             aria-disabled="true"
             data-testid="write-op-button"
             className={READONLY_BTN_CLASS}
-            onClick={notifyReadonly}
-          />
+            onPress={notifyReadonly}
+          >
+            {label}
+          </Button>
         }
-      >
-        {label}
-      </TooltipTrigger>
+      />
       <TooltipContent>{tip}</TooltipContent>
     </Tooltip>
   );
@@ -199,12 +199,12 @@ export function WriteOpButton({
               size="sm"
               variant={armed ? 'destructive' : variant}
               disabled={busy || disabled}
-              onClick={handleInlineClick}
-            />
+              onPress={handleInlineClick}
+            >
+              {busy ? (<><Spinner data-icon="inline-start" />{label}…</>) : armed ? confirmLabel : label}
+            </Button>
           }
-        >
-          {busy ? (<><Spinner data-icon="inline-start" />{label}…</>) : armed ? confirmLabel : label}
-        </TooltipTrigger>
+        />
         <TooltipContent>{tip}</TooltipContent>
       </Tooltip>
     );
@@ -222,7 +222,7 @@ export function WriteOpButton({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" disabled={busy} onClick={() => void run()}>
+          <AlertDialogAction variant="destructive" disabled={busy} onPress={() => void run()}>
             {busy ? (<><Spinner data-icon="inline-start" />执行中</>) : '确认执行'}
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -238,7 +238,7 @@ export function WriteOpButton({
         <DropdownMenuItem
           disabled={busy || (!blocked && disabled)}
           className={cn('h-auto flex-col items-stretch gap-0.5 py-2', blocked && 'text-muted-foreground')}
-          onClick={() => {
+          onPress={() => {
             if (blocked) {
               notifyReadonly();
               return;
@@ -266,11 +266,11 @@ export function WriteOpButton({
       <Tooltip>
         <TooltipTrigger
           render={
-            <Button size="sm" variant={variant} disabled={busy || disabled} onClick={() => setOpen(true)} />
+            <Button size="sm" variant={variant} disabled={busy || disabled} onPress={() => setOpen(true)}>
+              {busy ? (<Spinner data-icon="inline-start" />) : label}
+            </Button>
           }
-        >
-          {busy ? (<Spinner data-icon="inline-start" />) : label}
-        </TooltipTrigger>
+        />
         <TooltipContent>{tip}</TooltipContent>
       </Tooltip>
       {confirmDialog}

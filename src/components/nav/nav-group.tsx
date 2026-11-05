@@ -30,6 +30,7 @@ export function NavCollapsibleGroup({
   return (
     <Collapsible open={open} onOpenChange={setOpen} render={<SidebarGroup className={className} />}>
       <CollapsibleTrigger
+        className="group-data-[collapsible=icon]:hidden"
         nativeButton={false}
         render={
           <SidebarGroupLabel

@@ -6,6 +6,8 @@ import {
 import type { FileDiffItem } from './diff-utils';
 import { CodeDiffViewer } from './code-diff-viewer';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Drawer,
   DrawerContent,
@@ -43,9 +45,9 @@ export function CodeDiffDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">
-      <DrawerContent className="w-[100vw] sm:w-[min(84rem,96vw)] data-[swipe-axis=x]:sm:[--drawer-content-width:min(84rem,96vw)] p-0 flex flex-col h-full bg-background border-l border-border">
+      <DrawerContent className="w-full sm:w-[min(84rem,96vw)] sm:max-w-none flex flex-col h-full bg-background border-l border-border">
         {/* 抽屉头部 */}
-        <DrawerHeader className="border-b border-border/60 px-5 py-3.5 bg-muted/20 shrink-0">
+        <DrawerHeader className="border-b border-border/60 px-5 py-3.5 shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-col gap-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -56,9 +58,9 @@ export function CodeDiffDrawer({
                     className="block max-w-full truncate"
                   />
                 </DrawerTitle>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                <Chip size="sm" variant="soft" className="font-mono text-[10px]">
                   {diffs.length} 个文件变动
-                </span>
+                </Chip>
               </div>
 
               <DrawerDescription className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
@@ -67,8 +69,8 @@ export function CodeDiffDrawer({
                 <span className="text-foreground/90">{targetBranch}</span>
                 {(totalAdditions > 0 || totalDeletions > 0) && (
                   <span className="ml-2 font-medium">
-                    <span className="text-emerald-600 dark:text-emerald-400">+{totalAdditions}</span>{' '}
-                    <span className="text-rose-600 dark:text-rose-400">-{totalDeletions}</span>
+                    <span className="text-success">+{totalAdditions}</span>{' '}
+                    <span className="text-danger">-{totalDeletions}</span>
                   </span>
                 )}
               </DrawerDescription>
@@ -79,29 +81,45 @@ export function CodeDiffDrawer({
               {actionNode}
 
               {mrUrl && onOpenExternal && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  className="gap-1 text-xs h-7 px-2"
-                  onClick={() => onOpenExternal(mrUrl)}
-                  title="在云效中查看"
-                >
-                  <span>云效直达</span>
-                  <ExternalLinkIcon className="size-3" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="gap-1 text-xs h-7 px-2"
+                        onPress={() => onOpenExternal(mrUrl)}
+                        title="在云效中查看"
+                        aria-label="在云效中查看"
+                      >
+                        <span>云效直达</span>
+                        <ExternalLinkIcon className="size-3" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>在云效中查看</TooltipContent>
+                </Tooltip>
               )}
 
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground hover:text-foreground rounded-full"
-                onClick={() => onOpenChange(false)}
-                title="关闭 (Esc)"
-              >
-                <XIcon className="size-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground hover:text-foreground rounded-sm"
+                      onPress={() => onOpenChange(false)}
+                      title="关闭 (Esc)"
+                      aria-label="关闭 (Esc)"
+                    >
+                      <XIcon className="size-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>关闭 (Esc)</TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </DrawerHeader>

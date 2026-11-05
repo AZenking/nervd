@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from './api';
-import { executeBranchMerge } from './branch-merge-runner';
+import { executeBranchMerge, parseCompareCommits, parseCompareDiffs } from './branch-merge-runner';
 import { useApp } from '@/store/app';
 
 vi.mock('./api', () => ({
@@ -10,6 +10,54 @@ vi.mock('./api', () => ({
   mergeMergeRequest: vi.fn(),
   createBranch: vi.fn(),
 }));
+
+describe('parseCompareCommits & parseCompareDiffs', () => {
+  it('parses raw commits with shortId, title, author, and extracted workitems', () => {
+    const rawCommits = [
+      {
+        id: '7a3f8b190123456789abcdef',
+        message: 'feat(auth): REQ-101 支持多租户单点登录\n\n详细说明...',
+        author: { name: 'Alice' },
+        committed_date: '2026-11-05T02:00:00Z',
+      },
+      {
+        sha: 'c829e120123456789abcdef',
+        title: 'fix: 修复订单展示异常 TASK_202',
+        authorName: 'Bob',
+      },
+    ];
+
+    const parsed = parseCompareCommits(rawCommits, '(?:REQ|TASK)[-_]?(\\d+)');
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]).toEqual({
+      id: '7a3f8b190123456789abcdef',
+      shortId: '7a3f8b1',
+      title: 'feat(auth): REQ-101 支持多租户单点登录',
+      authorName: 'Alice',
+      committedDate: '2026-11-05T02:00:00Z',
+      workitems: ['101'],
+    });
+    expect(parsed[1].shortId).toBe('c829e12');
+    expect(parsed[1].authorName).toBe('Bob');
+    expect(parsed[1].workitems).toEqual(['202']);
+  });
+
+  it('handles empty or malformed commits gracefully', () => {
+    expect(parseCompareCommits([])).toEqual([]);
+    expect(parseCompareCommits([null, undefined, {} as any])).toHaveLength(3);
+  });
+
+  it('parses raw diffs into summaries', () => {
+    const rawDiffs = [
+      { new_path: 'src/App.tsx', old_path: 'src/App.tsx', new_file: false },
+      { newPath: 'docs/guide.md', isNew: true },
+    ];
+    const diffs = parseCompareDiffs(rawDiffs);
+    expect(diffs).toHaveLength(2);
+    expect(diffs[0].newPath).toBe('src/App.tsx');
+    expect(diffs[1].isNew).toBe(true);
+  });
+});
 
 describe('executeBranchMerge', () => {
   beforeEach(() => {
@@ -137,6 +185,9 @@ describe('executeBranchMerge', () => {
     expect(result.success).toBe(true);
     expect(result.conflictDetected).toBe(false);
     expect(result.mrId).toBe(88);
+    expect(result.commitsCount).toBe(1);
+    expect(result.commits).toHaveLength(1);
+    expect(result.commits[0].id).toBe('c1');
     expect(api.mergeMergeRequest).toHaveBeenCalledWith(101, 88);
   });
 

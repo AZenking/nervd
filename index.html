@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" class="dark">
+<html lang="zh-CN" class="dark" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/nervd-logo.png" />
@@ -16,8 +16,10 @@
             window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (isDark) {
           document.documentElement.classList.add('dark');
+          document.documentElement.setAttribute('data-theme', 'dark');
         } else {
           document.documentElement.classList.remove('dark');
+          document.documentElement.setAttribute('data-theme', 'light');
         }
       } catch (e) {}
     </script>

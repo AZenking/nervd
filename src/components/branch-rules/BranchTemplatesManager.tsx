@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react';
-import { GitBranchIcon, PlusIcon } from 'lucide-react';
+import { GitBranchIcon, PlusIcon, XIcon } from 'lucide-react';
+import { Alert, Button as HeroButton, Input, Label, Pagination, TextField } from '@heroui/react';
 import { useApp } from '@/store/app';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { BranchRuleTemplate } from '@/types';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
+  Drawer,
+  DrawerBody,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { EmptyHint } from '@/components/empty-hint';
 import { SettingsGroup, SettingsRow } from '@/components/settings/settings-group';
@@ -59,7 +61,7 @@ export function BranchTemplatesManager({
   const [draft, setDraft] = useState<BranchRuleTemplate>(EMPTY_DRAFT);
   const [editingId, setEditingId] = useState('');
   const [saving, setSaving] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // 模板列表分页（超出 5 条时分页展示，避免长列表滚动）
   const TEMPLATE_PAGE_SIZE = 5;
@@ -76,15 +78,15 @@ export function BranchTemplatesManager({
     setEditingId('');
   };
 
-  const closeDialog = () => {
-    setDialogOpen(false);
+  const closeDrawer = () => {
+    setDrawerOpen(false);
     reset();
   };
 
   const startEdit = (template: BranchRuleTemplate) => {
     setDraft({ ...template });
     setEditingId(template.id);
-    setDialogOpen(true);
+    setDrawerOpen(true);
   };
 
   const save = async () => {
@@ -128,7 +130,7 @@ export function BranchTemplatesManager({
           : `${scope === 'iteration' ? '迭代专属' : '全局'}分支模板已保存`,
         kind: 'ok',
       });
-      closeDialog();
+      closeDrawer();
     } catch (error) {
       errorLog('branch-template-save', error);
       setToast({ text: `保存分支模板失败：${humanizeError(error)}`, kind: 'fail' });
@@ -180,7 +182,7 @@ export function BranchTemplatesManager({
       size="sm"
       onClick={() => {
         reset();
-        setDialogOpen(true);
+        setDrawerOpen(true);
       }}
     >
       <PlusIcon data-icon="inline-start" className="size-3.5" />
@@ -195,38 +197,36 @@ export function BranchTemplatesManager({
           {paginatedTemplates.map((template) => (
             <div
               key={template.id}
-              className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
+              className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
             >
               <div className="flex min-w-0 flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] font-medium text-foreground">{template.name}</span>
-                  <span
-                    className={
-                      scope === 'iteration'
-                        ? 'rounded bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 font-mono text-[10px]'
-                        : 'rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground'
-                    }
+                  <Badge
+                    variant={scope === 'iteration' ? 'soft' : 'outline'}
+                    color={scope === 'iteration' ? 'accent' : 'default'}
+                    className="font-mono"
                   >
                     {scope === 'iteration' ? '迭代专属' : '全局通用'}
-                  </span>
+                  </Badge>
                   {usageCount(template.id) > 0 && (
-                    <span className="rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                    <Badge variant="secondary" className="font-mono">
                       {usageCount(template.id)} 个需求仓库使用
-                    </span>
+                    </Badge>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
-                  <span className="rounded bg-muted/60 px-1.5 py-0.5 text-foreground/80">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <Badge variant="outline" className="font-mono text-foreground/80">
                     {template.sourceBranch}
-                  </span>
+                  </Badge>
                   <span className="text-muted-foreground/50">→</span>
-                  <span className="rounded bg-muted/60 px-1.5 py-0.5 text-foreground/80">
+                  <Badge variant="outline" className="font-mono text-foreground/80">
                     {template.baselineBranchPattern}
-                  </span>
+                  </Badge>
                   <span className="text-muted-foreground/50">→</span>
-                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
+                  <Badge variant="soft" color="accent" className="font-mono">
                     {template.workitemBranchPattern}
-                  </span>
+                  </Badge>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -250,33 +250,42 @@ export function BranchTemplatesManager({
           ))}
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-border/40 bg-muted/10 px-4 py-2 text-xs text-muted-foreground">
-              <span className="text-[11px] text-muted-foreground">
+            <Pagination
+              size="sm"
+              className="flex w-full flex-wrap items-center justify-between gap-2 border-t border-border/40 bg-muted/10 px-4 py-2 text-xs text-muted-foreground"
+            >
+              <Pagination.Summary className="text-[11px] text-muted-foreground">
                 共 {templates.length} 个模板（第 {(currentPage - 1) * TEMPLATE_PAGE_SIZE + 1} -{' '}
                 {Math.min(currentPage * TEMPLATE_PAGE_SIZE, templates.length)}）
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="xs"
-                  disabled={currentPage <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  上一页
-                </Button>
-                <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                  {currentPage} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  下一页
-                </Button>
-              </div>
-            </div>
+              </Pagination.Summary>
+              <Pagination.Content>
+                <Pagination.Item>
+                  <Pagination.Previous
+                    aria-label="上一页"
+                    isDisabled={currentPage <= 1}
+                    onPress={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <Pagination.PreviousIcon />
+                  </Pagination.Previous>
+                </Pagination.Item>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <Pagination.Item key={p}>
+                    <Pagination.Link isActive={p === currentPage} onPress={() => setPage(p)}>
+                      {p}
+                    </Pagination.Link>
+                  </Pagination.Item>
+                ))}
+                <Pagination.Item>
+                  <Pagination.Next
+                    aria-label="下一页"
+                    isDisabled={currentPage >= totalPages}
+                    onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    <Pagination.NextIcon />
+                  </Pagination.Next>
+                </Pagination.Item>
+              </Pagination.Content>
+            </Pagination>
           )}
         </div>
       ) : (
@@ -297,10 +306,16 @@ export function BranchTemplatesManager({
   );
 
   const variableHelpControl = (
-    <div className="flex flex-wrap gap-1 font-mono text-xs text-muted-foreground">
-      <span className="rounded bg-muted/70 px-1.5 py-0.5">{'{iteration}'}</span>
-      <span className="rounded bg-muted/70 px-1.5 py-0.5">{'{template}'}</span>
-      <span className="rounded bg-muted/70 px-1.5 py-0.5">{'{identifier}'}</span>
+    <div className="flex flex-wrap gap-1">
+      <Badge variant="outline" className="font-mono">
+        {'{iteration}'}
+      </Badge>
+      <Badge variant="outline" className="font-mono">
+        {'{template}'}
+      </Badge>
+      <Badge variant="outline" className="font-mono">
+        {'{identifier}'}
+      </Badge>
     </div>
   );
 
@@ -318,115 +333,140 @@ export function BranchTemplatesManager({
         </SettingsGroup>
       ) : (
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-0.5">
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <h3 className="text-sm font-medium text-foreground">{title}</h3>
-              <p className="text-xs text-muted-foreground">{description}</p>
-            </div>
-            {addButton}
-          </div>
+          {/* 标题、说明与变量通配说明合并为 Alert，置于模板列表上方 */}
+          <Alert status="default">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{title}</Alert.Title>
+              <Alert.Description className="flex flex-col gap-1.5">
+                <span>{description}</span>
+                <span className="flex flex-wrap items-center gap-x-1 text-muted-foreground">
+                  基准模板支持
+                  <Badge variant="outline" className="font-mono">{'{iteration}'}</Badge>、
+                  <Badge variant="outline" className="font-mono">{'{template}'}</Badge>
+                  ，需求分支支持
+                  <Badge variant="outline" className="font-mono">{'{identifier}'}</Badge>
+                  。
+                </span>
+              </Alert.Description>
+            </Alert.Content>
+          </Alert>
 
-          <div className="overflow-hidden rounded-lg border border-border/60 bg-card">
+          <div className="flex justify-end">{addButton}</div>
+
+          <Card className="p-0 overflow-hidden">
             {listContent}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/40 bg-muted/20 px-3.5 py-2 text-xs text-muted-foreground">
-            <span>
-              基准模板支持 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{'{iteration}'}</code>、<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{'{template}'}</code>，需求分支支持 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{'{identifier}'}</code>
-            </span>
-            {variableHelpControl}
-          </div>
+          </Card>
         </div>
       )}
 
-      {/* 新增/编辑分支模板弹窗 */}
-      <Dialog
-        open={dialogOpen}
+      {/* 新增/编辑分支模板抽屉 */}
+      <Drawer
+        open={drawerOpen}
         onOpenChange={(open) => {
-          if (!open) closeDialog();
+          if (!open) closeDrawer();
         }}
       >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {editingId
-                ? `编辑${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`
-                : `新增${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`}
-            </DialogTitle>
-            <DialogDescription>
-              {scope === 'iteration'
-                ? '仅在当前迭代生效。支持使用 {iteration}、{template} 与 {identifier} 动态变量。'
-                : '保存在本机作为全局预设模板，所有迭代与需求均可选用。支持动态通配变量。'}
-            </DialogDescription>
-          </DialogHeader>
+        <DrawerContent className="w-full sm:w-[min(32rem,92vw)] sm:max-w-none">
+          <DrawerHeader className="shrink-0 border-b border-border/70 px-5 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <DrawerTitle className="min-w-0 truncate text-sm font-semibold">
+                {editingId
+                  ? `编辑${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`
+                  : `新增${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`}
+              </DrawerTitle>
+              <HeroButton
+                type="button"
+                variant="ghost"
+                isIconOnly
+                size="sm"
+                aria-label="关闭"
+                isDisabled={saving}
+                onPress={closeDrawer}
+              >
+                <XIcon className="size-4" />
+              </HeroButton>
+            </div>
+          </DrawerHeader>
 
-          <div className="grid gap-3">
-            <Field>
-              <FieldLabel>模板名称</FieldLabel>
-              <Input
-                value={draft.name}
-                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                placeholder="A 局点 / B 局点 / Hotfix"
-              />
-            </Field>
-            <Field>
-              <FieldLabel>迭代基准的源分支</FieldLabel>
-              <Input
-                className="font-mono"
-                value={draft.sourceBranch}
-                onChange={(event) => setDraft({ ...draft, sourceBranch: event.target.value })}
-                placeholder="master 或 test"
-              />
-            </Field>
-            <Field>
-              <FieldLabel>迭代基准分支命名模板</FieldLabel>
-              <Input
-                className="font-mono"
-                value={draft.baselineBranchPattern}
-                onChange={(event) =>
-                  setDraft({ ...draft, baselineBranchPattern: event.target.value })
-                }
-                placeholder="iteration/{iteration}/{template}"
-              />
-            </Field>
-            <Field>
-              <FieldLabel>需求开发分支命名模板</FieldLabel>
-              <Input
-                className="font-mono"
-                value={draft.workitemBranchPattern}
-                onChange={(event) =>
-                  setDraft({ ...draft, workitemBranchPattern: event.target.value })
-                }
-                placeholder="feature/{identifier}"
-              />
-            </Field>
+          <DrawerBody className="flex min-h-0 flex-1 flex-col px-5 py-4">
+            {/* 滚动与边缘渐隐由 ScrollArea 承担，DrawerBody 只做弹性布局壳 */}
+            <ScrollArea className="flex min-h-0 flex-1 flex-col gap-3">
+            {/* 作用域与变量说明（HeroUI Alert） */}
+            <Alert status="default">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description>
+                  {scope === 'iteration'
+                    ? '仅在当前迭代生效。支持使用 {iteration}、{template} 与 {identifier} 动态变量。'
+                    : '保存在本机作为全局预设模板，所有迭代与需求均可选用。支持动态通配变量。'}
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
 
-            {/* 实时分支生成预览 */}
+            <TextField
+              isRequired
+              value={draft.name}
+              onChange={(value) => setDraft({ ...draft, name: value })}
+            >
+              <Label>模板名称</Label>
+              <Input placeholder="A 局点 / B 局点 / Hotfix" />
+            </TextField>
+            <TextField
+              isRequired
+              value={draft.sourceBranch}
+              onChange={(value) => setDraft({ ...draft, sourceBranch: value })}
+            >
+              <Label>迭代基准的源分支</Label>
+              <Input className="font-mono" placeholder="master 或 test" />
+            </TextField>
+            <TextField
+              isRequired
+              value={draft.baselineBranchPattern}
+              onChange={(value) => setDraft({ ...draft, baselineBranchPattern: value })}
+            >
+              <Label>迭代基准分支命名模板</Label>
+              <Input className="font-mono" placeholder="iteration/{iteration}/{template}" />
+            </TextField>
+            <TextField
+              isRequired
+              value={draft.workitemBranchPattern}
+              onChange={(value) => setDraft({ ...draft, workitemBranchPattern: value })}
+            >
+              <Label>需求开发分支命名模板</Label>
+              <Input className="font-mono" placeholder="feature/{identifier}" />
+            </TextField>
+
+            {/* 实时分支生成预览（HeroUI Alert） */}
             {(previewBaseline || previewWorkitem) && (
-              <div className="rounded-md border border-border/50 bg-muted/30 p-2.5 text-xs">
-                <span className="font-medium text-foreground">命名预览：</span>
-                <div className="mt-1.5 flex flex-col gap-1 font-mono text-[11px] text-muted-foreground">
-                  <div>
-                    基准分支：<span className="text-foreground/90">{previewBaseline}</span>
-                  </div>
-                  <div>
-                    需求分支：<span className="text-primary">{previewWorkitem}</span>
-                  </div>
-                </div>
-              </div>
+              <Alert status="accent">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>命名预览</Alert.Title>
+                  <Alert.Description className="flex flex-col gap-1 font-mono text-[11px]">
+                    <span>
+                      基准分支：<span className="text-foreground/90">{previewBaseline}</span>
+                    </span>
+                    <span>
+                      需求分支：<span className="text-primary">{previewWorkitem}</span>
+                    </span>
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
             )}
-          </div>
+            </ScrollArea>
+          </DrawerBody>
 
-          <DialogFooter>
-            <Button variant="outline" disabled={saving} onClick={closeDialog}>
+          <DrawerFooter className="shrink-0 justify-end gap-2 border-t border-border/70 px-5 py-3">
+            <HeroButton type="button" variant="secondary" isDisabled={saving} onPress={closeDrawer}>
               取消
-            </Button>
-            <Button disabled={saving} onClick={() => void save()}>
+            </HeroButton>
+            <HeroButton type="button" isDisabled={saving} onPress={() => void save()}>
               {saving ? '保存中…' : editingId ? '保存修改' : '添加模板'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </HeroButton>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </>
   );
 }

@@ -1,5 +1,8 @@
-import { cva, type VariantProps } from "class-variance-authority"
+import { createTV, type VariantProps } from "tailwind-variants"
 import { cn } from "@/lib/utils"
+
+/** 关闭 tv 内置 merge 引擎，保持与 cva 一致的纯拼接；去重仍由 cn(tailwind-merge) 承担 */
+const tv = createTV({ twMerge: false })
 
 function Empty({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -24,10 +27,10 @@ function EmptyHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-const emptyMediaVariants = cva(
-  "mb-2 flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
-  {
-    variants: {
+const emptyMediaVariants = tv({
+  base:
+    "mb-2 flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  variants: {
       variant: {
         default: "bg-transparent",
         icon: "flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground [&_svg:not([class*='size-'])]:size-4",
@@ -35,9 +38,8 @@ const emptyMediaVariants = cva(
     },
     defaultVariants: {
       variant: "default",
-    },
-  }
-)
+  },
+})
 
 function EmptyMedia({
   className,

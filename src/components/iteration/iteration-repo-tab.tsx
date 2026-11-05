@@ -17,8 +17,7 @@ import type { RepoSummary } from '@/types';
 import { buildRunParameter, ciProviderLabel, ciStatusInfo, ciStatusText } from '@/lib/ci';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Alert, Button, Card, Chip, Toolbar } from '@heroui/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { EmptyHint } from '@/components/empty-hint';
@@ -102,9 +101,9 @@ export function IterationRepoCard({
 
   return (
     <>
-      <div className={cn(
-        'group flex flex-col rounded-lg border bg-background p-4 transition-all duration-200',
-        isRunning ? 'border-amber-500/50 shadow-xs' : 'border-border/70 hover:border-border',
+      <Card className={cn(
+        'group transition-all duration-200',
+        isRunning && 'border-warning/40',
       )}>
         {/* 卡片头部：仓库基本信息 + CI 状态 + 触发验证 / 详情按钮 */}
         <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-border/40">
@@ -112,7 +111,7 @@ export function IterationRepoCard({
             <div className={cn(
               'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors',
               isRunning
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-500'
+                ? 'border-warning/30 bg-warning/10 text-warning'
                 : 'border-border/60 bg-muted/30 group-hover:text-foreground',
             )}>
               <FolderGit2Icon className="size-4" />
@@ -126,16 +125,21 @@ export function IterationRepoCard({
                 <span className="font-mono text-[11px] text-muted-foreground/70">
                   #{repo.id}
                 </span>
-                <Badge variant="outline" className="text-[11px] font-normal py-0 px-1.5 h-4.5">
+                <Chip size="sm" variant="tertiary" className="text-[11px] h-5 px-1.5 font-normal">
                   {providerLabel}
-                </Badge>
+                </Chip>
                 {suggestedBranch && (
                   <Tooltip>
                     <TooltipTrigger render={
-                      <span className="inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded cursor-default max-w-44 truncate">
-                        <GitBranchIcon className="size-3 shrink-0" />
-                        <span className="min-w-0 truncate">{suggestedBranch}</span>
-                      </span>
+                      <Chip
+                        size="sm"
+                        variant="soft"
+                        color="default"
+                        className="font-mono text-[11px] max-w-56 cursor-default gap-1.5 inline-flex items-center border border-border/60 bg-muted/40 px-2 py-0.5"
+                      >
+                        <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
+                        <span className="truncate">{suggestedBranch}</span>
+                      </Chip>
                     } />
                     <TooltipContent>当前迭代推导分支：{suggestedBranch}</TooltipContent>
                   </Tooltip>
@@ -147,8 +151,8 @@ export function IterationRepoCard({
             </div>
           </div>
 
-          {/* 右侧动作与状态 */}
-          <div className="flex shrink-0 items-center gap-2">
+          {/* 右侧动作与状态工具栏（HeroUI Toolbar 原语） */}
+          <Toolbar aria-label={`${repo.name} 仓库操作`} className="flex shrink-0 items-center gap-2">
             {/* 状态徽标 */}
             {isBound ? (
               <StatusBadge
@@ -156,9 +160,9 @@ export function IterationRepoCard({
                 size="sm"
               />
             ) : (
-              <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              <Chip size="sm" variant="soft" className="text-xs text-muted-foreground">
                 未绑定 CI
-              </span>
+              </Chip>
             )}
 
             {/* 手动选择分支与环境触发验证 */}
@@ -193,48 +197,51 @@ export function IterationRepoCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => openBuildWorkbenchFromTrigger({ kind: 'repo', repoId: repo.id, title: repo.name }, 'runs')}
-              className="text-xs"
+              onPress={() => openBuildWorkbenchFromTrigger({ kind: 'repo', repoId: repo.id, title: repo.name }, 'runs')}
+              className="text-xs h-7"
             >
               CI 详情
             </Button>
-          </div>
+          </Toolbar>
         </div>
 
-        {/* 正在构建看板（Active Running Job Area）：用户能够清晰知道当前关联的正在构建的 job */}
+        {/* 正在构建看板（HeroUI Alert 原生组件） */}
         {isRunning && runningRun && (
-          <div className="mt-3.5 flex flex-col gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
-            <div className="flex items-center justify-between gap-2">
+          <Alert
+            status="warning"
+            className="mt-3.5 flex flex-col gap-2 rounded-lg border border-warning/30 p-3 text-xs"
+          >
+            <div className="flex w-full items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
-                <Loader2Icon className="size-4 shrink-0 animate-spin text-amber-500" />
-                <span className="font-medium text-amber-500">正在构建 Job</span>
+                <Loader2Icon className="size-4 shrink-0 animate-spin text-warning" />
+                <Alert.Title className="font-semibold text-warning text-xs">
+                  正在构建 Job
+                </Alert.Title>
                 <OverflowTooltip
                   text={runningJobName}
                   className="max-w-64 truncate font-mono font-semibold text-foreground"
                 />
                 <span className="font-mono text-muted-foreground">#{runningRun.runId}</span>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="h-6 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 gap-1"
-                  onClick={() => openRepoBuildLogs(repo.id, runningRun.runId, `${repo.name} · #${runningRun.runId}`)}
-                >
-                  <TerminalIcon className="size-3" />
-                  <span>实时日志</span>
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-warning hover:bg-warning/20 gap-1 shrink-0"
+                onPress={() => openRepoBuildLogs(repo.id, runningRun.runId, `${repo.name} · #${runningRun.runId}`)}
+              >
+                <TerminalIcon className="size-3" />
+                <span>实时日志</span>
+              </Button>
             </div>
 
             {/* 正在构建 Job 的分支、环境、耗时与触发人 */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-muted-foreground">
+            <Alert.Description className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-muted-foreground">
               {runningBranch && runningBranch !== '未记录' && (
                 <div className="flex items-center gap-1 font-mono text-foreground/90">
                   <GitBranchIcon className="size-3 text-muted-foreground" />
                   <OverflowTooltip
                     text={runningBranch}
-                    className="rounded bg-background/80 px-1.5 py-0.2 border border-border/50 text-[11px]"
+                    className="rounded bg-background/80 px-1.5 py-0.5 border border-border/50 text-[11px]"
                   />
                 </div>
               )}
@@ -243,7 +250,7 @@ export function IterationRepoCard({
                   <ServerIcon className="size-3 text-muted-foreground" />
                   <OverflowTooltip
                     text={runningEnvironment}
-                    className="rounded bg-background/80 px-1.5 py-0.2 border border-border/50 text-[11px]"
+                    className="rounded bg-background/80 px-1.5 py-0.5 border border-border/50 text-[11px]"
                   />
                 </div>
               )}
@@ -259,24 +266,27 @@ export function IterationRepoCard({
                   <span>触发人: {runningRun.trigger}</span>
                 </div>
               )}
-            </div>
-          </div>
+            </Alert.Description>
+          </Alert>
         )}
 
-        {/* 最近构建记录（非构建状态下展示） */}
+        {/* 最近构建记录（HeroUI Alert 原生组件） */}
         {!isRunning && latestRun && (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-              <span className="text-[11px] text-muted-foreground/80 shrink-0">最近验证：</span>
-              <span className="font-mono text-foreground/90">#{latestRun.runId}</span>
+          <Alert
+            status="default"
+            className="mt-3 flex flex-row items-center justify-between gap-2 rounded-lg border border-border/40 py-2 px-3 text-xs text-muted-foreground"
+          >
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 flex-1">
+              <span className="text-[11px] text-muted-foreground/80 shrink-0 font-medium">最近验证：</span>
+              <span className="font-mono font-medium text-foreground">#{latestRun.runId}</span>
               {latestBranch && latestBranch !== '未记录' && (
-                <span className="inline-flex items-center gap-1 font-mono text-[11px] text-foreground/80">
+                <span className="inline-flex items-center gap-1 font-mono text-[11px] text-foreground/90">
                   <GitBranchIcon className="size-3 text-muted-foreground" />
                   <OverflowTooltip text={latestBranch} className="min-w-0 truncate" />
                 </span>
               )}
               {latestEnvironment && latestEnvironment !== '未记录' && (
-                <span className="inline-flex items-center gap-1 font-mono text-[11px] text-foreground/80">
+                <span className="inline-flex items-center gap-1 font-mono text-[11px] text-foreground/90">
                   <ServerIcon className="size-3 text-muted-foreground" />
                   <OverflowTooltip text={latestEnvironment} className="min-w-0 truncate" />
                 </span>
@@ -290,14 +300,14 @@ export function IterationRepoCard({
             </div>
             <Button
               variant="ghost"
-              size="xs"
-              className="h-6 text-xs text-muted-foreground hover:text-foreground shrink-0 gap-1"
-              onClick={() => openRepoBuildLogs(repo.id, latestRun.runId, `${repo.name} · #${latestRun.runId}`)}
+              size="sm"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0 gap-1"
+              onPress={() => openRepoBuildLogs(repo.id, latestRun.runId, `${repo.name} · #${latestRun.runId}`)}
             >
               <TerminalIcon className="size-3" />
               <span>构建日志</span>
             </Button>
-          </div>
+          </Alert>
         )}
 
         {/* 本迭代涉及工作项胶囊列表 */}
@@ -313,25 +323,27 @@ export function IterationRepoCard({
                 <button
                   key={item.workitemId}
                   type="button"
+                  className="inline-flex cursor-pointer rounded-sm transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={() => onOpenDetail?.(item)}
-                  className="group/item inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-xs text-foreground/90 transition-colors hover:border-primary/50 hover:bg-muted/80 cursor-pointer"
                 >
-                  <StatusIcon status={item.status} className="size-3 shrink-0" />
-                  <span className="font-mono text-[11px] font-medium text-muted-foreground group-hover/item:text-foreground">
-                    {item.identifier}
-                  </span>
-                  <OverflowTooltip
-                    text={item.subject}
-                    tooltip={`${item.identifier} · ${item.subject} (${item.status})`}
-                    className="max-w-36 truncate text-[11px] text-foreground/80"
-                  />
-                  <ChevronRightIcon className="size-3 text-muted-foreground/40 transition-transform group-hover/item:translate-x-0.5 group-hover/item:text-foreground" />
+                  <Chip size="sm" variant="soft" className="gap-1.5 px-2 py-1 text-xs text-foreground/90">
+                    <StatusIcon status={item.status} className="size-3 shrink-0" />
+                    <span className="font-mono text-[11px] font-medium text-muted-foreground">
+                      {item.identifier}
+                    </span>
+                    <OverflowTooltip
+                      text={item.subject}
+                      tooltip={`${item.identifier} · ${item.subject} (${item.status})`}
+                      className="max-w-36 truncate text-[11px] text-foreground/80"
+                    />
+                    <ChevronRightIcon className="size-3 text-muted-foreground/40" />
+                  </Chip>
                 </button>
               ))}
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
     </>
   );
@@ -437,50 +449,59 @@ export function IterationRepoTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 顶部聚合说明与状态提示条 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/15 px-4 py-2.5 text-xs">
-        <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-          <span>当前迭代</span>
-          {iterationKey && (
-              <OverflowTooltip
-                text={iterationKey}
-                className="max-w-56 truncate rounded bg-muted/60 px-1.5 py-0.5 font-mono font-medium text-foreground"
-              />
-          )}
-          <span>共涉及 <strong className="font-semibold text-foreground font-mono">{scopedRepos.length}</strong> 个代码仓库</span>
-          <span>·</span>
-          <span>覆盖 <strong className="font-semibold text-foreground font-mono">{effectiveItems.length}</strong> 项工作项</span>
-
-          {anyRunningCount > 0 && (
-            <span className="ml-1 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 font-medium text-amber-500 text-[11px]">
-              <Loader2Icon className="size-3 animate-spin" />
-              <span>{anyRunningCount} 个 Job 正在构建中</span>
+      {/* 顶部聚合说明与状态提示条（HeroUI Alert 标准槽位：Indicator + Title/Description + 尾部操作） */}
+      <Alert status={anyRunningCount > 0 ? 'warning' : 'default'}>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="shrink-0">当前迭代</span>
+              {iterationKey && (
+                <Chip size="sm" variant="soft" className="max-w-56 truncate font-mono">
+                  {iterationKey}
+                </Chip>
+              )}
+              {anyRunningCount > 0 && (
+                <Chip size="sm" color="warning" variant="soft">
+                  <Loader2Icon className="size-3 animate-spin" />
+                  {anyRunningCount} 个 Job 正在构建中
+                </Chip>
+              )}
+            </div>
+          </Alert.Title>
+          <Alert.Description className="flex flex-wrap items-center gap-3">
+            <span>
+              共涉及 <strong className="font-mono font-semibold text-foreground">{scopedRepos.length}</strong> 个代码仓库
             </span>
-          )}
-        </div>
+            <span>·</span>
+            <span>
+              覆盖 <strong className="font-mono font-semibold text-foreground">{effectiveItems.length}</strong> 项工作项
+            </span>
+          </Alert.Description>
+        </Alert.Content>
 
-        <div className="flex items-center gap-2">
+        <Toolbar aria-label="迭代代码仓库全局操作" className="flex shrink-0 items-center self-center gap-2">
           <Button
             variant="ghost"
-            size="xs"
-            disabled={refreshing || !scopedRepos.length}
-            onClick={() => void refreshAllScopedCi()}
-            className="h-6 text-xs text-muted-foreground hover:text-foreground gap-1"
+            size="sm"
+            isDisabled={refreshing || !scopedRepos.length}
+            onPress={() => void refreshAllScopedCi()}
+            className="text-muted-foreground hover:text-foreground"
           >
             <RefreshCwIcon className={cn('size-3', refreshing && 'animate-spin')} />
             <span>刷新 CI 状态</span>
           </Button>
           <Button
             variant="ghost"
-            size="xs"
-            onClick={() => openSettings('ci')}
-            className="h-6 text-xs text-muted-foreground hover:text-foreground gap-1"
+            size="sm"
+            onPress={() => openSettings('ci')}
+            className="text-muted-foreground hover:text-foreground"
           >
             <Link2Icon className="size-3" />
             <span>配置 CI 绑定</span>
           </Button>
-        </div>
-      </div>
+        </Toolbar>
+      </Alert>
 
       {/* 涉及仓库卡片列表 */}
       <div className="flex flex-col gap-3">
@@ -505,7 +526,7 @@ export function IterationRepoTab({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => openSettings('trace')}
+                onPress={() => openSettings('trace')}
               >
                 前往设置默认仓库
               </Button>

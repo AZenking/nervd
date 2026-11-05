@@ -1,88 +1,152 @@
 import * as React from "react"
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
-import { cn } from '@/lib/utils'
+import { Modal as HeroUIModal } from "@heroui/react"
+import { cn } from "@/lib/utils"
 
-import { Button } from "@/components/ui/button"
-import { XIcon } from "lucide-react"
-
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+interface DialogProps {
+  open?: boolean
+  isOpen?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+  children?: React.ReactNode
 }
 
-function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+function DialogRoot({
+  open,
+  isOpen,
+  defaultOpen,
+  onOpenChange,
+  children,
+  ...props
+}: DialogProps & Omit<React.ComponentPropsWithoutRef<typeof HeroUIModal>, "isOpen" | "defaultOpen" | "onOpenChange">) {
+  const controlledOpen = open !== undefined ? open : isOpen
+  return (
+    <HeroUIModal
+      isOpen={controlledOpen}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      {...props}
+    >
+      {children}
+    </HeroUIModal>
+  )
 }
 
-function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
+/**
+ * HeroUI 原生复合模态弹窗组件
+ * 支持 `<Dialog.Backdrop>`, `<Dialog.Container>`, `<Dialog.Dialog>`, `<Dialog.Header>`, `<Dialog.Heading>`, `<Dialog.Body>`, `<Dialog.Footer>`, `<Dialog.CloseTrigger>`
+ */
+const Dialog = Object.assign(DialogRoot, {
+  Root: DialogRoot,
+  Trigger: HeroUIModal.Trigger,
+  Backdrop: HeroUIModal.Backdrop,
+  Container: HeroUIModal.Container,
+  Dialog: HeroUIModal.Dialog,
+  Header: HeroUIModal.Header,
+  Heading: HeroUIModal.Heading,
+  Body: HeroUIModal.Body,
+  Footer: HeroUIModal.Footer,
+  CloseTrigger: HeroUIModal.CloseTrigger,
+  Icon: HeroUIModal.Icon,
+})
+
+interface DialogTriggerProps extends Omit<React.ComponentPropsWithoutRef<typeof HeroUIModal.Trigger>, "render"> {
+  render?: React.ReactNode | ((props: any) => React.ReactNode)
 }
 
-function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+function DialogTrigger({
+  className,
+  children,
+  render,
+  ...props
+}: DialogTriggerProps) {
+  if (render) {
+    if (typeof render === "function") {
+      return render({ ...props, className })
+    }
+    if (React.isValidElement(render)) {
+      return React.cloneElement(render as React.ReactElement<any>, {
+        ...props,
+        className: cn((render.props as { className?: string }).className, className),
+        children: (render.props as { children?: React.ReactNode }).children ?? children,
+      })
+    }
+  }
+  return (
+    <HeroUIModal.Trigger
+      className={className}
+      {...(props as any)}
+    >
+      {children}
+    </HeroUIModal.Trigger>
+  )
+}
+
+function DialogPortal({ children }: { children?: React.ReactNode }) {
+  return <>{children}</>
 }
 
 function DialogOverlay({
   className,
   ...props
-}: DialogPrimitive.Backdrop.Props) {
-  return (
-    <DialogPrimitive.Backdrop
-      data-slot="dialog-overlay"
-      className={cn(
-        "fixed inset-0 isolate z-50 bg-black/20 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
-        className
-      )}
-      {...props}
-    />
-  )
+}: React.ComponentPropsWithoutRef<typeof HeroUIModal.Backdrop>) {
+  return <HeroUIModal.Backdrop className={className} {...props} />
+}
+
+interface DialogContentProps extends Omit<React.ComponentPropsWithoutRef<typeof HeroUIModal.Dialog>, "children"> {
+  size?: React.ComponentPropsWithoutRef<typeof HeroUIModal.Container>["size"]
+  placement?: React.ComponentPropsWithoutRef<typeof HeroUIModal.Container>["placement"]
+  scroll?: React.ComponentPropsWithoutRef<typeof HeroUIModal.Container>["scroll"]
+  showCloseButton?: boolean
+  children?: React.ReactNode | ((opts: any) => React.ReactNode)
 }
 
 function DialogContent({
   className,
   children,
+  size,
+  placement = "center",
+  scroll = "inside",
   showCloseButton = true,
   ...props
-}: DialogPrimitive.Popup.Props & {
-  showCloseButton?: boolean
-}) {
+}: DialogContentProps) {
   return (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-border bg-popover p-5 text-[13px] text-popover-foreground shadow-level-2 ring-1 ring-black/8 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={
-              <Button
-                variant="ghost"
-                className="absolute top-2 right-2"
-                size="icon-sm"
-              />
-            }
-          >
-            <XIcon
+    <HeroUIModal.Backdrop>
+      <HeroUIModal.Container placement={placement} size={size} scroll={scroll}>
+        <HeroUIModal.Dialog
+          className={cn("relative flex flex-col", className)}
+          {...props}
+        >
+          {showCloseButton && (
+            <HeroUIModal.CloseTrigger
+              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
             />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Popup>
-    </DialogPortal>
+          )}
+          {typeof children === "function" ? (children as any) : children}
+        </HeroUIModal.Dialog>
+      </HeroUIModal.Container>
+    </HeroUIModal.Backdrop>
   )
 }
 
-function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+function DialogClose({
+  className,
+  children,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof HeroUIModal.CloseTrigger>) {
   return (
-    <div
-      data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+    <HeroUIModal.CloseTrigger
+      className={className}
+      {...props}
+    >
+      {children}
+    </HeroUIModal.CloseTrigger>
+  )
+}
+
+function DialogHeader({ className, ...props }: React.ComponentProps<typeof HeroUIModal.Header>) {
+  return (
+    <HeroUIModal.Header
+      className={cn("flex flex-col gap-1.5", className)}
       {...props}
     />
   )
@@ -93,36 +157,28 @@ function DialogFooter({
   showCloseButton = false,
   children,
   ...props
-}: React.ComponentProps<"div"> & {
+}: React.ComponentProps<typeof HeroUIModal.Footer> & {
   showCloseButton?: boolean
 }) {
   return (
-    <div
-      data-slot="dialog-footer"
-      className={cn(
-        "-mx-5 -mb-5 flex flex-col-reverse gap-2 rounded-b-xl border-t border-border bg-popover p-5 sm:flex-row sm:justify-end",
-        className
-      )}
+    <HeroUIModal.Footer
+      className={cn("mt-auto flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
       {...props}
     >
       {children}
       {showCloseButton && (
-        <DialogPrimitive.Close render={<Button variant="outline" />}>
-          Close
-        </DialogPrimitive.Close>
+        <DialogClose>
+          取消
+        </DialogClose>
       )}
-    </div>
+    </HeroUIModal.Footer>
   )
 }
 
-function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
+function DialogTitle({ className, ...props }: React.ComponentProps<typeof HeroUIModal.Heading>) {
   return (
-    <DialogPrimitive.Title
-      data-slot="dialog-title"
-      className={cn(
-        "text-base leading-[1.4] font-semibold",
-        className
-      )}
+    <HeroUIModal.Heading
+      className={cn("text-base font-semibold leading-normal", className)}
       {...props}
     />
   )
@@ -131,17 +187,18 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
 function DialogDescription({
   className,
   ...props
-}: DialogPrimitive.Description.Props) {
+}: React.ComponentProps<"p">) {
   return (
-    <DialogPrimitive.Description
+    <p
       data-slot="dialog-description"
-      className={cn(
-        "text-[13px] text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
-        className
-      )}
+      className={cn("text-[13px] text-muted-foreground", className)}
       {...props}
     />
   )
+}
+
+function DialogBody({ className, ...props }: React.ComponentProps<typeof HeroUIModal.Body>) {
+  return <HeroUIModal.Body className={className} {...props} />
 }
 
 export {
@@ -155,4 +212,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  DialogBody,
 }

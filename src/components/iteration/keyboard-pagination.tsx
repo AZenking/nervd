@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Pagination } from '@heroui/react';
 import { cn } from '@/lib/utils';
 
 export interface KeyboardPaginationProps {
@@ -8,53 +8,61 @@ export interface KeyboardPaginationProps {
   totalPages: number;
   /** 页码变更回调 */
   onPageChange: (page: number) => void;
-  /** 是否展示键盘 [ / ] 快捷键提示 */
-  showKeyboardHints?: boolean;
   /** 外层样式 */
   className?: string;
 }
 
 /**
- * 全键盘感知紧凑分页器（符合 Deep Linear Alignment 规范）：
- * - 紧凑小号无边框/轮廓按钮
+ * 全键盘感知紧凑分页器（Deep Linear Alignment 规范）：
+ * - HeroUI Pagination：Previous/Next 图标 + 页码 Link（React Aria onPress）
  * - 等宽数字展示（tabular-nums font-mono）
- * - 可选键盘快捷键标识（kbd）
  */
 export function KeyboardPagination({
   pageIndex,
   totalPages,
   onPageChange,
-  showKeyboardHints = false,
   className,
 }: KeyboardPaginationProps) {
   if (totalPages <= 1) return null;
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      {showKeyboardHints && (
-        <span className="text-[11px] text-muted-foreground select-none hidden sm:inline-block">
-          翻页：<kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-muted/60 border border-border/60">[</kbd> / <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-muted/60 border border-border/60">]</kbd>
-        </span>
-      )}
-      <Button
-        variant="outline"
-        size="xs"
-        disabled={pageIndex <= 1}
-        onClick={() => onPageChange(Math.max(1, pageIndex - 1))}
+      <Pagination
+        size="sm"
+        className="text-xs text-muted-foreground"
       >
-        上一页
-      </Button>
-      <span className="font-mono text-xs tabular-nums text-muted-foreground">
-        {pageIndex} / {totalPages}
-      </span>
-      <Button
-        variant="outline"
-        size="xs"
-        disabled={pageIndex >= totalPages}
-        onClick={() => onPageChange(Math.min(totalPages, pageIndex + 1))}
-      >
-        下一页
-      </Button>
+        <Pagination.Content>
+          <Pagination.Item>
+            <Pagination.Previous
+              aria-label="上一页"
+              isDisabled={pageIndex <= 1}
+              onPress={() => onPageChange(Math.max(1, pageIndex - 1))}
+            >
+              <Pagination.PreviousIcon />
+            </Pagination.Previous>
+          </Pagination.Item>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <Pagination.Item key={p}>
+              <Pagination.Link
+                isActive={p === pageIndex}
+                onPress={() => onPageChange(p)}
+                className="font-mono tabular-nums"
+              >
+                {p}
+              </Pagination.Link>
+            </Pagination.Item>
+          ))}
+          <Pagination.Item>
+            <Pagination.Next
+              aria-label="下一页"
+              isDisabled={pageIndex >= totalPages}
+              onPress={() => onPageChange(Math.min(totalPages, pageIndex + 1))}
+            >
+              <Pagination.NextIcon />
+            </Pagination.Next>
+          </Pagination.Item>
+        </Pagination.Content>
+      </Pagination>
     </div>
   );
 }

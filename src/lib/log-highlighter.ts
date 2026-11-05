@@ -24,24 +24,24 @@ export interface LogStats {
   firstErrorLine: number | null;
 }
 
-// ANSI 颜色映射表
+// ANSI 颜色映射表（语义 token：状态色走封闭语义集，装饰色走 chart / 贴纸色变量）
 const ANSI_COLOR_MAP: Record<number, string> = {
-  30: 'text-zinc-500',
-  31: 'text-red-500 dark:text-red-400 font-medium',
-  32: 'text-emerald-500 dark:text-emerald-400',
-  33: 'text-amber-500 dark:text-amber-400',
-  34: 'text-sky-500 dark:text-sky-400',
-  35: 'text-purple-500 dark:text-purple-400',
-  36: 'text-cyan-500 dark:text-cyan-400',
-  37: 'text-zinc-200',
-  90: 'text-zinc-400',
-  91: 'text-red-400 dark:text-red-300 font-medium',
-  92: 'text-emerald-400 dark:text-emerald-300',
-  93: 'text-amber-400 dark:text-amber-300',
-  94: 'text-sky-400 dark:text-sky-300',
-  95: 'text-purple-400 dark:text-purple-300',
-  96: 'text-cyan-400 dark:text-cyan-300',
-  97: 'text-white',
+  30: 'text-muted-foreground',
+  31: 'text-danger font-medium',
+  32: 'text-success',
+  33: 'text-warning',
+  34: 'text-chart-2',
+  35: 'text-(--sticker-purple-deep) dark:text-(--sticker-purple)',
+  36: 'text-chart-4',
+  37: 'text-foreground/80',
+  90: 'text-muted-foreground',
+  91: 'text-danger font-medium',
+  92: 'text-success',
+  93: 'text-warning',
+  94: 'text-chart-2',
+  95: 'text-(--sticker-purple-deep) dark:text-(--sticker-purple)',
+  96: 'text-chart-4',
+  97: 'text-foreground',
 };
 
 /** 解析包含 ANSI 转义序列的一行文本为带样式的 Span 数组 */

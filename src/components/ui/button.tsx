@@ -1,56 +1,178 @@
-import { Button as ButtonPrimitive } from "@base-ui/react/button"
-import { cva, type VariantProps } from "class-variance-authority"
+import * as React from "react"
+import { Button as HeroUIButton } from "@heroui/react"
+import { tv, type VariantProps } from "tailwind-variants"
 import { cn } from '@/lib/utils'
 
-const buttonVariants = cva(
-  "group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-padding text-[13px] font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground disabled:border-border disabled:shadow-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+const buttonVariants = tv(
   {
+    base: "",
     variants: {
       variant: {
-        default: "rounded-md bg-primary text-primary-foreground hover:bg-(--primary-active) active:bg-(--primary-active)",
-        outline:
-          "rounded-md border-border bg-background text-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
-        secondary:
-          "rounded-md border-border bg-background text-secondary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.02),0_2px_8px_rgba(0,0,0,0.03)] hover:bg-muted aria-expanded:bg-muted aria-expanded:text-secondary-foreground",
-        ghost:
-          "rounded-md hover:bg-foreground/5 hover:text-foreground aria-expanded:bg-foreground/5 aria-expanded:text-foreground dark:hover:bg-muted/50",
-        destructive:
-          "rounded-md bg-transparent text-destructive hover:bg-destructive/90 hover:text-destructive-foreground focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-transparent dark:hover:bg-destructive/90 dark:hover:text-destructive-foreground dark:focus-visible:ring-destructive/40",
-        link: "text-primary underline-offset-4 hover:underline",
+        default: "",
+        primary: "",
+        secondary: "",
+        outline: "",
+        ghost: "",
+        destructive: "",
+        danger: "",
+        "danger-soft": "",
+        tertiary: "",
+        link: "!bg-transparent text-primary underline-offset-4 hover:underline !shadow-none !h-auto !p-0",
       },
       size: {
-        default:
-          "h-8 gap-1.5 px-3 text-[13px] has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
-        xs: "h-6 gap-1 rounded-md px-1.5 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-7 gap-1 rounded-md px-2.5 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3",
-        lg: "h-9 gap-2 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
-        icon: "size-8 rounded-md",
-        "icon-xs":
-          "size-6 rounded-sm in-data-[slot=button-group]:rounded-sm [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-7 rounded-sm in-data-[slot=button-group]:rounded-sm",
-        "icon-lg": "size-9 rounded-md",
+        default: "h-8 px-3 text-[13px]",
+        xs: "h-6 px-1.5 text-xs gap-1 in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-7 px-2.5 text-xs gap-1 in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
+        lg: "h-9 px-4 gap-2",
+        icon: "size-8 p-0",
+        "icon-xs": "size-6 p-0 rounded-sm in-data-[slot=button-group]:rounded-sm [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-7 p-0 rounded-sm in-data-[slot=button-group]:rounded-sm",
+        "icon-lg": "size-9 p-0",
       },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
     },
-  }
+  },
+  { twMerge: false }
 )
 
+function mapHeroUIVariant(
+  variant?: string | null
+): "primary" | "secondary" | "tertiary" | "outline" | "ghost" | "danger" | "danger-soft" {
+  switch (variant) {
+    case "primary":
+    case "default":
+      return "primary"
+    case "secondary":
+      return "secondary"
+    case "tertiary":
+      return "tertiary"
+    case "outline":
+      return "outline"
+    case "ghost":
+      return "ghost"
+    case "destructive":
+    case "danger":
+      return "danger"
+    case "danger-soft":
+      return "danger-soft"
+    case "link":
+      return "ghost"
+    default:
+      return "primary"
+  }
+}
+
+function mapHeroUISize(
+  size?: string | null
+): { herouiSize: "sm" | "md" | "lg"; isIconOnly?: boolean } {
+  switch (size) {
+    case "lg":
+      return { herouiSize: "lg" }
+    case "icon":
+      return { herouiSize: "sm", isIconOnly: true }
+    case "icon-xs":
+    case "icon-sm":
+      return { herouiSize: "sm", isIconOnly: true }
+    case "icon-lg":
+      return { herouiSize: "lg", isIconOnly: true }
+    case "xs":
+    case "sm":
+    case "default":
+    default:
+      return { herouiSize: "sm" }
+  }
+}
+
+type BaseHeroUIButtonProps = Omit<
+  React.ComponentPropsWithRef<typeof HeroUIButton>,
+  "variant" | "size" | "color" | "children" | "className" | "render"
+>
+
+export type ButtonProps = BaseHeroUIButtonProps &
+  VariantProps<typeof buttonVariants> & {
+    disabled?: boolean
+    className?: string
+    children?: React.ReactNode
+    render?: React.ReactNode | ((props: any, state: any) => React.ReactNode)
+    title?: string
+    tabIndex?: number
+    id?: string
+  } & Omit<
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    keyof BaseHeroUIButtonProps | "children" | "className" | "color"
+  >
+
 function Button({
+  ref,
   className,
   variant = "default",
   size = "default",
+  disabled,
+  isDisabled,
+  isIconOnly: isIconOnlyProp,
+  render,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonProps) {
+  const { herouiSize, isIconOnly: isIconOnlyCalculated } = mapHeroUISize(size)
+  const herouiVariant = mapHeroUIVariant(variant)
+  const effectiveIsIconOnly = isIconOnlyProp ?? isIconOnlyCalculated
+  const effectiveDisabled = isDisabled ?? disabled
+
+  const resolvedRender = React.useMemo(() => {
+    if (React.isValidElement(render)) {
+      return (domProps: any) =>
+        React.cloneElement(render as React.ReactElement<any>, {
+          ...domProps,
+          ...(render as React.ReactElement<any>).props,
+          title: props.title ?? (render as React.ReactElement<any>).props?.title,
+          className: cn(domProps?.className, (render as React.ReactElement<any>).props?.className),
+        })
+    }
+    if (typeof render === "function") {
+      return (domProps: any, state: any) => {
+        const res = (render as any)(domProps, state)
+        if (React.isValidElement(res) && props.title) {
+          return React.cloneElement(res as React.ReactElement<any>, { title: props.title })
+        }
+        return res
+      }
+    }
+    if (props.title) {
+      return (domProps: any) =>
+        React.createElement(
+          "button",
+          {
+            ...domProps,
+            title: props.title,
+          },
+          domProps.children
+        )
+    }
+    return undefined
+  }, [render, props.title])
+
   return (
-    <ButtonPrimitive
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
+    <HeroUIButton
+      ref={ref}
+      variant={herouiVariant}
+      size={herouiSize}
+      isIconOnly={effectiveIsIconOnly}
+      isDisabled={effectiveDisabled}
+      render={resolvedRender}
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...(props as any)}
+    >
+      {children}
+    </HeroUIButton>
   )
 }
 
-export { Button, buttonVariants }
+const ButtonWithCompound = Object.assign(Button, {
+  Root: HeroUIButton.Root,
+})
+
+export { ButtonWithCompound as Button, buttonVariants }

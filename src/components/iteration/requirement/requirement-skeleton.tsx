@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card } from '@/components/ui/card';
 import { STICKY_PAGE_HEADER_CLASS } from '@/components/page-header';
 
 /** 需求/工作项详情骨架屏（对齐 Linear 详情页布局） */
@@ -55,11 +56,11 @@ export function RequirementDetailsSkeleton({ embedded }: { embedded?: boolean })
                 <Skeleton className="h-4 w-12 rounded" />
                 <Skeleton className="h-3.5 w-32 rounded" />
               </div>
-              <div className="flex flex-col gap-2.5 rounded-lg border border-border/40 bg-card/30 p-4">
+              <Card>
                 <Skeleton className="h-3.5 w-full rounded" />
                 <Skeleton className="h-3.5 w-5/6 rounded" />
                 <Skeleton className="h-3.5 w-3/5 rounded" />
-              </div>
+              </Card>
             </section>
 
             {/* 云效仓库交付链路 */}
@@ -68,7 +69,7 @@ export function RequirementDetailsSkeleton({ embedded }: { embedded?: boolean })
                 <Skeleton className="h-4 w-32 rounded" />
                 <Skeleton className="h-7 w-20 rounded-md" />
               </div>
-              <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-card/40 p-4">
+              <Card>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Skeleton className="size-4 rounded" />
@@ -86,7 +87,7 @@ export function RequirementDetailsSkeleton({ embedded }: { embedded?: boolean })
                     <Skeleton className="h-5 w-56 rounded" />
                   </div>
                 </div>
-              </div>
+              </Card>
             </section>
 
             {/* 子任务 */}
@@ -138,7 +139,7 @@ export function RequirementDetailsSkeleton({ embedded }: { embedded?: boolean })
           {!embedded && (
             <aside className="flex flex-col gap-4 xl:sticky xl:top-20 xl:w-auto">
               <Skeleton className="h-3.5 w-10 rounded" />
-              <div className="flex flex-col gap-3 rounded-lg border border-border/40 bg-card/30 p-4">
+              <Card>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                   <div key={i} className="flex items-center justify-between gap-3 py-1">
                     <div className="flex items-center gap-2">
@@ -148,7 +149,7 @@ export function RequirementDetailsSkeleton({ embedded }: { embedded?: boolean })
                     <Skeleton className="h-4 w-20 rounded" />
                   </div>
                 ))}
-              </div>
+              </Card>
             </aside>
           )}
         </div>

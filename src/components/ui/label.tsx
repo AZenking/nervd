@@ -1,17 +1,42 @@
 import * as React from "react"
+import { Label as HeroUILabel } from "@heroui/react"
 import { cn } from '@/lib/utils'
 
-function Label({ className, ...props }: React.ComponentProps<"label">) {
+type BaseHeroUILabelProps = Omit<
+  React.ComponentPropsWithRef<typeof HeroUILabel>,
+  "className"
+>
+
+export type LabelProps = BaseHeroUILabelProps &
+  Omit<React.LabelHTMLAttributes<HTMLLabelElement>, keyof BaseHeroUILabelProps | "className"> & {
+    className?: string
+    disabled?: boolean
+    isDisabled?: boolean
+  }
+
+function Label({
+  ref,
+  className,
+  disabled,
+  isDisabled,
+  ...props
+}: LabelProps) {
   return (
-    <label
+    <HeroUILabel
+      ref={ref}
       data-slot="label"
+      isDisabled={isDisabled ?? disabled}
       className={cn(
         "flex items-center gap-2 text-[13px] leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
         className
       )}
-      {...props}
+      {...(props as any)}
     />
   )
 }
 
-export { Label }
+const LabelWithCompound = Object.assign(Label, {
+  Root: HeroUILabel.Root,
+})
+
+export { LabelWithCompound as Label }

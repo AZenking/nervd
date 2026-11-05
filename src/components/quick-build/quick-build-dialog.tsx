@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Modal } from '@heroui/react';
 import {
   ClockIcon,
   PlayIcon,
@@ -10,19 +10,13 @@ import {
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
+import { Kbd } from '@/components/ui/kbd';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   extractConfiguredBuildTargets,
   useQuickBuild,
   type QuickBuildTarget,
 } from '@/store/quick-build';
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="rounded border border-border bg-background px-1 font-mono text-[11px] leading-4 text-muted-foreground">
-      {children}
-    </kbd>
-  );
-}
 
 function formatRelativeTime(timestamp?: number): string {
   if (!timestamp) return '';
@@ -134,15 +128,13 @@ export function QuickBuildDialog() {
   };
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/20 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
-        <DialogPrimitive.Popup
-          className="fixed left-1/2 top-[12vh] z-50 w-full max-w-[640px] -translate-x-1/2 overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-level-2 ring-1 ring-foreground/10 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
-        >
-          <DialogPrimitive.Title className="sr-only">快速构建</DialogPrimitive.Title>
+    <Modal isOpen={open} onOpenChange={setOpen}>
+      <Modal.Backdrop>
+        <Modal.Container placement="top" size="lg">
+          <Modal.Dialog className="p-0 overflow-hidden sm:max-w-[640px] mt-[12vh]">
+            <Modal.Heading className="sr-only">快速构建</Modal.Heading>
 
-          {/* 顶栏：搜索输入与快捷键提示 */}
+            {/* 顶栏：搜索输入与快捷键提示 */}
           <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4">
             <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
             <input
@@ -163,7 +155,7 @@ export function QuickBuildDialog() {
           </div>
 
           {/* 内容区 */}
-          <div className="max-h-[min(26rem,50vh)] overflow-y-auto py-2">
+          <ScrollArea className="max-h-[min(26rem,50vh)] py-2">
             {flatEntries.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center text-xs text-muted-foreground">
                 {q ? (
@@ -198,7 +190,7 @@ export function QuickBuildDialog() {
                             onMouseEnter={() => setSelectedIndex(idx)}
                             disabled={isTriggering}
                             className={cn(
-                              'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors',
+                              'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                               isSelected
                                 ? 'bg-accent text-accent-foreground'
                                 : 'hover:bg-muted/60 text-foreground',
@@ -208,7 +200,7 @@ export function QuickBuildDialog() {
                               {target.type === 'flow' ? (
                                 <WorkflowIcon className="size-3.5 text-primary shrink-0" />
                               ) : (
-                                <TerminalIcon className="size-3.5 text-amber-500 shrink-0" />
+                                <TerminalIcon className="size-3.5 text-warning shrink-0" />
                               )}
                               <div className="flex flex-col min-w-0 text-left">
                                 <div className="flex items-center gap-2 font-medium truncate">
@@ -272,7 +264,7 @@ export function QuickBuildDialog() {
                             onMouseEnter={() => setSelectedIndex(idx)}
                             disabled={isTriggering}
                             className={cn(
-                              'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors',
+                              'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                               isSelected
                                 ? 'bg-accent text-accent-foreground'
                                 : 'hover:bg-muted/60 text-foreground',
@@ -282,7 +274,7 @@ export function QuickBuildDialog() {
                               {target.type === 'flow' ? (
                                 <WorkflowIcon className="size-3.5 text-primary shrink-0" />
                               ) : (
-                                <TerminalIcon className="size-3.5 text-amber-500 shrink-0" />
+                                <TerminalIcon className="size-3.5 text-warning shrink-0" />
                               )}
                               <div className="flex flex-col min-w-0 text-left">
                                 <div className="flex items-center gap-2 font-medium truncate">
@@ -311,7 +303,7 @@ export function QuickBuildDialog() {
                 )}
               </div>
             )}
-          </div>
+          </ScrollArea>
 
           {/* 底部紧凑快捷说明栏 */}
           <div className="flex shrink-0 items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
@@ -334,8 +326,9 @@ export function QuickBuildDialog() {
             </div>
             <span className="text-[11px] font-mono text-muted-foreground/80">⌘B 随时呼出</span>
           </div>
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
-  );
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  </Modal>
+);
 }

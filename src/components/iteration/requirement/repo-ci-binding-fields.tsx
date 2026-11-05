@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Surface } from '@heroui/react';
 import { AlertCircleIcon, RefreshCwIcon, ServerIcon, SparklesIcon, WorkflowIcon } from 'lucide-react';
 import type { JenkinsConnectionView, JenkinsJobSummary, PipelineSummary, RepoCiBinding } from '@/types';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { getCachedJenkinsJobs, hasCachedJobs } from '@/lib/jenkins-cache';
 import { humanizeError } from '@/lib/error-format';
@@ -159,17 +164,17 @@ export function RepoCiBindingFields({
     binding.pipelineId === recommendedPipeline.pipelineId;
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-3.5">
+    <Surface variant="secondary" className="flex flex-col gap-3 rounded-lg border border-border/60 p-3.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <WorkflowIcon className="size-4 text-primary shrink-0" />
           <span className="text-xs font-semibold text-foreground">关联 CI 流水线 (可选)</span>
         </div>
         {isMatchedRecommendation && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm">
+          <Chip size="sm" color="accent" variant="soft" className="gap-1 text-[11px] font-medium">
             <SparklesIcon className="size-3" />
             <span>智能匹配</span>
-          </span>
+          </Chip>
         )}
       </div>
 
@@ -178,18 +183,22 @@ export function RepoCiBindingFields({
           <div className="flex items-center h-5 mb-1.5">
             <FieldLabel className="mb-0">CI 提供方</FieldLabel>
           </div>
-          <SearchableSelect
-            className="text-xs"
-            ariaLabel="CI 提供方"
+          <Select
+            className="w-full text-xs"
+            aria-label="CI 提供方"
             disabled={disabled}
             value={currentProvider}
-            onValueChange={handleProviderChange}
-            items={[
-              { label: '不关联 CI', value: 'none' },
-              { label: '云效 Flow 流水线', value: 'flow' },
-              { label: 'Jenkins 任务', value: 'jenkins' },
-            ]}
-          />
+            onValueChange={(val) => handleProviderChange(val as any)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">不关联 CI</SelectItem>
+              <SelectItem value="flow">云效 Flow 流水线</SelectItem>
+              <SelectItem value="jenkins">Jenkins 任务</SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
 
         {currentProvider === 'flow' && (
@@ -197,16 +206,26 @@ export function RepoCiBindingFields({
             <div className="flex items-center justify-between h-5 mb-1.5">
               <FieldLabel className="mb-0">云效流水线</FieldLabel>
               {onRefreshPipelines && (
-                <button
-                  type="button"
-                  onClick={() => void handleRefresh()}
-                  disabled={refreshing || loadingPipelines || disabled}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors disabled:opacity-50"
-                  title="刷新云效流水线列表"
-                >
-                  <RefreshCwIcon className={cn('size-3', (refreshing || loadingPipelines) && 'animate-spin')} />
-                  <span>刷新</span>
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onPress={() => void handleRefresh()}
+                        disabled={refreshing || loadingPipelines || disabled}
+                        className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
+                        title="刷新云效流水线列表"
+                        aria-label="刷新云效流水线列表"
+                      >
+                        <RefreshCwIcon className={cn('size-3', (refreshing || loadingPipelines) && 'animate-spin')} />
+                        <span>刷新</span>
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>刷新云效流水线列表</TooltipContent>
+                </Tooltip>
               )}
             </div>
             <SearchableSelect
@@ -289,7 +308,7 @@ export function RepoCiBindingFields({
             </p>
           )}
           {pipelines.length === 0 && !loadingPipelines && (
-            <p className="text-amber-600 dark:text-amber-400">
+            <p className="text-warning">
               当前未获取到云效流水线，可点击右上角「刷新」重试，或在设置中确认访问令牌已具备 Flow 权限。
             </p>
           )}
@@ -298,7 +317,7 @@ export function RepoCiBindingFields({
 
       {currentProvider === 'jenkins' && (
         jenkinsConnections.length === 0 ? (
-          <div className="flex items-center gap-2 p-2.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs">
+          <div className="flex items-center gap-2 p-2.5 rounded-md bg-warning/10 text-warning text-xs">
             <ServerIcon className="size-4 shrink-0" />
             <span>尚未配置 Jenkins 实例。请先在「系统设置 → CI 集成」添加并验证 Jenkins 连接凭据。</span>
           </div>
@@ -307,16 +326,26 @@ export function RepoCiBindingFields({
             <Field className="w-full">
               <div className="flex items-center justify-between h-5 mb-1.5">
                 <FieldLabel className="mb-0">Job 全路径</FieldLabel>
-                <button
-                  type="button"
-                  onClick={() => setJenkinsJobsRefresh((c) => c + 1)}
-                  disabled={loadingJenkinsJobs || disabled || !selectedConnectionId}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors disabled:opacity-50"
-                  title="刷新 Jenkins Job 列表"
-                >
-                  <RefreshCwIcon className={cn('size-3', loadingJenkinsJobs && 'animate-spin')} />
-                  <span>刷新</span>
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onPress={() => setJenkinsJobsRefresh((c) => c + 1)}
+                        disabled={loadingJenkinsJobs || disabled || !selectedConnectionId}
+                        className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
+                        title="刷新 Jenkins Job 列表"
+                        aria-label="刷新 Jenkins Job 列表"
+                      >
+                        <RefreshCwIcon className={cn('size-3', loadingJenkinsJobs && 'animate-spin')} />
+                        <span>刷新</span>
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>刷新 Jenkins Job 列表</TooltipContent>
+                </Tooltip>
               </div>
               <SearchableSelect
                 className="text-xs font-mono w-full"
@@ -363,6 +392,6 @@ export function RepoCiBindingFields({
           </div>
         )
       )}
-    </div>
+    </Surface>
   );
 }

@@ -23,6 +23,8 @@ export interface PaneSeparatorProps {
   onChange: (px: number) => void;
   /** 双击恢复默认宽度 */
   onReset: () => void;
+  /** 是否显示可见分隔线；关闭时仍保留拖拽、键盘和无障碍命中区 */
+  showLine?: boolean;
   /** 拖动增大方向：'right'（默认，分隔线在面板右缘，向右拖增大）；'left'（分隔线在面板左缘，向左拖增大） */
   growDirection?: 'left' | 'right';
   /** 键盘单次步长（像素），默认 8；按住 Shift ×4 */
@@ -58,6 +60,7 @@ export function PaneSeparator({
   max,
   onChange,
   onReset,
+  showLine = true,
   growDirection = 'right',
   step = 8,
   className,
@@ -159,14 +162,16 @@ export function PaneSeparator({
       onKeyDown={handleKeyDown}
       onDoubleClick={onReset}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-colors',
-          'group-hover/pane-separator:bg-primary/40 group-focus-visible/pane-separator:bg-primary/40',
-          dragging && 'bg-primary/40',
-        )}
-      />
+      {showLine && (
+        <span
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-colors',
+            'group-hover/pane-separator:bg-primary/40 group-focus-visible/pane-separator:bg-primary/40',
+            dragging && 'bg-primary/40',
+          )}
+        />
+      )}
     </div>
   );
 }

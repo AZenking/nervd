@@ -2,7 +2,6 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QuickBuildConsole } from './quick-build-console';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import { useQuickBuild } from '@/store/quick-build';
 import { useApp } from '@/store/app';
 
@@ -51,6 +50,8 @@ describe('QuickBuildConsole', () => {
           lastTriggeredAt: Date.now() - 60000,
         },
       ],
+      trackedBuilds: [],
+      triggeringIds: [],
       triggeringId: null,
     });
 
@@ -91,11 +92,11 @@ describe('QuickBuildConsole', () => {
 
   it('renders quick build console in-place with recent item and branch input', async () => {
     await act(async () => {
-      root?.render(
-        <TooltipProvider>
-          <QuickBuildConsole />
-        </TooltipProvider>,
-      );
+      root?.render(<QuickBuildConsole />);
+    });
+    expect(document.body.textContent).not.toContain('构建分支');
+    act(() => {
+      [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('发起构建'))?.click();
     });
 
     expect(document.body.textContent).toContain('快捷构建控制台');
@@ -112,11 +113,11 @@ describe('QuickBuildConsole', () => {
     useQuickBuild.setState({ triggerQuickBuild: triggerSpy });
 
     await act(async () => {
-      root?.render(
-        <TooltipProvider>
-          <QuickBuildConsole />
-        </TooltipProvider>,
-      );
+      root?.render(<QuickBuildConsole />);
+    });
+    expect(document.body.textContent).not.toContain('构建目标');
+    act(() => {
+      [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('发起构建'))?.click();
     });
 
     const triggerBtn = [...document.querySelectorAll('button')].find((b) =>
@@ -124,8 +125,18 @@ describe('QuickBuildConsole', () => {
     );
     expect(triggerBtn).toBeDefined();
 
+    // 第一次点击进入二次确认倒计时
     await act(async () => {
       triggerBtn?.click();
+    });
+    expect(document.body.textContent).toContain('确认发起构建');
+
+    // 第二次点击实际触发
+    const confirmBtn = [...document.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('确认发起构建'),
+    );
+    await act(async () => {
+      confirmBtn?.click();
     });
 
     expect(triggerSpy).toHaveBeenCalledWith(
@@ -163,30 +174,63 @@ describe('QuickBuildConsole', () => {
     });
 
     await act(async () => {
-      root?.render(
-        <TooltipProvider>
-          <QuickBuildConsole />
-        </TooltipProvider>,
-      );
+      root?.render(<QuickBuildConsole />);
+    });
+    expect(document.body.textContent).toContain('活跃构建中 · 1');
+    expect(document.body.textContent).not.toContain('状态 / 平台');
+    expect(document.body.textContent).toContain('#105');
+    expect(document.body.textContent).toContain('查看日志');
+    expect(document.body.textContent).toContain('50%'); // 30s / 60s = 50%
+  });
+
+  it('多个活跃构建时保留紧凑表头与多行任务列表', async () => {
+    const now = Date.now();
+    useApp.setState({
+      repositories: [
+        { id: 101, name: 'order-service' },
+        { id: 102, name: 'web-app' },
+      ],
+      repoCiByRepo: {
+        101: {
+          loading: false,
+          snapshot: {
+            provider: 'jenkins',
+            name: 'build-job',
+            status: 'RUNNING',
+            runs: [{ runId: '105', status: 'RUNNING', startTime: now - 30000 }],
+          },
+        },
+        102: {
+          loading: false,
+          snapshot: {
+            provider: 'flow',
+            name: 'release-flow',
+            status: 'RUNNING',
+            runs: [{ runId: '206', status: 'RUNNING', startTime: now - 10000 }],
+          },
+        },
+      },
     });
 
-    expect(document.body.textContent).toContain('活跃构建中 (1)');
-    expect(document.body.textContent).toContain('正在执行的任务');
+    await act(async () => {
+      root?.render(<QuickBuildConsole />);
+    });
+
+    expect(document.body.textContent).toContain('运行任务');
+    expect(document.body.textContent).toContain('状态 / 平台');
     expect(document.body.textContent).toContain('#105');
-    expect(document.body.textContent).toContain('就地盯盘');
-    expect(document.body.textContent).toContain('50%'); // 30s / 60s = 50%
+    expect(document.body.textContent).toContain('#206');
   });
 
   it('提供自由选择与切换具体 Job 的下拉入口', async () => {
     await act(async () => {
-      root?.render(
-        <TooltipProvider>
-          <QuickBuildConsole />
-        </TooltipProvider>,
-      );
+      root?.render(<QuickBuildConsole />);
+    });
+    act(() => {
+      [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('发起构建'))?.click();
     });
 
-    expect(document.body.textContent).toContain('任务(Job):');
+    expect(document.body.textContent).toContain('任务（Job）');
     expect(document.body.textContent).toContain('build-job');
   });
 });

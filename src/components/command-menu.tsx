@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Modal } from '@heroui/react';
+import { Header } from 'react-aria-components';
 import {
   CalendarClockIcon,
   CalendarDaysIcon,
@@ -17,6 +18,9 @@ import {
   ZapIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ListBox } from '@/components/ui/list-box';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Kbd } from '@/components/ui/kbd';
 import { useApp } from '@/store/app';
 import { iterationsOrFallback, useUi } from '@/store/ui';
 import { useRecentWorkitems } from '@/store/recent-workitems';
@@ -51,15 +55,6 @@ type CommandGroup = (typeof GROUP_ORDER)[number];
 const WORKITEM_LIMIT_WITH_QUERY = 15;
 const WORKITEM_LIMIT_IDLE = 8;
 
-/** 底部键位提示的小胶囊（与侧栏 ⌘K 徽标同一形态） */
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="rounded border border-border bg-background px-1 font-mono text-[11px] leading-4 text-muted-foreground">
-      {children}
-    </kbd>
-  );
-}
-
 export function CommandMenu() {
   const open = useUi((s) => s.commandOpen);
   const setCommandOpen = useUi((s) => s.setCommandOpen);
@@ -73,7 +68,7 @@ export function CommandMenu() {
 
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
-  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const rowRefs = useRef<(HTMLElement | null)[]>([]);
 
   const q = query.trim().toLowerCase();
 
@@ -93,7 +88,7 @@ export function CommandMenu() {
         group: '最近查看',
         label: it.subject,
         hint: `${it.identifier} · 30s+`,
-        icon: <ClockIcon className="size-4 text-amber-500" />,
+        icon: <ClockIcon className="size-4 text-warning" />,
         run: () =>
           openWorkitem(it.workitemId, {
             workitemId: it.workitemId,
@@ -208,7 +203,7 @@ export function CommandMenu() {
         group: '操作',
         label: '快速构建 / 流水线触发',
         hint: '⌘B',
-        icon: <ZapIcon className="size-4 text-amber-500" />,
+        icon: <ZapIcon className="size-4 text-warning" />,
         keywords: '构建 build 触发 trigger ci flow jenkins 流水线 快速构建 重新构建',
         run: () => setQuickBuildOpen(true),
       },
@@ -294,6 +289,8 @@ export function CommandMenu() {
   );
   const flat = useMemo(() => groups.flatMap((g) => g.entries), [groups]);
   const flatIndexOf = useMemo(() => new Map(flat.map((e, i) => [e, i] as const)), [flat]);
+  // ListBox onAction 回传条目 id：扁平映射供点击/Enter 就地取回条目
+  const entryByKey = useMemo(() => new Map(flat.map((e) => [e.id, e] as const)), [flat]);
 
   // 查询变化 / 重新打开时回到第一条；列表收窄时收敛到末条防越界
   useEffect(() => {
@@ -333,20 +330,14 @@ export function CommandMenu() {
   };
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
-      <DialogPrimitive.Portal>
-        {/* 遮罩：与 ui/dialog.tsx 的 DialogOverlay 同款（浅黑 + 轻模糊） */}
-        <DialogPrimitive.Backdrop
-          className="fixed inset-0 z-50 bg-black/20 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
-        />
-        {/* 顶部 12vh 悬浮面板（Linear 形态：非居中卡片，不用 DialogContent） */}
-        <DialogPrimitive.Popup
-          className="fixed left-1/2 top-[12vh] z-50 w-full max-w-[640px] -translate-x-1/2 overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-level-2 ring-1 ring-foreground/10 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
-        >
-          {/* 无障碍必需：sr-only 标题 */}
-          <DialogPrimitive.Title className="sr-only">命令面板</DialogPrimitive.Title>
+    <Modal isOpen={open} onOpenChange={handleOpenChange}>
+      <Modal.Backdrop>
+        <Modal.Container placement="top" size="lg">
+          <Modal.Dialog className="p-0 overflow-hidden sm:max-w-[640px] mt-[12vh]">
+            {/* 无障碍必需：sr-only 标题 */}
+            <Modal.Heading className="sr-only">命令面板</Modal.Heading>
 
-          {/* 搜索行 */}
+            {/* 搜索行 */}
           <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4">
             <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
             <input
@@ -359,27 +350,33 @@ export function CommandMenu() {
             />
           </div>
 
-          {/* 结果列表（组间只渲染非空组） */}
-          <div className="max-h-[min(26rem,50vh)] overflow-y-auto py-2">
-            {flat.length ? (
-              groups.map(({ group, entries: groupEntries }) => (
-                <div key={group}>
-                  <p className="px-4 pb-1 pt-2.5 text-xs font-medium text-muted-foreground">{group}</p>
+          {/* 结果列表：HeroUI ListBox（Section 分组 + 语义 option 行，系统级 hover/焦点样式） */}
+          {flat.length ? (
+            <ScrollArea size={24} className="max-h-[min(26rem,50vh)] py-2">
+            <ListBox
+              aria-label="命令面板结果"
+              selectionMode="none"
+              onAction={(key) => runEntry(entryByKey.get(String(key)))}
+            >
+              {groups.map(({ group, entries: groupEntries }) => (
+                <ListBox.Section key={group}>
+                  <Header className="px-3 pb-1 pt-2.5 text-xs font-medium text-muted-foreground">
+                    {group}
+                  </Header>
                   {groupEntries.map((entry) => {
                     const index = flatIndexOf.get(entry) ?? 0;
                     const isActiveRow = index === activeIndex;
                     return (
-                      <button
+                      <ListBox.Item
                         key={entry.id}
-                        type="button"
+                        id={entry.id}
+                        textValue={entry.label}
                         ref={(el) => {
                           rowRefs.current[index] = el;
                         }}
-                        data-active={isActiveRow || undefined}
                         onMouseEnter={() => setActive(index)}
-                        onClick={() => runEntry(entry)}
                         className={cn(
-                          'mx-2 flex h-9 cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm',
+                          'mx-2 h-9 px-2.5 text-sm',
                           // 常驻弱高亮：当前即此目标；键盘/hover 命中时以 bg-accent 覆盖
                           entry.active && !isActiveRow && 'bg-accent/50',
                           isActiveRow && 'bg-accent',
@@ -394,15 +391,16 @@ export function CommandMenu() {
                             {entry.hint}
                           </span>
                         )}
-                      </button>
+                      </ListBox.Item>
                     );
                   })}
-                </div>
-              ))
-            ) : (
-              <p className="py-10 text-center text-sm text-muted-foreground">无匹配结果</p>
-            )}
-          </div>
+                </ListBox.Section>
+              ))}
+            </ListBox>
+            </ScrollArea>
+          ) : (
+            <p className="py-10 text-center text-sm text-muted-foreground">无匹配结果</p>
+          )}
 
           {/* 底部键位提示条 */}
           <div className="flex shrink-0 items-center gap-3 border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
@@ -422,8 +420,9 @@ export function CommandMenu() {
               关闭
             </span>
           </div>
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
-  );
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  </Modal>
+);
 }

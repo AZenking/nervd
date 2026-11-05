@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Surface } from '@heroui/react';
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -19,8 +20,10 @@ import { parseFileDiffs, type FileDiffItem } from './diff-utils';
 import { CodeDiffViewer } from './code-diff-viewer';
 import { CodeDiffDrawer } from './code-diff-drawer';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Spinner } from '@/components/ui/spinner';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/components/ui/toast';
 import { WriteOpButton } from '@/components/WriteOpButton';
 import { useApp } from '@/store/app';
@@ -168,7 +171,7 @@ export function MrInlineItem({
   };
 
   return (
-    <div
+    <Card
       id={`mr-item-${mr.localId}`}
       className="flex flex-col rounded-md border border-border/40 bg-background/50 transition-colors hover:border-border/70 overflow-hidden"
     >
@@ -207,9 +210,9 @@ export function MrInlineItem({
 
       {/* 就地展开的闭环检视面板 */}
       {isExpanded && (
-        <div className="flex flex-col gap-2.5 border-t border-border/40 bg-muted/20 px-3 py-2.5 text-xs">
+        <Surface variant="secondary" className="flex flex-col gap-2.5 border-t border-border/40 px-3 py-2.5 text-xs">
           {/* 分支流向与基本元数据 */}
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/30 bg-background/70 px-2 py-1.5 text-[11px] font-mono">
+          <Surface variant="tertiary" className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/30 px-2 py-1.5 text-[11px] font-mono">
             <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
               <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
               <OverflowTooltip
@@ -228,7 +231,7 @@ export function MrInlineItem({
               )}
               <CopyButton text={`${mr.sourceBranch} -> ${mr.targetBranch}`} label="复制分支" />
             </div>
-          </div>
+          </Surface>
 
           {/* 差异状态区域：区分活跃 MR 与历史 MR */}
           <div className="flex flex-col gap-1.5">
@@ -247,7 +250,7 @@ export function MrInlineItem({
                 size="xs"
                 className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground gap-1"
                 disabled={loadingDiff}
-                onClick={fetchDivergence}
+                onPress={fetchDivergence}
                 title="重新比较两分支最新状态"
               >
                 <RefreshCwIcon className={cn('size-2.5', loadingDiff && 'animate-spin')} />
@@ -268,7 +271,7 @@ export function MrInlineItem({
                   variant="outline"
                   size="xs"
                   className="h-5 px-1.5 text-[10px]"
-                  onClick={fetchDivergence}
+                  onPress={fetchDivergence}
                 >
                   重试
                 </Button>
@@ -280,19 +283,21 @@ export function MrInlineItem({
                 ) : (
                   <span>
                     两分支当前已对齐。历史完整变更请通过下方
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => void openExternal(mrUrl)}
-                      className="ml-1 text-primary hover:underline cursor-pointer"
+                      variant="link"
+                      size="xs"
+                      onPress={() => void openExternal(mrUrl)}
+                      className="inline p-0 h-auto ml-1 text-primary hover:underline cursor-pointer align-baseline"
                     >
                       「云效直达」
-                    </button>
+                    </Button>
                     查看。
                   </span>
                 )}
               </div>
             ) : (
-              <div className="flex flex-col divide-y divide-border/30 rounded border border-border/30 bg-background/50 max-h-36 overflow-y-auto">
+              <ScrollArea size={24} className="flex flex-col divide-y divide-border/30 rounded border border-border/30 bg-background/50 max-h-36">
                 {commits.slice(0, 5).map((c, i) => (
                   <div key={c.id || i} className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -309,7 +314,7 @@ export function MrInlineItem({
                     …还有 {commits.length - 5} 个提交
                   </div>
                 )}
-              </div>
+              </ScrollArea>
             )}
           </div>
 
@@ -322,10 +327,10 @@ export function MrInlineItem({
                   <span>当前分支差异文件 ({diffs.length})</span>
                   <span className="font-mono text-[10px]">
                     {totalAdditions > 0 && (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+{totalAdditions} </span>
+                      <span className="text-success font-semibold">+{totalAdditions} </span>
                     )}
                     {totalDeletions > 0 && (
-                      <span className="text-rose-600 dark:text-rose-400 font-semibold">-{totalDeletions}</span>
+                      <span className="text-danger font-semibold">-{totalDeletions}</span>
                     )}
                   </span>
                 </div>
@@ -336,7 +341,7 @@ export function MrInlineItem({
                     variant="ghost"
                     size="xs"
                     className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-                    onClick={() => setInlineDiffOpen((v) => !v)}
+                    onPress={() => setInlineDiffOpen((v) => !v)}
                   >
                     {inlineDiffOpen ? '收起改动' : '展开改动'}
                   </Button>
@@ -345,7 +350,7 @@ export function MrInlineItem({
                     variant="outline"
                     size="xs"
                     className="h-5 px-1.5 text-[10px] gap-1"
-                    onClick={() => setDiffDrawerOpen(true)}
+                    onPress={() => setDiffDrawerOpen(true)}
                   >
                     <span>抽屉检视</span>
                     <FileCodeIcon className="size-2.5" />
@@ -369,7 +374,7 @@ export function MrInlineItem({
                 variant="ghost"
                 size="xs"
                 className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5"
-                onClick={() => void openExternal(mrUrl)}
+                onPress={() => void openExternal(mrUrl)}
                 title="在云效 Codeup 中查看完整讨论、历史评审与原始 Diff"
               >
                 <span>云效直达</span>
@@ -382,7 +387,7 @@ export function MrInlineItem({
                   variant="ghost"
                   size="xs"
                   className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5 text-xs"
-                  onClick={() => setDiffDrawerOpen(true)}
+                  onPress={() => setDiffDrawerOpen(true)}
                   title="在本地抽屉中完整查看当前分支差异"
                 >
                   <FileCodeIcon className="size-3 text-primary" />
@@ -404,7 +409,7 @@ export function MrInlineItem({
               )}
               {!isOpen && isMerged && commits.length > 0 && onCreateMr && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                  <span className="text-[11px] text-warning font-medium">
                     分支有 {commits.length} 条新提交未合入
                   </span>
                   <Button
@@ -412,7 +417,7 @@ export function MrInlineItem({
                     variant="default"
                     size="xs"
                     className="h-6 px-2 text-xs"
-                    onClick={onCreateMr}
+                    onPress={onCreateMr}
                   >
                     创建新 MR
                   </Button>
@@ -420,7 +425,7 @@ export function MrInlineItem({
               )}
             </div>
           </div>
-        </div>
+        </Surface>
       )}
 
       {/* 本地代码变更抽屉 (Linear Peek View) */}
@@ -449,7 +454,7 @@ export function MrInlineItem({
               variant="default"
               size="xs"
               className="h-7 px-2.5 text-xs"
-              onClick={() => {
+              onPress={() => {
                 setDiffDrawerOpen(false);
                 onCreateMr();
               }}
@@ -459,6 +464,6 @@ export function MrInlineItem({
           ) : null
         }
       />
-    </div>
+    </Card>
   );
 }

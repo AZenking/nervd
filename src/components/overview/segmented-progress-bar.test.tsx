@@ -1,7 +1,6 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import { LinearSegmentedProgressBar } from './segmented-progress-bar';
 
 // @ts-expect-error configure React testing environment
@@ -29,11 +28,9 @@ describe('LinearSegmentedProgressBar', () => {
   it('空数据时渲染极简灰色占位条', () => {
     act(() => {
       root?.render(
-        <TooltipProvider>
-          <LinearSegmentedProgressBar
-            breakdown={{ total: 0, completed: 0, inProgress: 0, blocked: 0, todo: 0, percent: 0 }}
-          />
-        </TooltipProvider>,
+        <LinearSegmentedProgressBar
+          breakdown={{ total: 0, completed: 0, inProgress: 0, blocked: 0, todo: 0, percent: 0 }}
+        />,
       );
     });
     expect(container?.querySelector('[aria-label="暂无工作项进度"]')).not.toBeNull();
@@ -42,11 +39,9 @@ describe('LinearSegmentedProgressBar', () => {
   it('正常数据时渲染多个分段色块', () => {
     act(() => {
       root?.render(
-        <TooltipProvider>
-          <LinearSegmentedProgressBar
-            breakdown={{ total: 10, completed: 5, inProgress: 3, blocked: 1, todo: 1, percent: 50 }}
-          />
-        </TooltipProvider>,
+        <LinearSegmentedProgressBar
+          breakdown={{ total: 10, completed: 5, inProgress: 3, blocked: 1, todo: 1, percent: 50 }}
+        />,
       );
     });
     const bar = container?.querySelector('[role="progressbar"]');

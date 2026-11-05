@@ -538,7 +538,7 @@ export function OverflowTooltip({
           align={align}
           sideOffset={sideOffset}
           className={cn(
-            'max-w-md break-words whitespace-normal text-xs leading-relaxed font-normal shadow-lg',
+            'max-w-md break-words whitespace-normal text-xs leading-relaxed font-normal',
             contentClassName,
           )}
         >

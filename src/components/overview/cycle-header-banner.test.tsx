@@ -1,7 +1,6 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import { CycleHeaderBanner } from './cycle-header-banner';
 
 // @ts-expect-error configure React testing environment
@@ -47,20 +46,18 @@ describe('CycleHeaderBanner', () => {
 
     act(() => {
       root?.render(
-        <TooltipProvider>
-          <CycleHeaderBanner
-            iteration={iteration}
-            breakdown={breakdown}
-            onOpenIterationWorkbench={handleOpen}
-          />
-        </TooltipProvider>,
+        <CycleHeaderBanner
+          iteration={iteration}
+          breakdown={breakdown}
+          onOpenIterationWorkbench={handleOpen}
+        />,
       );
     });
 
     expect(container?.textContent).toContain('Benz-20261016');
     expect(container?.textContent).toContain('进行中');
-    expect(container?.textContent).toContain('6 / 10');
-    expect(container?.textContent).toContain('60%');
+    expect(container?.textContent).toContain('共 10 项');
+    expect(container?.textContent).toContain('分页已完成');
     expect(container?.textContent).toContain('进入迭代工作台');
 
     const button = container?.querySelector('button:last-of-type') as HTMLButtonElement | null;
@@ -93,14 +90,12 @@ describe('CycleHeaderBanner', () => {
 
     act(() => {
       root?.render(
-        <TooltipProvider>
-          <CycleHeaderBanner
-            iteration={current}
-            iterations={[current, other]}
-            breakdown={breakdown}
-            onSelectIteration={handleSelect}
-          />
-        </TooltipProvider>,
+        <CycleHeaderBanner
+          iteration={current}
+          iterations={[current, other]}
+          breakdown={breakdown}
+          onSelectIteration={handleSelect}
+        />,
       );
     });
 
@@ -112,8 +107,8 @@ describe('CycleHeaderBanner', () => {
       trigger?.click();
     });
 
-    // 查找下拉菜单项
-    const items = document.querySelectorAll('[data-slot="dropdown-menu-item"]');
+    // 查找下拉菜单项（HeroUI 原生 Item）
+    const items = document.querySelectorAll('[data-slot="menu-item"], [role="menuitem"]');
     expect(items.length).toBe(2);
 
     const targetItem = Array.from(items).find((el) => el.textContent?.includes('Benz-20261030')) as HTMLElement | undefined;
@@ -123,6 +118,6 @@ describe('CycleHeaderBanner', () => {
       targetItem?.click();
     });
 
-    expect(handleSelect).toHaveBeenCalledWith('Benz-20261030');
+    expect(handleSelect).toHaveBeenCalledWith('iter-2');
   });
 });

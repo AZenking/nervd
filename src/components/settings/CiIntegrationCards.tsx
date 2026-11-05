@@ -8,17 +8,20 @@ import { useSettingsDraft } from '@/store/settings-draft';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { cn } from '@/lib/utils';
 import type { JenkinsConnection, RepoCiBinding } from '@/types';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { FieldError } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+import {
+  Button,
+  Checkbox,
+  Chip,
+  FieldError,
+  Input,
+  ListBox,
+  Select,
+  Tabs,
+  Tooltip,
+} from '@heroui/react';
 import { SearchableSelect } from '../searchable-select';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SettingsGroup } from './settings-group';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 /** Jenkins 实例管理卡（读写设置草稿；测试连接 / 验证 Job 的瞬态结果显示在卡内） */
 export function JenkinsInstancesCard() {
@@ -47,7 +50,7 @@ export function JenkinsInstancesCard() {
       title="Jenkins 实例"
       description="使用用户名和 API Token 连接 Jenkins 服务（Token 存于 macOS Keychain）"
       action={(
-        <Button type="button" variant="outline" size="sm" onClick={addJenkins}>
+        <Button type="button" variant="secondary" size="sm" onPress={addJenkins}>
           <PlusIcon data-icon="inline-start" />
           添加实例
         </Button>
@@ -103,35 +106,35 @@ export function JenkinsInstancesCard() {
               <div className="flex flex-wrap items-center gap-2 md:col-span-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
-                  disabled={isTesting}
-                  onClick={() => void testJenkins(connection)}
+                  isDisabled={isTesting}
+                  onPress={() => void testJenkins(connection)}
                 >
                   测试连接
                 </Button>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeJenkins(connection.id)}
-                      />
-                    }
-                  >
-                    <Trash2Icon data-icon="inline-start" />
-                    删除
-                  </TooltipTrigger>
-                  <TooltipContent>删除实例，并解除使用它的仓库 CI 绑定</TooltipContent>
+                <Tooltip delay={0}>
+                  <Tooltip.Trigger>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onPress={() => removeJenkins(connection.id)}
+                    >
+                      <Trash2Icon data-icon="inline-start" />
+                      删除
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content offset={4} placement="top">
+                    删除实例，并解除使用它的仓库 CI 绑定
+                  </Tooltip.Content>
                 </Tooltip>
                 {hasSavedToken ? (
-                  <Badge variant="secondary" className="text-xs text-emerald-600 dark:text-emerald-400">
+                  <Chip size="sm" variant="soft" color="success" className="text-xs">
                     Token 已保存
-                  </Badge>
+                  </Chip>
                 ) : draftToken ? (
-                  <span className="text-xs text-amber-500">Token 待保存</span>
+                  <span className="text-xs text-warning">Token 待保存</span>
                 ) : (
                   <span className="text-xs text-muted-foreground">尚未保存 Token</span>
                 )}
@@ -139,7 +142,7 @@ export function JenkinsInstancesCard() {
                   <span
                     className={cn(
                       'min-w-0 flex-1 whitespace-normal break-words text-xs',
-                      testSuccess && 'text-emerald-600 dark:text-emerald-400',
+                      testSuccess && 'text-success',
                       testFail && 'text-destructive',
                       !testSuccess && !testFail && 'text-muted-foreground',
                     )}
@@ -203,8 +206,8 @@ export function RepoCiBindingsCard() {
       description="每个仓库绑定一个默认 CI（云效 Flow 流水线或 Jenkins Job）；构建记录属于该仓库 Job"
       action={(
         <>
-          <Badge variant="outline">{Object.keys(bindings).length} 个绑定</Badge>
-          <Button type="button" variant="outline" size="sm" onClick={() => void loadPipelines()}>
+          <Chip size="sm" variant="secondary">{Object.keys(bindings).length} 个绑定</Chip>
+          <Button type="button" variant="secondary" size="sm" onPress={() => void loadPipelines()}>
             <RefreshCwIcon data-icon="inline-start" />
             刷新流水线
           </Button>
@@ -221,28 +224,37 @@ export function RepoCiBindingsCard() {
             onChange={(e) => setRepoFilter(e.target.value)}
           />
           {archivedCount > 0 && (
-            <Label className="cursor-pointer text-xs font-normal text-muted-foreground">
-              <Checkbox
-                checked={showArchived}
-                onCheckedChange={(v) => setShowArchived(v === true)}
-              />
-              显示已归档（{archivedCount}）
-            </Label>
+            <Checkbox
+              isSelected={showArchived}
+              onChange={(v) => setShowArchived(v)}
+              className="cursor-pointer text-xs font-normal text-muted-foreground"
+            >
+              <Checkbox.Content>
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                显示已归档（{archivedCount}）
+              </Checkbox.Content>
+            </Checkbox>
           )}
           <Tabs
-            value={boundOnly ? 'bound' : 'all'}
-            onValueChange={(v) => {
-              if (v) setBoundOnly(v === 'bound');
+            selectedKey={boundOnly ? 'bound' : 'all'}
+            onSelectionChange={(key) => {
+              if (key) setBoundOnly(key === 'bound');
             }}
           >
-            <TabsList size="xs">
-              <TabsTrigger value="bound">
-                已绑定 {boundCount}
-              </TabsTrigger>
-              <TabsTrigger value="all">
-                全部 {scoped.length}
-              </TabsTrigger>
-            </TabsList>
+            <Tabs.ListContainer className="w-fit">
+              <Tabs.List aria-label="仓库过滤">
+                <Tabs.Tab id="bound">
+                  已绑定 {boundCount}
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="all">
+                  全部 {scoped.length}
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs.ListContainer>
           </Tabs>
         </div>
       )}
@@ -263,12 +275,15 @@ export function RepoCiBindingsCard() {
           <div key={repo.id} className="flex flex-col gap-2.5 border-b border-border/50 px-4 py-3.5 last:border-b-0">
             <div className="flex flex-wrap items-center gap-2">
               <OverflowTooltip text={label} className="min-w-0 flex-1 truncate font-mono text-xs" />
-              <Badge variant={binding ? 'secondary' : 'outline'}>{binding ? '已绑定' : '未绑定'}</Badge>
-              <SearchableSelect
+              <Chip size="sm" variant={binding ? 'soft' : 'secondary'} color={binding ? 'accent' : 'default'}>
+                {binding ? '已绑定' : '未绑定'}
+              </Chip>
+              <Select
                 className="w-32 text-xs"
-                ariaLabel={`${label} CI 提供方`}
-                value={binding?.provider ?? 'none'}
-                onValueChange={(v) => {
+                aria-label={`${label} CI 提供方`}
+                selectedKey={binding?.provider ?? 'none'}
+                onSelectionChange={(key) => {
+                  const v = String(key);
                   if (!v || v === 'none') setRepoBinding(repo.id, null);
                   else if (v === 'flow') {
                     const pipeline = pipelines[0];
@@ -277,12 +292,19 @@ export function RepoCiBindingsCard() {
                     setRepoBinding(repo.id, { provider: 'jenkins', connectionId: (draft?.jenkinsConnections ?? [])[0]?.id ?? '', jobFullName: '' });
                   }
                 }}
-                items={[
-                  { label: '未绑定', value: 'none' },
-                  { label: '云效 Flow', value: 'flow' },
-                  { label: 'Jenkins', value: 'jenkins' },
-                ]}
-              />
+              >
+                <Select.Trigger className="h-7 text-xs">
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    <ListBox.Item id="none" textValue="未绑定">未绑定<ListBox.ItemIndicator /></ListBox.Item>
+                    <ListBox.Item id="flow" textValue="云效 Flow">云效 Flow<ListBox.ItemIndicator /></ListBox.Item>
+                    <ListBox.Item id="jenkins" textValue="Jenkins">Jenkins<ListBox.ItemIndicator /></ListBox.Item>
+                  </ListBox>
+                </Select.Popover>
+              </Select>
             </div>
             {binding?.provider === 'flow' && (
               <SearchableSelect
@@ -327,12 +349,20 @@ export function RepoCiBindingsCard() {
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="outline" size="sm" disabled={!canVerifyJob || !binding.connectionId || !binding.jobFullName.trim()} onClick={() => void verifyJenkinsJob(repo.id, binding)}>验证 Job</Button>
-                    {ciResults[`repo-${repo.id}`] && (
-                      <span className="min-w-0 flex-1 whitespace-normal break-words text-xs text-muted-foreground">
-                        {ciResults[`repo-${repo.id}`]}
-                      </span>
-                    )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    isDisabled={!canVerifyJob || !binding.connectionId || !binding.jobFullName.trim()}
+                    onPress={() => void verifyJenkinsJob(repo.id, binding)}
+                  >
+                    验证 Job
+                  </Button>
+                  {ciResults[`repo-${repo.id}`] && (
+                    <span className="min-w-0 flex-1 whitespace-normal break-words text-xs text-muted-foreground">
+                      {ciResults[`repo-${repo.id}`]}
+                    </span>
+                  )}
                 </div>
               </>
             )}

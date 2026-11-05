@@ -15,6 +15,9 @@ import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { RepoCiBindingFields } from './repo-ci-binding-fields';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -146,9 +149,9 @@ export function LinkRepoModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col gap-6">
+        <ScrollArea className="flex-1 min-h-0 pr-1 flex flex-col gap-6">
           {/* AI 智能推荐区域 */}
-          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 flex flex-col gap-3">
+          <Card className="border-primary/20 bg-primary/5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 min-w-0">
                 <SparklesIcon className="size-4 text-primary shrink-0" />
@@ -159,20 +162,22 @@ export function LinkRepoModal({
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {recommendedRepos.length > 0 && (
-                  <button
+                  <Button
                     type="button"
-                    onClick={onClearRecommendations}
-                    className="text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    variant="ghost"
+                    size="xs"
+                    onPress={onClearRecommendations}
+                    className="h-6 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     清空推荐
-                  </button>
+                  </Button>
                 )}
                 <Button
                   variant="outline"
                   size="xs"
                   disabled={recommendingRepos}
-                  onClick={() => void onRecommendRepos()}
-                  className="h-7 text-xs border-primary/30 bg-background hover:bg-primary/10 text-primary gap-1.5 cursor-pointer shadow-2xs"
+                  onPress={() => void onRecommendRepos()}
+                  className="h-7 text-xs border-primary/30 bg-background hover:bg-primary/10 text-primary gap-1.5 cursor-pointer"
                 >
                   {recommendingRepos ? (
                     <Loader2Icon className="size-3.5 animate-spin" />
@@ -197,10 +202,10 @@ export function LinkRepoModal({
                   const isCurrentLinking = linkingRepoId === rec.repoId;
 
                   return (
-                    <div
+                    <Card
                       key={rec.repoId}
                       className={cn(
-                        'flex flex-col justify-between gap-2.5 rounded-lg border p-3 transition-colors shadow-2xs bg-card',
+                        'justify-between p-3 transition-colors',
                         isAlreadyLinked
                           ? 'border-sig-ok/30 bg-sig-ok/5'
                           : 'border-primary/25 hover:border-primary/50',
@@ -216,9 +221,9 @@ export function LinkRepoModal({
                             />
                           </div>
                           {rec.confidence === 'high' && (
-                            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-sig-ok/10 text-sig-ok border border-sig-ok/20">
+                            <Chip size="sm" variant="soft" color="success" className="text-[10px] font-medium shrink-0">
                               高置信
-                            </span>
+                            </Chip>
                           )}
                         </div>
 
@@ -254,7 +259,7 @@ export function LinkRepoModal({
                           <Button
                             size="xs"
                             disabled={savingRepos || isCurrentLinking}
-                            onClick={() => void handleQuickLink(rec.repoId)}
+                            onPress={() => void handleQuickLink(rec.repoId)}
                             className="h-6.5 px-3 text-xs gap-1"
                           >
                             {isCurrentLinking ? (
@@ -266,7 +271,7 @@ export function LinkRepoModal({
                           </Button>
                         )}
                       </div>
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
@@ -281,7 +286,7 @@ export function LinkRepoModal({
                 <span>点击“智能分析相关仓库”，AI 将自动根据需求文本与历史提交，推荐匹配的代码仓库。</span>
               </div>
             )}
-          </div>
+          </Card>
 
           {/* 手动检索与选择关联区域 */}
           <div className="flex flex-col gap-4">
@@ -349,14 +354,14 @@ export function LinkRepoModal({
               />
             )}
           </div>
-        </div>
+        </ScrollArea>
 
         <DialogFooter className="shrink-0 flex items-center justify-end gap-2 pt-3 border-t border-border/70">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => onOpenChange(false)}
+            onPress={() => onOpenChange(false)}
             disabled={savingRepos}
           >
             取消
@@ -365,7 +370,7 @@ export function LinkRepoModal({
             type="button"
             variant="default"
             size="sm"
-            onClick={handleManualLink}
+            onPress={handleManualLink}
             disabled={!selectedRepoPath || savingRepos}
             className="gap-1.5"
           >

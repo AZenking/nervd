@@ -54,3 +54,5 @@ src-tauri/gen/
 .codegraph/*.pid
 .codegraph/*.db-shm
 .codegraph/*.db-wal
+# heroui-agents-md
+.heroui-docs/

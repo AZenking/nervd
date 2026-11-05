@@ -1,17 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Combobox as ComboboxPrimitive } from '@base-ui/react';
 import { fuzzyFilter } from '@/lib/fuzzy';
 import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-  ComboboxValue,
-} from '@/components/ui/combobox';
+  Autocomplete,
+  SearchField,
+  ListBox,
+} from '@/components/ui/autocomplete';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface SearchableSelectOption<V extends string | number | null> {
@@ -54,12 +49,13 @@ export function computeVirtualSlice(
 }
 
 /** 虚拟滚动列表组件：支持大体量数据（如成百上千的 Jenkins Job）的轻量视口渲染 */
-function VirtualComboboxList<T extends SearchableSelectOption<any>>({
+function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
+  items,
   emptyText,
 }: {
+  items: T[];
   emptyText: string;
 }) {
-  const filteredItems = ComboboxPrimitive.useFilteredItems<T>() || [];
   const [scrollTop, setScrollTop] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -69,28 +65,35 @@ function VirtualComboboxList<T extends SearchableSelectOption<any>>({
       containerRef.current.scrollTop = 0;
       setScrollTop(0);
     }
-  }, [filteredItems.length]);
+  }, [items.length]);
 
-  const totalCount = filteredItems.length;
+  const totalCount = items.length;
 
   if (totalCount === 0) {
-    return <ComboboxEmpty>{emptyText}</ComboboxEmpty>;
+    return (
+      <div className="py-3 text-center text-xs text-muted-foreground select-none">
+        {emptyText}
+      </div>
+    );
   }
 
   const { startIndex, endIndex, translateY, totalHeight } = computeVirtualSlice(
     totalCount,
     scrollTop,
   );
-  const visibleItems = filteredItems.slice(startIndex, endIndex);
+  const visibleItems = items.slice(startIndex, endIndex);
 
   return (
-    <div
+    <ScrollArea
       ref={containerRef}
       onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-      className="no-scrollbar max-h-[min(calc(var(--spacing)*72-var(--spacing)*9),calc(var(--available-height)-var(--spacing)*9))] scroll-py-1 overflow-y-auto overscroll-contain p-1"
+      hideScrollBar
+      className="max-h-[min(calc(var(--spacing)*72-var(--spacing)*9),calc(var(--available-height)-var(--spacing)*9))] scroll-py-1 overscroll-contain p-1"
       style={{ maxHeight: `${VIRTUAL_CONTAINER_HEIGHT}px` }}
       tabIndex={-1}
     >
+      {/* ListBox.Item 必须存活于 ListBox 集合上下文（react-aria CollectionBuilder 强约束）：
+          视口窗口 div 平移承载真正的 ListBox，仅渲染可见切片 */}
       <div style={{ height: `${totalHeight}px`, width: '100%', position: 'relative' }}>
         <div
           style={{
@@ -101,16 +104,17 @@ function VirtualComboboxList<T extends SearchableSelectOption<any>>({
             transform: `translateY(${translateY}px)`,
           }}
         >
-          {visibleItems.map((item, localIdx) => {
-            const actualIndex = startIndex + localIdx;
-            return (
-              <ComboboxItem
+          <ListBox className="w-full">
+            {visibleItems.map((item) => (
+              <ListBox.Item
                 key={String(item.value)}
-                value={item.value}
-                index={actualIndex}
-                disabled={item.disabled}
-                aria-label={item.label}
-                className={item.className}
+                id={String(item.value)}
+                textValue={item.label}
+                isDisabled={item.disabled}
+                className={cn(
+                  'cursor-pointer text-xs py-1.5 px-2 flex items-center justify-between gap-2',
+                  item.className,
+                )}
               >
                 {item.badge ? (
                   <span className="flex items-center justify-between gap-2 w-full min-w-0">
@@ -120,17 +124,18 @@ function VirtualComboboxList<T extends SearchableSelectOption<any>>({
                 ) : (
                   <OverflowTooltip text={item.label} className="block min-w-0 max-w-full truncate" />
                 )}
-              </ComboboxItem>
-            );
-          })}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
         </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }
 
 /**
- * 可搜索下拉选择：Combobox（Base UI）封装，视觉与 SelectTrigger 对齐。
+ * 可搜索下拉选择：HeroUI Autocomplete 封装，视觉与 SelectTrigger 对齐。
  * 列表顶部内置搜索输入，输入时按 label 大小写不敏感过滤。
  * allowCustomValue：允许提交列表外的自由文本（替代原生 datalist），输入非匹配值时
  * 列表顶部出现「使用「xxx」」候选项。
@@ -204,69 +209,88 @@ export function SearchableSelect<V extends string | number | null>({
   const showRawValue = !selected && value != null && value !== '';
   const isVirtualized = virtualized ?? displayItems.length >= AUTO_VIRTUALIZE_THRESHOLD;
 
+  const resolvedValue = showRawValue ? null : (value != null ? String(value) : null);
+
   return (
-    <Combobox<ItemValue>
-      virtualized={isVirtualized}
-      filter={fuzzy ? null : undefined}
-      value={(showRawValue ? null : (value ?? null)) as ItemValue | null}
+    <Autocomplete
+      value={resolvedValue}
       onValueChange={(v) => {
         if (v === CUSTOM_VALUE_SENTINEL) {
           onValueChange(trimmedKeyword as V);
           return;
         }
-        onValueChange((v ?? null) as V | null);
+        if (v === null || v === undefined) {
+          onValueChange(null);
+          return;
+        }
+        const matched = items.find((item) => String(item.value) === v);
+        onValueChange((matched ? matched.value : v) as V);
       }}
-      items={displayItems}
       disabled={disabled}
-      onInputValueChange={(next) => setInputValue(next)}
+      className={className}
     >
-      <ComboboxTrigger
+      <Autocomplete.Trigger
         id={id}
         aria-label={ariaLabel}
-        disabled={disabled}
-        className={cn(
-          'flex h-8 w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 rounded-md border border-border bg-background py-1 pr-2 pl-2.5 text-left text-[13px] whitespace-nowrap transition-colors outline-none select-none hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50',
-          className,
-        )}
+        // 视觉对齐 HeroUI 原生 field 触发器（rounded-field / bg-field / 悬停聚焦态由
+        // .autocomplete__trigger 提供），仅保留宽度与透传样式，严禁叠加 HeroUI 原生形态之外的样式。
+        className={cn('w-full', className)}
       >
         {selected || showRawValue ? (
           <OverflowTooltip
             text={selected?.label ?? String(value)}
-            className={cn(
-              'flex min-w-0 flex-1 items-center truncate',
-              !selected && showRawValue && 'text-foreground',
-            )}
+            className="flex min-w-0 flex-1 items-center truncate"
           >
-            {showRawValue
-              ? String(value)
-              : selected?.label}
+            {showRawValue ? String(value) : selected?.label}
           </OverflowTooltip>
         ) : (
-          <span className="flex min-w-0 flex-1 items-center truncate text-muted-foreground">
-            <ComboboxValue placeholder={placeholder} />
-          </span>
+          <Autocomplete.Value placeholder={placeholder} />
         )}
-      </ComboboxTrigger>
-      <ComboboxContent
+        <Autocomplete.Indicator />
+      </Autocomplete.Trigger>
+      <Autocomplete.Popover
         className={cn(
           'min-w-[max(var(--anchor-width),300px)] max-w-[min(var(--available-width),560px)]',
           popupClassName,
         )}
         style={{ minWidth: 'max(var(--anchor-width, 0px), 300px)' }}
       >
-        <ComboboxInput placeholder={searchPlaceholder} showTrigger={false} />
+        <SearchField aria-label={searchPlaceholder}>
+          <SearchField.Group>
+            <SearchField.SearchIcon />
+            <SearchField.Input
+              placeholder={searchPlaceholder}
+              value={inputValue}
+              onChange={(e: any) => setInputValue(typeof e === 'string' ? e : e?.target?.value ?? '')}
+            />
+            {inputValue && (
+              <SearchField.ClearButton onPress={() => setInputValue('')} />
+            )}
+          </SearchField.Group>
+        </SearchField>
         {isVirtualized ? (
-          <VirtualComboboxList<SearchableSelectOption<ItemValue>> emptyText={emptyText} />
+          <VirtualAutocompleteList<SearchableSelectOption<ItemValue>>
+            items={displayItems}
+            emptyText={emptyText}
+          />
         ) : (
-          <>
-            <ComboboxList>
-              {(item: SearchableSelectOption<ItemValue>) => (
-                <ComboboxItem
+          <ScrollArea size={24} className="max-h-60 p-1">
+          <ListBox className="w-full">
+            {displayItems.length === 0 ? (
+              <div className="py-3 text-center text-xs text-muted-foreground select-none">
+                {emptyText}
+              </div>
+            ) : (
+              displayItems.map((item) => (
+                <ListBox.Item
                   key={String(item.value)}
-                  value={item.value}
-                  disabled={item.disabled}
-                  aria-label={item.label}
-                  className={item.className}
+                  id={String(item.value)}
+                  textValue={item.label}
+                  isDisabled={item.disabled}
+                  className={cn(
+                    'cursor-pointer text-xs py-1.5 px-2 flex items-center justify-between gap-2',
+                    item.className,
+                  )}
                 >
                   {item.badge ? (
                     <span className="flex items-center justify-between gap-2 w-full min-w-0">
@@ -276,13 +300,14 @@ export function SearchableSelect<V extends string | number | null>({
                   ) : (
                     <OverflowTooltip text={item.label} className="block min-w-0 max-w-full truncate" />
                   )}
-                </ComboboxItem>
-              )}
-            </ComboboxList>
-            <ComboboxEmpty>{emptyText}</ComboboxEmpty>
-          </>
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))
+            )}
+          </ListBox>
+          </ScrollArea>
         )}
-      </ComboboxContent>
-    </Combobox>
+      </Autocomplete.Popover>
+    </Autocomplete>
   );
 }

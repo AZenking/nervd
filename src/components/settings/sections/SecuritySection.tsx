@@ -1,7 +1,5 @@
-import { ShieldAlertIcon, ShieldCheckIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useSettingsDraft } from '@/store/settings-draft';
-import { Badge } from '@/components/ui/badge';
+import { Alert, Chip } from '@heroui/react';
 import { Switch } from '@/components/ui/switch';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 
@@ -20,13 +18,11 @@ export function SecuritySection() {
             <span className="flex items-center gap-2">
               <span>允许写操作</span>
               {draft.draft?.allowWriteOps ? (
-                <Badge variant="destructive" className="h-5 px-1.5 text-[11px] font-normal">
+                <Chip size="sm" color="danger" variant="soft">
                   写操作已开启
-                </Badge>
+                </Chip>
               ) : (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[11px] font-normal text-muted-foreground">
-                  只读保护中
-                </Badge>
+                <Chip size="sm" variant="soft">只读保护中</Chip>
               )}
             </span>
           )}
@@ -35,37 +31,28 @@ export function SecuritySection() {
           control={(
             <Switch
               id="allow-write-ops"
-              checked={draft.draft?.allowWriteOps ?? false}
-              onCheckedChange={(v) => draft.update({ allowWriteOps: v }, true)}
+              aria-label="允许写操作"
+              size="md"
+              isSelected={draft.draft?.allowWriteOps ?? false}
+              onChange={(v) => draft.update({ allowWriteOps: v }, true)}
             />
           )}
         />
 
-        {/* 模式状态提示栏 */}
-        <div
-          className={cn(
-            'flex flex-col gap-2.5 border-t px-4 py-3.5 transition-colors sm:flex-row sm:items-start sm:gap-3',
-            draft.draft?.allowWriteOps
-              ? 'border-destructive/20 bg-destructive/5 text-destructive-foreground'
-              : 'border-border/50 bg-muted/20 text-muted-foreground',
-          )}
-        >
-          {draft.draft?.allowWriteOps ? (
-            <ShieldAlertIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
-          ) : (
-            <ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-          )}
-          <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
-            <span className={cn('font-medium', draft.draft?.allowWriteOps ? 'text-destructive' : 'text-foreground')}>
+        {/* 模式状态提示栏（HeroUI Alert 标准槽位：Indicator + Title/Description） */}
+        <Alert status={draft.draft?.allowWriteOps ? 'danger' : 'success'}>
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
               {draft.draft?.allowWriteOps ? '注意：写操作已对真实资源生效' : '当前处于只读保护状态'}
-            </span>
-            <p className="leading-relaxed text-muted-foreground">
+            </Alert.Title>
+            <Alert.Description>
               {draft.draft?.allowWriteOps
                 ? '客户端内的所有创建分支、合并代码或触发构建操作都将直接同步至云效线上。请确保当前使用的个人访问令牌（PAT）拥有相应仓库及流水线的写权限。'
                 : '所有具有破坏性或变更线上数据的操作均已被锁定。你可以安全浏览需求、关联代码与流水线运行日志，不用担心误触或修改云效线上真实资源。'}
-            </p>
-          </div>
-        </div>
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
       </SettingsGroup>
 
       <SettingsGroup
@@ -77,9 +64,9 @@ export function SecuritySection() {
           label="本地凭据安全存储"
           description="个人访问令牌（PAT）仅加密保存在 macOS 系统钥匙串（Keychain）中，不以明文落盘，不进行任何远程遥测上报。"
           control={(
-            <Badge variant="outline" className="border-border bg-muted/40 font-mono text-[11px] text-muted-foreground">
+            <Chip size="sm" variant="soft" color="success" className="font-mono">
               macOS Keychain
-            </Badge>
+            </Chip>
           )}
         />
         <SettingsRow
@@ -87,9 +74,9 @@ export function SecuritySection() {
           label="核心层双重拦截保护"
           description="当允许写操作未开启时，除了前端界面按钮置灰外，Tauri 后端（Rust IPC 命令层）会统一执行二次门控拦截，双重保障资源安全。"
           control={(
-            <Badge variant="outline" className="border-border bg-muted/40 font-mono text-[11px] text-muted-foreground">
+            <Chip size="sm" variant="soft" color="success" className="font-mono">
               Rust Core Gated
-            </Badge>
+            </Chip>
           )}
         />
       </SettingsGroup>

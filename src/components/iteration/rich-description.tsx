@@ -4,6 +4,7 @@ import * as api from '@/lib/api';
 import { extractRichHtml, extractRichImageUrls } from '@/lib/richtext';
 import { RichEditor } from '@/components/ui/rich-editor';
 import { Button } from '@/components/ui/button';
+import { Kbd } from '@/components/ui/kbd';
 import { useApp } from '@/store/app';
 import { cn } from '@/lib/utils';
 
@@ -147,8 +148,8 @@ export function RichDescription({
           />
           <div className="flex items-center justify-between pt-2 border-t border-border/60">
             <span className="text-[11px] text-muted-foreground">
-              按 <kbd className="font-mono px-1 py-0.5 rounded bg-muted text-[10px]">⌘ + Enter</kbd> 保存，
-              <kbd className="font-mono px-1 py-0.5 rounded bg-muted text-[10px]">Esc</kbd> 取消
+              按 <Kbd className="h-5! px-1.5! text-[10px]!">⌘ + Enter</Kbd> 保存，
+              <Kbd className="h-5! px-1.5! text-[10px]!">Esc</Kbd> 取消
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -189,7 +190,7 @@ export function RichDescription({
                     variant="ghost"
                     size="xs"
                     onClick={handleStartEdit}
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground bg-background/80 backdrop-blur-xs border border-border/60 shadow-2xs"
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground bg-background/80 backdrop-blur-xs border border-border/60 shadow-level-2"
                     title="编辑描述 (双击正文亦可快速编辑)"
                   >
                     <PencilIcon className="size-3 mr-1" />
@@ -243,7 +244,7 @@ export function RichDescription({
                   src={resolved[img.url]}
                   alt={img.name}
                   title={img.name}
-                  className="h-auto max-h-80 w-auto max-w-full rounded border border-border shadow-xs"
+                  className="h-auto max-h-80 w-auto max-w-full rounded border border-border"
                 />
               ))}
             </div>

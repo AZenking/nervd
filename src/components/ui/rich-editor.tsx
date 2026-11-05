@@ -142,7 +142,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleBold().run()}
+            onPress={() => editor.chain().focus().toggleBold().run()}
             className={cn(editor.isActive('bold') && 'bg-accent text-accent-foreground')}
             title="加粗 (⌘+B)"
           >
@@ -152,7 +152,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleItalic().run()}
+            onPress={() => editor.chain().focus().toggleItalic().run()}
             className={cn(editor.isActive('italic') && 'bg-accent text-accent-foreground')}
             title="斜体 (⌘+I)"
           >
@@ -162,7 +162,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleStrike().run()}
+            onPress={() => editor.chain().focus().toggleStrike().run()}
             className={cn(editor.isActive('strike') && 'bg-accent text-accent-foreground')}
             title="删除线"
           >
@@ -172,7 +172,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleCode().run()}
+            onPress={() => editor.chain().focus().toggleCode().run()}
             className={cn(editor.isActive('code') && 'bg-accent text-accent-foreground')}
             title="行内代码"
           >
@@ -185,7 +185,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+            onPress={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
             className={cn(editor.isActive('heading', { level: 1 }) && 'bg-accent text-accent-foreground')}
             title="一级标题 (# + 空格)"
           >
@@ -195,7 +195,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+            onPress={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
             className={cn(editor.isActive('heading', { level: 2 }) && 'bg-accent text-accent-foreground')}
             title="二级标题 (## + 空格)"
           >
@@ -205,7 +205,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+            onPress={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
             className={cn(editor.isActive('heading', { level: 3 }) && 'bg-accent text-accent-foreground')}
             title="三级标题 (### + 空格)"
           >
@@ -218,7 +218,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            onPress={() => editor.chain().focus().toggleBulletList().run()}
             className={cn(editor.isActive('bulletList') && 'bg-accent text-accent-foreground')}
             title="无序列表 (- + 空格)"
           >
@@ -228,7 +228,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            onPress={() => editor.chain().focus().toggleOrderedList().run()}
             className={cn(editor.isActive('orderedList') && 'bg-accent text-accent-foreground')}
             title="有序列表 (1. + 空格)"
           >
@@ -238,7 +238,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+            onPress={() => editor.chain().focus().toggleBlockquote().run()}
             className={cn(editor.isActive('blockquote') && 'bg-accent text-accent-foreground')}
             title="引用块 (> + 空格)"
           >
@@ -251,7 +251,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().undo().run()}
+            onPress={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().undo()}
             title="撤销 (⌘+Z)"
           >
@@ -261,7 +261,7 @@ export function RichEditor({
             type="button"
             variant="ghost"
             size="icon-xs"
-            onClick={() => editor.chain().focus().redo().run()}
+            onPress={() => editor.chain().focus().redo().run()}
             disabled={!editor.can().redo()}
             title="重做 (⌘+⇧+Z)"
           >

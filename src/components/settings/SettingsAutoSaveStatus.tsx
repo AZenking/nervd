@@ -1,6 +1,6 @@
 import { AlertCircleIcon, CheckIcon, RefreshCwIcon, RotateCcwIcon } from 'lucide-react';
 import { useSettingsDraft } from '@/store/settings-draft';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button, Tooltip } from '@heroui/react';
 
 function formatSavedTime(timestamp: number): string {
   const date = new Date(timestamp);
@@ -39,86 +39,67 @@ export function SettingsAutoSaveStatus() {
     });
 
     return (
-      <TooltipProvider>
-        <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <div className="flex cursor-help items-center gap-1.5 text-xs text-destructive select-none">
-                  <AlertCircleIcon className="size-3" />
-                  <span>{errorCount > 0 ? `存在 ${errorCount} 处待修正` : '保存失败'}</span>
-                </div>
-              }
-            />
-            <TooltipContent side="bottom" align="end" className="max-w-xs flex flex-col gap-1 text-[11px]">
-              <span className="font-semibold text-destructive-foreground">保存未完成：</span>
-              {errorMessages.length > 0 ? (
-                <ul className="list-disc pl-3 text-muted-foreground/90 space-y-0.5">
-                  {errorMessages.map((msg, i) => (
-                    <li key={i}>{msg}</li>
-                  ))}
-                </ul>
-              ) : (
-                <span>网络连接或权限异常，请点击重试。</span>
-              )}
-            </TooltipContent>
-          </Tooltip>
-          <button
-            type="button"
-            onClick={() => void retrySave()}
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
-            title="重新尝试保存"
-          >
-            <RotateCcwIcon className="size-2.5" />
-            <span>重试</span>
-          </button>
-        </div>
-      </TooltipProvider>
+      <div className="flex items-center gap-2">
+        <Tooltip delay={0}>
+          <Tooltip.Trigger className="flex cursor-help items-center gap-1.5 text-xs text-destructive select-none">
+            <AlertCircleIcon className="size-3" />
+            <span>{errorCount > 0 ? `存在 ${errorCount} 处待修正` : '保存失败'}</span>
+          </Tooltip.Trigger>
+          <Tooltip.Content offset={4} placement="bottom end" className="max-w-xs flex flex-col gap-1 text-[11px]">
+            <span className="font-semibold text-destructive-foreground">保存未完成：</span>
+            {errorMessages.length > 0 ? (
+              <ul className="list-disc pl-3 text-muted-foreground/90 space-y-0.5">
+                {errorMessages.map((msg, i) => (
+                  <li key={i}>{msg}</li>
+                ))}
+              </ul>
+            ) : (
+              <span>网络连接或权限异常，请点击重试。</span>
+            )}
+          </Tooltip.Content>
+        </Tooltip>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onPress={() => void retrySave()}
+          className="h-5 gap-1 px-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+          aria-label="重新尝试保存"
+        >
+          <RotateCcwIcon className="size-2.5" />
+          <span>重试</span>
+        </Button>
+      </div>
     );
   }
 
   if (autoSaveStatus === 'unsaved') {
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => void flushAutoSave()}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors select-none"
-                title="点击立即保存"
-              >
-                <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                <span>未保存</span>
-              </button>
-            }
-          />
-          <TooltipContent side="bottom" align="end" className="text-[11px]">
-            检测到本地草稿改动，停止输入后将自动保存（或点击立即保存）
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip delay={0}>
+        <Tooltip.Trigger
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors select-none"
+          onClick={() => void flushAutoSave()}
+        >
+          <span className="size-1.5 rounded-full bg-warning animate-pulse" />
+          <span>未保存</span>
+        </Tooltip.Trigger>
+        <Tooltip.Content offset={4} placement="bottom end" className="text-[11px]">
+          检测到本地草稿改动，停止输入后将自动保存（或点击立即保存）
+        </Tooltip.Content>
+      </Tooltip>
     );
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-default">
-              <CheckIcon className="size-3 text-emerald-500" />
-              <span>已自动保存</span>
-            </div>
-          }
-        />
-        <TooltipContent side="bottom" align="end" className="text-[11px]">
-          所有配置均已持久化至本地
-          {lastSavedAt ? ` · 最近于 ${formatSavedTime(lastSavedAt)}` : ''}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip delay={0}>
+      <Tooltip.Trigger className="flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-default">
+        <CheckIcon className="size-3 text-success" />
+        <span>已自动保存</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content offset={4} placement="bottom end" className="text-[11px]">
+        所有配置均已持久化至本地
+        {lastSavedAt ? ` · 最近于 ${formatSavedTime(lastSavedAt)}` : ''}
+      </Tooltip.Content>
+    </Tooltip>
   );
 }
-

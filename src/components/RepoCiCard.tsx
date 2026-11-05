@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { Surface } from '@heroui/react';
 import { useApp } from '../store/app';
 import { formatDateTime, formatDuration } from '../lib/format';
 import { humanizeError } from '@/lib/error-format';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RefreshCwIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -39,7 +41,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
   };
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-muted/40">
+    <Card className="transition-colors">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={snapshot?.status} />
         <OverflowTooltip
@@ -55,7 +57,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
                 size="icon-sm"
                 aria-label="刷新 CI 状态"
                 disabled={refreshing || entry?.loading}
-                onClick={() => void refresh()}
+                onPress={() => void refresh()}
               />
             }
           >
@@ -85,22 +87,22 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
               最近构建 · 仓库 Job 历史
             </div>
             {snapshot.runs.map((run) => (
-              <div key={run.runId} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border bg-muted/45 px-2.5 py-2 text-xs">
+              <Surface key={run.runId} variant="secondary" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/50 px-2.5 py-2 text-xs">
                 <StatusBadge status={run.status} size="sm" />
-                <span className="font-log text-foreground">#{run.runId}</span>
+                <span className="font-mono text-foreground">#{run.runId}</span>
                 <span className="ml-auto text-muted-foreground">{when(run.startTime)}</span>
                 <span className="text-muted-foreground">{duration(run.durationMs)}</span>
-                <Button variant="ghost" size="xs" onClick={() => openRepoBuildLogs(repoId, run.runId, `${repoName} · ${snapshot.name} #${run.runId}`)}>
+                <Button variant="ghost" size="xs" onPress={() => openRepoBuildLogs(repoId, run.runId, `${repoName} · ${snapshot.name} #${run.runId}`)}>
                   查看日志
                 </Button>
-              </div>
+              </Surface>
             ))}
             {!snapshot.runs.length && <p className="px-2 py-2 text-xs text-muted-foreground">此 Job 尚无构建记录。</p>}
           </div>
           {runTrigger()}
         </>
       )}
-    </section>
+    </Card>
   );
 
   function runTrigger() {

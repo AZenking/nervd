@@ -38,9 +38,9 @@ describe('HealthDistributionCard', () => {
       root?.render(<HealthDistributionCard items={items} />);
     });
 
-    const statusTexts = Array.from(container?.querySelectorAll('span.w-20') ?? []).map(
-      (el) => el.textContent,
-    );
+    const statusTexts = Array.from(
+      container?.querySelectorAll('[aria-label="状态分布文本统计"] li > span:nth-of-type(2)') ?? [],
+    ).map((el) => el.textContent);
 
     // 进行中(Run)应在最前，阻塞(Fail)其次，待排期(Idle)再次，已完成(Ok)最后
     expect(statusTexts).toEqual(['进行中', '阻塞', '待排期', '已完成']);

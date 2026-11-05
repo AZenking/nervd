@@ -6,14 +6,12 @@ import {
 import {
   deleteAiApiKey, getAiSettings, saveAiApiKey, saveAiSettings, testAiConnection,
 } from '@/lib/ai-api';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/components/ui/toast';
+import { Button, Chip, Input, TextArea, toast } from '@heroui/react';
 import { cn } from '@/lib/utils';
-import type { AiCustomPrompts, AiProvider, AiSettingsView, AiTestConnectionResult } from '@/types/ai';
+import type { AiBreakdownMode, AiCustomPrompts, AiProvider, AiSettingsView, AiTestConnectionResult } from '@/types/ai';
 import { SettingsGroup, SettingsRow } from '../settings-group';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const PROVIDER_PRESETS: Record<AiProvider, { name: string; baseUrl: string; defaultModel: string; hint: string }> = {
   dashscope: {
@@ -100,8 +98,10 @@ export function AiSection() {
         defaultBreakdownTags: next.defaultBreakdownTags,
         customPrompts: next.customPrompts,
       });
-    } catch {
-      toast.add({ title: '保存 AI 设置失败', type: 'error' });
+    } catch (e) {
+      toast.danger('保存 AI 设置失败', {
+        description: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -112,25 +112,22 @@ export function AiSection() {
       baseUrl: preset.baseUrl,
       model: preset.defaultModel,
     });
+    setTestResult(null);
   };
 
   const handleSaveApiKey = async () => {
-    const trimmed = apiKeyInput.trim();
-    if (!trimmed) return;
+    if (!apiKeyInput.trim()) return;
     setSavingKey(true);
     try {
-      await saveAiApiKey(trimmed);
+      await saveAiApiKey(apiKeyInput.trim());
       setSettings((prev) => ({ ...prev, hasApiKey: true }));
       setApiKeyInput('');
-      toast.add({
-        title: 'API 密钥已安全存入 macOS Keychain',
-        type: 'success',
-      });
-    } catch (err) {
-      toast.add({
-        title: '保存 API 密钥失败',
-        description: String(err),
-        type: 'error',
+      setShowApiKey(false);
+      toast.success('API Key 已安全保存至 Keychain');
+      setTestResult(null);
+    } catch (e) {
+      toast.danger('保存 API Key 失败', {
+        description: e instanceof Error ? e.message : String(e),
       });
     } finally {
       setSavingKey(false);
@@ -142,15 +139,11 @@ export function AiSection() {
     try {
       await deleteAiApiKey();
       setSettings((prev) => ({ ...prev, hasApiKey: false }));
-      toast.add({
-        title: '已从 Keychain 清除 API 密钥',
-        type: 'info',
-      });
-    } catch (err) {
-      toast.add({
-        title: '删除 API 密钥失败',
-        description: String(err),
-        type: 'error',
+      toast.success('已清除保存在 Keychain 中的 API Key');
+      setTestResult(null);
+    } catch (e) {
+      toast.danger('清除 API Key 失败', {
+        description: e instanceof Error ? e.message : String(e),
       });
     } finally {
       setDeletingKey(false);
@@ -163,38 +156,30 @@ export function AiSection() {
     try {
       const res = await testAiConnection();
       setTestResult(res);
-      toast.add({
-        title: '连接成功',
-        description: `延迟 ${res.latencyMs}ms · 响应: ${res.reply.slice(0, 30)}`,
-        type: 'success',
-      });
-    } catch (err) {
-      const msg = String(err);
-      toast.add({
-        title: '连接失败',
-        description: msg,
-        type: 'error',
+      if (res.ok) {
+        toast.success(`连接成功 (${res.latencyMs}ms)`, {
+          description: `模型响应正常: ${res.reply || 'OK'}`,
+        });
+      } else {
+        toast.danger('连通性测试未通过', {
+          description: '未能获得有效模型响应',
+        });
+      }
+    } catch (e) {
+      toast.danger('测试请求异常', {
+        description: e instanceof Error ? e.message : String(e),
       });
     } finally {
       setTesting(false);
     }
   };
 
-  const toggleTag = (tag: string) => {
-    const exists = settings.defaultBreakdownTags.includes(tag);
-    const nextTags = exists
-      ? settings.defaultBreakdownTags.filter((t) => t !== tag)
-      : [...settings.defaultBreakdownTags, tag];
-    if (nextTags.length === 0) return; // 至少保留一个 tag
-    void handleUpdate({ defaultBreakdownTags: nextTags });
-  };
-
   const handleUpdatePrompt = (key: keyof AiCustomPrompts, value: string) => {
-    const updated: AiCustomPrompts = {
-      ...(settings.customPrompts || {}),
-      [key]: value,
+    const nextPrompts = {
+      ...settings.customPrompts,
+      [key]: value.trim() ? value : undefined,
     };
-    void handleUpdate({ customPrompts: updated });
+    void handleUpdate({ customPrompts: nextPrompts });
   };
 
   if (loading) {
@@ -215,16 +200,16 @@ export function AiSection() {
         action={
           <div className="flex items-center gap-2">
             {testResult && (
-              <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-xs">
+              <Chip size="sm" variant="secondary" color="success" className="font-mono text-xs">
                 <CheckIcon className="size-3 mr-1 inline" />
                 {testResult.latencyMs}ms 连通正常
-              </Badge>
+              </Chip>
             )}
             <Button
-              size="xs"
-              variant="outline"
-              disabled={testing || !settings.hasApiKey}
-              onClick={() => void handleTestConnection()}
+              size="sm"
+              variant="secondary"
+              isDisabled={testing || !settings.hasApiKey}
+              onPress={() => void handleTestConnection()}
             >
               {testing ? (
                 <>
@@ -241,32 +226,26 @@ export function AiSection() {
           </div>
         }
       >
-        {/* 服务商预设切换 */}
+        {/* 服务商预设切换（HeroUI Tabs 分段控件：单选语义与指示器动画，替代原 Button 药丸组） */}
         <SettingsRow
           orientation="vertical"
           label="服务商预设"
           description={PROVIDER_PRESETS[settings.provider].hint}
           control={
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              {(Object.keys(PROVIDER_PRESETS) as AiProvider[]).map((p) => {
-                const isSelected = settings.provider === p;
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => handleProviderChange(p)}
-                    className={cn(
-                      'cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors border',
-                      isSelected
-                        ? 'border-primary bg-primary text-primary-foreground font-semibold shadow-xs'
-                        : 'border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted/80 hover:text-foreground',
-                    )}
-                  >
+            <Tabs
+              value={settings.provider}
+              onValueChange={(v) => {
+                if (v) handleProviderChange(v as AiProvider);
+              }}
+            >
+              <TabsList size="sm" containerClassName="max-w-full overflow-x-auto">
+                {(Object.keys(PROVIDER_PRESETS) as AiProvider[]).map((p) => (
+                  <TabsTrigger key={p} value={p} className="text-xs">
                     {PROVIDER_PRESETS[p].name}
-                  </button>
-                );
-              })}
-            </div>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
           }
         />
 
@@ -284,7 +263,7 @@ export function AiSection() {
                 className="h-8 font-mono text-xs bg-background"
               />
               {settings.baseUrl.includes('/messages') && (
-                <p className="text-[11px] text-amber-500/90 dark:text-amber-400/90">
+                <p className="text-[11px] text-warning/90">
                   检测到包含 /messages：nervd 遵循 OpenAI 协议标准，后台已自动转换为 /chat/completions。如果您的服务为 OpenAI 兼容接口，建议直接填写基准路径（如 https://.../v1）。
                 </p>
               )}
@@ -324,14 +303,14 @@ export function AiSection() {
             <div className="flex items-center gap-2">
               <span>API Key</span>
               {settings.hasApiKey ? (
-                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-normal">
+                <Chip size="sm" variant="secondary" color="success" className="text-[11px] font-normal">
                   <KeyRoundIcon className="size-3 mr-1 inline" />
                   已安全保存在 macOS Keychain
-                </Badge>
+                </Chip>
               ) : (
-                <Badge variant="secondary" className="text-[11px] font-normal text-muted-foreground">
+                <Chip size="sm" variant="soft" className="text-[11px] font-normal text-muted-foreground">
                   未配置密钥
-                </Badge>
+                </Chip>
               )}
             </div>
           }
@@ -350,28 +329,29 @@ export function AiSection() {
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"
                 >
                   {showApiKey ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
                 </button>
               </div>
 
               <Button
-                size="xs"
-                disabled={savingKey || !apiKeyInput.trim()}
-                onClick={() => void handleSaveApiKey()}
+                size="sm"
+                variant="primary"
+                isDisabled={savingKey || !apiKeyInput.trim()}
+                onPress={() => void handleSaveApiKey()}
               >
                 {savingKey ? '保存中…' : '保存至 Keychain'}
               </Button>
 
               {settings.hasApiKey && (
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="ghost"
                   className="text-destructive hover:bg-destructive/10"
-                  disabled={deletingKey}
-                  onClick={() => void handleDeleteApiKey()}
-                  title="清除保存在 Keychain 中的 API Key"
+                  isDisabled={deletingKey}
+                  onPress={() => void handleDeleteApiKey()}
+                  aria-label="清除保存在 Keychain 中的 API Key"
                 >
                   <Trash2Icon className="size-3.5 mr-1" />
                   清除
@@ -393,30 +373,21 @@ export function AiSection() {
           label="拆解执行模式"
           description="选择生成子任务后的交互流程。"
           control={
-            <div className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 p-1">
-              <button
-                type="button"
-                onClick={() => void handleUpdate({ breakdownMode: 'review' })}
-                className={`cursor-pointer rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                  settings.breakdownMode === 'review'
-                    ? 'bg-background text-foreground shadow-xs font-semibold'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                弹窗二次确认 (推荐)
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleUpdate({ breakdownMode: 'direct' })}
-                className={`cursor-pointer rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                  settings.breakdownMode === 'direct'
-                    ? 'bg-background text-foreground shadow-xs font-semibold'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                一键直达生成
-              </button>
-            </div>
+            <Tabs
+              value={settings.breakdownMode}
+              onValueChange={(v) => {
+                if (v) void handleUpdate({ breakdownMode: v as AiBreakdownMode });
+              }}
+            >
+              <TabsList size="sm">
+                <TabsTrigger value="review" className="text-xs">
+                  弹窗二次确认 (推荐)
+                </TabsTrigger>
+                <TabsTrigger value="direct" className="text-xs">
+                  一键直达生成
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           }
         />
 
@@ -433,33 +404,48 @@ export function AiSection() {
           )}
         </div>
 
-        {/* 默认拆解维度标签 */}
+        {/* 默认拆解维度标签（HeroUI ToggleButtonGroup 多选：选中态 primary 实色胶囊 + 勾选图标） */}
         <SettingsRow
           orientation="vertical"
           label="默认拆解维度标签 (Tags)"
           description="AI 拆解时将定向产出被选中的工程维度任务条目（至少保留一项）。"
           control={
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            <ToggleGroup
+              selectionMode="multiple"
+              size="sm"
+              selectedKeys={new Set(settings.defaultBreakdownTags)}
+              onSelectionChange={(keys) => {
+                const next = Array.from(keys, String);
+                if (next.length === 0) {
+                  toast.warning('至少需要保留一个默认拆解维度标签');
+                  return;
+                }
+                void handleUpdate({ defaultBreakdownTags: next });
+              }}
+              className="flex-wrap"
+            >
               {AVAILABLE_TAGS.map((tag) => {
                 const active = settings.defaultBreakdownTags.includes(tag);
                 return (
-                  <button
+                  <ToggleGroupItem
                     key={tag}
-                    type="button"
-                    onClick={() => toggleTag(tag)}
+                    id={tag}
+                    variant="outline"
                     className={cn(
-                      'cursor-pointer rounded-md px-2.5 py-1 font-mono text-xs transition-colors border',
+                      'gap-1 font-mono text-xs',
+                      // 选中态：Linear Violet 实色胶囊（utilities 层覆盖 heroui accent-soft 弱底色）；悬停/按压加深一档
                       active
-                        ? 'border-primary/50 bg-primary/10 text-primary font-semibold shadow-xs'
-                        : 'border-border/60 bg-muted/40 text-muted-foreground hover:border-border hover:text-foreground',
+                        ? 'border-primary/70 bg-primary font-medium text-primary-foreground data-[hovered=true]:bg-primary/90 data-[pressed=true]:bg-primary/85'
+                        : 'text-muted-foreground data-[hovered=true]:text-foreground',
                     )}
+                    aria-label={`切换默认拆解标签 ${tag}`}
                   >
-                    {active ? <CheckIcon className="size-3 mr-1 inline" /> : null}
+                    {active && <CheckIcon className="size-3" data-icon="inline-start" />}
                     {tag}
-                  </button>
+                  </ToggleGroupItem>
                 );
               })}
-            </div>
+            </ToggleGroup>
           }
         />
       </SettingsGroup>
@@ -475,7 +461,7 @@ export function AiSection() {
           label="子任务拆解工程规范 (Breakdown Rules)"
           description="定义拆解子任务时的团队约束。例如：必须包含自测任务、后端需注明 RPC 接口、标题动宾结构等。"
           control={
-            <Textarea
+            <TextArea
               value={settings.customPrompts?.breakdown ?? ''}
               onChange={(e) => handleUpdatePrompt('breakdown', e.target.value)}
               placeholder="例如：每个需求必须包含一个自测任务；后端任务注明涉及的 RPC 接口；标题严格在 25 字以内。"
@@ -490,7 +476,7 @@ export function AiSection() {
           label="评论讨论纪要规则 (Discussion Summary)"
           description="提炼需求讨论历史时的侧重偏好。例如：重点关注交付时间变更、明确阻塞项责任人等。"
           control={
-            <Textarea
+            <TextArea
               value={settings.customPrompts?.commentSummary ?? ''}
               onChange={(e) => handleUpdatePrompt('commentSummary', e.target.value)}
               placeholder="例如：关注技术方案共识与对上线排期的影响，必须明确标出每个阻塞项的责任人。"
@@ -505,7 +491,7 @@ export function AiSection() {
           label="评论与提测/进度生成偏好 (Comment Generation)"
           description="定制自动生成研发进度同步、提测交付说明或评论润色时的语言风格与标准段落格式。"
           control={
-            <Textarea
+            <TextArea
               value={settings.customPrompts?.commentDraft ?? ''}
               onChange={(e) => handleUpdatePrompt('commentDraft', e.target.value)}
               placeholder="例如：提测说明必须包含部署环境和测试账号说明；研发进度汇报按「已完成、进行中、风险项」排版。"
@@ -520,7 +506,7 @@ export function AiSection() {
           label="代码仓库架构背景说明 (Repo Recommendation Rules)"
           description="向 AI 提供团队组织的代码仓库命名习惯与业务域归属，帮助 AI 更精准推荐需求应关联的仓库。"
           control={
-            <Textarea
+            <TextArea
               value={settings.customPrompts?.repoRecommendation ?? ''}
               onChange={(e) => handleUpdatePrompt('repoRecommendation', e.target.value)}
               placeholder="例如：trade-* 为交易履约核心服务，fed-* 为前端应用，crm-* 为客户中心，common-* 为公共底层库。"
@@ -535,7 +521,7 @@ export function AiSection() {
           label="Merge Request 描述规范 (MR Rules)"
           description="生成 MR 标题与描述时的规范要求。例如：强制遵循 Conventional Commits、包含自测验证清单等。"
           control={
-            <Textarea
+            <TextArea
               value={settings.customPrompts?.mergeRequest ?? ''}
               onChange={(e) => handleUpdatePrompt('mergeRequest', e.target.value)}
               placeholder="例如：标题强制遵循 Conventional Commits 规范；描述必须包含自测用例清单与回归检查点；跳过 WIP 提交。"

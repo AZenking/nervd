@@ -1,4 +1,5 @@
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Modal, Surface } from '@heroui/react';
+import { Card } from '@/components/ui/card';
 import {
   CheckCircle2Icon,
   CopyIcon,
@@ -10,10 +11,10 @@ import {
   ShieldAlertIcon,
   ShieldCheckIcon,
   SparklesIcon,
-  XIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Kbd } from '@/components/ui/kbd';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { useAppUpdate } from '@/hooks/use-app-update';
@@ -76,25 +77,17 @@ export function AboutDialog() {
   };
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={setAboutOpen}>
-      <DialogPrimitive.Portal>
-        {/* 背景遮罩 */}
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/25 backdrop-blur-[2px] duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
+    <Modal isOpen={open} onOpenChange={setAboutOpen}>
+      <Modal.Backdrop variant="blur">
+        <Modal.Container placement="center" size="sm">
+          <Modal.Dialog className="relative p-0 overflow-hidden sm:max-w-[480px]">
+            {/* 无障碍隐藏标题 */}
+            <Modal.Heading className="sr-only">关于 nervd</Modal.Heading>
 
-        {/* 居中卡片 */}
-        <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 flex w-full max-w-[480px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border/80 bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/10 outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
-          {/* 无障碍隐藏标题 */}
-          <DialogPrimitive.Title className="sr-only">关于 nervd</DialogPrimitive.Title>
+            {/* 右上角关闭按钮：z-10 压过后续 relative 品牌区，避免透明命中层吞掉点击 */}
+            <Modal.CloseTrigger className="z-10" />
 
-          {/* 右上角关闭按钮 */}
-          <DialogPrimitive.Close
-            className="absolute right-3.5 top-3.5 z-10 flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="关闭"
-          >
-            <XIcon className="size-4" />
-          </DialogPrimitive.Close>
-
-          {/* 顶部 Hero 品牌区 */}
+            {/* 顶部 Hero 品牌区 */}
           <div className="relative flex flex-col items-center px-6 pt-7 pb-5 text-center">
             {/* 柔和顶部环境微光 */}
             <div
@@ -103,7 +96,7 @@ export function AboutDialog() {
             />
 
             {/* App Icon */}
-            <div className="relative mb-3 flex size-16 items-center justify-center rounded-2xl bg-sidebar-primary shadow-level-1 ring-1 ring-border/80">
+            <div className="relative mb-3 flex size-16 items-center justify-center rounded-2xl bg-sidebar-primary ring-1 ring-border/80">
               <img
                 src="/nervd-logo.png"
                 alt="nervd logo"
@@ -131,25 +124,25 @@ export function AboutDialog() {
 
             {/* 核心架构特性标签 */}
             <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-[11px]">
-              <span className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-muted-foreground font-mono">
+              <Surface variant="secondary" className="rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground font-mono">
                 Tauri 2 (Rust Core)
-              </span>
-              <span className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-muted-foreground">
+              </Surface>
+              <Surface variant="secondary" className="rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground">
                 React 19
-              </span>
-              <span className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-muted-foreground">
-                Base UI
-              </span>
-              <span className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-muted-foreground">
+              </Surface>
+              <Surface variant="secondary" className="rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground">
+                HeroUI v3
+              </Surface>
+              <Surface variant="secondary" className="rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground">
                 Tailwind v4
-              </span>
+              </Surface>
             </div>
           </div>
 
           {/* 中间状态与诊断面板 */}
           <div className="flex flex-col gap-2.5 px-5 pb-4">
             {/* 状态徽章条 */}
-            <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/60 bg-card/40 p-3 text-xs">
+            <Surface variant="secondary" className="grid grid-cols-2 gap-2 rounded-lg border border-border/60 p-3 text-xs">
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] text-muted-foreground">写操作权限</span>
                 <div className="flex items-center gap-1.5 font-medium">
@@ -160,7 +153,7 @@ export function AboutDialog() {
                     </>
                   ) : (
                     <>
-                      <ShieldCheckIcon className="size-3.5 text-emerald-500" />
+                      <ShieldCheckIcon className="size-3.5 text-success" />
                       <span className="text-foreground">只读保护中</span>
                     </>
                   )}
@@ -174,11 +167,11 @@ export function AboutDialog() {
                   <span>macOS Keychain</span>
                 </div>
               </div>
-            </div>
+            </Surface>
 
             {/* 发现新版本专属卡片 */}
             {hasUpdate && updateInfo && (
-              <div className="flex flex-col gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs">
+              <Card className="border-primary/30 bg-primary/5 p-3 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 font-medium text-foreground">
                     <SparklesIcon className="size-3.5 text-primary" />
@@ -229,7 +222,7 @@ export function AboutDialog() {
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={() => void startOneClickUpdate()}
+                      onPress={() => void startOneClickUpdate()}
                       className="h-7 flex-1 gap-1.5 text-xs font-medium cursor-pointer"
                     >
                       <SparklesIcon className="size-3.5" />
@@ -238,7 +231,7 @@ export function AboutDialog() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => void openDownload()}
+                      onPress={() => void openDownload()}
                       className="h-7 gap-1 px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground cursor-pointer"
                       title="在浏览器中手动下载安装包"
                     >
@@ -247,7 +240,7 @@ export function AboutDialog() {
                     </Button>
                   </div>
                 )}
-              </div>
+              </Card>
             )}
 
             {/* 快速动作行 */}
@@ -256,11 +249,11 @@ export function AboutDialog() {
                 variant="outline"
                 size="sm"
                 disabled={isChecking}
-                onClick={() => void checkForUpdates(false)}
+                onPress={() => void checkForUpdates(false)}
                 className="h-8 flex-1 gap-1.5 text-xs font-normal cursor-pointer"
               >
                 {status === 'up_to_date' ? (
-                  <CheckCircle2Icon className="size-3.5 text-emerald-500" />
+                  <CheckCircle2Icon className="size-3.5 text-success" />
                 ) : (
                   <RefreshCwIcon className={`size-3.5 ${isChecking ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
                 )}
@@ -280,7 +273,7 @@ export function AboutDialog() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => void copyDiagnosticSnapshot(settings, allowWriteOps)}
+                onPress={() => void copyDiagnosticSnapshot(settings, allowWriteOps)}
                 className="h-8 flex-1 gap-1.5 text-xs font-normal cursor-pointer"
                 title="复制包含版本、系统与脱敏配置的快照"
               >
@@ -291,20 +284,20 @@ export function AboutDialog() {
           </div>
 
           {/* 底部导航与外链条 */}
-          <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-5 py-3 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between border-t border-border/60 px-5 py-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleOpenShortcuts}
-                className="cursor-pointer hover:text-foreground transition-colors"
+                className="cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
-                快捷键 (<kbd className="font-mono text-[10px]">?</kbd>)
+                快捷键 (<Kbd variant="light" className="h-5! px-1.5! text-[11px]!">?</Kbd>)
               </button>
               <span aria-hidden="true" className="text-border">·</span>
               <button
                 type="button"
                 onClick={() => void copyQuarantineCommand()}
-                className="cursor-pointer hover:text-foreground transition-colors"
+                className="cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 title="复制解除 macOS 首次打开拦截命令: xattr -cr /Applications/nervd.app"
               >
                 放行命令
@@ -313,7 +306,7 @@ export function AboutDialog() {
               <button
                 type="button"
                 onClick={handleOpenSettings}
-                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <SettingsIcon className="size-3" />
                 <span>详细设置</span>
@@ -324,7 +317,7 @@ export function AboutDialog() {
               <button
                 type="button"
                 onClick={() => void openExternal(REPO_URL)}
-                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <span>GitHub</span>
                 <ExternalLinkIcon className="size-3" />
@@ -332,15 +325,16 @@ export function AboutDialog() {
               <button
                 type="button"
                 onClick={() => void openExternal(DOCS_URL)}
-                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <span>云效</span>
                 <ExternalLinkIcon className="size-3" />
               </button>
             </div>
           </div>
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
-  );
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  </Modal>
+);
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Surface } from '@heroui/react';
 import {
   ArrowUpRightIcon,
   BugIcon,
@@ -17,9 +18,11 @@ import * as api from '@/lib/api';
 import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { SearchableAssigneePopover } from './requirement/assignee-popover';
-import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
+import { statusMeta } from '../StatusBadge';
 import { Descriptions, type DescriptionsItem } from '@/components/ui/descriptions';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Drawer,
   DrawerContent,
@@ -223,6 +226,9 @@ export function ChildDetailDrawer({
     await changeStatus(status);
   };
 
+  const statusTone = statusMeta(statusName).tone;
+  const statusColor = statusTone === 'ok' ? 'success' : statusTone === 'fail' ? 'danger' : statusTone === 'run' ? 'warning' : 'default';
+
   const statusDropdown = (
     <DropdownMenu
       open={statusOpen}
@@ -233,23 +239,22 @@ export function ChildDetailDrawer({
     >
       <DropdownMenuTrigger
         render={
-          <button
-            type="button"
-            className={cn(
-              'group/status inline-flex items-center gap-1.5 rounded border border-border/60 bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer',
-              updatingStatus && 'pointer-events-none opacity-60',
-            )}
+          <Chip
+            size="sm"
+            color={statusColor}
+            variant="soft"
+            className={cn('cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring', updatingStatus && 'pointer-events-none opacity-60')}
             title="点击快速更改状态"
-          />
+          >
+            {updatingStatus ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <StatusIcon status={statusName} className="size-3.5 shrink-0" />
+            )}
+            <Chip.Label>{statusName || '未指定'}</Chip.Label>
+          </Chip>
         }
-      >
-        {updatingStatus ? (
-          <Spinner className="size-3.5" />
-        ) : (
-          <StatusIcon status={statusName} className="size-3.5 shrink-0" />
-        )}
-        <span className="text-foreground">{statusName || '未指定'}</span>
-      </DropdownMenuTrigger>
+      />
       <DropdownMenuContent align="start" className="min-w-36 z-50">
         {loadingStatuses && (
           <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
@@ -266,7 +271,7 @@ export function ChildDetailDrawer({
             <DropdownMenuItem
               key={s.id}
               className={cn('flex cursor-pointer items-center justify-between text-xs', isCurrent && 'font-medium text-primary')}
-              onClick={() => void handleSelectStatus(s)}
+              onSelect={() => void handleSelectStatus(s)}
             >
               <div className="flex items-center gap-2">
                 <StatusIcon status={s.name} className="size-3" />
@@ -371,37 +376,36 @@ export function ChildDetailDrawer({
 
   return (
     <Drawer open={open} onOpenChange={(o) => { if (!o) onClose(); }} swipeDirection="right">
-      <DrawerContent className="w-full sm:w-[500px] lg:w-[560px] [--drawer-content-width:min(560px,100vw)]">
+      <DrawerContent className="w-full sm:w-[560px] sm:max-w-none">
         {/* 顶部页头与快捷工具栏 */}
         <DrawerHeader className="border-b border-border/70 pb-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <Badge
-                variant="outline"
-                className={cn(
-                  'gap-1 px-1.5 py-0.5 text-[11px] font-normal shrink-0',
-                  isBug
-                    ? 'border-destructive/30 bg-destructive/10 text-destructive'
-                    : 'border-primary/30 bg-primary/10 text-primary',
-                )}
+              <Chip
+                size="sm"
+                variant="soft"
+                color={isBug ? 'danger' : 'accent'}
+                className="gap-1 shrink-0"
               >
-                {isBug ? <BugIcon className="size-3" /> : <LayersIcon className="size-3" />}
-                <span>{categoryLabel}</span>
-              </Badge>
+                {isBug ? <BugIcon className="size-3 shrink-0" /> : <LayersIcon className="size-3 shrink-0" />}
+                <Chip.Label>{categoryLabel}</Chip.Label>
+              </Chip>
 
               {child?.identifier && (
                 <button
                   type="button"
+                  className="inline-flex cursor-pointer rounded-sm shrink-0 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={copyIdentifier}
-                  className="group inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer shrink-0"
                   title="点击复制编号"
                 >
-                  <span>{child.identifier}</span>
-                  {copied ? (
-                    <CheckIcon className="size-3 text-sig-ok" />
-                  ) : (
-                    <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />
-                  )}
+                  <Chip size="sm" variant="secondary" className="font-mono gap-1">
+                    <Chip.Label>{child.identifier}</Chip.Label>
+                    {copied ? (
+                      <CheckIcon className="size-3 text-sig-ok shrink-0" />
+                    ) : (
+                      <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+                    )}
+                  </Chip>
                 </button>
               )}
             </div>
@@ -413,7 +417,7 @@ export function ChildDetailDrawer({
                     <Button
                       variant="ghost"
                       size="icon-xs"
-                      onClick={handleOpenInYunxiao}
+                      onPress={handleOpenInYunxiao}
                       aria-label="在云效中打开"
                     />
                   }
@@ -429,7 +433,7 @@ export function ChildDetailDrawer({
                     <Button
                       variant="ghost"
                       size="icon-xs"
-                      onClick={() => {
+                      onPress={() => {
                         if (child) onOpenInWorkbench(child);
                       }}
                       aria-label="在工作台全屏打开"
@@ -441,15 +445,22 @@ export function ChildDetailDrawer({
                 <TooltipContent>在独立工作台全屏打开</TooltipContent>
               </Tooltip>
 
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={onClose}
-                aria-label="关闭抽屉 (Esc)"
-                title="关闭抽屉 (Esc)"
-              >
-                <XIcon className="size-3.5" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onPress={onClose}
+                      aria-label="关闭抽屉 (Esc)"
+                      title="关闭抽屉 (Esc)"
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>关闭抽屉 (Esc)</TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -467,15 +478,15 @@ export function ChildDetailDrawer({
         </DrawerHeader>
 
         {/* 抽屉滚动内容主体 */}
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-5">
+        <ScrollArea className="flex min-h-0 flex-1 flex-col gap-6 px-5 py-5">
           {/* 属性列表：对齐 Linear 裸行规范 */}
           <section className="flex flex-col gap-2">
             <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               属性
             </p>
-            <div className="rounded-lg border border-border/50 bg-muted/15 p-2">
+            <Surface variant="secondary" className="rounded-lg border border-border/50 p-2">
               <Descriptions variant="plain" items={attributeItems} />
-            </div>
+            </Surface>
           </section>
 
           {/* 描述正文 */}
@@ -490,7 +501,7 @@ export function ChildDetailDrawer({
                 <Skeleton className="h-4 w-2/3" />
               </div>
             ) : (
-              <div className="rounded-lg border border-border/50 bg-muted/10 p-3.5 text-sm leading-relaxed text-foreground/90">
+              <Surface variant="secondary" className="rounded-lg border border-border/50 p-3.5 text-sm leading-relaxed text-foreground/90">
                 <RichDescription
                   raw={wi.description ?? wi.content}
                   workitemId={child?.workitemId}
@@ -498,25 +509,25 @@ export function ChildDetailDrawer({
                     setRawDetail((prev) => (prev ? { ...prev, description: newHtml, content: newHtml } : prev));
                   }}
                 />
-              </div>
+              </Surface>
             )}
           </section>
-        </div>
+        </ScrollArea>
 
         {/* 底部操作条 */}
-        <div className="flex items-center justify-between border-t border-border/70 px-5 py-3 bg-muted/20">
+        <div className="flex items-center justify-between border-t border-border/70 px-5 py-3">
           <span className="text-xs text-muted-foreground font-mono">
             Esc 或点击外部关闭
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onClose}>
+            <Button variant="ghost" size="sm" onPress={onClose}>
               关闭
             </Button>
             {child && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onOpenInWorkbench(child)}
+                onPress={() => onOpenInWorkbench(child)}
                 className="gap-1.5"
               >
                 <ArrowUpRightIcon className="size-3.5" />

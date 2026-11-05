@@ -22,6 +22,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface DiffFileTreeProps {
@@ -105,7 +107,7 @@ export function DiffFileTree({
       aria-label="代码变更文件列表"
     >
       {/* 顶部搜索与操作区 */}
-      <div className="p-2.5 border-b border-border/40 flex flex-col gap-2 shrink-0 bg-muted/20">
+      <div className="p-2.5 border-b border-border/40 flex flex-col gap-2 shrink-0">
         <div className="relative flex items-center">
           <SearchIcon className="absolute left-2 size-3.5 text-muted-foreground pointer-events-none" />
           <Input
@@ -120,14 +122,24 @@ export function DiffFileTree({
             className="h-7 text-xs pl-7 pr-6 rounded bg-background/80"
           />
           {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 text-muted-foreground hover:text-foreground"
-              title="清空搜索"
-            >
-              <XIcon className="size-3" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onPress={() => setSearchQuery('')}
+                    className="absolute right-1 text-muted-foreground hover:text-foreground size-5"
+                    title="清空搜索"
+                    aria-label="清空搜索"
+                  >
+                    <XIcon className="size-3" />
+                  </Button>
+                }
+              />
+              <TooltipContent>清空搜索</TooltipContent>
+            </Tooltip>
           )}
         </div>
 
@@ -139,32 +151,48 @@ export function DiffFileTree({
           </span>
 
           <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-5 text-muted-foreground hover:text-foreground"
-              onClick={expandAll}
-              title="展开全部目录"
-            >
-              <UnfoldVerticalIcon className="size-3.5" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-5 text-muted-foreground hover:text-foreground"
-              onClick={collapseAll}
-              title="折叠全部目录"
-            >
-              <FoldVerticalIcon className="size-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-5 text-muted-foreground hover:text-foreground"
+                    onPress={expandAll}
+                    title="展开全部目录"
+                    aria-label="展开全部目录"
+                  >
+                    <UnfoldVerticalIcon className="size-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>展开全部目录</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-5 text-muted-foreground hover:text-foreground"
+                    onPress={collapseAll}
+                    title="折叠全部目录"
+                    aria-label="折叠全部目录"
+                  >
+                    <FoldVerticalIcon className="size-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>折叠全部目录</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>
 
       {/* 树节点列表 */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-1.5 space-y-0.5">
+      <ScrollArea className="flex-1 min-h-0 p-1.5 space-y-0.5">
         {displayedTree.length === 0 ? (
           <div className="p-4 text-center text-xs text-muted-foreground">
             {searchQuery ? '未找到匹配的文件' : '暂无改动文件'}
@@ -182,7 +210,7 @@ export function DiffFileTree({
             />
           ))
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 }
@@ -271,26 +299,27 @@ function TreeNodeItem({
   const isActive = activeFilePath === node.path;
 
   return (
-    <div
+    <button
+      type="button"
       role="treeitem"
       aria-selected={isActive}
       aria-current={isActive ? 'true' : undefined}
       onClick={() => onSelectFile(node.path)}
       className={cn(
-        'group flex items-center justify-between gap-1.5 py-1 px-1.5 rounded-sm text-xs cursor-pointer transition-colors border-l-2 border-transparent',
+        'group flex w-full items-center justify-between gap-1.5 py-1 px-1.5 rounded-sm text-left text-xs cursor-pointer transition-colors border-l-2 border-transparent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
         isActive
-          ? 'bg-primary/10 text-primary border-primary font-medium shadow-xs'
+          ? 'bg-primary/10 text-primary border-primary font-medium'
           : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground',
       )}
       style={{ paddingLeft: `${Math.max(6, level * 12 + 6)}px` }}
     >
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
         {file?.newFile ? (
-          <FilePlusIcon className="size-3.5 text-emerald-500 shrink-0" />
+          <FilePlusIcon className="size-3.5 text-success shrink-0" />
         ) : file?.deletedFile ? (
-          <FileMinusIcon className="size-3.5 text-rose-500 shrink-0" />
+          <FileMinusIcon className="size-3.5 text-danger shrink-0" />
         ) : file?.renamedFile ? (
-          <FileCodeIcon className="size-3.5 text-amber-500 shrink-0" />
+          <FileCodeIcon className="size-3.5 text-warning shrink-0" />
         ) : (
           <FileCodeIcon
             className={cn(
@@ -312,16 +341,16 @@ function TreeNodeItem({
       {/* 变动统计 (+X / -Y) */}
       <div className="flex items-center gap-1 font-mono text-[10px] shrink-0 tabular-nums">
         {node.additions > 0 && (
-          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+          <span className="text-success font-semibold">
             +{node.additions}
           </span>
         )}
         {node.deletions > 0 && (
-          <span className="text-rose-600 dark:text-rose-400 font-semibold">
+          <span className="text-danger font-semibold">
             -{node.deletions}
           </span>
         )}
       </div>
-    </div>
+    </button>
   );
 }

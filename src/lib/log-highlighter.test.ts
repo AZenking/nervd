@@ -13,10 +13,10 @@ describe('log-highlighter', () => {
     const spans = parseAnsiSpans(raw);
     expect(spans.length).toBe(3);
     expect(spans[0].text).toBe('Error message');
-    expect(spans[0].className).toContain('text-red-500');
+    expect(spans[0].className).toContain('text-danger');
     expect(spans[1].text).toBe(' and ');
     expect(spans[2].text).toBe('Success message');
-    expect(spans[2].className).toContain('text-emerald-500');
+    expect(spans[2].className).toContain('text-success');
   });
 
   it('strips ANSI escape sequences cleanly', () => {

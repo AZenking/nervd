@@ -18,7 +18,9 @@ import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
+import { Tabs, Button as HeroButton, Surface } from '@heroui/react';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -42,6 +44,7 @@ import {
 import { RequirementDetailsSkeleton } from './requirement/requirement-skeleton';
 import { ChildrenCard } from './requirement/children-card';
 import { LinkedRepoCard } from './requirement/linked-repo-card';
+import { Card } from '@/components/ui/card';
 import { LinkRepoModal } from './requirement/link-repo-modal';
 import { BranchStateDiagramModal } from './requirement/branch-state-diagram-modal';
 import { DetailAssigneePopover, DetailStatusPopover, RequirementProperties } from './requirement/requirement-properties';
@@ -49,6 +52,7 @@ import { RequirementActivity } from './requirement/requirement-activity';
 
 export { RequirementDetailsSkeleton };
 export type { RequirementDetailsProps };
+export type DetailTabKey = 'description' | 'repos' | 'children' | 'activity';
 
 /**
  * 单栏窄窗口扩展 props（IterationView 在 < SINGLE_COLUMN_WORKSPACE_WIDTH 时传入）：
@@ -157,6 +161,14 @@ export function RequirementDetails({
   const isRequirement = category === 'Req';
   const subtasks = isRequirement ? children.filter((c) => c.category !== 'Bug') : [];
   const defects = isRequirement ? children.filter((c) => c.category === 'Bug') : [];
+
+  const [activeTab, setActiveTab] = useState<DetailTabKey>('description');
+
+  useEffect(() => {
+    if (!isRequirement && activeTab === 'children') {
+      setActiveTab('description');
+    }
+  }, [isRequirement, activeTab]);
 
   const statusName = (typeof wi.status === 'string' && wi.status)
     || (wi.status && typeof wi.status === 'object' && typeof (wi.status as any).name === 'string' ? (wi.status as any).name : '')
@@ -734,12 +746,18 @@ export function RequirementDetails({
               {identifier && (
                 <button
                   type="button"
+                  className="inline-flex cursor-pointer rounded-sm shrink-0 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={copyIdentifier}
-                  className="group inline-flex shrink-0 items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
                   title="点击复制编号"
                 >
-                  <span>{identifier}</span>
-                  {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
+                  <Chip size="sm" variant="secondary" className="font-mono gap-1">
+                    <Chip.Label>{identifier}</Chip.Label>
+                    {copiedId ? (
+                      <CheckIcon className="size-3 text-sig-ok shrink-0" />
+                    ) : (
+                      <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+                    )}
+                  </Chip>
                 </button>
               )}
               <OverflowTooltip
@@ -750,80 +768,63 @@ export function RequirementDetails({
           )}
           titleClassName="flex min-w-0 items-center gap-2.5 select-text cursor-text"
           actions={(
-            <>
-              {/* 宽面板（页头 @container ≥520px）：刷新 / 云效直出图标；窄面板收入「更多」菜单，全屏与关闭常驻 */}
-              <span className="hidden items-center gap-2 @[520px]:flex">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => void handleRefreshDetail()}
-                  title="刷新工作项及追溯"
-                  aria-label="刷新工作项及追溯"
-                >
-                  <RefreshCwIcon className={cn('size-3.5', refreshing && 'animate-spin')} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleOpenInYunxiao}
-                  title="在云效中打开"
-                  aria-label="在云效中打开"
-                >
-                  <ExternalLinkIcon className="size-3.5" />
-                </Button>
-              </span>
-              <span className="flex items-center @[520px]:hidden">
-                <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label="更多操作" />}>
-                    <MoreHorizontalIcon className="size-3.5" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem disabled={refreshing} onClick={() => void handleRefreshDetail()}>
-                      <RefreshCwIcon className={cn('size-3.5 mr-2', refreshing && 'animate-spin')} />
-                      <span>刷新工作项及追溯</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleOpenInYunxiao}>
-                      <ExternalLinkIcon className="size-3.5 mr-2" />
-                      <span>在云效中打开</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </span>
+            /* 常驻操作：刷新 / 云效直出 / 全屏 / 关闭（原生 HeroUI 图标按钮） */
+            <div className="flex shrink-0 items-center gap-1">
+              <HeroButton
+                type="button"
+                variant="ghost"
+                isIconOnly
+                size="sm"
+                onPress={() => void handleRefreshDetail()}
+                aria-label="刷新工作项及追溯"
+              >
+                <RefreshCwIcon className={cn('size-4', refreshing && 'animate-spin')} />
+              </HeroButton>
+              <HeroButton
+                type="button"
+                variant="ghost"
+                isIconOnly
+                size="sm"
+                onPress={handleOpenInYunxiao}
+                aria-label="在云效中打开"
+              >
+                <ExternalLinkIcon className="size-4" />
+              </HeroButton>
               {onOpenWorkbench && (
-                <Button
+                <HeroButton
+                  type="button"
                   variant="ghost"
-                  size="icon-xs"
-                  onClick={onOpenWorkbench}
-                  title="在工作台全屏打开"
+                  isIconOnly
+                  size="sm"
+                  onPress={onOpenWorkbench}
                   aria-label="在工作台全屏打开"
                 >
-                  <Maximize2Icon className="size-3.5" />
-                </Button>
+                  <Maximize2Icon className="size-4" />
+                </HeroButton>
               )}
               {onClose && (
-                <Button
+                <HeroButton
+                  type="button"
                   variant="ghost"
-                  size="icon-xs"
-                  onClick={onClose}
-                  title="关闭分栏 (Esc)"
+                  isIconOnly
+                  size="sm"
+                  onPress={onClose}
                   aria-label="关闭分栏 (Esc)"
                 >
-                  <XIcon className="size-3.5" />
-                </Button>
+                  <XIcon className="size-4" />
+                </HeroButton>
               )}
-            </>
+            </div>
           )}
           toolbar={(
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 w-full text-xs">
-              {/* 状态 Chip */}
+              {/* 状态与负责人 Select（顶部常驻元数据条最前列：就地快速流转与分配） */}
               <DetailStatusPopover
                 status={statusName}
                 statusId={statusId}
                 workitemId={selectedId ?? undefined}
                 variant="badge"
               />
-
-              {/* 负责人 Chip */}
               <DetailAssigneePopover
                 assignedToName={assignedToName}
                 workitemId={selectedId}
@@ -831,98 +832,123 @@ export function RequirementDetails({
                 variant="badge"
               />
 
+              <span className="h-4 w-px bg-border/60 mx-0.5 shrink-0" aria-hidden />
+
               {/* 类型 Chip */}
-              <div
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none"
+              <Chip
+                size="sm"
+                variant="soft"
+                className="gap-1.5 text-foreground/85 select-none"
                 title={`工作项类型：${category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}`}
               >
                 <LayersIcon className="size-3.5 text-muted-foreground shrink-0" />
-                <span>{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</span>
-              </div>
+                <Chip.Label>{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</Chip.Label>
+              </Chip>
 
               {/* 项目空间 Chip */}
               {spaceName && (
-                <div
-                  className="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none"
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  className="gap-1.5 max-w-48 text-foreground/85 select-none"
                   title={`项目空间：${spaceName}`}
                 >
                   <FolderIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <OverflowTooltip text={spaceName} className="truncate" />
-                </div>
+                  <Chip.Label className="truncate">
+                    <OverflowTooltip text={spaceName} className="truncate" />
+                  </Chip.Label>
+                </Chip>
               )}
 
               {/* 所属迭代 Chip */}
-              <div
-                className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none"
+              <Chip
+                size="sm"
+                variant="soft"
+                className="gap-1.5 max-w-56 text-foreground/85 select-none"
                 title={`所属迭代：${iterationName || '未关联迭代'}`}
               >
                 <CalendarIcon className="size-3.5 text-muted-foreground shrink-0" />
-                <OverflowTooltip
-                  text={iterationName || '未关联迭代'}
-                  className="truncate"
-                />
-              </div>
+                <Chip.Label className="truncate">
+                  <OverflowTooltip
+                    text={iterationName || '未关联迭代'}
+                    className="truncate"
+                  />
+                </Chip.Label>
+              </Chip>
 
               {/* 关联仓库 Chip */}
               <button
                 type="button"
+                className="inline-flex cursor-pointer rounded-sm transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 onClick={() => {
+                  setActiveTab('repos');
                   const el = document.getElementById('linked-repos-section');
                   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 transition-colors hover:bg-muted/60 hover:border-border/80 hover:text-foreground cursor-pointer"
-                title={`已关联 ${effectiveRepoIds.length} 个代码仓库，点击定位至仓库区块`}
+                title={`已关联 ${effectiveRepoIds.length} 个代码仓库，点击切换至关联仓库标签页`}
               >
-                <DatabaseIcon className="size-3.5 text-muted-foreground shrink-0" />
-                <span>{effectiveRepoIds.length} 个仓库</span>
+                <Chip size="sm" variant="soft" className="gap-1.5 text-foreground/85">
+                  <DatabaseIcon className="size-3.5 text-muted-foreground shrink-0" />
+                  <Chip.Label>{effectiveRepoIds.length} 个仓库</Chip.Label>
+                </Chip>
               </button>
 
               {/* 迭代基准 Chip */}
               {iterationBranchValue && iterationBranchValue !== '—' && (
-                <div
-                  className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-foreground/85 select-none font-mono"
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  className="gap-1.5 max-w-56 text-foreground/85 select-none font-mono"
                   title={`迭代基准规则/模板：${iterationBranchValue}`}
                 >
                   <GitBranchIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <OverflowTooltip text={iterationBranchValue} className="truncate" />
-                </div>
+                  <Chip.Label className="truncate">
+                    <OverflowTooltip text={iterationBranchValue} className="truncate" />
+                  </Chip.Label>
+                </Chip>
               )}
 
               {/* 更新时间 Chip */}
               {updatedAt && (
-                <div
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-muted-foreground select-none font-mono"
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  className="gap-1.5 text-muted-foreground select-none font-mono"
                   title={`最后更新时间：${String(updatedAt).replace('T', ' ')}`}
                 >
                   <ClockIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <span>{String(updatedAt).slice(0, 16).replace('T', ' ')}</span>
-                </div>
+                  <Chip.Label>{String(updatedAt).slice(0, 16).replace('T', ' ')}</Chip.Label>
+                </Chip>
               )}
 
               {/* 创建人 Chip（若与处理人不同） */}
               {creatorName && creatorName !== assignedToName && (
-                <div
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs font-medium text-muted-foreground select-none"
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  className="gap-1.5 text-muted-foreground select-none"
                   title={`创建人：${creatorName}`}
                 >
                   <UserIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <span>创建: {creatorName}</span>
-                </div>
+                  <Chip.Label>创建: {creatorName}</Chip.Label>
+                </Chip>
               )}
 
               {/* 父需求 Chip */}
               {parent && (
                 <button
                   type="button"
+                  className="inline-flex cursor-pointer rounded-sm transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={() => {
                     if (onSelectParent) onSelectParent(parent.workitemId);
                     else openWorkitem(parent.workitemId, parent);
                   }}
-                  className="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10 hover:border-primary/50 cursor-pointer font-mono"
                   title={`所属父需求：${parent.identifier} ${parent.subject || ''}`}
                 >
-                  <GitForkIcon className="size-3.5 shrink-0" />
-                  <span className="truncate">{parent.identifier}</span>
+                  <Chip size="sm" variant="soft" color="accent" className="gap-1.5 max-w-48 font-mono">
+                    <GitForkIcon className="size-3.5 shrink-0" />
+                    <Chip.Label className="truncate">{parent.identifier}</Chip.Label>
+                  </Chip>
                 </button>
               )}
             </div>
@@ -943,12 +969,18 @@ export function RequirementDetails({
           titleBadge={identifier ? (
             <button
               type="button"
+              className="inline-flex cursor-pointer rounded-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               onClick={copyIdentifier}
-              className="group inline-flex items-center gap-1.5 rounded-md bg-muted/70 px-2 py-0.5 font-mono text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
               title="点击复制编号"
             >
-              <span>{identifier}</span>
-              {copiedId ? <CheckIcon className="size-3 text-sig-ok" /> : <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground" />}
+              <Chip size="sm" variant="secondary" className="font-mono gap-1.5">
+                <Chip.Label>{identifier}</Chip.Label>
+                {copiedId ? (
+                  <CheckIcon className="size-3 text-sig-ok shrink-0" />
+                ) : (
+                  <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+                )}
+              </Chip>
             </button>
           ) : undefined}
           titleClassName="text-2xl font-semibold tracking-tight"
@@ -991,13 +1023,14 @@ export function RequirementDetails({
         {/* 左主列：无卡片白框，纯粹呼吸感的 Linear 画布 */}
         <div className="flex min-w-0 flex-col gap-8">
           {parent && (
-            <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/30 px-3.5 py-2.5 text-xs">
+            <Surface variant="secondary" className="flex flex-row items-center justify-between rounded-lg border border-border/70 px-3.5 py-2.5 text-xs">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-muted-foreground shrink-0">
                   {category === 'Bug' ? '关联缺陷挂载于需求：' : '子任务挂载于需求：'}
                 </span>
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => {
                     if (embedded && onSelectParent) {
                       onSelectParent(parent.workitemId);
@@ -1009,7 +1042,7 @@ export function RequirementDetails({
                 >
                   <span className="font-mono text-xs shrink-0">{parent.identifier}</span>
                   <OverflowTooltip text={parent.subject} className="truncate max-w-xs" />
-                </button>
+                </Button>
               </div>
               <Button
                 variant="ghost"
@@ -1025,41 +1058,97 @@ export function RequirementDetails({
               >
                 查看父需求 ›
               </Button>
-            </div>
+            </Surface>
           )}
 
-          {/* 需求描述 (Linear 风格无边框融入画板) */}
-          <section className="flex flex-col gap-3">
-            <SectionHeader
-              title="描述"
-              action={
-                selectedId && allowWrite && !isEditingDesc ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setIsEditingDesc(true)}
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    title="编辑描述"
-                  >
-                    <PencilIcon className="size-3 mr-1" />
-                    编辑
-                  </Button>
-                ) : null
-              }
-            />
-            <div className="text-sm leading-relaxed text-foreground/90">
-              <RichDescription
-                raw={wi.description ?? wi.content}
-                workitemId={selectedId ?? undefined}
-                isEditing={isEditingDesc}
-                onEditingChange={setIsEditingDesc}
-              />
+          {/* 分栏导航 Tabs（HeroUI 胶囊分段 Tabs，对齐 Linear / HeroUI Pro 风格）；
+              操作按钮与 Tabs 同行右置（仅嵌入模式，全屏工作台操作保留在页头） */}
+          <Tabs
+            selectedKey={activeTab}
+            onSelectionChange={(key) => setActiveTab(String(key) as DetailTabKey)}
+            className="w-full gap-4"
+          >
+            <div className="flex w-full min-w-0 items-center justify-between gap-2">
+              <Tabs.ListContainer className="w-fit min-w-0">
+                <Tabs.List aria-label="需求详情分栏导航">
+                  <Tabs.Tab id="description">
+                    <span>描述</span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                  <Tabs.Tab id="repos">
+                    <span className="flex items-center gap-1.5">
+                      <span>关联仓库</span>
+                      {effectiveRepoIds.length > 0 && (
+                        <span className="rounded-sm border border-border/40 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
+                          {effectiveRepoIds.length}
+                        </span>
+                      )}
+                    </span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                  {isRequirement && (
+                    <Tabs.Tab id="children">
+                      <span className="flex items-center gap-1.5">
+                        <span>子工作项</span>
+                        {subtasks.length + defects.length > 0 && (
+                          <span className="rounded-sm border border-border/40 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
+                            {subtasks.length + defects.length}
+                          </span>
+                        )}
+                      </span>
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                  )}
+                  <Tabs.Tab id="activity">
+                    <span className="flex items-center gap-1.5">
+                      <span>活动动态</span>
+                      {comments.length > 0 && (
+                        <span className="rounded-sm border border-border/40 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
+                          {comments.length}
+                        </span>
+                      )}
+                    </span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                </Tabs.List>
+              </Tabs.ListContainer>
             </div>
-          </section>
 
-          {/* 关联云效仓库与代码操作 (Linear Integrations 风格) */}
-          <section id="linked-repos-section" className="flex flex-col gap-3">
+            {/* 标签页 1：需求描述 */}
+            <Tabs.Panel id="description" className="p-0 outline-none">
+              <section className="flex flex-col gap-3">
+                <SectionHeader
+                  title="描述"
+                  action={
+                    selectedId && allowWrite && !isEditingDesc ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setIsEditingDesc(true)}
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="编辑描述"
+                      >
+                        <PencilIcon className="size-3 mr-1" />
+                        编辑
+                      </Button>
+                    ) : null
+                  }
+                />
+                <div className="text-sm leading-relaxed text-foreground/90">
+                  <RichDescription
+                    raw={wi.description ?? wi.content}
+                    workitemId={selectedId ?? undefined}
+                    isEditing={isEditingDesc}
+                    onEditingChange={setIsEditingDesc}
+                  />
+                </div>
+              </section>
+            </Tabs.Panel>
+
+            {/* 标签页 2：关联云效仓库与代码操作 */}
+            <Tabs.Panel id="repos" className="p-0 outline-none">
+              <section id="linked-repos-section" className="flex flex-col gap-3">
             {/* 标题简化为「关联仓库 · n」；常驻 刷新全部 / 关联仓库(+Modal)，更多操作收入菜单 */}
             <SectionHeader
               title="关联仓库"
@@ -1177,56 +1266,31 @@ export function RequirementDetails({
                 {/* 状态分类 Filter Tabs（仓库 >= 2 时展示） */}
                 {linkedRepos.length >= 2 && (
                   <div className="flex items-center justify-between gap-2">
-                    <div className="inline-flex items-center rounded-md bg-muted/60 p-0.5 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setRepoFilter('all')}
-                        className={cn(
-                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
-                          repoFilter === 'all'
-                            ? 'bg-background text-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        全部 {linkedRepos.length}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRepoFilter('pending_merge')}
-                        className={cn(
-                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
-                          repoFilter === 'pending_merge'
-                            ? 'bg-background text-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        待合入 {pendingMergeCount}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRepoFilter('active')}
-                        className={cn(
-                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
-                          repoFilter === 'active'
-                            ? 'bg-background text-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        进行中 {activeCount}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRepoFilter('merged')}
-                        className={cn(
-                          'rounded px-2.5 py-1 font-medium transition-colors cursor-pointer',
-                          repoFilter === 'merged'
-                            ? 'bg-background text-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        已合入 {mergedCount}
-                      </button>
-                    </div>
+                    <Tabs
+                      selectedKey={repoFilter}
+                      onSelectionChange={(k) => setRepoFilter(String(k) as typeof repoFilter)}
+                    >
+                      <Tabs.ListContainer className="w-fit">
+                        <Tabs.List aria-label="仓库状态过滤">
+                          <Tabs.Tab id="all">
+                            全部 {linkedRepos.length}
+                            <Tabs.Indicator />
+                          </Tabs.Tab>
+                          <Tabs.Tab id="pending_merge">
+                            待合入 {pendingMergeCount}
+                            <Tabs.Indicator />
+                          </Tabs.Tab>
+                          <Tabs.Tab id="active">
+                            进行中 {activeCount}
+                            <Tabs.Indicator />
+                          </Tabs.Tab>
+                          <Tabs.Tab id="merged">
+                            已合入 {mergedCount}
+                            <Tabs.Indicator />
+                          </Tabs.Tab>
+                        </Tabs.List>
+                      </Tabs.ListContainer>
+                    </Tabs>
 
                     <span className="text-[11px] text-muted-foreground">
                       共 {filteredLinkedRepos.length} 个仓库
@@ -1267,9 +1331,9 @@ export function RequirementDetails({
                     );
                   })}
                   {filteredLinkedRepos.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-border/70 bg-muted/10 py-8 text-center text-xs text-muted-foreground">
+                    <Surface variant="secondary" className="rounded-lg border border-dashed border-border/70 py-8 text-center text-xs text-muted-foreground">
                       当前筛选条件下暂无关联仓库
-                    </div>
+                    </Surface>
                   )}
                 </div>
               </div>
@@ -1311,19 +1375,21 @@ export function RequirementDetails({
 
             {/* AI 推荐结果展示卡片区（直接在关联仓库正下方呈现） */}
             {recommendedRepos.length > 0 && (
-              <div className="flex flex-col gap-2 rounded-lg border border-primary/25 bg-primary/5 p-3.5 shadow-2xs">
+              <div className="flex flex-col gap-2 rounded-lg bg-primary/5 p-3.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-primary flex items-center gap-1.5">
                     <SparklesIcon className="size-3.5" />
                     <span>AI 智能推荐的相关代码仓库 ({recommendedRepos.length})</span>
                   </span>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={() => setRecommendedRepos([])}
-                    className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                    className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
                   >
                     清空推荐
-                  </button>
+                  </Button>
                 </div>
 
                 <div className={cn('grid gap-2.5', embedded ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3')}>
@@ -1335,9 +1401,9 @@ export function RequirementDetails({
                     const repoPath = targetRepo?.pathWithNamespace || rec.repoName;
 
                     return (
-                      <div
+                      <Card
                         key={rec.repoId}
-                        className="flex flex-col justify-between gap-2.5 rounded-md border border-primary/20 bg-card p-3 transition-colors hover:border-primary/50 shadow-xs"
+                        className="justify-between p-3 transition-colors hover:border-primary/50"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center justify-between gap-1.5">
@@ -1348,9 +1414,9 @@ export function RequirementDetails({
                               </span>
                             </div>
                             {rec.confidence === 'high' && (
-                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded font-medium shrink-0">
+                              <Chip size="sm" variant="soft" color="success" className="text-[10px] px-1 py-0 font-medium shrink-0">
                                 高置信
-                              </span>
+                              </Chip>
                             )}
                           </div>
                           {repoPath && repoPath !== repoName && (
@@ -1372,62 +1438,68 @@ export function RequirementDetails({
                             直接关联
                           </Button>
                         </div>
-                      </div>
+                      </Card>
                     );
                   })}
                 </div>
               </div>
             )}
           </section>
+        </Tabs.Panel>
 
-          {/* 子工作项与缺陷 (Linear Sub-issues 风格) */}
-          {isRequirement && (() => {
-            const openChild = (child: WorkitemChild) => {
-              setActiveChildId(child.workitemId);
-              setDrawerChild(child);
-            };
+        {/* 标签页 3：子工作项与缺陷 */}
+        {isRequirement && (
+          <Tabs.Panel id="children" className="p-0 outline-none">
+            {(() => {
+              const openChild = (child: WorkitemChild) => {
+                setActiveChildId(child.workitemId);
+                setDrawerChild(child);
+              };
 
-            return (
-              <div className="flex flex-col gap-6">
-                <ChildrenCard
-                  title="子任务"
-                  category="Task"
-                  description="挂载在该需求下的子任务"
-                  items={subtasks}
-                  error={childrenError}
-                  debug={childrenDebug}
-                  parentWorkitemId={selectedId ?? ''}
-                  parentIdentifier={identifier}
-                  parentSubject={subject}
-                  parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
-                  parentAssigneeId={parentAssigneeId}
-                  parentAssigneeName={assignedToName}
-                  candidateAssignees={candidateAssignees}
-                  selectedChildId={activeChildId}
-                  onSelect={openChild}
-                />
-                <ChildrenCard
-                  title="缺陷"
-                  category="Bug"
-                  description="挂载在该需求下的缺陷"
-                  items={defects}
-                  error={childrenError}
-                  debug={childrenDebug}
-                  parentWorkitemId={selectedId ?? ''}
-                  parentIdentifier={identifier}
-                  parentSubject={subject}
-                  parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
-                  parentAssigneeId={parentAssigneeId}
-                  parentAssigneeName={assignedToName}
-                  candidateAssignees={candidateAssignees}
-                  selectedChildId={activeChildId}
-                  onSelect={openChild}
-                />
-              </div>
-            );
-          })()}
+              return (
+                <div className="flex flex-col gap-6">
+                  <ChildrenCard
+                    title="子任务"
+                    category="Task"
+                    description="挂载在该需求下的子任务"
+                    items={subtasks}
+                    error={childrenError}
+                    debug={childrenDebug}
+                    parentWorkitemId={selectedId ?? ''}
+                    parentIdentifier={identifier}
+                    parentSubject={subject}
+                    parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
+                    parentAssigneeId={parentAssigneeId}
+                    parentAssigneeName={assignedToName}
+                    candidateAssignees={candidateAssignees}
+                    selectedChildId={activeChildId}
+                    onSelect={openChild}
+                  />
+                  <ChildrenCard
+                    title="缺陷"
+                    category="Bug"
+                    description="挂载在该需求下的缺陷"
+                    items={defects}
+                    error={childrenError}
+                    debug={childrenDebug}
+                    parentWorkitemId={selectedId ?? ''}
+                    parentIdentifier={identifier}
+                    parentSubject={subject}
+                    parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
+                    parentAssigneeId={parentAssigneeId}
+                    parentAssigneeName={assignedToName}
+                    candidateAssignees={candidateAssignees}
+                    selectedChildId={activeChildId}
+                    onSelect={openChild}
+                  />
+                </div>
+              );
+            })()}
+          </Tabs.Panel>
+        )}
 
-          {/* Activity / 评论讨论（1:1 对齐 Linear Activity 时间轴与 AI 赋能） */}
+        {/* 标签页 4：Activity / 评论讨论（1:1 对齐 Linear Activity 时间轴与 AI 赋能） */}
+        <Tabs.Panel id="activity" className="p-0 outline-none">
           <RequirementActivity
             comments={comments}
             workitemId={selectedId ?? undefined}
@@ -1438,7 +1510,9 @@ export function RequirementDetails({
               done: [...subtasks, ...defects].filter((s) => s.status === '已完成' || s.status === '已解决' || s.status === '已关闭').length,
             }}
           />
-        </div>
+        </Tabs.Panel>
+      </Tabs>
+    </div>
 
         {/* 右侧边栏：Linear 式属性栏（全屏/非 embedded 模式下展示） */}
         {!embedded && (

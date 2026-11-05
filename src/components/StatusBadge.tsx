@@ -1,10 +1,9 @@
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
 import { StatusIcon } from '@/components/status-icon';
 import { CI_STATUS_MAP } from '@/lib/ci';
 
 /**
- * 全工程统一状态徽章：Linear 式状态图形 + 裸文本（ghost 形态，无药丸底色）。
+ * 全工程统一状态徽章：使用 HeroUI 原生 Chip 呈现状态语义。
  * 连接 / 读写策略 / CI 运行 / 合并请求 / 迭代 / 工作项状态共用同一套语义分组与图形，
  * 原始英文状态（SUCCESS/RUNNING/…）统一翻译，中文状态（进行中/未开始/…）原样透传。
  */
@@ -14,6 +13,13 @@ export interface StatusMeta {
   tone: StatusTone;
   label: string;
 }
+
+const TONE_TO_COLOR: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
+  ok: 'success',
+  run: 'warning',
+  fail: 'danger',
+  idle: 'default',
+};
 
 /** 规范状态表：英文原始状态与内部令牌 → 分组 + 中文标签 */
 const CANONICAL: Record<string, StatusMeta> = {
@@ -54,34 +60,35 @@ export function connectionStatus(connection?: string): string {
   return connection === 'ok' ? 'CONNECTED' : connection === 'fail' ? 'CONNECT_FAIL' : 'CONNECTING';
 }
 
-/** 统一状态徽章：Linear 式状态图形 + 裸文本；RUNNING 的「进行中」语义由黄色半充圆承担；label 可覆盖默认翻译 */
+/** 统一状态徽章：使用 HeroUI 原生 Chip 呈现状态语义 */
 export function StatusBadge({
   status,
   label,
   size = 'default',
+  variant = 'soft',
   className,
 }: {
   status?: string | null;
   /** 覆盖默认中文翻译（如统计格的「全部通过」） */
   label?: string;
   size?: 'default' | 'sm';
+  variant?: 'soft' | 'primary' | 'secondary' | 'tertiary';
   className?: string;
 }) {
   const meta = statusMeta(status);
   const text = label ?? meta.label;
+  const color = TONE_TO_COLOR[meta.tone] ?? 'default';
+
   return (
-    <Badge
-      variant="ghost"
+    <Chip
+      size={size === 'sm' ? 'sm' : 'md'}
+      color={color}
+      variant={variant}
       title={status && status.trim() !== text ? status.trim() : undefined}
-      className={cn(
-        'border-transparent bg-transparent px-0 text-xs font-medium text-foreground',
-        size === 'sm' ? 'gap-1 text-[11px]' : 'gap-1.5',
-        'max-w-full',
-        className,
-      )}
+      className={className}
     >
-      <StatusIcon status={status} className={size === 'sm' ? 'size-3' : 'size-3.5'} />
-      <span className="truncate">{text}</span>
-    </Badge>
+      <StatusIcon status={status} className={size === 'sm' ? 'size-3 shrink-0' : 'size-3.5 shrink-0'} />
+      <Chip.Label className="truncate">{text}</Chip.Label>
+    </Chip>
   );
 }

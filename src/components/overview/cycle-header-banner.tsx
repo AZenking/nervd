@@ -6,22 +6,21 @@ import {
   type IterationWorkitemBreakdown,
 } from '@/lib/iteration-period';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { Button, Card, Chip, Dropdown, Label } from '@heroui/react';
+import { statusMeta } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
-import { LinearSegmentedProgressBar } from './segmented-progress-bar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Kbd } from '@/components/ui/kbd';
 
 export interface CycleHeaderBannerProps {
   iteration?: IterationSummary | null;
   iterations?: IterationSummary[];
-  breakdown: IterationWorkitemBreakdown;
+  /** 兼容旧调用方；纵览页不再把它渲染成完成率或阻塞统计。 */
+  breakdown?: IterationWorkitemBreakdown;
+  itemCount?: number;
+  dataComplete?: boolean;
   onOpenIterationWorkbench?: (iterationName: string) => void;
-  onSelectIteration?: (iterationName: string) => void;
+  onSelectIteration?: (iterationId: string) => void;
   className?: string;
 }
 
@@ -29,78 +28,76 @@ export function CycleHeaderBanner({
   iteration,
   iterations = [],
   breakdown,
+  itemCount,
+  dataComplete = true,
   onOpenIterationWorkbench,
   onSelectIteration,
   className,
 }: CycleHeaderBannerProps) {
   const remaining = calculateSprintRemaining(iteration?.endDate);
-
-  const remainingToneClasses = {
-    run: 'border-sig-run/30 bg-sig-run/10 text-sig-run',
-    fail: 'border-sig-fail/30 bg-sig-fail/10 text-sig-fail',
-    ok: 'border-sig-ok/30 bg-sig-ok/10 text-sig-ok',
-    idle: 'border-border bg-muted/40 text-muted-foreground',
-  }[remaining.tone];
+  const visibleItemCount = itemCount ?? breakdown?.total ?? 0;
 
   return (
-    <div
+    <Card
       className={cn(
-        'group flex flex-col gap-3 rounded-lg border border-border bg-card/70 p-4 transition-colors hover:bg-card/90 sm:p-5',
+        'group gap-0 overflow-hidden p-0',
         className,
       )}
     >
-      {/* 顶部主信息栏 */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
           <StatusIcon status={iteration?.state ?? '进行中'} className="size-4 shrink-0" />
 
           {/* 迭代名（支持在多迭代之间切换） */}
           {iterations.length > 1 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 text-sm sm:text-base font-semibold tracking-tight text-foreground transition-colors hover:text-primary focus-visible:outline-hidden"
-                  >
-                    <span>{iteration?.name || '当前迭代'}</span>
-                    <span className="text-[10px] text-muted-foreground">▼</span>
-                  </button>
-                }
-              />
-              <DropdownMenuContent align="start" className="min-w-52 max-h-80 overflow-y-auto">
-                {iterations.map((it) => {
-                  const isSelected = it.name === iteration?.name;
-                  return (
-                    <DropdownMenuItem
-                      key={it.id || it.name}
-                      className={cn(
-                        'flex items-center gap-2 justify-between cursor-pointer px-2.5 py-1.5',
-                        isSelected && 'font-medium bg-accent/60',
-                      )}
-                      onClick={() => onSelectIteration?.(it.name)}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <StatusIcon status={it.state} className="size-3.5 shrink-0" />
-                        <span className="truncate">{it.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                        {isSelected ? (
-                          <span className="flex items-center gap-1 text-[11px] text-primary font-medium">
-                            <span>当前</span>
-                            <CheckIcon className="size-3" />
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground/70">
-                            {it.state}
-                          </span>
+            <Dropdown>
+              <Dropdown.Trigger
+                className="flex items-center gap-1.5 text-sm sm:text-base font-semibold tracking-tight text-foreground transition-colors hover:text-primary focus-visible:outline-hidden"
+              >
+                <span>{iteration?.name || '当前迭代'}</span>
+                <span className="text-[10px] text-muted-foreground">▼</span>
+              </Dropdown.Trigger>
+              <Dropdown.Popover className="min-w-52 max-h-80">
+                <ScrollArea size={24} className="max-h-[inherit]">
+                <Dropdown.Menu
+                  aria-label="切换迭代"
+                  onAction={(key) => onSelectIteration?.(String(key))}
+                >
+                  {iterations.map((it) => {
+                    const isSelected = it.id === iteration?.id;
+                    return (
+                      <Dropdown.Item
+                        key={it.id || it.name}
+                        id={it.id}
+                        textValue={it.name}
+                        className={cn(
+                          'flex items-center gap-2 justify-between cursor-pointer px-2.5 py-1.5',
+                          isSelected && 'font-medium bg-accent/60',
                         )}
-                      </div>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <StatusIcon status={it.state} className="size-3.5 shrink-0" />
+                          <Label className="truncate">{it.name}</Label>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          {isSelected ? (
+                            <span className="flex items-center gap-1 text-[11px] text-primary font-medium">
+                              <span>当前</span>
+                              <CheckIcon className="size-3" />
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground/70">
+                              {it.state}
+                            </span>
+                          )}
+                        </div>
+                      </Dropdown.Item>
+                    );
+                  })}
+                </Dropdown.Menu>
+                </ScrollArea>
+              </Dropdown.Popover>
+            </Dropdown>
           ) : (
             <span className="text-sm sm:text-base font-semibold tracking-tight text-foreground">
               {iteration?.name || '当前迭代'}
@@ -108,9 +105,19 @@ export function CycleHeaderBanner({
           )}
 
           {/* 状态徽标 */}
-          <span className="rounded px-1.5 py-0.5 text-[11px] font-medium border border-border/80 bg-muted/40 text-muted-foreground">
+          <Chip
+            size="sm"
+            variant="soft"
+            color={
+              statusMeta(iteration?.state).tone === 'ok'
+                ? 'success'
+                : statusMeta(iteration?.state).tone === 'fail'
+                  ? 'danger'
+                  : 'default'
+            }
+          >
             {iteration?.state || '进行中'}
-          </span>
+          </Chip>
 
           {/* 日期周期 */}
           <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
@@ -119,69 +126,42 @@ export function CycleHeaderBanner({
           </span>
 
           {/* 倒计时胶囊 */}
-          <span
-            className={cn(
-              'rounded-full border px-2 py-0.5 text-[11px] font-medium',
-              remainingToneClasses,
-            )}
+          <Chip
+            size="sm"
+            variant="soft"
+            color={remaining.tone === 'fail' ? 'danger' : remaining.tone === 'run' ? 'warning' : 'default'}
           >
             {remaining.label}
-          </span>
+          </Chip>
         </div>
 
         {/* 右侧进入工作台操作 */}
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => onOpenIterationWorkbench?.(iteration?.name ?? '')}
+          onPress={() => onOpenIterationWorkbench?.(iteration?.name ?? '')}
           className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60"
         >
           <span>进入迭代工作台</span>
-          <kbd className="hidden sm:inline-block rounded border border-border bg-muted/80 px-1 py-0.2 font-mono text-[10px] text-muted-foreground">
+          <Kbd variant="light" className="hidden! sm:inline-flex! h-auto! rounded-sm! px-1! py-0! font-mono! text-[10px]!">
             g i
-          </kbd>
+          </Kbd>
           <ChevronRightIcon className="size-3.5" />
         </Button>
-      </div>
+      </Card.Header>
 
-      {/* 中部 Linear 标志性细长复合进度条 */}
-      <div className="py-0.5">
-        <LinearSegmentedProgressBar breakdown={breakdown} />
-      </div>
-
-      {/* 底部摘要信息 */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+      <Card.Footer className="flex w-full flex-row flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
         <div className="flex items-center gap-1">
           <span className="font-medium text-foreground">
-            {breakdown.completed} / {breakdown.total}
+            {dataComplete ? `共 ${visibleItemCount} 项` : `已加载 ${visibleItemCount} 项`}
           </span>
-          <span>项已完成</span>
-          <span>·</span>
-          <span>完成率</span>
-          <span className="font-mono font-medium text-foreground">{breakdown.percent}%</span>
+          <span>当前类别工作项</span>
         </div>
 
-        <div className="flex items-center gap-3 font-mono text-[11px]">
-          {breakdown.inProgress > 0 && (
-            <span className="flex items-center gap-1 text-sig-run">
-              <span className="size-1.5 rounded-full bg-sig-run" />
-              <span>{breakdown.inProgress} 进行中</span>
-            </span>
-          )}
-          {breakdown.blocked > 0 && (
-            <span className="flex items-center gap-1 text-sig-fail">
-              <span className="size-1.5 rounded-full bg-sig-fail" />
-              <span>{breakdown.blocked} 阻塞</span>
-            </span>
-          )}
-          {breakdown.todo > 0 && (
-            <span className="flex items-center gap-1 text-muted-foreground">
-              <span className="size-1.5 rounded-full bg-muted-foreground/50" />
-              <span>{breakdown.todo} 待办</span>
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
+        <span className="font-mono text-[11px]">
+          {dataComplete ? '分页已完成' : '分页未完成'}
+        </span>
+      </Card.Footer>
+    </Card>
   );
 }
