@@ -1,6 +1,7 @@
 import {
   CalendarIcon, ClockIcon, DatabaseIcon, FolderIcon, GitBranchIcon, LayersIcon, UserIcon,
 } from 'lucide-react';
+import { ListBox } from '@heroui/react';
 import { useMemo, useState } from 'react';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { Descriptions } from '@/components/ui/descriptions';
@@ -36,6 +37,13 @@ export function DetailStatusPopover({
     currentStatusName: status,
   });
 
+  // 触发器：min-h + py-1 自适应（.select__trigger 默认 py-2 会在 h-7 内垂直裁切文字）
+  const triggerCls = cn(
+    'min-h-8 gap-1.5 px-2 py-1 text-xs',
+    variant === 'cell' && 'min-h-7',
+    className,
+  );
+
   return (
     <Select
       aria-label="流转状态"
@@ -49,26 +57,32 @@ export function DetailStatusPopover({
       }}
       className={cn('min-w-0 max-w-44', className)}
     >
-      <Select.Trigger className={cn('h-7 gap-1.5 text-xs', variant === 'cell' && 'h-6')}>
+      <Select.Trigger className={triggerCls}>
         <StatusIcon status={status} className="size-3.5 shrink-0" />
-        <Select.Value className="truncate">{status || '未知状态'}</Select.Value>
+        <span className="truncate">{status || '未知状态'}</span>
       </Select.Trigger>
-      <Select.Content className="min-w-36">
-        {loadingStatuses ? (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">读取状态流程…</div>
-        ) : statuses.length === 0 ? (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>
-        ) : (
-          statuses.map((st) => (
-            <Select.Item key={st.id} value={st.id} textValue={st.name} className="text-xs">
-              <span className="flex items-center gap-2">
-                <StatusIcon status={st.name} className="size-3.5 shrink-0" />
-                <span>{st.name}</span>
-              </span>
-            </Select.Item>
-          ))
-        )}
-      </Select.Content>
+      {/* 加载/空态不能进入 ListBox（react-aria 集合仅接受 Item/Section 子节点） */}
+      {loadingStatuses || statuses.length === 0 ? (
+        <Select.Popover className="min-w-36">
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            {loadingStatuses ? '读取状态流程…' : '暂无可流转状态'}
+          </div>
+        </Select.Popover>
+      ) : (
+        <Select.Popover className="min-w-36">
+          <ListBox>
+            {statuses.map((st) => (
+              <ListBox.Item key={st.id} id={st.id} textValue={st.name} className="text-xs">
+                <span className="flex items-center gap-2">
+                  <StatusIcon status={st.name} className="size-3.5 shrink-0" />
+                  <span>{st.name}</span>
+                </span>
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      )}
     </Select>
   );
 }
@@ -126,6 +140,12 @@ export function DetailAssigneePopover({
       .finally(() => setUpdating(false));
   };
 
+  const triggerCls = cn(
+    'min-h-8 gap-1.5 px-2 py-1 text-xs',
+    variant === 'cell' && 'min-h-7',
+    className,
+  );
+
   return (
     <Select
       aria-label="更改负责人"
@@ -133,7 +153,7 @@ export function DetailAssigneePopover({
       onValueChange={handleValueChange}
       className={cn('min-w-0 max-w-44', className)}
     >
-      <Select.Trigger className={cn('h-7 gap-1.5 text-xs', variant === 'cell' && 'h-6')}>
+      <Select.Trigger className={triggerCls}>
         {updating ? (
           <Spinner className="size-3.5 shrink-0" />
         ) : assignedToName ? (
@@ -145,28 +165,35 @@ export function DetailAssigneePopover({
         ) : (
           <UserIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
         )}
-        <Select.Value className="truncate">{assignedToName || '未分配'}</Select.Value>
+        <span className="truncate">{assignedToName || '未分配'}</span>
       </Select.Trigger>
-      <Select.Content>
-        {candidates.length === 0 && (
+      {/* 空候选不能进入 ListBox（react-aria 集合仅接受 Item/Section 子节点） */}
+      {candidates.length === 0 ? (
+        <Select.Popover className="min-w-40">
           <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无候选成员</div>
-        )}
-        {candidates.map((c) => (
-          <Select.Item key={c.id} value={c.id} textValue={c.name} className="text-xs">
-            <span className="flex min-w-0 items-center gap-2">
-              <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(c.name))}>
-                <AvatarFallback className="text-[9px] bg-transparent font-medium">
-                  {c.name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="truncate">{c.name}</span>
-              {c.role && (
-                <span className="shrink-0 text-[10px] text-muted-foreground/80">({c.role})</span>
-              )}
-            </span>
-          </Select.Item>
-        ))}
-      </Select.Content>
+        </Select.Popover>
+      ) : (
+        <Select.Popover className="min-w-44">
+          <ListBox>
+            {candidates.map((c) => (
+              <ListBox.Item key={c.id} id={c.id} textValue={c.name} className="text-xs">
+                <span className="flex min-w-0 items-center gap-2">
+                  <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(c.name))}>
+                    <AvatarFallback className="text-[9px] bg-transparent font-medium">
+                      {c.name.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="truncate">{c.name}</span>
+                  {c.role && (
+                    <span className="shrink-0 text-[10px] text-muted-foreground/80">({c.role})</span>
+                  )}
+                </span>
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      )}
     </Select>
   );
 }

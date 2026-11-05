@@ -18,7 +18,7 @@ import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
-import { Tabs } from '@heroui/react';
+import { Tabs, Button as HeroButton } from '@heroui/react';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -832,22 +832,6 @@ export function RequirementDetails({
           )}
           toolbar={(
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 w-full text-xs">
-              {/* 状态 Chip */}
-              <DetailStatusPopover
-                status={statusName}
-                statusId={statusId}
-                workitemId={selectedId ?? undefined}
-                variant="badge"
-              />
-
-              {/* 负责人 Chip */}
-              <DetailAssigneePopover
-                assignedToName={assignedToName}
-                workitemId={selectedId}
-                candidateAssignees={candidateAssignees}
-                variant="badge"
-              />
-
               {/* 类型 Chip */}
               <Chip
                 size="sm"
@@ -964,6 +948,22 @@ export function RequirementDetails({
                   <Chip.Label className="truncate">{parent.identifier}</Chip.Label>
                 </Chip>
               )}
+
+              {/* 状态与负责人 Select（右置贴齐行尾：可操作控件与只读信息分离） */}
+              <div className="ml-auto flex shrink-0 items-center gap-2 pl-2">
+                <DetailStatusPopover
+                  status={statusName}
+                  statusId={statusId}
+                  workitemId={selectedId ?? undefined}
+                  variant="badge"
+                />
+                <DetailAssigneePopover
+                  assignedToName={assignedToName}
+                  workitemId={selectedId}
+                  candidateAssignees={candidateAssignees}
+                  variant="badge"
+                />
+              </div>
             </div>
           )}
         />

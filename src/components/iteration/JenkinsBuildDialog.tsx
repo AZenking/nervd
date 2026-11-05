@@ -609,42 +609,43 @@ export function JenkinsBuildParameters({
                       装饰留在面板自身会残留空白条。 */}
                   <CollapsibleContent>
                     <div className="mt-2.5 flex flex-col gap-3 pt-2 border-t border-border/40">
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      指定哪个 Jenkins 参数对应「代码分支」与「部署环境」，用于在 nervd 的构建记录与迭代仓库列表中展示。已自动完成智能推断。
-                    </p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field className="gap-1">
-                        <FieldLabel className="text-xs">代码分支参数</FieldLabel>
-                        <SearchableSelect
-                          value={branchParameter || '__none'}
-                          onValueChange={(v) => setBranchParameter(v && v !== '__none' ? v : '')}
-                          items={[
-                            { label: '不映射', value: '__none' },
-                            ...parameters.map((p) => ({
-                              label: p.name,
-                              value: p.name,
-                              disabled: p.name === environmentParameter,
-                            })),
-                          ]}
-                          className="text-xs h-8"
-                        />
-                      </Field>
-                      <Field className="gap-1">
-                        <FieldLabel className="text-xs">部署环境参数</FieldLabel>
-                        <SearchableSelect
-                          value={environmentParameter || '__none'}
-                          onValueChange={(v) => setEnvironmentParameter(v && v !== '__none' ? v : '')}
-                          items={[
-                            { label: '不映射', value: '__none' },
-                            ...parameters.map((p) => ({
-                              label: p.name,
-                              value: p.name,
-                              disabled: p.name === branchParameter,
-                            })),
-                          ]}
-                          className="text-xs h-8"
-                        />
-                      </Field>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        指定哪个 Jenkins 参数对应「代码分支」与「部署环境」，用于在 nervd 的构建记录与迭代仓库列表中展示。已自动完成智能推断。
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field className="gap-1">
+                          <FieldLabel className="text-xs">代码分支参数</FieldLabel>
+                          <SearchableSelect
+                            value={branchParameter || '__none'}
+                            onValueChange={(v) => setBranchParameter(v && v !== '__none' ? v : '')}
+                            items={[
+                              { label: '不映射', value: '__none' },
+                              ...parameters.map((p) => ({
+                                label: p.name,
+                                value: p.name,
+                                disabled: p.name === environmentParameter,
+                              })),
+                            ]}
+                            className="text-xs h-8"
+                          />
+                        </Field>
+                        <Field className="gap-1">
+                          <FieldLabel className="text-xs">部署环境参数</FieldLabel>
+                          <SearchableSelect
+                            value={environmentParameter || '__none'}
+                            onValueChange={(v) => setEnvironmentParameter(v && v !== '__none' ? v : '')}
+                            items={[
+                              { label: '不映射', value: '__none' },
+                              ...parameters.map((p) => ({
+                                label: p.name,
+                                value: p.name,
+                                disabled: p.name === branchParameter,
+                              })),
+                            ]}
+                            className="text-xs h-8"
+                          />
+                        </Field>
+                      </div>
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
