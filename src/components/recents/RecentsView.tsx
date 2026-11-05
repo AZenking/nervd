@@ -143,7 +143,7 @@ export function RecentsView() {
                       key={item.workitemId}
                       id={item.workitemId}
                       onAction={() => handleOpenWorkitem(item)}
-                      className={cn('group', isCursorActive && 'bg-accent/60')}
+                      className={cn('group', isCursorActive && 'bg-muted-bg')}
                     >
                       <Table.Cell>
                         <div className="flex min-w-0 items-center gap-2.5">
