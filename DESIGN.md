@@ -1,532 +1,274 @@
 ---
-version: alpha
-name: Linear Analysis
-description: A cool-neutral developer-workbench system on a white canvas — near-black Inter type set at a compact scale, a single violet structural accent, and hairline-first surfaces that keep dense information quiet.
+version: 2
+name: nervd Design
+description: HeroUI v3 官方主题契约（视觉实现基线）+ nervd 覆盖层 + nervd 布局形态与组件分工规范。
+upstream_contract: https://heroui.com/react/DESIGN.md
+contract_collected: 2026-11-05
+modes:
+  - light
+  - dark
+source_of_truth: src/styles/theme.css
+---
 
-colors:
-  primary: "#5E6AD2"
-  primary-active: "#4a56c0"
-  on-primary: "#ffffff"
-  canvas: "#ffffff"
-  canvas-soft: "#f7f8f8"
-  surface: "#ffffff"
-  ink: "#26282d"
-  ink-secondary: "#6b7075"
-  ink-muted: "#8a8f98"
-  ink-faint: "#b7bcc2"
-  hairline: "#e8e9eb"
-  accent: "#f2f3f5"
-  status-emerald: "#30a46c"
-  status-red: "#e5484d"
-  status-amber: "#d9730d"
+# nervd 设计规范
 
-typography:
-  display-1:
-    fontFamily: Inter
-    fontSize: 40px
-    fontWeight: 700
-    lineHeight: 1.1
-    letterSpacing: -0.8px
-  heading-1:
-    fontFamily: Inter
-    fontSize: 30px
-    fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: -0.5px
-  heading-2:
-    fontFamily: Inter
-    fontSize: 24px
-    fontWeight: 600
-    lineHeight: 1.25
-    letterSpacing: -0.25px
-  heading-3:
-    fontFamily: Inter
-    fontSize: 20px
-    fontWeight: 600
-    lineHeight: 1.3
-    letterSpacing: 0
-  title:
-    fontFamily: Inter
-    fontSize: 16px
-    fontWeight: 500
-    lineHeight: 1.4
-    letterSpacing: 0
-  body-md:
-    fontFamily: Inter
-    fontSize: 15px
-    fontWeight: 400
-    lineHeight: 1.5
-    letterSpacing: 0
-  body-sm:
-    fontFamily: Inter
-    fontSize: 14px
-    fontWeight: 400
-    lineHeight: 1.45
-    letterSpacing: 0
-  button:
-    fontFamily: Inter
-    fontSize: 14px
-    fontWeight: 500
-    lineHeight: 1.4
-    letterSpacing: 0
-  caption:
-    fontFamily: Inter
-    fontSize: 13px
-    fontWeight: 400
-    lineHeight: 1.4
-    letterSpacing: 0
-  eyebrow:
-    fontFamily: Inter
-    fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
-    letterSpacing: 0.1px
-
-rounded:
-  xs: 4px
-  sm: 6px
-  md: 8px
-  lg: 10px
-  xl: 14px
-  full: 9999px
-
-spacing:
-  xxs: 4px
-  xs: 8px
-  sm: 12px
-  md: 16px
-  lg: 20px
-  xl: 24px
-  xxl: 32px
-
-components:
-  nav-bar:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-sm}"
-    borderColor: "{colors.hairline}"
-    padding: 12px 16px
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 4px 12px
-  button-primary-pressed:
-    backgroundColor: "{colors.primary-active}"
-    textColor: "{colors.on-primary}"
-    rounded: "{rounded.md}"
-  button-secondary:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    typography: "{typography.button}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.md}"
-    padding: 4px 12px
-  button-utility:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.ink}"
-    typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 4px 10px
-  button-icon-circular:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
-  badge-pill:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.ink-secondary}"
-    typography: "{typography.eyebrow}"
-    rounded: "{rounded.sm}"
-    padding: 2px 6px
-  feature-card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.lg}"
-  feature-card-elevated:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.lg}"
-  pricing-plan-card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-sm}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.md}"
-    padding: "{spacing.lg}"
-  pricing-plan-card-featured:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "{spacing.lg}"
-  text-input:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-sm}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.sm}"
-    padding: 6px 10px
-  stat:
-    labelTypography: "{typography.eyebrow}"
-    labelColor: "{colors.ink-muted}"
-    valueFontFamily: mono
-    valueFontSize: 20px
-    valueFontWeight: 600
-    valueColor: "{colors.ink}"
-    subTypography: "{typography.caption}"
-    subColor: "{colors.ink-muted}"
-  stat-band:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    columnDivider: "{colors.hairline}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.md} {spacing.lg}"
-  hero-band:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
-    typography: "{typography.display-1}"
-    padding: "{spacing.xxl}"
-  footer:
-    backgroundColor: "{colors.canvas-soft}"
-    textColor: "{colors.ink-secondary}"
-    typography: "{typography.caption}"
-    padding: "{spacing.xxl}"
-
-  # ─── Examples (illustrative) — auto-derived; resolve any TO_FILL markers below ───
-  ex-pricing-tier:
-    description: "Default Pricing tier card. Re-uses feature-card chrome — white surface with hairline border."
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.lg}"
-  ex-pricing-tier-featured:
-    description: "Featured/highlighted tier — quiet accent-tinted surface (never a coloured border)."
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.lg}"
-  ex-product-selector:
-    description: "What's Included summary card — re-purposed for SaaS / B2B verticals (NOT a literal product gallery)."
-    backgroundColor: "{colors.surface}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.lg}"
-  ex-cart-drawer:
-    description: "Subscription summary — re-purposed for SaaS / B2B (line items per add-on, not literal cart)."
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.xl}"
-    padding: "{spacing.lg}"
-    item-divider: "{colors.hairline}"
-  ex-app-shell-row:
-    description: "Sidebar nav row inside the App Shell example. Active state uses violet as the indicator."
-    backgroundColor: "{colors.canvas-soft}"
-    activeIndicator: "{colors.primary}"
-    rounded: "{rounded.sm}"
-    padding: "{spacing.xs} {spacing.sm}"
-  ex-data-table-cell:
-    description: "Default data-table th + td chrome. Header uses mono-caps eyebrow typography; body uses body-sm."
-    headerBackground: "{colors.canvas-soft}"
-    headerTypography: "{typography.eyebrow}"
-    bodyTypography: "{typography.body-sm}"
-    cellPadding: "{spacing.sm} {spacing.md}"
-    rowBorder: "{colors.hairline}"
-  ex-auth-form-card:
-    description: "Sign-in / sign-up card. Re-uses feature-card chrome with text-input primitives inside."
-    backgroundColor: "{colors.surface}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.lg}"
-  ex-modal-card:
-    description: "Modal dialog surface — same chrome as feature-card with the Level-2 overlay shadow."
-    backgroundColor: "{colors.surface}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.xl}"
-    padding: "{spacing.lg}"
-  ex-empty-state-card:
-    description: "Empty-state illustration frame."
-    backgroundColor: "{colors.canvas-soft}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.xxl}"
-    captionTypography: "{typography.body-md}"
-  ex-toast:
-    description: "Toast notification surface — feature-card shape + Level-2 shadow."
-    backgroundColor: "{colors.surface}"
-    borderColor: "{colors.hairline}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.sm} {spacing.md}"
-    typography: "{typography.body-sm}"
+> **文档组成**
+> - **第一部分**：HeroUI v3 官方「视觉实现契约」逐字收录（2026-11-05 自 https://heroui.com/react/DESIGN.md 收录，仅标题层级下调一级，内容未改动）。
+> - **第二部分**：nervd 覆盖层 —— 在上游契约之上的品牌与产品约定，`src/styles/theme.css` 为唯一事实源。
+> - **第三部分**：nervd 布局与形态规范（页面骨架、组件分工、截断与全文提示）。
+>
+> **冲突裁决顺序**：已安装 `@heroui` 版本的 theme CSS → `src/styles/theme.css`（nervd 覆盖）→ 本文档文字描述。
+>
+> 原 alpha「Linear Analysis」规范已于 2026-11-05 全量移除，由本契约体系取代。
 
 ---
 
+# 第一部分 · HeroUI v3 视觉实现契约（上游逐字收录）
 
-## Overview
+> 上游元数据：`name: HeroUI Default Theme` · `library: @heroui/react` · `styles: @heroui/styles` · `modes: light / dark` · `source: https://github.com/heroui-inc/heroui/blob/v3/packages/styles/themes/default/variables.css`
 
-Linear looks like a precision instrument under studio light. The canvas is pure white `{colors.canvas}` (#ffffff) — cool, neutral, deliberately clinical — and structure is carried almost entirely by 1px hairlines (`{colors.hairline}` — #e8e9eb) rather than shadows or coloured fills. Type is Inter in near-black `{colors.ink}` (#26282d) at a compact, workmanlike scale: the largest size in the whole system is 40px (`{typography.display-1}` with −0.8px of tracking), and most of the interface lives at 13–15px. Everything speaks in cool greys, then says exactly one thing in colour: a single violet, `{colors.primary}` (#5E6AD2), reserved for the primary action, inline links, and focus.
+## HeroUI Default Theme
 
-The temperament is a developer workbench, not a marketing page: high density, a tight 4px-based spacing scale, compact 32px controls, and a persistent light-grey app backdrop (`{colors.canvas-soft}` #f7f8f8) framing two white floating panels — the sidebar and the main workbench. Surfaces are hairline-first — cards, panels, and table rows are defined by 1px borders, and shadows are so light they barely register, reserved for overlays that genuinely float. Status colour exists (emerald / red / amber) but only ever as status — a passed check, a failed run, a pending review — never as decoration, never as structure.
+Use this file as the visual implementation contract when building a product with HeroUI v3. It describes the default HeroUI theme for designers and coding agents. The theme CSS remains the source of truth.
 
-**Key Characteristics:**
-- Cool-neutral grey ramp on a pure white canvas — never warm, never paper-toned
-- Near-black Inter `{colors.ink}` (#26282d) at a compact scale; display type caps at 40px with −0.8px tracking
-- Exactly one structural accent — Linear violet `{colors.primary}` (#5E6AD2) — for CTAs, links, and focus only
-- Hairline-first surfaces: 1px `{colors.hairline}` borders; micro-shadows only for true overlays
-- High density: 4px base spacing, 8px-radius buttons, 14px button and body text
-- Grey desktop (`{colors.canvas-soft}`) vs two white floating panels (sidebar + main area) as the single figure/ground move
-- Status colours (`{colors.status-emerald}`, `{colors.status-red}`, `{colors.status-amber}`) carry state semantics only
+### Setup
 
-## Colors
+Install `@heroui/react` and import HeroUI after Tailwind CSS:
 
-> Source: the Linear product UI (issues, cycles, views, settings) taken as the vibe benchmark for a developer workbench. One tightly-scoped, cool-neutral system across the entire app — no page gets its own palette.
+```css
+@import "tailwindcss";
+@import "@heroui/styles";
+```
 
-### Brand & Accent
-- **Linear Violet** (`{colors.primary}` — #5E6AD2): the single structural accent. Primary CTA fill, inline link colour, focus ring, and active indicator. The only colour that ever paints an action.
-- **Pressed Violet** (`{colors.primary-active}` — #4a56c0): the darker press state of the primary CTA.
+Apply the semantic canvas colors at the application root:
 
-There is no secondary brand colour and no decorative palette. Everything else is grey, hairline, or status.
+```tsx
+<body className="bg-background text-foreground">{children}</body>
+```
 
-### Surface
-- **White** (`{colors.canvas}` / `{colors.surface}` — #ffffff): the main content region, cards, panels, nav bar, and form fields.
-- **Cool Soft** (`{colors.canvas-soft}` — #f7f8f8): the app desktop backdrop the sidebar and main-area panels float on; also soft page zones, table headers, empty states, and the footer band.
-- **Hairline** (`{colors.hairline}` — #e8e9eb): 1px card borders, dividers, table row rules, and the nav-bar underside.
-- **Accent Fill** (`{colors.accent}` — #f2f3f5): the quiet interactive grey — hover rows, selected states, ghost chips, utility buttons, featured tiers.
+Use `class="light"` or `data-theme="light"` for light mode and `class="dark"` or `data-theme="dark"` for dark mode. The `default` theme is the light theme.
 
-### Text
-- **Ink** (`{colors.ink}` — #26282d): primary headings, body copy, values.
-- **Slate** (`{colors.ink-secondary}` — #6b7075): secondary body copy and footer text.
-- **Steel** (`{colors.ink-muted}` — #8a8f98): supporting copy, labels, stat labels.
-- **Mist** (`{colors.ink-faint}` — #b7bcc2): placeholders, disabled text, fine metadata.
+### Design Direction
 
-### Semantic
-Status is a dedicated, closed set: **Emerald** (`{colors.status-emerald}` — #30a46c) for success / online / passed, **Red** (`{colors.status-red}` — #e5484d) for error / failed / destructive, **Amber** (`{colors.status-amber}` — #d9730d) for warning / pending. They render as status dots, icons, and delta text in stats — never as structural fills, never as decoration.
+- Build calm, modern interfaces with a clear content hierarchy.
+- Prefer whitespace, typography, and surface levels over decoration.
+- Use one strong accent for primary actions and reserve status colors for meaning.
+- Compose interfaces from HeroUI components before creating custom primitives.
+- Keep interactions accessible, keyboard friendly, and visibly focused.
+- Let semantic tokens adapt the interface between light and dark modes.
 
-## Typography
+### Colors
 
-### Font Family
-The entire system is set in **Inter** — headings, body, buttons, labels — with a fallback stack of `Inter, -apple-system, system-ui, "Segoe UI", Helvetica, Arial`. Identifiers, run numbers, and stat values add a mono companion (`font-mono` with tabular numerals enabled) so numeric columns and IDs align vertically.
+Use semantic HeroUI tokens and Tailwind utilities in product code. Raw values are included for design handoff and visual QA only. Do not branch component code by color mode.
 
-### Hierarchy
+| Role | Tailwind utilities | CSS variables | Light | Dark | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| Canvas | `bg-background text-foreground` | `--background`, `--foreground` | `oklch(0.9702 0 0)`, `oklch(0.2103 0.0059 285.89)` | `oklch(12% 0.005 285.823)`, `oklch(0.9911 0 0)` | Page background and primary content |
+| Surface | `bg-surface text-surface-foreground` | `--surface`, `--surface-foreground` | white, foreground | `oklch(0.2103 0.0059 285.89)`, foreground | Cards and non-floating containers |
+| Secondary surface | `bg-surface-secondary` | `--surface-secondary` | `oklch(0.9524 0.0013 286.37)` | `oklch(0.257 0.0037 286.14)` | Nested or lower-emphasis regions |
+| Tertiary surface | `bg-surface-tertiary` | `--surface-tertiary` | `oklch(0.9373 0.0013 286.37)` | `oklch(0.2721 0.0024 247.91)` | Stronger surface separation |
+| Overlay | `bg-overlay text-overlay-foreground` | `--overlay`, `--overlay-foreground` | white, foreground | `oklch(0.2103 0.0059 285.89)`, foreground | Popovers, menus, dialogs, and tooltips |
+| Backdrop | `bg-backdrop` | `--backdrop` | black at 50% | black at 60% | Content dimming behind overlays |
+| Muted content | `text-muted` | `--muted` | `oklch(0.5517 0.0138 285.94)` | `oklch(70.5% 0.015 286.067)` | Supporting text and secondary icons |
+| Neutral action | `bg-default text-default-foreground` | `--default`, `--default-foreground` | `oklch(94% 0.001 286.375)`, eclipse | `oklch(27.4% 0.006 286.033)`, snow | Neutral controls and selected states |
+| Accent | `bg-accent text-accent-foreground` | `--accent`, `--accent-foreground` | `oklch(0.6204 0.195 253.83)`, snow | same as light | Primary actions, focus, and emphasis |
+| Success | `bg-success text-success-foreground` | `--success`, `--success-foreground` | `oklch(0.7329 0.1935 150.81)`, eclipse | same as light | Positive outcomes and completed states |
+| Warning | `bg-warning text-warning-foreground` | `--warning`, `--warning-foreground` | `oklch(0.7819 0.1585 72.33)`, eclipse | `oklch(0.8203 0.1388 76.34)`, eclipse | Caution and attention |
+| Danger | `bg-danger text-danger-foreground` | `--danger`, `--danger-foreground` | `oklch(0.6532 0.2328 25.74)`, snow | `oklch(0.594 0.1967 24.63)`, snow | Errors and destructive actions |
+| Field | `bg-field text-field-foreground` | `--field-background`, `--field-foreground` | white, eclipse | eclipse, foreground | Inputs and interactive fields |
+| Border | `border-border` | `--border` | `oklch(90% 0.004 286.32)` | `oklch(28% 0.006 286.033)` | Component boundaries |
+| Separator | `border-separator` | `--separator` | `oklch(92% 0.004 286.32)` | `oklch(25% 0.006 286.033)` | Quiet structural dividers |
 
-| Token | Size | Weight | Line Height | Letter Spacing | Use |
-|---|---|---|---|---|---|
-| `{typography.display-1}` | 40px | 700 | 1.1 | −0.8px | Hero / empty-state headline — the largest type in the system |
-| `{typography.heading-1}` | 30px | 600 | 1.2 | −0.5px | Page headlines |
-| `{typography.heading-2}` | 24px | 600 | 1.25 | −0.25px | Section headlines |
-| `{typography.heading-3}` | 20px | 600 | 1.3 | 0 | Card / panel titles, stat values |
-| `{typography.title}` | 16px | 500 | 1.4 | 0 | Row titles, toolbar labels, popover headers |
-| `{typography.body-md}` | 15px | 400 | 1.5 | 0 | Default body copy |
-| `{typography.body-sm}` | 14px | 400 | 1.45 | 0 | Dense body, table rows, nav, buttons |
-| `{typography.button}` | 14px | 500 | 1.4 | 0 | Button labels |
-| `{typography.caption}` | 13px | 400 | 1.4 | 0 | Captions, metadata, stat sub-text |
-| `{typography.eyebrow}` | 12px | 500 | 1.33 | +0.1px | Stat labels, small tags, table headers |
+Hover, focus, soft, inverse, and secondary or tertiary border colors are derived with `color-mix()`. Use utilities such as `bg-accent-hover`, `bg-accent-soft`, `text-accent-soft-foreground`, `border-border-secondary`, and `border-separator-secondary` instead of recreating those formulas.
 
-### Principles
-The type voice is **compact, neutral, and instrument-grade**. Display sizes are modest and tightly tracked (the negative tracking grows gently with size) so headlines feel set rather than stretched. Most of the UI runs at 13–15px because the workbench is read at arm's length, all day. The expressive lever is weight contrast — 600/700 headings against 400 body — never colour, never decoration. Mono tabular numerals are mandatory wherever numbers are compared (stats, tables, run IDs).
+### Typography
 
-### Note on Font Substitutes
-Inter is open-source and used as-is — no proprietary cut, no substitute required. Apply the negative letter-spacing values in the table above explicitly; default Inter tracking reads loose at 30–40px.
+HeroUI inherits the application's font family and uses Tailwind's type scale. Preserve the component defaults unless the product has its own type system.
 
-## Layout
+- Use concise, descriptive headings in sentence case.
+- Use `text-foreground` for primary content and `text-muted` for supporting content.
+- Keep body copy readable with a comfortable line height and constrained line length.
+- Use tabular numbers for changing metrics, prices, counters, and aligned numeric data.
+- Avoid all-caps labels except for short, established conventions.
 
-### Spacing System
-- **Base unit**: 4px.
-- **Tokens (front matter)**: `{spacing.xxs}` 4px · `{spacing.xs}` 8px · `{spacing.sm}` 12px · `{spacing.md}` 16px · `{spacing.lg}` 20px · `{spacing.xl}` 24px · `{spacing.xxl}` 32px.
-- Card interiors land at `{spacing.lg}` (20px); table rows pad at `{spacing.sm}`–`{spacing.md}`; sections separate by `{spacing.xl}`–`{spacing.xxl}`. Density is a feature, not a bug.
+### Layout
 
-### Grid & Container
-The information architecture is workbench-style and deliberately retained: a **page header flush-left at full content width**, then **body content centred at max-w-5xl (64rem)**. A persistent white sidebar panel (~240px) and the pure-white main region both float on the grey `{colors.canvas-soft}` desktop; the `{components.nav-bar}` spans the top as a slim white bar with a hairline underside. Detail and settings pages repeat the same rhythm — header left, centred column below — so every page reads as the same product.
+The spacing base is `--spacing: 0.25rem`, giving the system a 4px rhythm through Tailwind spacing utilities.
 
-### Whitespace Philosophy
-Whitespace is tight and structural. Grouping is done by hairlines and 12–16px gaps rather than large voids; the eye should scan a full page of dense information without ever meeting a decorative empty band. Figure/ground is established exactly once per screen: grey desktop vs the two white panels floating on it.
+- Use consistent Tailwind gaps and padding rather than one-off values.
+- Keep related controls and content visually grouped.
+- Constrain wide reading layouts and size containers to their content.
+- Avoid doubling parent and child padding in the same direction.
+- Align sibling cards, controls, labels, and metrics to shared visual anchors.
 
-### Responsive Strategy
+### Shapes
 
-#### Breakpoints
-| Name | Width | Key Changes |
-|---|---|---|
-| Wide | 1440px+ | Full sidebar, widest centred column |
-| Desktop | 1024–1280px | Standard workbench; centred max-w-5xl body |
-| Tablet | 768–900px | Sidebar collapses to an icon rail / overlay drawer |
-| Mobile | ≤600px | Single-column stack, stat-band reflows 4 → 2 → 1 |
+The base radius is `--radius: 0.5rem` (8px). The default field radius is `--field-radius: calc(var(--radius) * 1.5)` (12px).
 
-#### Touch Targets
-Desktop controls are compact (28–32px tall). On touch, preserve a 44×44px minimum hit area by expanding padding without changing the visual footprint.
+| Utility | Formula | Default value |
+| --- | --- | --- |
+| `rounded-xs` | `calc(var(--radius) * 0.25)` | 2px |
+| `rounded-sm` | `calc(var(--radius) * 0.5)` | 4px |
+| `rounded-md` | `calc(var(--radius) * 0.75)` | 6px |
+| `rounded-lg` | `calc(var(--radius) * 1)` | 8px |
+| `rounded-xl` | `calc(var(--radius) * 1.5)` | 12px |
+| `rounded-2xl` | `calc(var(--radius) * 2)` | 16px |
+| `rounded-3xl` | `calc(var(--radius) * 3)` | 24px |
+| `rounded-4xl` | `calc(var(--radius) * 4)` | 32px |
 
-#### Collapsing Strategy
-The sidebar becomes an overlay drawer below the tablet breakpoint; the stat-band reflows from 4 cells to 2 then 1 with its hairline dividers following the grid; tables scroll horizontally inside their panel rather than squishing columns. Section padding tightens one step but the white-canvas + hairline rhythm is preserved.
+Use the scale consistently. Inner media and nested surfaces should have a visibly related, usually smaller, radius than their parent.
 
-#### Image Behavior
-Screenshots and illustration tiles sit inside `{rounded.lg}` frames with a hairline edge and scale fluidly within their grid cell. There is no art-directed crop; images are evidence, not decoration.
+### Elevation and Depth
 
-## Elevation & Depth
-
-| Level | Treatment | Use |
-|---|---|---|
-| 0 — Flat | Hairline border `{colors.hairline}`, no shadow | Default cards, panels, table rows — the vast majority of surfaces |
-| 1 — Soft | `rgba(0,0,0,0.03) 0 1px 2px` micro-shadow, usually paired with a hairline | Raised cards, floating toolbars, toasts |
-| 2 — Elevated | `rgba(0,0,0,0.06) 0 4px 16px` + 1px hairline | Modals, popovers, command palettes, dropdown menus |
-
-The elevation philosophy is **hairline-first**: a border does the structural work, and a shadow only appears when something genuinely floats above the page. If a design can be resolved with a `{colors.hairline}` alone, it must be.
-
-### Decorative Depth
-There is none. Depth cues come from surface adjacency (grey sidebar vs white canvas vs `{colors.accent}` fills) — never from glows, gradients, or layered illustration.
-
-## Shapes
-
-### Border Radius Scale
-
-| Token | Value | Use |
-|---|---|---|
-| `{rounded.xs}` | 4px | Inline chips, tiny tags |
-| `{rounded.sm}` | 6px | Inputs, menu items, list rows, badges, icon buttons |
-| `{rounded.md}` | 8px | **All buttons**, small cards, segmented controls |
-| `{rounded.lg}` | 10px | Feature cards, stat-band, content tiles, illustration frames |
-| `{rounded.xl}` | 14px | Large containers, modals, drawers, image wells |
-| `{rounded.full}` | 9999px | Avatars and status dots only — never buttons |
-
-### Photography Geometry
-Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a hairline edge, full-bleed within their container. Avatars are small and circular (`{rounded.full}`). Nothing else is round: the button language is uniformly `{rounded.md}` (8px), which is what keeps the workbench feeling engineered rather than friendly-rounded.
-
-## Components
-
-> **No hover states documented.** Every spec below documents Default and Active/Pressed states only. Variants live as separate `components:` front-matter entries and are described in their own sub-blocks.
-
-### Navigation
-
-**`nav-bar`** — Top navigation
-- White surface `{colors.canvas}`, `{colors.ink}` text at `{typography.body-sm}`, 1px `{colors.hairline}` **bottom** border, padding `12px 16px`, ~48px tall. Sits as a slim sticky bar: left wordmark / breadcrumb, contextual actions right. No shadow — the hairline underside is the entire separation.
-
-### Buttons
-
-**`button-primary`** — Primary CTA
-- Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.button}` (14px / 500), rounded `{rounded.md}` (8px), padding `4px 12px`, ~32px tall. The single violet action on any page.
-- Pressed state lives in `button-primary-pressed` (background `{colors.primary-active}`).
-
-**`button-primary-pressed`**
-- Background `{colors.primary-active}`, text `{colors.on-primary}` — the depressed state of the primary CTA.
-
-**`button-secondary`** — Secondary action
-- White surface `{colors.surface}`, 1px `{colors.hairline}` border, text `{colors.ink}`, type `{typography.button}`, rounded `{rounded.md}` (8px). Pairs beside `button-primary`; never competes with it.
-
-**`button-utility`** — Compact tool / select action
-- `{colors.accent}` fill, `{colors.ink}` text, type `{typography.button}`, rounded `{rounded.md}` (8px), padding `4px 10px`. Used for toolbar actions and plan-select controls where a bordered button would add noise.
-
-**`button-icon-circular`** — Icon-only control
-- `{colors.accent}` fill on hover, `{colors.ink}` glyph, rounded `{rounded.sm}` (6px) squircle. (Entry name kept for parity; the shape is no longer circular.) Used for row actions, kebab menus, and media controls.
-
-### Cards & Containers
-
-**`feature-card`** — Content / feature card
-- White surface `{colors.surface}`, 1px `{colors.hairline}` border, `{colors.ink}` text, `{typography.body-md}`, rounded `{rounded.lg}` (10px), padding `{spacing.lg}` (20px). The workhorse card. Flat by default — no shadow.
-
-**`feature-card-elevated`** — Raised card
-- Same chrome as `feature-card` plus the Level-1 micro-shadow, for cards that float above the canvas (toasts, pinned panels).
-
-**`pricing-plan-card`** — Pricing plan column
-- White surface `{colors.surface}`, hairline border, `{colors.ink}` text, `{typography.body-sm}`, rounded `{rounded.md}` (8px), padding `{spacing.lg}`. A bordered column with a `button-utility` select action.
-
-**`pricing-plan-card-featured`** — Highlighted plan column
-- Quiet `{colors.accent}` fill to lift the recommended tier off its white siblings, same `{rounded.md}` shape and padding. Distinguished by surface tint, never by a coloured border.
-
-### Inputs & Forms
-
-**`text-input`** — Text / number field
-- White surface `{colors.surface}`, `{colors.ink}` text, `{typography.body-sm}`, 1px `{colors.hairline}` border, rounded `{rounded.sm}` (6px), padding `6px 10px`. Focus swaps the border to `{colors.primary}` plus a 2px violet ring — focus is one of violet's three jobs.
-
-### Statistics
-
-**`stat`** — Metric atom (Tremor-style)
-- Three stacked slots on the token system: **label** in `{typography.eyebrow}` (12px / 500, `{colors.ink-muted}`, may uppercase), **value** in `font-mono` with tabular numerals at 20px / 600 `{colors.ink}`, and an optional **sub** line in `{typography.caption}` `{colors.ink-muted}` — deltas may tint with `{colors.status-emerald}` / `{colors.status-red}` because a delta *is* status. One `stat` per metric; never hand-roll a fourth layout.
-
-**`stat-band`** — Page-top KPI band (Tremor-style)
-- A white `{colors.surface}` grid container for **up to 4** `stat` cells, separated by 1px `{colors.hairline}` **column dividers** (grid + divide-x, not four bordered cards), rounded `{rounded.lg}` (10px) with an outer hairline, padding `{spacing.md} {spacing.lg}`. The single sanctioned shape for page-top KPIs.
-
-### Signature Components
-
-**`hero-band`** — Quiet hero
-- White `{colors.canvas}` band carrying a `{typography.display-1}` headline in `{colors.ink}`, a `{typography.body-md}` sub-line in `{colors.ink-secondary}`, and a `button-primary` + `button-secondary` pair. No dark inversion, no glow — the hero is daylight like everything else.
-
-**`badge-pill`** — Compact tag
-- (Entry name kept for parity; renders as a 6px tag, not a pill.) `{colors.accent}` fill, `{colors.ink-secondary}` text, `{typography.eyebrow}`, rounded `{rounded.sm}`, padding `2px 6px`. Status variants swap the text colour to a status token — the fill stays grey.
-
-**`footer`** — Site / page footer
-- `{colors.canvas-soft}` band, `{colors.ink-secondary}` link text at `{typography.caption}`, padding `{spacing.xxl}`, top hairline. Quiet multi-column link directory.
-
-### Examples (illustrative)
-
-> Kit-mirror demonstration surfaces. Each `ex-*` entry references system primitives so downstream consumers (`/preview-design`, `/generate-kit`) re-skin the same 10 surfaces consistently.
-
-**`ex-pricing-tier`** — Default pricing tier card. Re-uses feature-card chrome — white surface with hairline border.
-- Properties: `backgroundColor`, `textColor`, `borderColor`, `rounded`, `padding`
-
-**`ex-pricing-tier-featured`** — Featured/highlighted tier — quiet accent-tinted surface, not a coloured border.
-- Properties: `backgroundColor`, `textColor`, `rounded`, `padding`
-
-**`ex-product-selector`** — What's Included summary card — re-purposed for SaaS / B2B verticals (NOT a literal product gallery).
-- Properties: `backgroundColor`, `borderColor`, `rounded`, `padding`
-
-**`ex-cart-drawer`** — Subscription summary — re-purposed for SaaS / B2B (line items per add-on, not literal cart).
-- Properties: `backgroundColor`, `rounded`, `padding`, `item-divider`
-
-**`ex-app-shell-row`** — Sidebar nav row inside the App Shell example. Active state uses violet as the indicator.
-- Properties: `backgroundColor`, `activeIndicator`, `rounded`, `padding`
-
-**`ex-data-table-cell`** — Default data-table th + td chrome. Header uses mono-caps eyebrow typography; body uses body-sm.
-- Properties: `headerBackground`, `headerTypography`, `bodyTypography`, `cellPadding`, `rowBorder`
-
-**`ex-auth-form-card`** — Sign-in / sign-up card. Re-uses feature-card chrome with text-input primitives inside.
-- Properties: `backgroundColor`, `borderColor`, `rounded`, `padding`
-
-**`ex-modal-card`** — Modal dialog surface — same chrome as feature-card with the Level-2 overlay shadow.
-- Properties: `backgroundColor`, `borderColor`, `rounded`, `padding`
-
-**`ex-empty-state-card`** — Empty-state illustration frame.
-- Properties: `backgroundColor`, `rounded`, `padding`, `captionTypography`
-
-**`ex-toast`** — Toast notification surface — feature-card shape + Level-2 shadow.
-- Properties: `backgroundColor`, `borderColor`, `rounded`, `padding`, `typography`
-
-
-## Do's and Don'ts
+- Use `shadow-surface` for cards and raised page content.
+- Use `shadow-overlay` for floating layers such as dialogs, menus, and popovers.
+- Use `shadow-field` for form controls when the component applies it.
+- Dark mode intentionally removes surface and field shadows and gives overlays a subtle inset edge.
+- Do not stack custom shadows on HeroUI components that already provide elevation.
+
+### Components
+
+- **Buttons:** Use semantic variants. `primary` is the main action, `secondary` is an alternative, `tertiary` is dismissive or low emphasis, `outline` is a bordered low-emphasis action, `ghost` is an unbordered low-emphasis action, `danger` is destructive, and `danger-soft` is a quieter destructive action. Prefer one primary action per context and reach for an existing variant instead of restyling a button.
+- **Cards and surfaces:** Use `Card`, `Surface`, and semantic surface utilities. Create hierarchy with surface levels and spacing before adding borders.
+- **Forms:** Use HeroUI field components so background, foreground, placeholder, border, focus, radius, validation, and disabled states stay consistent.
+- **Status:** Use success, warning, and danger only for their semantic meanings. Pair color with text or an accessible label.
+- **Overlays:** Use HeroUI `Modal`, `Popover`, `Dropdown`, and `Tooltip` components so focus management, dismissal, and keyboard behavior remain accessible.
+- **Compound components:** Compose exported parts instead of replacing component behavior with custom divs. Preserve labels, roles, and keyboard interactions.
+
+### Interaction
+
+- Use HeroUI and React Aria states, including `data-hovered`, `data-pressed`, `data-focus-visible`, `data-disabled`, and `data-invalid`.
+- Every interactive element needs a visible focus indicator. The default focus color is the accent, with a 2px ring offset.
+- The default disabled opacity is `0.5`; disabled controls use a not-allowed cursor.
+- Use motion to clarify state changes, not as decoration. Respect reduced-motion preferences.
+- Keep icon-only and touch controls large enough to target and give them accessible labels.
 
 ### Do
-- Reserve `{colors.primary}` (violet) for the primary action, inline links, and the focus signal — nothing decorative, nothing else.
-- Keep the main region on pure white `{colors.canvas}`; let the grey sidebar (#f9f9f9) and `{colors.canvas-soft}` zones do the figure/ground work.
-- Use status colours (`{colors.status-emerald}`, `{colors.status-red}`, `{colors.status-amber}`) strictly for status semantics — pass / fail / pending, and stat deltas.
-- Define surfaces with `{colors.hairline}` first; reach for a shadow only on true overlays (modals, popovers, toasts).
-- Keep the spacing compact — the 4px base scale, 20px card interiors, 32px controls — density is the product.
-- Render every button at `{rounded.md}` (8px) — primary, secondary, and utility share one shape language.
-- Use `font-mono` with tabular numerals for stat values, run numbers, and identifiers so columns align.
-- Compose page-top KPIs from `stat` + `stat-band` — label / mono value / sub inside a hairline-divided grid.
+
+- Use HeroUI components and their documented variants before writing custom primitives.
+- Use semantic tokens as implementation handles and raw values only for reference or migration.
+- Use the same token in light and dark modes and let CSS resolve the current value.
+- Establish hierarchy with content order, spacing, type, and surface level.
+- Reserve accent for meaningful emphasis and keep status colors semantic.
+- Use separators sparingly; prefer spacing for ordinary grouping.
+- Keep active, selected, loading, invalid, and disabled states visible and accessible.
 
 ### Don't
-- Don't use warm paper tones (`#f6f5f4`-class off-whites, beige, warm stone greys) anywhere — every grey in this system is cool-neutral.
-- Don't ship pill / fully-rounded buttons (`{rounded.full}` on buttons) — 8px `{rounded.md}` is the uniform button radius.
-- Don't run a second accent colour alongside `{colors.primary}` — no teal CTAs, no orange highlights, no multi-colour decoration.
-- Don't use status colours as decoration or branding — an amber icon that doesn't mean "warning" is a bug.
-- Don't cast heavy or layered drop shadows on in-page cards; a hairline resolves it.
-- Don't scale display type past `{typography.display-1}` (40px) — this is a workbench, not a billboard.
-- Don't fill large regions with `{colors.primary}`; violet is an accent, not a background.
+
+- Don't hardcode colors, shadows, radii, or spacing when a HeroUI token or Tailwind utility exists.
+- Don't use raw neutral palette classes such as `gray-*` where a semantic surface or content token applies.
+- Don't use color alone to communicate state or hierarchy.
+- Don't mix unrelated radius, padding, or elevation systems in one view.
+- Don't make static content look interactive with hover or pressed effects.
+- Don't overuse cards, borders, badges, icons, accent color, or nested heavy surfaces.
+- Don't bypass HeroUI interaction behavior with inaccessible custom markup.
+
+### Source of Truth
+
+- Default theme variables: https://github.com/heroui-inc/heroui/blob/v3/packages/styles/themes/default/variables.css
+- Tailwind token mappings: https://github.com/heroui-inc/heroui/blob/v3/packages/styles/themes/shared/theme.css
+- Component documentation: https://heroui.com/docs/react/components
+- Colors: https://heroui.com/docs/react/getting-started/colors
+- Theming: https://heroui.com/docs/react/getting-started/theming
+- Design principles: https://heroui.com/docs/react/getting-started/design-principles
+
+When this file and the current package disagree, follow the installed HeroUI version and its theme CSS.
 
 ---
 
-# nervd 布局与形态规范
+# 第二部分 · nervd 覆盖层（theme.css 为唯一事实源）
 
-> 一句话原则：**"指标"用统计带、"属性"用 Descriptions、"区块"用 SectionHeader、列表用 Table——各管一摊，不互相客串。**
-> 视觉 token（色彩 / 字体 / 圆角 / 阴影）以本文档上半部分的 Linear 语言为准，统计带组件形态参照 Tremor；本节只管**布局形态与组件分工**。
+> 本节是 nervd 在上游契约之上的**产品级覆盖**。未在本节出现的 token 一律沿用第一部分上游默认值；本节数值改动必须先改 `src/styles/theme.css`，再回填本表。
+
+## 2.1 色彩覆盖（Linear Violet 体系）
+
+HeroUI 默认 accent 为蓝色；nervd 将整套强调色覆盖为 **Linear Violet**，并补充 Linear 灰阶与状态信号。**代码按语义 token 消费，禁止按明暗分支写死色值；原始值仅供设计核对。**
+
+| 语义 | Tailwind / CSS 变量 | 浅色 | 深色 | 用途 |
+| --- | --- | --- | --- | --- |
+| 品牌强调（accent = primary） | `--primary` / `--accent` | `#5e6ad2`（两主题一致） | 同浅色 | 主操作、行内链接、焦点环、选中指示 |
+| 按压强调 | `--primary-active` | `#4a56c0` | 同浅色 | 主按钮按压态 |
+| 画布 | `--canvas` / `--background` | `#ffffff` | `#121215` | 主工作台画布 |
+| 桌面底 | `--canvas-soft` | `#f7f8f8` | `#0b0b0e` | 次级背景、空态、页脚带 |
+| 浮层/卡片面 | `--surface` / `--card` / `--popover` | `#ffffff` | `#18181c` | 卡片、面板、弹层 |
+| 侧栏面 | `--sidebar` | `#ffffff` | `#121215` | 导航侧栏（2026-11 校正：旧文档误记 `#f7f8f8` / `#0b0b0e`） |
+| 细线 | `--hairline` / `--border` / `--line` | `#e8e9eb` | `rgba(255,255,255,0.08)` | 1px 结构线；`--line-strong` / `--input` 为加强变体 |
+| 墨色主 | `--ink` / `--foreground` | `#26282d` | `#f7f8f8` | 标题、正文、数值 |
+| 墨层次 | `--ink-secondary` / `--ink-muted` / `--ink-faint` | `#6b7075` / `#8a8f98` / `#b7bcc2` | `#8a8f98` / `#62666d` / `#44474e` | 次级文案 / 标签 / 占位 |
+| 状态·进行中 | `--sig-run`（= warning） | `#d9730d` | 同浅色 | 运行中、排队、构建中 |
+| 状态·成功 | `--sig-ok`（= success） | `#30a46c` | 同浅色 | 成功、已完成、已合入 |
+| 状态·失败 | `--sig-fail`（= danger / destructive） | `#e5484d` | 同浅色 | 失败、阻塞、缺陷 |
+| 状态·空闲 | `--sig-idle` | `#8a8f98` | 同浅色 | 待办、未开始（取 ink-muted 保证非文本 3:1 对比） |
+
+补充约定：
+
+- **贴纸色**（`--sticker-*`：sky / purple / pink / orange / teal / green / brown / brand-indigo）**只做装饰与状态点**，状态文字一律用墨色（对比度优先）；sig-idle 已按此规范取 `ink-muted`。
+- 状态语义闭环由 `StatusIcon` 原语统一渲染，排序遵从生命周期：**运行中（Amber）→ 失败（Red）→ 空闲（Slate）→ 成功（Emerald）**（`STATUS_TONE_ORDER`）。
+- 文本选区：`--accent-dim`（紫 10% / 20% 透明度）。
+
+## 2.2 圆角刻度（覆盖上游 calc 公式）
+
+nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radius) * n)` 公式，实际渲染以下表为准：
+
+| Token | 值 | 说明 |
+| --- | --- | --- |
+| `--radius`（基准） | `0.625rem` = 10px | Linear 控件基准 |
+| `rounded-xs` / `rounded-sm` | 4px | 内联小徽标、极小组件 |
+| `rounded-md` | 6px | 输入框、菜单项、列表行、按钮紧凑档 |
+| `rounded-lg` | 8px | 卡片、面板、弹窗、统计/内容容器 |
+| `rounded-xl` | 12px | 大容器、侧栏行、品牌图标框 |
+| `rounded-2xl` ~ `rounded-4xl` | 16 / 24 / 32px | 预留档位 |
+
+## 2.3 排版与密度
+
+- **正文基准 14px / 1.55**（`body` 全局）——产品是桌面高密度工作台。
+- **页面标题统一 h1 规格**：26px / 700 / −0.625px / 1.23（theme.css 全局 `h1`，含设置/详情页大标题）。
+- 区块标题：h2 15px semibold（`SectionHeader`）/ h3 13px medium；eyebrow 标签 12px / 600。
+- 字体栈：`--font-sans` = Inter（含 PingFang SC / Microsoft YaHei 回退）；`--font-mono` = SF Mono 系（标识符、分支名、SHA、运行号、`kbd`、统计数字，一律 `font-mono tabular-nums`）；`--font-log` = 日志/终端专用等宽族。
+- 12px 档与上游契约一致：正文活动集中在 12–15px，标题靠字重（600/700）表达层级，不用颜色和装饰。
+
+## 2.4 明暗模式与切换
+
+- **默认跟随系统**（`prefers-color-scheme`）；无系统偏好时**回退深色**（客户端基准视觉）。
+- 通过 `data-theme` / `.dark` 类切换（与上游约定一致）；侧栏底部一键切换。
+- 切换动效：View Transitions **圆形遮罩扩散**（antfu.me 风格，亮↔暗互为遮罩层）。
+- 全局尊重 `prefers-reduced-motion`：所有动画/过渡降级至 0.01ms。
+
+## 2.5 状态动效 token
+
+| Token | 用途 |
+| --- | --- |
+| `--animate-sig-pulse` | RUNNING 状态点呼吸灯（Amber 光环扩散） |
+| `--animate-detail-enter` | 需求详情分栏自右侧满幅滑入（280ms） |
+| `--animate-content-fade` | 详情切项内容浅淡入 + 微浮（180ms，j/k 连续切项） |
+| `--animate-step-check` | 首启向导步骤节点对勾弹入（200ms） |
+
+## 2.6 阴影与已知偏差
+
+- 浮层阴影唯一档位：`--shadow-level-2`（三层近透明合成，`barely-there`）——弹层、菜单、命令面板、Toast 专用；页内卡片一律 hairline 无阴影。
+- **已知债务**：`floating-batch-bar.tsx` 引用的 `shadow-level-3` 尚未在 theme.css 定义（工具类无效，实际无阴影），待补定义或降级为 level-2。
+- **契约偏差**：上游 Don't 禁用裸中性色类（`neutral-*`）；`app-sidebar.tsx` / `nav-user.tsx` 现存 `bg-neutral-100/70`、`dark:bg-neutral-800/50` 等写法，属历史遗留，新代码不得模仿，逐步迁移至 `--sidebar-accent` 语义 token。
+
+## 2.7 维护规则
+
+1. **theme.css 是唯一事实源**：token 变更先改代码，再回填 2.1–2.5 表格。
+2. 上游契约（第一部分）更新时重新收录并在 front matter `contract_collected` 注明日期；冲突时以已安装 `@heroui` 版本为准。
+3. 新增界面严禁硬编码色值 / 阴影 / 圆角，一律走语义 token 与既有工具类。
+
+---
+
+# 第三部分 · nervd 布局与形态规范
+
+> 一句话原则：**"区块"用 SectionHeader、"属性"用 Descriptions、列表用 Table、总览指标用既有 overview 聚合组件——各管一摊，不互相客串。**
+> 视觉 token（色彩 / 字体 / 圆角 / 阴影）以上方第一部分（HeroUI 契约）与第二部分（nervd 覆盖层）为准；本节只管**布局形态与组件分工**。
 
 ## A. 三层参照体系
 
 | 层 | 参照 | 落地件 |
 |---|---|---|
-| 信息架构 | **Linear 式工作台**：页头贴左全宽 + 正文居中限宽（max-w-5xl）+ 常驻侧栏（浅灰 #f9f9f9、主区纯白）、hover 属性行、键盘优先 | `PageHeader` / `app-sidebar` / `Collapsible` 区块 |
+| 信息架构 | **Linear 式工作台**：页头贴左全宽 + 正文居中限宽（max-w-5xl）+ 常驻侧栏（浅白深墨双主题，见 2.1 色彩覆盖表）、hover 属性行、键盘优先 | `PageHeader` / `app-sidebar` / `Collapsible` 区块 |
 | 详情组件 | **antd Descriptions 模式**：items 声明式、响应式列数、label 列对齐、copyable/editable 值插槽 | `src/components/ui/descriptions.tsx` |
-| 视觉 token | **HeroUI v3 语义 token** 对齐本文档上半部分的 Linear 色板（如 `border`↔hairline、`muted`↔canvas-soft、`foreground`↔ink） | `Button / Table / Drawer / Tooltip` 等基础件 |
+| 视觉 token | **HeroUI v3 契约**（第一部分）+ **nervd 覆盖层**（第二部分，theme.css 为唯一事实源） | `Button / Table / Drawer / Tooltip` 等基础件 |
 
 ## B. 形态分工（决策表）
 
@@ -534,7 +276,7 @@ Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a h
 
 | 信息性质 | 形态 | 组件 | 现有示例 |
 |---|---|---|---|
-| 页首 KPI 统计带（≤4 格） | hairline 分格统计带（Tremor 式） | `ui/stat`（`Stat` / `StatBand`） | 连接 / 工作项 / 流水线 / 仓库 CI |
+| 总览聚合指标 | 既有 overview 聚合组件（周期横幅 / 健康分布 / 交付状态 / 进行中构建条） | `overview/cycle-header-banner` · `health-distribution` · `delivery-status` · `active-builds-bar` | OverviewView（原 `ui/stat` Stat/StatBand 已于 2026-11 退役删除，勿再引用） |
 | 区块内概要、构建详情 | `Descriptions` card | `ui/descriptions` | 迭代概要、CI 构建详情 |
 | 对象属性（标题下方元信息） | `Descriptions` plain | `ui/descriptions` | 需求属性区、子任务/缺陷详情抽屉 |
 | 抽屉 / 弹窗内完整详情 | `Descriptions` plain（与页面属性区同语言） | `ui/descriptions` | 子任务详情抽屉 |
@@ -546,10 +288,10 @@ Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a h
 
 ### 字号与字体体系
 
-- 区块标题：15px semibold（`SectionHeader` h2，对应本文档 `{typography.body-md}`+600）/ 13px medium（h3）
-- 属性 label：`text-xs text-muted-foreground`（对应 `{typography.eyebrow}` 12px/500）；值：`text-sm text-foreground`
+- 区块标题：15px semibold（`SectionHeader` h2）/ 13px medium（h3）
+- 属性 label：`text-xs text-muted-foreground`（12px/500）；值：`text-sm text-foreground`
 - 编号 / 分支 / 运行号等标识符：`font-mono`
-- 概要数字：`font-mono tabular-nums`（`Stat` value，对应 `{typography.heading-3}` 尺度 20px/600）
+- 概要数字：`font-mono tabular-nums`
 
 ## C. Descriptions 使用要点
 
@@ -560,7 +302,7 @@ Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a h
 
 ## D. 视觉参照（Pinterest 实例链接）
 
-搜集于 2026-10（本次改版按 Linear 气质基准重编，已剔除 Notion 参照簇）。**目检为准**（基于 pin 元数据筛选）：
+搜集于 2026-10（按 Linear 气质基准重编，已剔除 Notion 参照簇）。**目检为准**（基于 pin 元数据筛选）：
 
 ### D.1 气质基准（整体参照）
 
@@ -568,7 +310,7 @@ Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a h
 
 ### D.2 统计带组件化（Tremor 思路）
 
-- Tremor（统计带 / 图表组件化思路，`Stat` / `StatBand` 的形态来源）：<https://www.pinterest.com/pin/245798092157509142/>
+- Tremor（统计带 / 图表组件化思路，overview 聚合组件的形态来源）：<https://www.pinterest.com/pin/245798092157509142/>
 
 ### D.3 token 层参照（Tailwind 后台模板）
 
@@ -583,20 +325,21 @@ Product screenshots are framed in `{rounded.lg}` / `{rounded.xl}` wells with a h
 ## E. 维护规则
 
 1. 新增详情 / 概要 / 区块前先查 B 节决策表；不确定形态时优先与既有同类页面对齐
-2. 概要指标一律走 `ui/stat`（`Stat` / `StatBand`），不允许再造第三种统计卡片样式；区块标题不允许内联复刻 `SectionHeader`
+2. 总览/概要指标复用 `overview/` 既有聚合组件形态（`cycle-header-banner`、`health-distribution`、`delivery-status`、`active-builds-bar` 等），不再重建统计卡片（原 `ui/stat` Stat/StatBand 已退役删除）；区块标题不允许内联复刻 `SectionHeader`
 3. key-value 展示一律走 `Descriptions`，不再新增 `InfoItem` / `PropertyRow` 类一次性组件（两者已退役）
 4. 拷贝位统一用 `ui/copy-button`，反馈为图标切换，不弹全局 toast
-5. **禁用暖纸色系（Notion 遗留，如 `#f6f5f4` 类），新增界面一律冷灰 + 紫罗兰体系**
+5. **禁用暖纸色系（Notion 遗留，如 `#f6f5f4` 类），新增界面一律冷灰 + Linear Violet 体系**
 6. 参照链接失效或需要补充时更新 D 节，注明搜集日期
+7. 上游 HeroUI 契约更新时重新收录第一部分并注明日期（见 2.7）
 
 ## F. 页面布局规范（统一页头 / 可拖动分栏 / 窄窗口适配）
 
-> 布局原则参照 Apple HIG（ macOS 适配、渐进式收窄、可预期恢复）；以下尺寸为 nervd 产品约定，HIG 不规定具体数值。
+> 布局原则参照 Apple HIG（macOS 适配、渐进式收窄、可预期恢复）；以下尺寸为 nervd 产品约定，HIG 不规定具体数值。
 > 落地件：`page-header.tsx`（统一页头）、`ui/resizable.tsx`（分隔线）、`store/layout.ts`（布局偏好）、`Shell.tsx`（容器自适应编排）。
 
 ### F.1 统一页头（PageHeader）
 
-所有页面（总览 / 最近查看 / 迭代 / 需求详情 / 集成分支 / 定时任务 / 本地任务 / 设置）统一排列：
+所有页面（总览 / 最近查看 / 迭代 / 需求详情 / 集成分支 / 定时任务 / 设置）统一排列：
 
 ```
 主行：navigation（侧栏入口/返回/面包屑）｜ title（可截断）｜ scope（当前范围，可截断）｜ 弹性空隙 ｜ actions（主要操作）+ secondaryActions
