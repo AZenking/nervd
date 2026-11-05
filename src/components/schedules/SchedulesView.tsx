@@ -38,6 +38,7 @@ import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScheduleEditorDrawer } from './ScheduleEditorDrawer';
 import { ScheduleLogDrawer } from './ScheduleLogDrawer';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { useScheduleStore } from '@/store/schedule';
 import { useApp } from '@/store/app';
 import { runTaskNow } from '@/hooks/use-schedule-runner';
@@ -595,18 +596,22 @@ export function SchedulesView() {
         </Card.Footer>
       </Card>
 
-      {/* 抽屉 */}
-      <ScheduleEditorDrawer
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        initialTask={editingTask}
-      />
+      {/* 抽屉（渲染兜底：编辑器/日志抽屉异常只降级为抽屉区域错误面板，不白屏整个应用） */}
+      <ErrorBoundary label="定时任务编辑器">
+        <ScheduleEditorDrawer
+          open={editorOpen}
+          onOpenChange={setEditorOpen}
+          initialTask={editingTask}
+        />
+      </ErrorBoundary>
 
-      <ScheduleLogDrawer
-        open={logDrawerOpen}
-        onOpenChange={setLogDrawerOpen}
-        taskId={logTaskId}
-      />
+      <ErrorBoundary label="调度日志">
+        <ScheduleLogDrawer
+          open={logDrawerOpen}
+          onOpenChange={setLogDrawerOpen}
+          taskId={logTaskId}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

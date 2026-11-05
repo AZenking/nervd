@@ -249,20 +249,22 @@ export function ScheduleEditorDrawer({
     if (!open) return;
 
     if (initialTask) {
-      setName(initialTask.name);
+      // 旧版本持久化的任务可能缺少新字段：所有读取一律回退默认值，防止编辑态渲染崩溃
+      setName(initialTask.name ?? '未命名任务');
       setDescription(initialTask.description ?? '');
-      setEnabled(initialTask.enabled);
-      setCron(initialTask.cron);
-      setNotifyOnSuccess(initialTask.notifyOnSuccess);
-      setNotifyOnFailure(initialTask.notifyOnFailure);
+      setEnabled(initialTask.enabled ?? true);
+      setCron(initialTask.cron || '0 2 * * *');
+      setNotifyOnSuccess(initialTask.notifyOnSuccess ?? true);
+      setNotifyOnFailure(initialTask.notifyOnFailure ?? true);
 
-      const matchedPreset = CRON_PRESETS.find((p) => p.value === initialTask.cron);
+      const editCron = initialTask.cron || '0 2 * * *';
+      const matchedPreset = CRON_PRESETS.find((p) => p.value === editCron);
       setPreset(matchedPreset ? matchedPreset.value : 'custom');
       if (matchedPreset) {
         setFreqMode('preset');
       } else {
         // 尝试判断是否是固定时间模式（如 0 2 * * *）或周期模式（如 */10 * * * *）
-        const parts = initialTask.cron.trim().split(/\s+/);
+        const parts = editCron.trim().split(/\s+/);
         if (parts.length === 5 && parts[0].startsWith('*/') && parts[1] === '*' && parts[2] === '*' && parts[3] === '*' && parts[4] === '*') {
           setFreqMode('interval');
           setIntervalValue(parseInt(parts[0].slice(2), 10) || 30);
@@ -288,21 +290,21 @@ export function ScheduleEditorDrawer({
         }
       }
 
-      const act = initialTask.action;
-      setActionType(act.type);
+      const act = initialTask.action ?? { type: 'branch_merge' as const };
+      setActionType(act.type ?? 'branch_merge');
       if (act.type === 'branch_merge') {
-        setRepoId(act.repoId);
-        setSourceBranch(act.sourceBranch);
-        setTargetBranch(act.targetBranch);
-        setStrategy(act.strategy);
+        setRepoId(act.repoId ?? 0);
+        setSourceBranch(act.sourceBranch ?? '');
+        setTargetBranch(act.targetBranch ?? '');
+        setStrategy(act.strategy ?? 'cautious');
         if (act.aggressiveConflictPreference) {
           setConflictPreference(act.aggressiveConflictPreference);
         }
       } else if (act.type === 'jenkins') {
-        setJenkinsConnId(act.connectionId);
-        setJenkinsJobName(act.jobFullName);
+        setJenkinsConnId(act.connectionId ?? '');
+        setJenkinsJobName(act.jobFullName ?? '');
       } else if (act.type === 'pipeline') {
-        setPipelineId(act.pipelineId);
+        setPipelineId(act.pipelineId ?? 0);
         setPipelineName(act.pipelineName ?? '');
       }
     } else {

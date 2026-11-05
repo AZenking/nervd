@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { Toaster, toast } from '@/components/ui/toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { Shell } from './components/Shell';
 import { SettingsView } from './components/SettingsView';
 import { StartupSplash } from './components/StartupSplash';
@@ -192,11 +193,14 @@ export default function App() {
   const showInitialSetup = !hasOnboarded;
   return (
     <TooltipProvider>
-      {showInitialSetup ? (
-        <SettingsView onComplete={handleCompleteOnboarding} />
-      ) : (
-        <Shell />
-      )}
+      {/* 根级渲染兜底：任何子树渲染异常都呈现可读错误面板，绝不白屏 */}
+      <ErrorBoundary label="nervd 工作台">
+        {showInitialSetup ? (
+          <SettingsView onComplete={handleCompleteOnboarding} />
+        ) : (
+          <Shell />
+        )}
+      </ErrorBoundary>
       <ToastHost />
     </TooltipProvider>
   );
