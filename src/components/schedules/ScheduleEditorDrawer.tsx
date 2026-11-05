@@ -875,7 +875,7 @@ export function ScheduleEditorDrawer({
                       自动执行时间 (调度频率) <span className="text-destructive">*</span>
                     </Card.Title>
                     {cronDescription && (
-                      <span className="shrink-0 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                      <span className="shrink-0 text-[11px] font-medium text-success">
                         {cronDescription}
                       </span>
                     )}

@@ -103,7 +103,7 @@ export function IterationRepoCard({
     <>
       <Card className={cn(
         'group transition-all duration-200',
-        isRunning && 'border-amber-500/40 dark:border-amber-500/50',
+        isRunning && 'border-warning/40',
       )}>
         {/* 卡片头部：仓库基本信息 + CI 状态 + 触发验证 / 详情按钮 */}
         <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-border/40">
@@ -111,7 +111,7 @@ export function IterationRepoCard({
             <div className={cn(
               'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors',
               isRunning
-                ? 'border-amber-500/30 dark:border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                ? 'border-warning/30 bg-warning/10 text-warning'
                 : 'border-border/60 bg-muted/30 group-hover:text-foreground',
             )}>
               <FolderGit2Icon className="size-4" />
@@ -209,12 +209,12 @@ export function IterationRepoCard({
         {isRunning && runningRun && (
           <Alert
             status="warning"
-            className="mt-3.5 flex flex-col gap-2 rounded-lg border border-amber-500/30 p-3 text-xs"
+            className="mt-3.5 flex flex-col gap-2 rounded-lg border border-warning/30 p-3 text-xs"
           >
             <div className="flex w-full items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
-                <Loader2Icon className="size-4 shrink-0 animate-spin text-amber-600 dark:text-amber-400" />
-                <Alert.Title className="font-semibold text-amber-600 dark:text-amber-400 text-xs">
+                <Loader2Icon className="size-4 shrink-0 animate-spin text-warning" />
+                <Alert.Title className="font-semibold text-warning text-xs">
                   正在构建 Job
                 </Alert.Title>
                 <OverflowTooltip
@@ -226,7 +226,7 @@ export function IterationRepoCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 gap-1 shrink-0"
+                className="h-6 px-2 text-xs text-warning hover:bg-warning/20 gap-1 shrink-0"
                 onPress={() => openRepoBuildLogs(repo.id, runningRun.runId, `${repo.name} · #${runningRun.runId}`)}
               >
                 <TerminalIcon className="size-3" />

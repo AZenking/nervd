@@ -163,7 +163,7 @@ export function IterationDevDivergence({
         {status.state === 'ready' && (
           <div className="flex min-w-0 items-center gap-1.5">
             {status.aheadDev === 0 ? (
-              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.2 font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.2 font-medium text-success">
                 <CheckIcon className="size-3 shrink-0" />
                 <span>已合入 {status.devBranch}</span>
               </span>
@@ -171,7 +171,7 @@ export function IterationDevDivergence({
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.2 font-medium text-amber-600 dark:text-amber-400 cursor-help truncate" />
+                    <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.2 font-medium text-warning cursor-help truncate" />
                   }
                 >
                   <span>待合入 {status.devBranch} ({status.aheadDev} 条)</span>

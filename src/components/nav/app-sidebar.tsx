@@ -67,7 +67,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <button
             type="button"
             onClick={() => openSettings('connection')}
-            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl p-1.5 text-left transition-all hover:bg-neutral-100/70 dark:hover:bg-neutral-800/50 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:p-0"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl p-1.5 text-left transition-all hover:bg-sidebar-accent group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:p-0"
             title={`${displayName} (${displayRole}) · 点击进入账号设置`}
             data-no-drag
           >
@@ -80,7 +80,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 />
               ) : (
                 /* 渐变艺术头像，对齐图片中 Kate Moore 的紫蓝青柔和渐变 */
-                <div className="flex size-full items-center justify-center bg-gradient-to-tr from-indigo-200 via-sky-200 to-emerald-200 text-indigo-950 font-semibold text-sm select-none dark:from-indigo-900 dark:via-sky-900 dark:to-emerald-900 dark:text-indigo-200">
+                <div className="flex size-full items-center justify-center bg-gradient-to-tr from-(--brand-indigo)/25 via-(--sticker-sky)/30 to-(--sticker-green)/30 text-(--brand-indigo) font-semibold text-sm select-none dark:text-(--sticker-purple)">
                   {displayName.charAt(0).toUpperCase()}
                 </div>
               )}
@@ -88,7 +88,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <span
                 className={cn(
                   "absolute bottom-0 right-0 size-2.5 rounded-full ring-2 ring-sidebar",
-                  settings?.allowWriteOps ? "bg-emerald-500" : "bg-amber-500"
+                  settings?.allowWriteOps ? "bg-success" : "bg-warning"
                 )}
                 title={settings?.allowWriteOps ? "读写模式已启用" : "只读安全模式"}
               />
@@ -112,7 +112,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <button
                 type="button"
                 onClick={() => useUi.getState().setCommandOpen(true)}
-                className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-xl bg-neutral-100/70 px-3 text-[12.5px] text-muted-foreground transition-all hover:bg-neutral-100 hover:text-foreground dark:bg-neutral-800/50 dark:hover:bg-neutral-800"
+                className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-xl bg-sidebar-accent/70 px-3 text-[12.5px] text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-foreground"
               >
                 <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate text-left">搜索或跳转…</span>
@@ -130,7 +130,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       type="button"
                       onClick={() => useUi.getState().setCommandOpen(true)}
                       aria-label="搜索或跳转 (⌘K)"
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-neutral-100/70 text-muted-foreground hover:bg-neutral-100 hover:text-foreground dark:bg-neutral-800/60"
+                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-sidebar-accent/70 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                     />
                   }
                 >
@@ -145,7 +145,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       type="button"
                       onClick={() => setQuickBuildOpen(true)}
                       aria-label="快速构建 (⌘B)"
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-neutral-100/70 text-amber-600 dark:text-amber-400 hover:bg-neutral-100 hover:text-amber-700 dark:hover:text-amber-300 dark:bg-neutral-800/60"
+                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-sidebar-accent/70 text-warning hover:bg-sidebar-accent"
                     />
                   }
                 >
@@ -217,7 +217,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 icon: <CalendarClockIcon />,
                 view: 'schedules',
                 badge: activeScheduleCount > 0 ? (
-                  <span className="ml-auto rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
+                  <span className="ml-auto rounded-full bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
                     {activeScheduleCount}
                   </span>
                 ) : null,
@@ -227,7 +227,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 icon: <ClockIcon />,
                 view: 'recents',
                 badge: recentCount > 0 ? (
-                  <span className="ml-auto rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
+                  <span className="ml-auto rounded-full bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
                     {recentCount}
                   </span>
                 ) : null,

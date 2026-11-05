@@ -336,7 +336,7 @@ export function OverviewView() {
               <span
                 className={cn(
                   'ml-auto font-mono tabular-nums',
-                  attention.unboundCi > 0 ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-muted-foreground/70',
+                  attention.unboundCi > 0 ? 'font-semibold text-warning' : 'text-muted-foreground/70',
                 )}
               >
                 {attention.unboundCi}

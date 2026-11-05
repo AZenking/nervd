@@ -245,9 +245,10 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 
 ## 2.6 阴影与已知偏差
 
-- 浮层阴影唯一档位：`--shadow-level-2`（三层近透明合成，`barely-there`）——弹层、菜单、命令面板、Toast 专用；页内卡片一律 hairline 无阴影。
-- **已知债务**：`floating-batch-bar.tsx` 引用的 `shadow-level-3` 尚未在 theme.css 定义（工具类无效，实际无阴影），待补定义或降级为 level-2。
-- **契约偏差**：上游 Don't 禁用裸中性色类（`neutral-*`）；`app-sidebar.tsx` / `nav-user.tsx` 现存 `bg-neutral-100/70`、`dark:bg-neutral-800/50` 等写法，属历史遗留，新代码不得模仿，逐步迁移至 `--sidebar-accent` 语义 token。
+- 浮层阴影唯一档位：`--shadow-level-2`（三层近透明合成，`barely-there`）——弹层、菜单、命令面板、Toast 专用；页内卡片一律 hairline 无阴影。全仓 `shadow-level-*` 用法已收敛至该档位（2026-11-05 修复原 level-1/level-3 未定义用法）。
+- 裸调色板类已全量迁移至语义 token（2026-11-05），仅余两处已记录保留项：
+  - `ui/avatar.tsx` 首字母七色哈希调色板——首字母是正文文字需明暗双档可读，贴纸变量不随主题切换且禁作正文文字色；待 theme 层增补 `--avatar-*` 深/浅成对 token 后二次迁移。
+  - `children-card.tsx` 缺陷严重度「一般」使用 yellow——封闭状态集无黄色档，并入 warning 会与「严重」撞色；待产品定夺第四档语义后再迁移。
 
 ## 2.7 维护规则
 

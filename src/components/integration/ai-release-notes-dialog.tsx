@@ -158,7 +158,7 @@ export function AiReleaseNotesDialog({
               onClick={() => void handleCopy()}
               className="h-7 text-xs"
             >
-              {copied ? <CheckIcon className="size-3.5 mr-1 text-emerald-600 dark:text-emerald-400" /> : <CopyIcon className="size-3.5 mr-1" />}
+              {copied ? <CheckIcon className="size-3.5 mr-1 text-success" /> : <CopyIcon className="size-3.5 mr-1" />}
               {copied ? '已复制' : '复制 Markdown'}
             </Button>
           </div>

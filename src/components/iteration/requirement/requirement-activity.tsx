@@ -225,7 +225,7 @@ export function RequirementActivity({
                 onClick={() => void handleCopySummary()}
                 className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
               >
-                {copiedSummary ? <CheckIcon className="size-3 text-emerald-600 dark:text-emerald-400" /> : <CopyIcon className="size-3" />}
+                {copiedSummary ? <CheckIcon className="size-3 text-success" /> : <CopyIcon className="size-3" />}
                 {copiedSummary ? '已复制' : '复制纪要'}
               </Button>
               <Tooltip>

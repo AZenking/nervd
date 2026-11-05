@@ -54,7 +54,7 @@ function StageStatusIcon({ status }: { status: string }) {
     return <MinusCircleIcon className="size-3.5 text-muted-foreground shrink-0" />;
   }
   if (s.includes('PAUSE')) {
-    return <PauseCircleIcon className="size-3.5 text-purple-600 dark:text-purple-400 shrink-0" />;
+    return <PauseCircleIcon className="size-3.5 text-sig-idle shrink-0" />;
   }
   return <div className="size-2 rounded-full bg-muted-foreground/60 shrink-0" />;
 }
@@ -336,13 +336,13 @@ export function LogViewerContent({
                   <Tabs.Indicator />
                 </Tabs.Tab>
                 <Tabs.Tab id="error" className="whitespace-nowrap shrink-0 px-2.5 text-xs">
-                  <span className={cn('whitespace-nowrap', stats.errorCount > 0 && filterMode !== 'error' && 'text-red-500 font-medium')}>
+                  <span className={cn('whitespace-nowrap', stats.errorCount > 0 && filterMode !== 'error' && 'text-destructive font-medium')}>
                     错误 ({stats.errorCount})
                   </span>
                   <Tabs.Indicator />
                 </Tabs.Tab>
                 <Tabs.Tab id="warning" className="whitespace-nowrap shrink-0 px-2.5 text-xs">
-                  <span className={cn('whitespace-nowrap', stats.warningCount > 0 && filterMode !== 'warning' && 'text-amber-500 font-medium')}>
+                  <span className={cn('whitespace-nowrap', stats.warningCount > 0 && filterMode !== 'warning' && 'text-warning font-medium')}>
                     警告 ({stats.warningCount})
                   </span>
                   <Tabs.Indicator />
@@ -360,7 +360,7 @@ export function LogViewerContent({
               variant="outline"
               size="sm"
               onPress={scrollToFirstError}
-              className="h-7 gap-1 border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 text-[11px] hover:bg-red-500/20 cursor-pointer"
+              className="h-7 gap-1 border-destructive/30 bg-destructive/10 text-destructive text-[11px] hover:bg-destructive/20 cursor-pointer"
               aria-label={`直接滚动至第 ${stats.firstErrorLine} 行报错`}
             >
               <AlertTriangleIcon className="size-3" />
@@ -416,7 +416,7 @@ export function LogViewerContent({
                       className="rounded-lg border border-border/70 bg-card/60 transition-colors data-[expanded=true]:bg-card/90 data-[expanded=true]:shadow-2xs overflow-hidden"
                     >
                       <Accordion.Heading>
-                        <Accordion.Trigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-neutral-100/50 dark:hover:bg-neutral-800/40">
+                        <Accordion.Trigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/60">
                           <StageStatusIcon status={section.status} />
                           <span className="font-semibold text-foreground truncate">{section.name}</span>
                           <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
@@ -482,8 +482,8 @@ export function LogViewerContent({
                                       'flex items-start px-3 py-0.5 transition-colors hover:bg-muted/40',
                                       isError && 'bg-destructive/10 text-destructive border-l-2 border-destructive pl-2.5 font-medium',
                                       isWarning && 'bg-sig-run/10 text-sig-run border-l-2 border-sig-run pl-2.5',
-                                      isStage && 'bg-sky-500/10 text-sky-600 dark:text-sky-300 border-l-2 border-sky-500 pl-2.5 font-medium',
-                                      isCommand && 'text-purple-600 dark:text-purple-300 font-medium',
+                                      isStage && 'bg-primary/10 text-primary border-l-2 border-primary pl-2.5 font-medium',
+                                      isCommand && 'text-(--sticker-purple-deep) dark:text-(--sticker-purple) font-medium',
                                     )}
                                   >
                                     <span className="w-12 shrink-0 pr-3 text-right select-none font-mono text-[11px] text-muted-foreground/40 tabular-nums">

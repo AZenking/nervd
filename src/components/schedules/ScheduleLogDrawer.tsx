@@ -163,7 +163,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {isSuccess ? (
-            <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <CheckCircle2Icon className="size-4 text-success shrink-0" />
           ) : (
             <XCircleIcon className="size-4 text-destructive shrink-0" />
           )}

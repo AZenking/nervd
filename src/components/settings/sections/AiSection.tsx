@@ -263,7 +263,7 @@ export function AiSection() {
                 className="h-8 font-mono text-xs bg-background"
               />
               {settings.baseUrl.includes('/messages') && (
-                <p className="text-[11px] text-amber-500/90 dark:text-amber-400/90">
+                <p className="text-[11px] text-warning/90">
                   检测到包含 /messages：nervd 遵循 OpenAI 协议标准，后台已自动转换为 /chat/completions。如果您的服务为 OpenAI 兼容接口，建议直接填写基准路径（如 https://.../v1）。
                 </p>
               )}

@@ -146,7 +146,7 @@ export function LinkedRepoMrStatus({
   }
   if (hasMatchingMergedMr) {
     return (
-      <div className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+      <div className="inline-flex items-center gap-1 text-xs text-success">
         <Chip size="sm" variant="soft" color="success" className="font-mono text-[11px] font-medium shrink-0">
           已合入
         </Chip>

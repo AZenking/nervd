@@ -89,9 +89,9 @@ export function LinkedRepoCiStatus({
               aria-label={`${ciSummary}，点击查看构建记录`}
             >
               <div className="flex items-center gap-1 min-w-0 shrink-0">
-                {isSuccess && <CheckCircle2Icon className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                {isSuccess && <CheckCircle2Icon className="size-3.5 text-success shrink-0" />}
                 {isFailed && <XCircleIcon className="size-3.5 text-destructive shrink-0" />}
-                {isRunning && <Loader2Icon className="size-3.5 text-amber-600 dark:text-amber-400 animate-spin shrink-0" />}
+                {isRunning && <Loader2Icon className="size-3.5 text-warning animate-spin shrink-0" />}
                 {!isSuccess && !isFailed && !isRunning && (
                   <span className="size-2 rounded-full bg-muted-foreground shrink-0" />
                 )}
@@ -241,7 +241,7 @@ export function LinkedRepoCiSection({
                   variant="ghost"
                   size="xs"
                   onClick={onOpenCiModal}
-                  className="h-auto px-1.5 py-0.5 gap-1 rounded text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 hover:bg-amber-500/20 dark:hover:bg-amber-500/30"
+                  className="h-auto px-1.5 py-0.5 gap-1 rounded text-[11px] font-medium text-warning bg-warning/10 hover:bg-warning/20"
                   title="该仓库尚未关联 CI，点击就地配置云效 Flow 或 Jenkins"
                   aria-label="该仓库尚未关联 CI，点击就地配置云效 Flow 或 Jenkins"
                 >

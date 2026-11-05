@@ -126,7 +126,7 @@ export function AboutSection() {
           control={(
             <div className="flex items-center gap-2">
               {status === 'up_to_date' && (
-                <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="flex items-center gap-1 text-xs text-success font-medium">
                   <CheckCircle2Icon className="size-3.5" />
                   已是最新
                 </span>
@@ -233,7 +233,7 @@ export function AboutSection() {
                 </Chip>
               ) : (
                 <Chip size="sm" variant="soft" className="gap-1 h-5 px-1.5 text-[11px] font-normal text-muted-foreground">
-                  <ShieldCheckIcon className="size-3 text-emerald-600 dark:text-emerald-400" />
+                  <ShieldCheckIcon className="size-3 text-success" />
                   只读保护中
                 </Chip>
               )}

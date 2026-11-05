@@ -308,7 +308,7 @@ export function RepoCiBindingFields({
             </p>
           )}
           {pipelines.length === 0 && !loadingPipelines && (
-            <p className="text-amber-600 dark:text-amber-400">
+            <p className="text-warning">
               当前未获取到云效流水线，可点击右上角「刷新」重试，或在设置中确认访问令牌已具备 Flow 权限。
             </p>
           )}
@@ -317,7 +317,7 @@ export function RepoCiBindingFields({
 
       {currentProvider === 'jenkins' && (
         jenkinsConnections.length === 0 ? (
-          <div className="flex items-center gap-2 p-2.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs">
+          <div className="flex items-center gap-2 p-2.5 rounded-md bg-warning/10 text-warning text-xs">
             <ServerIcon className="size-4 shrink-0" />
             <span>尚未配置 Jenkins 实例。请先在「系统设置 → CI 集成」添加并验证 Jenkins 连接凭据。</span>
           </div>

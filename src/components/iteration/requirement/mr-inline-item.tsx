@@ -327,10 +327,10 @@ export function MrInlineItem({
                   <span>当前分支差异文件 ({diffs.length})</span>
                   <span className="font-mono text-[10px]">
                     {totalAdditions > 0 && (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+{totalAdditions} </span>
+                      <span className="text-success font-semibold">+{totalAdditions} </span>
                     )}
                     {totalDeletions > 0 && (
-                      <span className="text-rose-600 dark:text-rose-400 font-semibold">-{totalDeletions}</span>
+                      <span className="text-danger font-semibold">-{totalDeletions}</span>
                     )}
                   </span>
                 </div>
@@ -409,7 +409,7 @@ export function MrInlineItem({
               )}
               {!isOpen && isMerged && commits.length > 0 && onCreateMr && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                  <span className="text-[11px] text-warning font-medium">
                     分支有 {commits.length} 条新提交未合入
                   </span>
                   <Button

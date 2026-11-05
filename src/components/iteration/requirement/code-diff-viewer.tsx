@@ -350,11 +350,11 @@ function DiffItemCard({
             </span>
 
             {file.newFile ? (
-              <FilePlusIcon className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <FilePlusIcon className="size-3.5 text-success shrink-0" />
             ) : file.deletedFile ? (
-              <FileMinusIcon className="size-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+              <FileMinusIcon className="size-3.5 text-danger shrink-0" />
             ) : file.renamedFile ? (
-              <FileCodeIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <FileCodeIcon className="size-3.5 text-warning shrink-0" />
             ) : (
               <FileCodeIcon className="size-3.5 text-primary shrink-0" />
             )}
@@ -376,12 +376,12 @@ function DiffItemCard({
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex items-center gap-1 font-mono text-[10px]">
               {file.additions > 0 && (
-                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                <span className="text-success font-semibold">
                   +{file.additions}
                 </span>
               )}
               {file.deletions > 0 && (
-                <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                <span className="text-danger font-semibold">
                   -{file.deletions}
                 </span>
               )}
@@ -430,9 +430,9 @@ function DiffItemCard({
                   className={cn(
                     'flex items-stretch hover:bg-muted/30 transition-colors',
                     isAdd &&
-                      'bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-950 dark:text-emerald-100',
+                      'bg-success/10 text-foreground/85',
                     isDel &&
-                      'bg-rose-500/10 dark:bg-rose-500/15 text-rose-950 dark:text-rose-100',
+                      'bg-danger/10 text-foreground/85',
                   )}
                 >
                   {/* 旧行号 */}
@@ -447,8 +447,8 @@ function DiffItemCard({
                   <span
                     className={cn(
                       'w-5 shrink-0 select-none py-0.5 text-center font-bold text-[11px]',
-                      isAdd && 'text-emerald-600 dark:text-emerald-400',
-                      isDel && 'text-rose-600 dark:text-rose-400',
+                      isAdd && 'text-success',
+                      isDel && 'text-danger',
                       !isAdd && !isDel && 'text-transparent',
                     )}
                   >

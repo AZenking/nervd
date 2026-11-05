@@ -80,7 +80,7 @@ export function SettingsAutoSaveStatus() {
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors select-none"
           onClick={() => void flushAutoSave()}
         >
-          <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+          <span className="size-1.5 rounded-full bg-warning animate-pulse" />
           <span>未保存</span>
         </Tooltip.Trigger>
         <Tooltip.Content offset={4} placement="bottom end" className="text-[11px]">
@@ -93,7 +93,7 @@ export function SettingsAutoSaveStatus() {
   return (
     <Tooltip delay={0}>
       <Tooltip.Trigger className="flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-default">
-        <CheckIcon className="size-3 text-emerald-600 dark:text-emerald-400" />
+        <CheckIcon className="size-3 text-success" />
         <span>已自动保存</span>
       </Tooltip.Trigger>
       <Tooltip.Content offset={4} placement="bottom end" className="text-[11px]">

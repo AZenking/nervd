@@ -178,11 +178,11 @@ export function BranchDivergenceCheck({
         {ready && (
           <div className="flex flex-wrap items-center gap-1.5">
             {aligned ? (
-              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-[11px] font-medium text-success">
                 <CheckIcon className="size-3" />已同步迭代分支
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+              <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning">
                 有落差 (开发独有 {check.developmentOnly} · 迭代独有 {check.baselineOnly})
               </span>
             )}

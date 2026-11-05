@@ -200,7 +200,7 @@ export function QuickBuildDialog() {
                               {target.type === 'flow' ? (
                                 <WorkflowIcon className="size-3.5 text-primary shrink-0" />
                               ) : (
-                                <TerminalIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                <TerminalIcon className="size-3.5 text-warning shrink-0" />
                               )}
                               <div className="flex flex-col min-w-0 text-left">
                                 <div className="flex items-center gap-2 font-medium truncate">
@@ -274,7 +274,7 @@ export function QuickBuildDialog() {
                               {target.type === 'flow' ? (
                                 <WorkflowIcon className="size-3.5 text-primary shrink-0" />
                               ) : (
-                                <TerminalIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                <TerminalIcon className="size-3.5 text-warning shrink-0" />
                               )}
                               <div className="flex flex-col min-w-0 text-left">
                                 <div className="flex items-center gap-2 font-medium truncate">

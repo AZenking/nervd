@@ -117,16 +117,16 @@ The MCP server returns "not initialized." Ask the user: *"I notice this project 
 
 ## 3. UI 参照与设计系统规范 (Deep Linear Alignment)
 
- nervd 设计唯一权威规范依据为根目录 [`DESIGN.md`](./DESIGN.md)。
+ nervd 设计唯一权威规范依据为根目录 [`DESIGN.md`](./DESIGN.md)。DESIGN.md v2 由三部分组成：**HeroUI v3 上游契约（逐字收录）**、**nervd 覆盖层**（`src/styles/theme.css` 为唯一事实源）与**布局形态规范**。
 
 ### 3.1 双主题色彩系统 (Linear Light & Dark LCH-based)
-项目全面支持 **深色模式 (Dark，默认)** 与 **浅色模式 (Light)**，侧栏底部一键切换：
+项目主题**跟随系统**（`prefers-color-scheme`），无系统偏好时**回退深色**，支持 **深色模式 (Dark)** 与 **浅色模式 (Light)**，侧栏底部一键切换：
 
-| 语义 Token | 深色模式 (Dark Default) | 浅色模式 (Light) | 用途说明 |
+| 语义 Token | 深色模式 (跟随系统，深色回退) | 浅色模式 (Light) | 用途说明 |
 |---|---|---|---|
 | `--canvas` / `--background` | `#121215` (冷黑) | `#ffffff` (纯白) | 主工作台画布底色 |
 | `--surface` / `--card` | `#18181c` (中黑) | `#ffffff` | 浮层、卡片与弹出面板底色 |
-| `--sidebar` | `#0b0b0e` (极黑) | `#f7f8f8` ~ `#f9f9f9` | 左侧边栏底色，靠明度差形成视觉落差 |
+| `--sidebar` | `#121215` (与画布同底) | `#ffffff` (纯白) | 左侧边栏底色（白侧栏），靠 `--canvas-soft` 桌面底与 hairline 形成层次，非明度差底色 |
 | `--hairline` / `--border` | `rgba(255, 255, 255, 0.08)` | `#e8e9eb` | 1px 细线切割，界面结构严禁依赖厚重投影 |
 | **动作强调色 (Primary)** | **`#5e6ad2`** | **`#5e6ad2`** | **Linear Violet** 唯一动作色，按压态 `#4a56c0` |
 | 状态·成功 (Ok) | Emerald (`#30a46c`) | Emerald (`#30a46c`) | 构建成功、需求已完成、已合入 |
@@ -134,9 +134,9 @@ The MCP server returns "not initialized." Ask the user: *"I notice this project 
 | 状态·进行中/排队 (Run) | Amber (`#d9730d`) | Amber (`#d9730d`) | 运行中、等待排队、构建中 |
 
 ### 3.2 排印系统与等宽字体 (Typography)
-1. **主字体栈**：`Inter`, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif。主要文字活动在紧凑字阶（13~15px），大字号附带负字距（如 24px 配 `-0.25px`）。
+1. **主字体栈**：`Inter`, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif。正文基准 **14px / 1.55**（`body` 全局），主要文字活动在紧凑字阶（12~15px）；页面标题统一 h1 规格 **26px / 700 / −0.625px / 1.23**（theme.css 全局 `h1`，层级靠字重 600/700 表达，大字号附负字距）。
 2. **等宽字体栈 (`--font-mono`)**：
-   - 配置：`ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace`。
+   - 配置：`ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace`。
    - **强制适用范围**：
      - 工作项编号（`REQ-101`、`TASK-202`）
      - 分支名称（`feature/req-101`）
@@ -149,9 +149,11 @@ The MCP server returns "not initialized." Ask the user: *"I notice this project 
 1. **无边框画布 (Border-less Canvas)**：
    - 列表区全宽裸行展现，拒绝外层套多重 Card 框中框。
    - 悬停使用微弱背景变化 `hover:bg-muted/60`，激活态使用 `bg-accent text-accent-foreground`。
-2. **圆角梯级**：
-   - 按钮/卡片/弹窗：`rounded-md` (8px)
-   - 输入框/徽标/小组件：`rounded-sm` (6px)
+2. **圆角梯级**（theme.css 以固定值覆盖，基准 `--radius` 10px）：
+   - `rounded-xs` / `rounded-sm`：4px（内联小徽标、极小组件）
+   - `rounded-md`：6px（输入框、菜单项、列表行、按钮紧凑档）
+   - `rounded-lg`：8px（卡片、面板、弹窗、内容容器）
+   - `rounded-xl`：12px（大容器、侧栏行、品牌图标框）
    - 拒绝大圆角胶囊 Pill 按钮。
 3. **精准骨架屏 (Precise Skeletons)**：
    - 加载态严禁用一根大灰条糊弄。必须使用与真实列表行高完全一致的骨架（`WorkitemSkeletonRows` / `RequirementDetailsSkeleton`），模拟真实图标、文本与徽标布局，杜绝加载完成时的界面跳动。

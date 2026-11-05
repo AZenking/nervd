@@ -56,7 +56,7 @@ export function FloatingBatchBar({
     <Surface
       variant="default"
       data-testid="floating-batch-bar"
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md border border-border shadow-level-3 rounded-lg px-3.5 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md border border-border shadow-level-2 rounded-lg px-3.5 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
     >
       <Chip
         data-testid="batch-bar-count"

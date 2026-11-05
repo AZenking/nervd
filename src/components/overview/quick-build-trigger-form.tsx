@@ -656,7 +656,7 @@ export function QuickBuildTriggerForm({
                 onPress={() => void handleTriggerClick()}
                 className={cn(
                   'h-8 w-full gap-1.5 px-4 text-xs font-medium transition-all sm:w-auto',
-                  confirmArmed && 'bg-amber-600 text-white animate-pulse hover:bg-amber-700',
+                  confirmArmed && 'bg-warning text-warning-foreground animate-pulse hover:bg-warning/90',
                 )}
               >
                 {isCurrentTriggering ? (

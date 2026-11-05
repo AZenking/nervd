@@ -96,7 +96,7 @@ export function AboutDialog() {
             />
 
             {/* App Icon */}
-            <div className="relative mb-3 flex size-16 items-center justify-center rounded-2xl bg-sidebar-primary shadow-level-1 ring-1 ring-border/80">
+            <div className="relative mb-3 flex size-16 items-center justify-center rounded-2xl bg-sidebar-primary shadow-level-2 ring-1 ring-border/80">
               <img
                 src="/nervd-logo.png"
                 alt="nervd logo"
@@ -153,7 +153,7 @@ export function AboutDialog() {
                     </>
                   ) : (
                     <>
-                      <ShieldCheckIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <ShieldCheckIcon className="size-3.5 text-success" />
                       <span className="text-foreground">只读保护中</span>
                     </>
                   )}
@@ -253,7 +253,7 @@ export function AboutDialog() {
                 className="h-8 flex-1 gap-1.5 text-xs font-normal cursor-pointer"
               >
                 {status === 'up_to_date' ? (
-                  <CheckCircle2Icon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <CheckCircle2Icon className="size-3.5 text-success" />
                 ) : (
                   <RefreshCwIcon className={`size-3.5 ${isChecking ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
                 )}

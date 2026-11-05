@@ -183,7 +183,7 @@ export function ConnectionSection() {
                 size="sm"
                 variant="soft"
                 color="warning"
-                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full select-none"
+                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-full select-none"
               >
                 我参与
               </Chip>

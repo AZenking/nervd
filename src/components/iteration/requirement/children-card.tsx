@@ -30,10 +30,10 @@ import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/ava
 import { SearchableAssigneePopover, type AssigneeOption } from './assignee-popover';
 
 const SEVERITY_OPTIONS = [
-  { label: '致命', color: 'bg-red-500 dark:bg-red-400' },
-  { label: '严重', color: 'bg-amber-500 dark:bg-amber-400' },
+  { label: '致命', color: 'bg-danger' },
+  { label: '严重', color: 'bg-warning' },
   { label: '一般', color: 'bg-yellow-500 dark:bg-yellow-400' },
-  { label: '轻微', color: 'bg-emerald-500 dark:bg-emerald-400' },
+  { label: '轻微', color: 'bg-success' },
 ] as const;
 
 /** 行首快速状态切换下拉（免弹窗极速流转，即时回显 + 乐观更新） */
@@ -455,7 +455,7 @@ export function ChildrenCard({
         ) : (
           <Badge
             variant="outline"
-            className="border-emerald-500/30 dark:border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-500/20 px-1.5 py-0 text-[11px] font-normal text-emerald-600 dark:text-emerald-400"
+            className="border-success/30 bg-success/10 px-1.5 py-0 text-[11px] font-normal text-success"
           >
             全部已解决
           </Badge>
@@ -466,7 +466,7 @@ export function ChildrenCard({
           className={cn(
             'px-1.5 py-0 text-[11px] font-normal',
             completedCount === items.length
-              ? 'border-emerald-500/30 dark:border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+              ? 'border-success/30 bg-success/10 text-success'
               : 'border-border/60 bg-muted/50 text-muted-foreground',
           )}
         >

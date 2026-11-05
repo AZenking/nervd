@@ -99,7 +99,7 @@ function ParameterField({
             </Badge>
           )}
           {isEnv && (
-            <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-4 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+            <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-4 bg-warning/10 text-warning border-warning/20">
               部署环境
             </Badge>
           )}
@@ -154,7 +154,7 @@ function ParameterField({
                     <OverflowTooltip text={b} className="min-w-0 truncate" />
                     <div className="flex items-center gap-1 shrink-0 font-sans">
                       {b === defaultBranch && (
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-500/10 px-1 py-0.2 rounded">
+                        <span className="text-[10px] text-success font-medium bg-success/10 px-1 py-0.2 rounded">
                           推荐
                         </span>
                       )}
@@ -432,7 +432,7 @@ export function JenkinsBuildParameters({
           );
         } else if (item.isRecommended) {
           badge = (
-            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-sans">
+            <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success border border-success/20 font-sans">
               <SparklesIcon className="size-2.5" />
               推荐
             </span>

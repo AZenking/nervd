@@ -134,7 +134,7 @@ export function JenkinsInstancesCard() {
                     Token 已保存
                   </Chip>
                 ) : draftToken ? (
-                  <span className="text-xs text-amber-600 dark:text-amber-400">Token 待保存</span>
+                  <span className="text-xs text-warning">Token 待保存</span>
                 ) : (
                   <span className="text-xs text-muted-foreground">尚未保存 Token</span>
                 )}
@@ -142,7 +142,7 @@ export function JenkinsInstancesCard() {
                   <span
                     className={cn(
                       'min-w-0 flex-1 whitespace-normal break-words text-xs',
-                      testSuccess && 'text-emerald-600 dark:text-emerald-400',
+                      testSuccess && 'text-success',
                       testFail && 'text-destructive',
                       !testSuccess && !testFail && 'text-muted-foreground',
                     )}

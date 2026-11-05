@@ -94,11 +94,11 @@ export interface LinkedRepoCardProps {
 
 /** 需求关联仓库的紧凑摘要；分支与交付细节默认收拢。 */
 const REPO_PALETTES = [
-  'from-indigo-500/20 to-purple-500/30 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
-  'from-sky-500/20 to-blue-500/30 text-sky-600 dark:text-sky-400 border-sky-500/20',
-  'from-amber-500/20 to-orange-500/30 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  'from-emerald-500/20 to-teal-500/30 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-  'from-rose-500/20 to-pink-500/30 text-rose-600 dark:text-rose-400 border-rose-500/20',
+  'from-(--brand-indigo)/20 to-(--sticker-purple)/30 text-(--sticker-purple-deep) dark:text-(--sticker-purple) border-(--sticker-purple-deep)/20',
+  'from-(--sticker-sky)/20 to-(--sticker-sky)/35 text-(--sticker-sky) border-(--sticker-sky)/20',
+  'from-(--sticker-orange)/20 to-(--sticker-orange-deep)/30 text-(--sticker-orange-deep) dark:text-(--sticker-orange) border-(--sticker-orange)/20',
+  'from-(--sticker-green)/20 to-(--sticker-teal)/30 text-(--sticker-green) border-(--sticker-green)/20',
+  'from-(--sticker-pink)/20 to-(--sticker-pink)/35 text-(--sticker-pink) border-(--sticker-pink)/20',
 ];
 
 function getRepoPalette(name: string): string {

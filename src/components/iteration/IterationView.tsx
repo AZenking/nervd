@@ -53,13 +53,13 @@ const ROW_PREVIEW_DELAY_MS = 140;
 function getStatusGroupChipClass(status: string): string {
   const tone = statusMeta(status).tone;
   if (tone === 'run') {
-    return 'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold';
+    return 'border-warning/25 bg-warning/10 text-warning font-semibold';
   }
   if (tone === 'fail') {
-    return 'border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold';
+    return 'border-danger/25 bg-danger/10 text-danger font-semibold';
   }
   if (tone === 'ok') {
-    return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold';
+    return 'border-success/25 bg-success/10 text-success font-semibold';
   }
   return 'border-border/60 bg-muted/40 text-muted-foreground font-medium';
 }
@@ -651,7 +651,7 @@ export function IterationView() {
             <Accordion.Item key={group.status} id={group.status} className="border-none">
               {/* 组头：Linear 组头形态；微弱字距，清晰层级，可折叠 */}
               <Accordion.Heading>
-                <Accordion.Trigger className="group/group-header -ml-1 flex h-7 w-full cursor-pointer items-center gap-2 rounded px-2 text-left transition-colors hover:bg-neutral-100/60 dark:hover:bg-neutral-800/40">
+                <Accordion.Trigger className="group/group-header -ml-1 flex h-7 w-full cursor-pointer items-center gap-2 rounded px-2 text-left transition-colors hover:bg-muted/60">
                   <StatusIcon status={group.status} className="size-3.5 shrink-0" />
                   <span className="text-[13px] font-semibold text-foreground/90">{group.status || '未知'}</span>
                   <Chip
@@ -735,8 +735,8 @@ export function IterationView() {
                         }}
                         className={cn(
                           'group relative flex w-full cursor-pointer items-center gap-2.5 rounded-md text-left transition-colors min-h-0',
-                          'hover:bg-neutral-100/70 dark:hover:bg-neutral-800/50',
-                          'data-[active=true]:bg-neutral-100 dark:data-[active=true]:bg-neutral-800/80 data-[active=true]:shadow-2xs',
+                          'hover:bg-muted/60',
+                          'data-[active=true]:bg-muted-bg data-[active=true]:shadow-2xs',
                           'h-10 px-2.5 pl-3',
                         )}
                       >
@@ -744,7 +744,7 @@ export function IterationView() {
                         {match.isAssigned ? (
                           <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-primary" />
                         ) : match.isRelated ? (
-                          <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-amber-500" />
+                          <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-warning" />
                         ) : isActive ? (
                           <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-r-full bg-primary/70" />
                         ) : null}
@@ -789,7 +789,7 @@ export function IterationView() {
                             size="sm"
                             variant="soft"
                             color="warning"
-                            className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full select-none"
+                            className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-full select-none"
                           >
                             我参与
                           </Chip>

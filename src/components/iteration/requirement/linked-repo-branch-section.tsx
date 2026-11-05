@@ -54,12 +54,12 @@ export function LinkedRepoBranchStatus({
     const baseOnly = divergence.check.baselineOnly ?? 0;
     if (devOnly > 0) {
       return (
-        <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-          <span className="size-2 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
+        <div className="flex items-center gap-1.5 text-xs font-medium text-success">
+          <span className="size-2 rounded-full bg-success shrink-0" />
           <span className="truncate">超前 {devOnly} 提交</span>
           {baseOnly > 0 && (
             <span
-              className="text-[11px] text-amber-600 dark:text-amber-400 font-normal truncate"
+              className="text-[11px] text-warning font-normal truncate"
               title={`落后基准 ${baseOnly} 提交`}
             >
               / 需合入 {baseOnly}
@@ -70,22 +70,22 @@ export function LinkedRepoBranchStatus({
     }
     if (baseOnly > 0) {
       return (
-        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
-          <span className="size-2 rounded-full bg-amber-500 dark:bg-amber-400 shrink-0" />
+        <div className="flex items-center gap-1.5 text-xs font-medium text-warning">
+          <span className="size-2 rounded-full bg-warning shrink-0" />
           <span className="truncate">落后基准 {baseOnly} 提交</span>
         </div>
       );
     }
     return (
-      <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-        <span className="size-2 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
+      <div className="flex items-center gap-1.5 text-xs text-success">
+        <span className="size-2 rounded-full bg-success shrink-0" />
         <span className="truncate">与基准已对齐</span>
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-      <span className="size-2 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
+    <div className="flex items-center gap-1.5 text-xs text-success">
+      <span className="size-2 rounded-full bg-success shrink-0" />
       <span className="truncate">需求分支已就绪</span>
     </div>
   );

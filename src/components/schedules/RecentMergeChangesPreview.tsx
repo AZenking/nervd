@@ -297,7 +297,7 @@ export function RecentMergeChangesPreview({
       ) : lastChanges?.status === 'up_to_date' ? (
         /* 场景 2：两端已对齐，无改动 */
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <CheckIcon className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <CheckIcon className="size-3 text-success shrink-0" />
           <span>目标分支已对齐，无待合入改动</span>
           <Tooltip>
             <TooltipTrigger

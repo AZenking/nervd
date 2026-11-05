@@ -69,8 +69,8 @@ export function CodeDiffDrawer({
                 <span className="text-foreground/90">{targetBranch}</span>
                 {(totalAdditions > 0 || totalDeletions > 0) && (
                   <span className="ml-2 font-medium">
-                    <span className="text-emerald-600 dark:text-emerald-400">+{totalAdditions}</span>{' '}
-                    <span className="text-rose-600 dark:text-rose-400">-{totalDeletions}</span>
+                    <span className="text-success">+{totalAdditions}</span>{' '}
+                    <span className="text-danger">-{totalDeletions}</span>
                   </span>
                 )}
               </DrawerDescription>
