@@ -75,8 +75,8 @@ describe('BranchTemplatesManager 交付轨道拓扑预览', () => {
     expect(diagram?.querySelector('[data-node="source"]')?.textContent).toContain('master');
     expect(diagram?.querySelector('[data-node="baseline"]')?.textContent).toContain('iteration/Sprint-2026/局点专版');
     expect(diagram?.querySelector('[data-node="development"]')?.textContent).toContain('feature/REQ-101');
-    expect(diagram?.textContent).toContain('派生基准');
-    expect(diagram?.textContent).toContain('发布 MR');
+    // 连线标签（派生基准/发布 MR）契约由 track-topology-diagram.test 的
+    // buildTrackTopologyGraph 断言；jsdom 零尺寸下 ReactFlow 不渲染边标签
   });
 
   it('编辑直连模板：抽屉内拓扑自动切两节点形态', async () => {
@@ -86,8 +86,8 @@ describe('BranchTemplatesManager 交付轨道拓扑预览', () => {
     const diagram = document.body.querySelector('[data-testid="track-topology"]');
     expect(diagram?.getAttribute('data-form')).toBe('direct');
     expect(diagram?.querySelector('[data-node="baseline"]')).toBeNull();
-    expect(diagram?.textContent).toContain('直接切出');
     expect(diagram?.textContent).toContain('直连主干');
+    // 直接切出 连线契约由 track-topology-diagram.test 的 buildTrackTopologyGraph 断言
   });
 
   it('新增模板：默认草稿即渲染拓扑（迭代示例 Sprint-1、track 回退默认）', async () => {

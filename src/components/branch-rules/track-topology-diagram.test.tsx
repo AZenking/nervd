@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  buildTrackTopologyGraph,
   isDirectConnectBranches,
   TrackTopologyDiagram,
   type TrackTopologyDiagramProps,
@@ -52,19 +53,20 @@ describe('TrackTopologyDiagram', () => {
     expect(development?.textContent).toContain('需求分支');
   });
 
-  it('三节点形态：渲染 派生基准 / 切出开发 / MR 合入 与琥珀虚线 发布 MR 标签', async () => {
-    const diagram = await renderDiagram();
+  it('三节点形态：连线契约 派生基准 / 切出开发 / MR 合入 与琥珀虚线 发布 MR（buildTrackTopologyGraph）', () => {
+    // jsdom 零尺寸下 ReactFlow 不渲染边标签，连线契约经纯函数图结构断言
+    const graph = buildTrackTopologyGraph(baseProps);
 
-    expect(diagram?.textContent).toContain('派生基准');
-    expect(diagram?.textContent).toContain('切出开发');
-    expect(diagram?.textContent).toContain('MR 合入');
-    expect(diagram?.textContent).toContain('发布 MR');
-    expect(diagram?.textContent).not.toContain('直接切出');
-    // 发布 MR 为琥珀虚线（warning token），MR 合入为常规 hairline
-    const amberLabel = Array.from(diagram?.querySelectorAll('span') ?? []).find(
-      (el) => el.textContent === '发布 MR',
-    );
-    expect(amberLabel?.className).toContain('text-warning');
+    expect(graph.direct).toBe(false);
+    expect(graph.edges.map((edge) => edge.data?.label)).toEqual(['派生基准', '发布 MR', '切出开发', 'MR 合入']);
+    // 发布 MR：迭代基准 → 源主干，琥珀（warning）虚线
+    const release = graph.edges[1];
+    expect(release.data?.tone).toBe('warning');
+    expect(release.data?.dashed).toBe(true);
+    expect(release.source).toBe('baseline');
+    expect(release.target).toBe('source');
+    // MR 合入：需求分支 → 迭代基准
+    expect(graph.edges[3]).toMatchObject({ source: 'development', target: 'baseline' });
   });
 
   it('直连判定：基准模式展开后与源主干同名（含 trim）自动切两节点形态', async () => {
@@ -89,14 +91,15 @@ describe('TrackTopologyDiagram', () => {
     expect(diagram?.getAttribute('data-form')).toBe('direct');
   });
 
-  it('直连形态：渲染 直接切出 / MR 合入，不渲染三节点专属标签', async () => {
-    const diagram = await renderDiagram({ baselinePattern: 'master ' });
+  it('直连形态：连线契约 直接切出 / MR 合入，无三节点专属标签（buildTrackTopologyGraph）', () => {
+    const graph = buildTrackTopologyGraph({ ...baseProps, baselinePattern: 'master ' });
 
-    expect(diagram?.textContent).toContain('直接切出');
-    expect(diagram?.textContent).toContain('MR 合入');
-    expect(diagram?.textContent).not.toContain('派生基准');
-    expect(diagram?.textContent).not.toContain('切出开发');
-    expect(diagram?.textContent).not.toContain('发布 MR');
+    expect(graph.direct).toBe(true);
+    expect(graph.edges.map((edge) => edge.data?.label)).toEqual(['直接切出', 'MR 合入']);
+    // 直接切出：源主干 → 需求分支；MR 合入：需求分支 → 源主干
+    expect(graph.edges[0]).toMatchObject({ source: 'source', target: 'development' });
+    expect(graph.edges[1]).toMatchObject({ source: 'development', target: 'source' });
+    expect(graph.edges.some((edge) => edge.data?.dashed)).toBe(false);
   });
 
   it('状态光晕：ready/missing/loading 映射到对应视觉类（未传状态为纯预览态）', async () => {
