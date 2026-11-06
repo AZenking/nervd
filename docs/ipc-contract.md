@@ -108,6 +108,9 @@ src-tauri/src/
 | `save_workitem_repos` | `workitemId: String, repoIds: Option<Vec<i64>>` | `Settings` | 需求仓库覆盖；空数组为显式空列表，`null` 删除覆盖并回退默认 |
 | `save_branch_rule_templates` | `templates: Vec<BranchRuleTemplate>` | `Settings` | 保存本机可复用分支模板；移除模板时清理需求仓库上的关联 |
 | `save_workitem_repo_branch_template` | `workitemId: String, repoId: i64, templateId: Option<String>` | `Settings` | 为需求的一个仓库选择或清除分支模板 |
+| `save_iteration_tracks` | `iterationId: String, templates: Vec<BranchRuleTemplate>` | `Settings` | 行级替换该迭代的专属分支轨道（SQLite 行级持久化，不影响其他迭代与全局轨道）；重名校验仅限同一 scope+iteration 内 |
+| `list_iteration_tracks` | `iterationId: String` | `Vec<BranchRuleTemplate>` | 读取该迭代的专属分支轨道（ORDER BY sort_order） |
+| `import_iteration_tracks` | `map: Record<iterationId, Vec<BranchRuleTemplate>>` | `bool` | 遗留 localStorage 迭代模板一次性幂等导入；`app_settings` 键 `localStorageImported=1` 后直接返回 `true` |
 | `save_repo_ci_binding` | `repoId: i64, binding: Option<RepoCiBinding>` | `Settings` | 本机保存/清除仓库的 Jenkins Job 与构建参数 |
 | `save_pat` | `pat: String` | `bool` | 写 keyring，重建 client |
 | `delete_pat` | — | `bool` | |
@@ -151,6 +154,22 @@ src-tauri/src/
 **写操作门控**：`settings.allowWriteOps == false` 时，写操作命令直接返回
 `Err("WRITE_DISABLED: 请在设置中开启写操作（需要写权限的个人令牌）")`。前端依此
 错误码前缀置灰按钮。
+
+### 4.1 阶段3 SQLite 数据层（nervd.db，additive）
+
+设置与分支轨道的本机持久化已迁至 `credentials::data_dir` 下的 `nervd.db`（WAL / busy_timeout=5000 / foreign_keys=ON），三张表：
+
+- `app_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)`：`organizationId` / `defaultSpaceIdentifier` / `linkPattern` / `watchedRepos` / `allowWriteOps` / `workitemRepos` / `jenkinsConnections` / `repoCiBindings` 逐键存 JSON（键名与 `Settings` 字段一致），另含元键 `schema_version`、`localStorageImported`
+- `branch_tracks(id, name, scope CHECK IN ('global','iteration'), iteration_id, source_branch, baseline_pattern, workitem_pattern, is_default, sort_order)`：全局模板 = `scope='global'`；迭代专属模板 = `scope='iteration'` + `iteration_id`，各自按 `sort_order` 排序
+- `workitem_repo_bindings(workitem_id, repo_id, track_id NULL, PK(workitem_id, repo_id), FK(track_id)→branch_tracks ON DELETE SET NULL)`：需求×仓库 → 轨道绑定
+
+**一次性迁移**：启动时若 `app_settings` 无 `schema_version`，定位 `settings.json`（新数据目录优先，其次旧目录）并全量导入上述三表；成功后将该文件重命名为 `settings.json.bak`（已存在则覆盖）。迁移由 `schema_version=1` 保证幂等（重跑不重复导入）；任何一步失败返回错误且不改名。PAT 与 Jenkins Token 仍存 macOS Keychain，不受影响。
+
+**语义变化（两条）**：
+
+1. `save_settings` 现在只 upsert 非轨道/非绑定键；payload 中的 `branchRuleTemplates` 与 `workitemRepoBranchTemplates` 会被**显式忽略**（后端打警告日志），行级数据只能经 `save_branch_rule_templates` / `save_iteration_tracks` / `save_workitem_repo_branch_template` 写入 —— 根治设置草稿全量写回滚行级轨道数据的 A1 lost-update。
+2. 删除全局模板时，指向它的绑定由 FK `ON DELETE SET NULL` 自动置空（`track_id=NULL`），该仓库回退"继承"并在 `get_settings` 的 `workitemRepoBranchTemplates` 中不再返回；保留模板的绑定不受影响。
+
 
 ## 5. TS 数据层（ts-datalayer）
 

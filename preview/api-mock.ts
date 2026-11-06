@@ -252,6 +252,34 @@ export async function saveWorkitemRepoBranchTemplate(
   else delete settings.workitemRepoBranchTemplates[workitemId];
   return { ...settings };
 }
+
+// ---- 迭代专属分支模板（阶段3 SQLite 行级持久化 mock：内存 map 对齐 branch_tracks 表语义）----
+const iterationTracks = new Map<string, BranchRuleTemplate[]>();
+let iterationTracksImported = false; // 对齐 Rust 端 app_settings 键 localStorageImported 的幂等标记
+
+export async function saveIterationTracks(iterationId: string, templates: BranchRuleTemplate[]): Promise<SettingsView> {
+  await gate('save_iteration_tracks', [iterationId, templates]);
+  await sleep(120);
+  if (!iterationId.trim()) throw new Error('迭代 ID 无效');
+  if (templates.length === 0) iterationTracks.delete(iterationId);
+  else iterationTracks.set(iterationId, templates.map((template) => ({ ...template })));
+  return { ...settings };
+}
+export async function listIterationTracks(iterationId: string): Promise<BranchRuleTemplate[]> {
+  await gate('list_iteration_tracks', [iterationId]);
+  return (iterationTracks.get(iterationId) ?? []).map((template) => ({ ...template }));
+}
+export async function importIterationTracks(map: Record<string, BranchRuleTemplate[]>): Promise<boolean> {
+  await gate('import_iteration_tracks', [map]);
+  // 幂等：首次导入后直接跳过（对齐后端 localStorageImported=1 守卫）
+  if (iterationTracksImported) return true;
+  for (const [iterationId, templates] of Object.entries(map)) {
+    if (templates.length > 0) iterationTracks.set(iterationId, templates.map((template) => ({ ...template })));
+  }
+  iterationTracksImported = true;
+  return true;
+}
+
 export async function saveRepoCiBinding(repoId: number, binding: RepoCiBinding | null): Promise<SettingsView> {
   await gate('save_repo_ci_binding', [repoId, binding]);
   await sleep(120);

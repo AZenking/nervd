@@ -2,6 +2,7 @@
 
 mod commands;
 mod credentials;
+mod db;
 mod jenkins;
 mod poller;
 pub mod yunxiao;
@@ -14,6 +15,8 @@ pub struct AppStateInner {
     pub client: Mutex<Option<Arc<yunxiao::YunxiaoClient>>>,
     pub settings: Mutex<credentials::Settings>,
     pub jenkins_trigger_baselines: Mutex<HashMap<String, Vec<i64>>>,
+    /// 阶段3 SQLite 数据层：nervd.db 连接（设置/分支轨道/绑定的事实源）
+    pub db: Mutex<rusqlite::Connection>,
 }
 pub type AppState = Arc<AppStateInner>;
 
@@ -170,7 +173,12 @@ pub fn run() {
                 eprintln!("[menu] failed to set macos menu: {e}");
             }
 
-            let settings = credentials::load_settings(app.handle());
+            // 阶段3：SQLite 数据层是设置的事实源；无库桌面应用不可用 → panic 带清晰信息
+            let db_conn = db::open_db(app.handle())
+                .and_then(|mut conn| db::migrate_if_needed(&mut conn, app.handle()).map(|_| conn))
+                .unwrap_or_else(|e| panic!("初始化 nervd.db 失败: {e}"));
+            let settings = db::load_settings(&db_conn)
+                .unwrap_or_else(|e| panic!("从 nervd.db 读取设置失败: {e}"));
             let client = credentials::load_pat()
                 .and_then(|p| yunxiao::YunxiaoClient::new(&p).ok())
                 .map(Arc::new);
@@ -178,6 +186,7 @@ pub fn run() {
                 client: Mutex::new(client),
                 settings: Mutex::new(settings),
                 jenkins_trigger_baselines: Mutex::new(HashMap::new()),
+                db: Mutex::new(db_conn),
             });
             app.manage(inner.clone());
             poller::spawn(app.handle().clone(), inner);
@@ -189,6 +198,9 @@ pub fn run() {
             commands::save_workitem_repos,
             commands::save_branch_rule_templates,
             commands::save_workitem_repo_branch_template,
+            commands::save_iteration_tracks,
+            commands::list_iteration_tracks,
+            commands::import_iteration_tracks,
             commands::save_repo_ci_binding,
             commands::save_pat,
             commands::delete_pat,

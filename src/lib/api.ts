@@ -53,6 +53,18 @@ export async function saveWorkitemRepoBranchTemplate(
 ): Promise<SettingsView> {
   return invoke('save_workitem_repo_branch_template', { workitemId, repoId, templateId });
 }
+/** 迭代专属分支模板（阶段3 SQLite 行级持久化）：行级替换该迭代的模板 */
+export async function saveIterationTracks(iterationId: string, templates: BranchRuleTemplate[]): Promise<SettingsView> {
+  return invoke('save_iteration_tracks', { iterationId, templates });
+}
+/** 迭代专属分支模板：读取该迭代的模板行 */
+export async function listIterationTracks(iterationId: string): Promise<BranchRuleTemplate[]> {
+  return invoke('list_iteration_tracks', { iterationId });
+}
+/** 迭代专属分支模板：遗留 localStorage 数据一次性幂等导入（后端 app_settings 键 localStorageImported=1 后跳过） */
+export async function importIterationTracks(map: Record<string, BranchRuleTemplate[]>): Promise<boolean> {
+  return invoke('import_iteration_tracks', { map });
+}
 export async function saveRepoCiBinding(repoId: number, binding: RepoCiBinding | null): Promise<SettingsView> {
   return invoke('save_repo_ci_binding', { repoId, binding });
 }

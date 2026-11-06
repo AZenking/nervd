@@ -27,7 +27,7 @@ import { JenkinsBuildDialog } from './JenkinsBuildDialog';
 import { BuildWorkbenchTrigger, openBuildWorkbenchFromTrigger, openRepoBuildLogs } from '@/components/build-workbench';
 import { KeyboardPagination } from './keyboard-pagination';
 import { expandBranchPattern } from '@/components/iteration/requirement/types';
-import { getFusedBranchTemplates } from '@/lib/iteration-templates';
+import { useFusedBranchTemplates } from '@/lib/iteration-templates';
 
 type WorkitemItem = ReturnType<typeof useApp.getState>['items'][number];
 
@@ -376,6 +376,13 @@ export function IterationRepoTab({
   const items = useApp((s) => s.items);
   const effectiveItems = scopedItems ?? items;
 
+  // 轨道融合模板：iterationKey 为迭代名称，而迭代专属模板按迭代 id 行存于 SQLite，
+  // 先解析回 id 再交由同源 hook 异步加载融合（加载完成前仅含全局模板）
+  const trackIterationId = iterationKey
+    ? iterations.find((it) => it.name === iterationKey)?.id ?? iterationKey
+    : undefined;
+  const fusedTemplates = useFusedBranchTemplates(trackIterationId);
+
   // 动态聚合：计算当前迭代工作项实际关联的仓库列表
   const scopedRepos: IterationScopedRepo[] = useMemo(() => {
     const repoItemMap = new Map<number, WorkitemItem[]>();
@@ -394,14 +401,9 @@ export function IterationRepoTab({
     }
 
     // 建议基准分支来源：融合模板首项（迭代专属优先、全局兜底）；零模板时不建议任何分支。
-    // 注意 iterationKey 为迭代名称，而迭代专属模板按迭代 id 存储，先解析回 id 再做融合。
     let suggestedBranch: string | undefined;
     if (iterationKey) {
-      const iterationId = iterations.find((it) => it.name === iterationKey)?.id;
-      const defaultTpl = getFusedBranchTemplates(
-        settings?.branchRuleTemplates ?? [],
-        iterationId ?? iterationKey,
-      )[0];
+      const defaultTpl = fusedTemplates[0];
       if (defaultTpl) {
         suggestedBranch = expandBranchPattern(
           defaultTpl.baselineBranchPattern || 'iteration/{iteration}/{template}',
@@ -422,7 +424,7 @@ export function IterationRepoTab({
           suggestedBranch,
         };
       });
-  }, [effectiveItems, repositories, settings, iterationKey, iterations]);
+  }, [effectiveItems, repositories, settings, iterationKey, fusedTemplates]);
 
   // 检查当前是否有任何仓库处于构建中状态
   const anyRunningCount = useMemo(() => {

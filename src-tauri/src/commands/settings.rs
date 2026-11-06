@@ -1,14 +1,18 @@
-use super::common::{as_array, client_of, org_of, rebuild, s};
+use super::common::{as_array, client_of, org_of, s};
 use crate::credentials::{self, RepoCiBinding, Settings};
-use crate::AppState;
+use crate::{db, AppState};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use tauri::State;
 
 // ---------- 凭证与设置 ----------
 
 #[tauri::command]
 pub async fn get_settings(state: State<'_, AppState>) -> Result<Value, String> {
-    let st = state.settings.lock().unwrap().clone();
+    let st = {
+        let conn = state.db.lock().unwrap();
+        db::load_settings(&conn)?
+    };
     let mut v = serde_json::to_value(&st).map_err(|e| e.to_string())?;
     if let Some(map) = v.as_object_mut() {
         map.insert("hasPat".into(), json!(credentials::load_pat().is_some()));
@@ -29,6 +33,21 @@ pub async fn get_settings(state: State<'_, AppState>) -> Result<Value, String> {
         }
     }
     Ok(v)
+}
+
+/// 重建云效客户端并刷新设置镜像。
+/// 阶段3 起设置事实源是 nervd.db：common::rebuild 内部的 settings.json 重载在一次性迁移后
+/// 恒为默认值，这里在其执行后立即以 db 组装结果覆盖镜像，保留其客户端重建职责。
+fn rebuild(state: &State<'_, AppState>, app: &tauri::AppHandle) {
+    super::common::rebuild(state, app);
+    let fresh = {
+        let conn = state.db.lock().unwrap();
+        db::load_settings(&conn)
+    };
+    match fresh {
+        Ok(fresh) => *state.settings.lock().unwrap() = fresh,
+        Err(e) => eprintln!("[settings] 从 nervd.db 刷新设置镜像失败: {e}"),
+    }
 }
 
 fn validate_settings(settings: &Settings) -> Result<(), String> {
@@ -126,6 +145,21 @@ fn validate_branch_rule_templates(templates: &[credentials::BranchRuleTemplate])
     Ok(())
 }
 
+fn trim_templates(templates: &mut [credentials::BranchRuleTemplate]) {
+    for template in templates.iter_mut() {
+        template.id = template.id.trim().to_string();
+        template.name = template.name.trim().to_string();
+        template.source_branch = template.source_branch.trim().to_string();
+        template.baseline_branch_pattern = template.baseline_branch_pattern.trim().to_string();
+        template.workitem_branch_pattern = template.workitem_branch_pattern.trim().to_string();
+    }
+}
+
+/// 刷新内存设置镜像（写命令落库后调用，保证 ci/poller 等镜像消费方立即看到最新值）
+fn refresh_mirror(state: &State<'_, AppState>, fresh: Settings) {
+    *state.settings.lock().unwrap() = fresh;
+}
+
 #[tauri::command]
 pub async fn save_settings(
     app: tauri::AppHandle,
@@ -133,14 +167,27 @@ pub async fn save_settings(
     settings: Settings,
 ) -> Result<Value, String> {
     validate_settings(&settings)?;
-    credentials::save_settings(&app, &settings)?;
+    // A1 根治点：设置草稿的全量写不得回滚行级轨道/绑定数据 —— 这两类字段显式忽略
+    if !settings.branch_rule_templates.is_empty()
+        || !settings.workitem_repo_branch_templates.is_empty()
+    {
+        eprintln!(
+            "[settings] save_settings 忽略 branchRuleTemplates / workitemRepoBranchTemplates 草稿字段；\
+             行级数据请使用 save_branch_rule_templates / save_iteration_tracks / save_workitem_repo_branch_template"
+        );
+    }
+    let fresh = {
+        let conn = state.db.lock().unwrap();
+        db::upsert_plain_settings(&conn, &settings)?;
+        db::load_settings(&conn)?
+    };
+    refresh_mirror(&state, fresh);
     rebuild(&state, &app);
     get_settings(state).await
 }
 
 #[tauri::command]
 pub async fn save_workitem_repos(
-    app: tauri::AppHandle,
     state: State<'_, AppState>,
     workitem_id: String,
     repo_ids: Option<Vec<i64>>,
@@ -148,69 +195,51 @@ pub async fn save_workitem_repos(
     if workitem_id.trim().is_empty() {
         return Err("需求 ID 不能为空".into());
     }
-    let mut settings = state.settings.lock().unwrap().clone();
-    if let Some(mut ids) = repo_ids {
-        if ids.iter().any(|id| *id <= 0) {
-            return Err("仓库 ID 无效".into());
-        }
-        ids.sort_unstable();
-        ids.dedup();
-        if let Some(templates) = settings.workitem_repo_branch_templates.get_mut(&workitem_id) {
-            templates.retain(|repo_id, _| ids.contains(repo_id));
-            if templates.is_empty() {
-                settings.workitem_repo_branch_templates.remove(&workitem_id);
+    let fresh = {
+        let conn = state.db.lock().unwrap();
+        let mut current = db::load_settings(&conn)?;
+        if let Some(mut ids) = repo_ids {
+            if ids.iter().any(|id| *id <= 0) {
+                return Err("仓库 ID 无效".into());
             }
+            ids.sort_unstable();
+            ids.dedup();
+            // 解除关联的仓库同步清掉其分支模板绑定
+            db::delete_workitem_bindings(&conn, &workitem_id, Some(&ids))?;
+            current.workitem_repos.insert(workitem_id, ids);
+        } else {
+            db::delete_workitem_bindings(&conn, &workitem_id, None)?;
+            current.workitem_repos.remove(&workitem_id);
         }
-        settings.workitem_repos.insert(workitem_id, ids);
-    } else {
-        settings.workitem_repos.remove(&workitem_id);
-        settings.workitem_repo_branch_templates.remove(&workitem_id);
-    }
-    credentials::save_settings(&app, &settings)?;
-    *state.settings.lock().unwrap() = settings;
+        db::upsert_app_setting(
+            &conn,
+            "workitemRepos",
+            &serde_json::to_string(&current.workitem_repos).map_err(|e| e.to_string())?,
+        )?;
+        current
+    };
+    refresh_mirror(&state, fresh);
     get_settings(state).await
 }
 
 #[tauri::command]
 pub async fn save_branch_rule_templates(
-    app: tauri::AppHandle,
     state: State<'_, AppState>,
     mut templates: Vec<credentials::BranchRuleTemplate>,
 ) -> Result<Value, String> {
-    for template in &mut templates {
-        template.id = template.id.trim().to_string();
-        template.name = template.name.trim().to_string();
-        template.source_branch = template.source_branch.trim().to_string();
-        template.baseline_branch_pattern = template.baseline_branch_pattern.trim().to_string();
-        template.workitem_branch_pattern = template.workitem_branch_pattern.trim().to_string();
-    }
+    trim_templates(&mut templates);
     validate_branch_rule_templates(&templates)?;
-    let mut settings = state.settings.lock().unwrap().clone();
-    let old_template_ids: std::collections::HashSet<String> = settings
-        .branch_rule_templates
-        .iter()
-        .map(|template| template.id.clone())
-        .collect();
-    let new_template_ids: std::collections::HashSet<String> = templates
-        .iter()
-        .map(|template| template.id.clone())
-        .collect();
-    settings.branch_rule_templates = templates;
-    // 仅清理在旧全局模板中存在、但在新全局模板中已被删除的 ID；保留迭代专属分支模板的绑定
-    settings.workitem_repo_branch_templates.retain(|_, repos| {
-        repos.retain(|_, template_id| {
-            !old_template_ids.contains(template_id) || new_template_ids.contains(template_id)
-        });
-        !repos.is_empty()
-    });
-    credentials::save_settings(&app, &settings)?;
-    *state.settings.lock().unwrap() = settings;
+    let fresh = {
+        let mut conn = state.db.lock().unwrap();
+        db::replace_global_tracks(&mut conn, &templates)?;
+        db::load_settings(&conn)?
+    };
+    refresh_mirror(&state, fresh);
     get_settings(state).await
 }
 
 #[tauri::command]
 pub async fn save_workitem_repo_branch_template(
-    app: tauri::AppHandle,
     state: State<'_, AppState>,
     workitem_id: String,
     repo_id: i64,
@@ -220,31 +249,93 @@ pub async fn save_workitem_repo_branch_template(
     if workitem_id.is_empty() || repo_id <= 0 {
         return Err("需求 ID 或仓库 ID 无效".into());
     }
-    let mut settings = state.settings.lock().unwrap().clone();
-    if let Some(template_id) = template_id.map(|value| value.trim().to_string()) {
-        if template_id.is_empty() || template_id.len() > 100 {
-            return Err("分支模板 ID 无效".into());
+    let fresh = {
+        let conn = state.db.lock().unwrap();
+        if let Some(template_id) = template_id.map(|value| value.trim().to_string()) {
+            if template_id.is_empty() || template_id.len() > 100 {
+                return Err("分支模板 ID 无效".into());
+            }
+            // 允许全局模板及当前迭代专属模板（阶段3 起统一存于 branch_tracks，须真实存在）
+            if !db::track_exists(&conn, &template_id)? {
+                return Err(format!("分支模板 {template_id} 不存在"));
+            }
+            db::upsert_binding(&conn, &workitem_id, repo_id, Some(&template_id))?;
+        } else {
+            db::delete_binding(&conn, &workitem_id, repo_id)?;
         }
-        // 允许全局模板及当前迭代专属模板（迭代模板由前端按迭代上下文融合并校验），保存映射关系
-        settings
-            .workitem_repo_branch_templates
-            .entry(workitem_id)
-            .or_default()
-            .insert(repo_id, template_id);
-    } else if let Some(repos) = settings.workitem_repo_branch_templates.get_mut(&workitem_id) {
-        repos.remove(&repo_id);
-        if repos.is_empty() {
-            settings.workitem_repo_branch_templates.remove(&workitem_id);
-        }
-    }
-    credentials::save_settings(&app, &settings)?;
-    *state.settings.lock().unwrap() = settings;
+        db::load_settings(&conn)?
+    };
+    refresh_mirror(&state, fresh);
     get_settings(state).await
+}
+
+/// 行级替换某迭代的专属分支轨道（重名校验仅限同一 scope+iteration 内：
+/// 列表即该迭代的全量集合，validate_branch_rule_templates 的列表内去重即等价于同 scope 去重）
+#[tauri::command]
+pub async fn save_iteration_tracks(
+    state: State<'_, AppState>,
+    iteration_id: String,
+    mut templates: Vec<credentials::BranchRuleTemplate>,
+) -> Result<Value, String> {
+    let iteration_id = iteration_id.trim().to_string();
+    if iteration_id.is_empty() {
+        return Err("迭代 ID 不能为空".into());
+    }
+    trim_templates(&mut templates);
+    validate_branch_rule_templates(&templates)?;
+    {
+        let mut conn = state.db.lock().unwrap();
+        db::replace_iteration_tracks(&mut conn, &iteration_id, &templates)?;
+    }
+    get_settings(state).await
+}
+
+/// 读取某迭代的专属分支轨道（ORDER BY sort_order）
+#[tauri::command]
+pub async fn list_iteration_tracks(
+    state: State<'_, AppState>,
+    iteration_id: String,
+) -> Result<Vec<credentials::BranchRuleTemplate>, String> {
+    let iteration_id = iteration_id.trim().to_string();
+    if iteration_id.is_empty() {
+        return Err("迭代 ID 不能为空".into());
+    }
+    let conn = state.db.lock().unwrap();
+    db::iteration_tracks(&conn, &iteration_id)
+}
+
+/// 迭代专属分支模板：遗留 localStorage 数据一次性幂等导入
+/// （app_settings 键 localStorageImported=1 后直接返回 Ok(true)）
+#[tauri::command]
+pub async fn import_iteration_tracks(
+    state: State<'_, AppState>,
+    map: HashMap<String, Vec<credentials::BranchRuleTemplate>>,
+) -> Result<bool, String> {
+    {
+        let mut conn = state.db.lock().unwrap();
+        if db::local_storage_imported(&conn)? {
+            return Ok(true);
+        }
+        let mut entries: Vec<(&String, &Vec<credentials::BranchRuleTemplate>)> =
+            map.iter().collect();
+        entries.sort_by(|a, b| a.0.cmp(b.0)); // 确定性顺序，便于定位失败键
+        for (raw_iteration_id, templates) in entries {
+            let iteration_id = raw_iteration_id.trim();
+            if iteration_id.is_empty() {
+                return Err("迭代 ID 不能为空".into());
+            }
+            let mut templates = templates.clone();
+            trim_templates(&mut templates);
+            validate_branch_rule_templates(&templates)?;
+            db::replace_iteration_tracks(&mut conn, iteration_id, &templates)?;
+        }
+        db::mark_local_storage_imported(&conn)?;
+    }
+    Ok(true)
 }
 
 #[tauri::command]
 pub async fn save_repo_ci_binding(
-    app: tauri::AppHandle,
     state: State<'_, AppState>,
     repo_id: i64,
     binding: Option<RepoCiBinding>,
@@ -252,50 +343,58 @@ pub async fn save_repo_ci_binding(
     if repo_id <= 0 {
         return Err("仓库 ID 无效".into());
     }
-    let mut settings = state.settings.lock().unwrap().clone();
-    if let Some(binding) = binding {
-        let binding = match binding {
-            RepoCiBinding::Jenkins {
-                connection_id,
-                job_full_name,
-                mut parameters,
-                environment_parameter,
-                branch_parameter,
-            } => {
-                if !settings.jenkins_connections.iter().any(|item| item.id == connection_id)
-                    || job_full_name.trim().is_empty()
-                    || job_full_name.len() > 255
-                    || parameters.len() > 100
-                    || parameters.iter().any(|(name, value)| {
-                        name.trim().is_empty()
-                            || name.len() > 255
-                            || value.len() > 8192
-                            || name.chars().any(char::is_control)
-                            || value.chars().any(char::is_control)
-                    })
-                {
-                    return Err("Jenkins Job 绑定或构建参数无效".into());
-                }
-                parameters.retain(|name, _| !name.trim().is_empty());
+    let fresh = {
+        let conn = state.db.lock().unwrap();
+        let mut current = db::load_settings(&conn)?;
+        if let Some(binding) = binding {
+            let binding = match binding {
                 RepoCiBinding::Jenkins {
                     connection_id,
-                    job_full_name: job_full_name.trim().to_string(),
-                    parameters,
-                    environment_parameter: environment_parameter
-                        .filter(|name| !name.trim().is_empty()),
-                    branch_parameter: branch_parameter.filter(|name| !name.trim().is_empty()),
+                    job_full_name,
+                    mut parameters,
+                    environment_parameter,
+                    branch_parameter,
+                } => {
+                    if !current.jenkins_connections.iter().any(|item| item.id == connection_id)
+                        || job_full_name.trim().is_empty()
+                        || job_full_name.len() > 255
+                        || parameters.len() > 100
+                        || parameters.iter().any(|(name, value)| {
+                            name.trim().is_empty()
+                                || name.len() > 255
+                                || value.len() > 8192
+                                || name.chars().any(char::is_control)
+                                || value.chars().any(char::is_control)
+                        })
+                    {
+                        return Err("Jenkins Job 绑定或构建参数无效".into());
+                    }
+                    parameters.retain(|name, _| !name.trim().is_empty());
+                    RepoCiBinding::Jenkins {
+                        connection_id,
+                        job_full_name: job_full_name.trim().to_string(),
+                        parameters,
+                        environment_parameter: environment_parameter
+                            .filter(|name| !name.trim().is_empty()),
+                        branch_parameter: branch_parameter.filter(|name| !name.trim().is_empty()),
+                    }
                 }
-            }
-            RepoCiBinding::Flow { .. } => {
-                return Err("此操作只保存 Jenkins Job 关联".into());
-            }
-        };
-        settings.repo_ci_bindings.insert(repo_id, binding);
-    } else {
-        settings.repo_ci_bindings.remove(&repo_id);
-    }
-    credentials::save_settings(&app, &settings)?;
-    *state.settings.lock().unwrap() = settings;
+                RepoCiBinding::Flow { .. } => {
+                    return Err("此操作只保存 Jenkins Job 关联".into());
+                }
+            };
+            current.repo_ci_bindings.insert(repo_id, binding);
+        } else {
+            current.repo_ci_bindings.remove(&repo_id);
+        }
+        db::upsert_app_setting(
+            &conn,
+            "repoCiBindings",
+            &serde_json::to_string(&current.repo_ci_bindings).map_err(|e| e.to_string())?,
+        )?;
+        current
+    };
+    refresh_mirror(&state, fresh);
     get_settings(state).await
 }
 
@@ -387,7 +486,6 @@ pub async fn list_projects(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
 
     #[test]
     fn test_validate_settings_allows_iteration_scoped_templates() {
@@ -413,5 +511,27 @@ mod tests {
         repos.insert(123i64, "".to_string());
         settings.workitem_repo_branch_templates.insert("REQ-101".to_string(), repos);
         assert!(validate_settings(&settings).is_err());
+    }
+
+    #[test]
+    fn test_validate_branch_rule_templates_dedupes_within_single_scope() {
+        // 同一迭代（同一列表）内重名/重 ID 应被拒绝；校验语义 = save_iteration_tracks 的 scope+iteration 内去重
+        let templates = vec![
+            credentials::BranchRuleTemplate {
+                id: "iter-a".into(),
+                name: "同名".into(),
+                source_branch: "master".into(),
+                baseline_branch_pattern: "iteration/{iteration}".into(),
+                workitem_branch_pattern: "feature/{identifier}".into(),
+            },
+            credentials::BranchRuleTemplate {
+                id: "iter-b".into(),
+                name: "同名".into(),
+                source_branch: "master".into(),
+                baseline_branch_pattern: "iteration/{iteration}".into(),
+                workitem_branch_pattern: "feature/{identifier}".into(),
+            },
+        ];
+        assert!(validate_branch_rule_templates(&templates).is_err());
     }
 }

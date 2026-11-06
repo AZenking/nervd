@@ -13,6 +13,7 @@ import { useUpdater } from './store/updater';
 import { useWindowDrag } from './hooks/use-window-drag';
 import type { JenkinsBuildEvent, PipelineRunEvent, SettingsView as SettingsViewType } from './types';
 import { openExternal } from '@/lib/yunxiao-link';
+import { migrateIterationTemplatesToDb } from './lib/iteration-templates';
 
 const ONBOARDED_KEY = 'nervd_has_onboarded';
 
@@ -71,6 +72,11 @@ export default function App() {
       unlistenTheme();
     };
   }, [init]);
+
+  // 阶段3 启动一次性迁移：localStorage 迭代模板孤岛 → SQLite 行级存储（后台副作用，不阻塞首屏）
+  useEffect(() => {
+    void migrateIterationTemplatesToDb();
+  }, []);
 
   // 当 settings 加载完成或发生变化时，若已齐备则自动同步已完成状态
   useEffect(() => {
