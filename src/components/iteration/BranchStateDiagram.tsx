@@ -7,6 +7,12 @@ import { errorLog, humanizeError } from '@/lib/error-format';
 import { comparisonCommits } from './BranchDivergenceCheck';
 import { useMeasure } from '@/hooks/use-measure';
 import {
+  isDirectConnectBranches,
+  TRACK_NODE_GLOW_CLASS,
+  TRACK_TOPOLOGY_LABELS,
+  type TrackTopologyNodeState,
+} from '@/components/branch-rules/track-topology-diagram';
+import {
   Background, Controls, Handle, MarkerType, Position, ReactFlow,
   type Edge, type Node, type NodeProps,
 } from '@xyflow/react';
@@ -14,8 +20,9 @@ import '@xyflow/react/dist/style.css';
 
 /**
  * 分支同步树（真实数据）：根 = 当前需求 → 关联仓库 → 各自的 基准分支(源) / 迭代分支 / 开发分支。
- * 树边描述分支的派生关系（切基准、拉开发），左侧上行箭头描述合并状态：
- *   开发分支 → 迭代分支（合并 MR）、迭代分支 → 基准分支（迭代合入），
+ * 树边描述分支的派生关系（派生基准 / 切出开发，直连轨道为直接切出），左侧上行箭头描述合并状态：
+ *   开发分支 → 迭代分支（MR 合入）、迭代分支 → 基准分支（发布 MR），
+ * 直连主干仓库（基准≡源）对齐 TrackTopologyDiagram 原语收敛为两节点形态（无迭代分支层），
  * 状态来自对每组分支的真实双向 compare（与行内 BranchDivergenceCheck 同一口径）。
  */
 
@@ -51,6 +58,14 @@ function mergeState(toOnly: number, fromOnly: number, sameLabel: string): MergeS
 
 const shortRepoName = (name: string) => (name.includes('/') ? name.slice(name.lastIndexOf('/') + 1) : name);
 
+/** 仓库级直连判定（Trunk-Based）：展开后基准≡源主干，无独立迭代基准层 */
+const isDirectRepo = (repo: Pick<BranchSyncRepo, 'sourceBranch' | 'baselineBranch'>): boolean =>
+  isDirectConnectBranches(repo.sourceBranch ?? '', repo.baselineBranch ?? '');
+
+/** 基准分支探测状态 → 节点光晕（exists=ready / loading=微光 / missing|error=灰） */
+const baselineGlowOf = (state: BranchSyncRepo['baselineState']): TrackTopologyNodeState =>
+  state === 'exists' ? 'ready' : state === 'loading' ? 'loading' : 'missing';
+
 // ---------------------------------------------------------------- 画布节点
 
 const HIDDEN_HANDLE = {
@@ -65,6 +80,8 @@ interface BranchData extends Record<string, unknown> {
   missing?: boolean;
   stateLabel?: string;
   stateTone?: Tone;
+  /** 节点状态光晕（对齐 TrackTopologyDiagram 原语：ready/missing/loading） */
+  glow?: TrackTopologyNodeState;
 }
 
 type RootNodeT = Node<RootData, 'root'>;
@@ -108,7 +125,7 @@ function RepoNode({ data }: NodeProps<RepoNodeT>) {
 }
 
 const KIND_CLASS: Record<BranchData['kind'], string> = {
-  '基准分支（源）': 'bg-muted text-muted-foreground border-border',
+  '基准分支（源）': 'bg-muted/60 text-foreground border-border',
   '迭代分支': 'bg-primary/10 text-foreground border-primary/30',
   '开发分支': 'bg-sig-run/10 text-foreground border-sig-run/30',
 };
@@ -116,7 +133,11 @@ const KIND_CLASS: Record<BranchData['kind'], string> = {
 function BranchNode({ data }: NodeProps<BranchNodeT>) {
   const dashed = data.missing;
   return (
-    <Card className={`w-[300px] p-2.5 ${dashed ? 'border-dashed' : ''}`}>
+    <Card
+      className={`w-[300px] p-2.5 ${dashed ? 'border-dashed' : ''} ${
+        data.glow ? TRACK_NODE_GLOW_CLASS[data.glow] : ''
+      }`}
+    >
       <Handle id="tt" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '50%' }} isConnectable={false} />
       <Handle id="ttr" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
       <Handle id="tbl" type="target" position={Position.Bottom} style={{ ...HIDDEN_HANDLE, left: '22%' }} isConnectable={false} />
@@ -153,9 +174,14 @@ const nodeTypes = { root: RootNode, repo: RepoNode, branch: BranchNode };
 
 const EDGE_GRAY = 'var(--sig-idle, #8a8f98)';
 
-function treeEdge(id: string, source: string, target: string): Edge {
+function treeEdge(id: string, source: string, target: string, label?: string): Edge {
   return {
     id, source, sourceHandle: 'sbr', target, targetHandle: 'ttr',
+    label,
+    labelStyle: { fill: EDGE_GRAY, fontSize: 10, fontWeight: 500 },
+    labelBgPadding: [4, 2],
+    labelBgBorderRadius: 4,
+    labelBgStyle: { fill: 'var(--card, rgba(255, 255, 255, 0.95))' },
     style: { stroke: EDGE_GRAY, strokeDasharray: '2 3' },
     markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_GRAY },
   };
@@ -218,7 +244,8 @@ export default function BranchStateDiagram({
         if (repo.developmentBranch) {
           tasks.push(run(`${repo.key}:A`, repo.repoId, repo.baselineBranch!, repo.developmentBranch));
         }
-        if (repo.sourceBranch) {
+        // 直连轨道（基准≡源）无 迭代↔源 段：同分支自比较无意义，跳过
+        if (repo.sourceBranch && !isDirectRepo(repo)) {
           tasks.push(run(`${repo.key}:B`, repo.repoId, repo.sourceBranch, repo.baselineBranch!));
         }
         return tasks;
@@ -229,7 +256,10 @@ export default function BranchStateDiagram({
   }, [reposSignature, refreshKey]);
 
   const eligible = repos.filter((r) => r.baselineState === 'exists');
-  const expectedPairs = eligible.reduce((n, r) => n + (r.developmentBranch ? 1 : 0) + (r.sourceBranch ? 1 : 0), 0);
+  const expectedPairs = eligible.reduce(
+    (n, r) => n + (r.developmentBranch ? 1 : 0) + (r.sourceBranch && !isDirectRepo(r) ? 1 : 0),
+    0,
+  );
   const pendingCount = expectedPairs - Object.keys(results).length;
 
   const nodes = useMemo(() => {
@@ -242,32 +272,42 @@ export default function BranchStateDiagram({
     });
     repos.forEach((repo, i) => {
       const x = i * 360;
+      const direct = isDirectRepo(repo);
       list.push({
         id: `repo-${repo.key}`, type: 'repo', position: { x, y: 150 },
         draggable: false, selectable: false,
         data: { name: shortRepoName(repo.repoName), fullName: repo.repoName },
       });
+      // 直连轨道：源主干即工作基线，其节点承载基准状态探测结果的光晕
       list.push({
         id: `src-${repo.key}`, type: 'branch', position: { x, y: 300 },
         draggable: false, selectable: false,
-        data: { kind: '基准分支（源）', name: repo.sourceBranch || '（模板未配置源分支）', missing: !repo.sourceBranch },
-      });
-      const iterMissing = repo.baselineState === 'missing';
-      list.push({
-        id: `iter-${repo.key}`, type: 'branch', position: { x, y: 450 },
-        draggable: false, selectable: false,
         data: {
-          kind: '迭代分支',
-          name: repo.baselineBranch || '（模板未生成分支名）',
-          missing: iterMissing || !repo.baselineBranch,
-          stateLabel: iterMissing ? '未创建' : repo.baselineState === 'loading' ? '核实中…' : repo.baselineState === 'error' ? '查询失败' : undefined,
-          stateTone: repo.baselineState === 'error' ? 'err' : 'muted',
+          kind: '基准分支（源）',
+          name: repo.sourceBranch || '（模板未配置源分支）',
+          missing: !repo.sourceBranch,
+          glow: direct && repo.baselineBranch ? baselineGlowOf(repo.baselineState) : undefined,
         },
       });
+      if (!direct) {
+        const iterMissing = repo.baselineState === 'missing';
+        list.push({
+          id: `iter-${repo.key}`, type: 'branch', position: { x, y: 450 },
+          draggable: false, selectable: false,
+          data: {
+            kind: '迭代分支',
+            name: repo.baselineBranch || '（模板未生成分支名）',
+            missing: iterMissing || !repo.baselineBranch,
+            stateLabel: iterMissing ? '未创建' : repo.baselineState === 'loading' ? '核实中…' : repo.baselineState === 'error' ? '查询失败' : undefined,
+            stateTone: repo.baselineState === 'error' ? 'err' : 'muted',
+            glow: repo.baselineBranch ? baselineGlowOf(repo.baselineState) : undefined,
+          },
+        });
+      }
       const entryA = repo.developmentBranch && repo.baselineState === 'exists' ? results[`${repo.key}:A`] : undefined;
       const stateA = entryA?.status === 'ready' ? mergeState(entryA.toOnly, entryA.fromOnly, '一致') : undefined;
       list.push({
-        id: `dev-${repo.key}`, type: 'branch', position: { x, y: 600 },
+        id: `dev-${repo.key}`, type: 'branch', position: { x, y: direct ? 450 : 600 },
         draggable: false, selectable: false,
         data: {
           kind: '开发分支',
@@ -275,6 +315,7 @@ export default function BranchStateDiagram({
           missing: !repo.developmentBranch,
           stateLabel: !repo.developmentBranch ? undefined : stateA?.label ?? (repo.baselineState === 'exists' ? '比较中…' : undefined),
           stateTone: stateA?.tone,
+          glow: repo.developmentBranch ? 'ready' : 'missing',
         },
       });
     });
@@ -284,24 +325,49 @@ export default function BranchStateDiagram({
   const edges = useMemo(() => {
     const out: Edge[] = [];
     repos.forEach((repo) => {
+      const direct = isDirectRepo(repo);
       out.push(treeEdge(`e-repo-${repo.key}`, `repo-${repo.key}`, `src-${repo.key}`));
-      if (repo.baselineBranch) out.push(treeEdge(`e-src-${repo.key}`, `src-${repo.key}`, `iter-${repo.key}`));
-      if (repo.developmentBranch) out.push(treeEdge(`e-iter-dev-${repo.key}`, `iter-${repo.key}`, `dev-${repo.key}`));
-      // 合并状态：开发分支 → 迭代分支
+      // 派生关系：直连轨道为 源主干 →(直接切出) 开发分支；三节点为 派生基准 + 切出开发
+      if (direct) {
+        if (repo.developmentBranch) {
+          out.push(treeEdge(
+            `e-src-dev-${repo.key}`, `src-${repo.key}`, `dev-${repo.key}`,
+            TRACK_TOPOLOGY_LABELS.directCut,
+          ));
+        }
+      } else {
+        if (repo.baselineBranch) {
+          out.push(treeEdge(
+            `e-src-${repo.key}`, `src-${repo.key}`, `iter-${repo.key}`,
+            TRACK_TOPOLOGY_LABELS.deriveBaseline,
+          ));
+        }
+        if (repo.developmentBranch) {
+          out.push(treeEdge(
+            `e-iter-dev-${repo.key}`, `iter-${repo.key}`, `dev-${repo.key}`,
+            TRACK_TOPOLOGY_LABELS.cutDevelopment,
+          ));
+        }
+      }
+      // 合并状态：开发分支 → 迭代分支（直连轨道直接回源主干）
       if (repo.developmentBranch && repo.baselineState === 'exists') {
         const entry = results[`${repo.key}:A`];
         const state = entry?.status === 'ready'
           ? mergeState(entry.toOnly, entry.fromOnly, '一致')
           : entry?.status === 'error' ? { label: '比较失败', tone: 'err' as Tone } : { label: '比较中…', tone: 'muted' as Tone };
-        out.push(mergeEdge(`m-dev-${repo.key}`, `dev-${repo.key}`, `iter-${repo.key}`, state, '合并 MR'));
+        out.push(mergeEdge(
+          `m-dev-${repo.key}`, `dev-${repo.key}`,
+          direct ? `src-${repo.key}` : `iter-${repo.key}`,
+          state, TRACK_TOPOLOGY_LABELS.mergeRequest,
+        ));
       }
-      // 合并状态：迭代分支 → 基准分支（源）
-      if (repo.sourceBranch && repo.baselineState === 'exists') {
+      // 合并状态：迭代分支 → 基准分支（源）（发布 MR）；直连轨道无此段（基准≡源）
+      if (!direct && repo.sourceBranch && repo.baselineState === 'exists') {
         const entry = results[`${repo.key}:B`];
         const state = entry?.status === 'ready'
           ? mergeState(entry.toOnly, entry.fromOnly, '一致')
           : entry?.status === 'error' ? { label: '比较失败', tone: 'err' as Tone } : { label: '比较中…', tone: 'muted' as Tone };
-        out.push(mergeEdge(`m-iter-${repo.key}`, `iter-${repo.key}`, `src-${repo.key}`, state, '迭代合入'));
+        out.push(mergeEdge(`m-iter-${repo.key}`, `iter-${repo.key}`, `src-${repo.key}`, state, TRACK_TOPOLOGY_LABELS.releaseMr));
       }
     });
     return out;
@@ -322,7 +388,7 @@ export default function BranchStateDiagram({
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
           {eligible.length
-            ? `实时比较 ${eligible.length} 个仓库（开发↔迭代、迭代↔源）${pendingCount > 0 ? ` · 进行中 ${Object.keys(results).length}/${expectedPairs}` : ''}`
+            ? `实时比较 ${eligible.length} 个仓库（开发↔基准、基准↔源；直连轨道为开发↔源）${pendingCount > 0 ? ` · 进行中 ${Object.keys(results).length}/${expectedPairs}` : ''}`
             : '暂无可比较的仓库：需先选择分支模板并创建迭代基准分支'}
         </p>
         <Button
@@ -355,7 +421,7 @@ export default function BranchStateDiagram({
         </ReactFlow>
       </div>
       <p className="text-xs text-muted-foreground">
-        读法：灰色虚线 = 分支派生关系（切基准、拉出开发分支）；绿/橙箭头 = 合并状态（绿=上游已包含下游全部提交，橙=上游缺 N 条提交需合并；悬停看分支全名）。
+        读法：灰色虚线 = 分支派生关系（派生基准 / 切出开发，直连轨道收敛两节点为直接切出）；绿/橙箭头 = 合并状态（绿=上游已包含下游全部提交，橙=上游缺 N 条提交需合并；悬停看分支全名）。
       </p>
     </div>
   );

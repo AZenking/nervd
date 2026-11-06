@@ -30,6 +30,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { TrackTopologyDiagram } from '@/components/branch-rules/track-topology-diagram';
 
 export interface LinkRepoModalProps {
   open: boolean;
@@ -52,6 +53,29 @@ export interface LinkRepoModalProps {
   ) => Promise<boolean>;
 }
 
+/**
+ * 分支链路预览上下文（纯函数，便于单测）：
+ * - identifier 取当前选中工作项（列表行 workitemId / identifier 双键匹配 → 子项 → 详情字段），无则示例 REQ-101；
+ * - 迭代名按弹窗 iterationId 匹配迭代列表，无则示例 Sprint-1。
+ */
+export function resolveTopologyPreviewContext(args: {
+  items: Array<{ workitemId: string; identifier: string }>;
+  children: Array<{ workitemId: string; identifier: string }>;
+  detail: Record<string, unknown> | null;
+  selectedId: string | null;
+  iterations: Array<{ id: string; name: string }>;
+  iterationId?: string;
+}): { identifier: string; iterationName: string } {
+  const selected = args.items.find((item) => item.workitemId === args.selectedId)
+    ?? args.items.find((item) => item.identifier === args.selectedId);
+  const child = args.children.find((item) => item.workitemId === args.selectedId);
+  const fromDetail = typeof args.detail?.identifier === 'string' ? args.detail.identifier : '';
+  return {
+    identifier: selected?.identifier || child?.identifier || fromDetail || 'REQ-101',
+    iterationName: args.iterations.find((iteration) => iteration.id === args.iterationId)?.name || 'Sprint-1',
+  };
+}
+
 export function LinkRepoModal({
   open,
   onOpenChange,
@@ -68,7 +92,10 @@ export function LinkRepoModal({
   onQuickLinkRepo,
   onLinkRepo,
 }: LinkRepoModalProps) {
-  const { settings, pipelines, loadingPipelines, loadPipelines } = useApp();
+  const {
+    settings, pipelines, loadingPipelines, loadPipelines,
+    items, children, detail, selectedId, iterations,
+  } = useApp();
   const [selectedRepoPath, setSelectedRepoPath] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [selectedCiBinding, setSelectedCiBinding] = useState<RepoCiBinding | null>(null);
@@ -114,6 +141,16 @@ export function LinkRepoModal({
   }, [selectedRepo?.id, settings?.repoCiBindings]);
 
   const availableRepos = repositories.filter((r) => !effectiveRepoIds.includes(r.id));
+
+  // 分支链路预览上下文：identifier 取当前选中工作项（弹窗上下文），无则示例 REQ-101
+  const previewContext = useMemo(
+    () => resolveTopologyPreviewContext({ items, children, detail, selectedId, iterations, iterationId }),
+    [items, children, detail, selectedId, iterations, iterationId],
+  );
+  const previewTemplate = useMemo(
+    () => fusedTemplates.find((template) => template.id === selectedTemplateId),
+    [fusedTemplates, selectedTemplateId],
+  );
 
   const handleManualLink = async () => {
     if (!selectedRepoPath || savingRepos) return;
@@ -337,6 +374,20 @@ export function LinkRepoModal({
                 </Field>
               ) : null}
             </div>
+
+            {/* 选中模板后的分支链路预览（同一拓扑原语，纯预览无状态光晕） */}
+            {previewTemplate && (
+              <TrackTopologyDiagram
+                sourceBranch={previewTemplate.sourceBranch}
+                baselinePattern={previewTemplate.baselineBranchPattern}
+                workitemPattern={previewTemplate.workitemBranchPattern}
+                variables={{
+                  iteration: previewContext.iterationName,
+                  track: previewTemplate.name,
+                  identifier: previewContext.identifier,
+                }}
+              />
+            )}
 
             {/* CI 流水线关联配置 */}
             {selectedRepo && (

@@ -44,7 +44,7 @@ export function BranchStateDiagramModal({
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-muted-foreground mt-1">
-            以需求为根的分支树：仓库 → 基准 / 迭代 / 开发分支；绿 / 橙箭头标注各段合并状态（按真实双向比较结果）。
+            以需求为根的分支树：仓库 → 基准 / 迭代 / 开发分支，直连轨道（基准≡源主干）自动收敛为两节点；绿 / 橙箭头标注各段合并状态（按真实双向比较结果）。
           </DialogDescription>
         </DialogHeader>
 

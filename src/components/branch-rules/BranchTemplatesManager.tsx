@@ -20,6 +20,7 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 import { EmptyHint } from '@/components/empty-hint';
 import { SettingsGroup, SettingsRow } from '@/components/settings/settings-group';
 import { expandBranchPattern } from '@/components/iteration/requirement/types';
+import { TrackTopologyDiagram } from './track-topology-diagram';
 
 const EMPTY_DRAFT: BranchRuleTemplate = {
   id: '',
@@ -196,20 +197,18 @@ export function BranchTemplatesManager({
       0,
     );
 
-  // 弹窗内的实时分支规则预览
+  // 弹窗内的实时分支规则预览（命名文本与拓扑图共用同一组示例变量，保证口径一致）
+  const previewTrack = draft.name || '默认';
+  const previewVariables = {
+    iteration: iterationName || 'Sprint-1',
+    template: previewTrack,
+    identifier: 'REQ-101',
+  };
   const previewBaseline = draft.baselineBranchPattern
-    ? expandBranchPattern(draft.baselineBranchPattern, {
-        iteration: iterationName || 'Sprint-2026',
-        template: draft.name || '默认',
-        identifier: 'REQ-101',
-      })
+    ? expandBranchPattern(draft.baselineBranchPattern, previewVariables)
     : '';
   const previewWorkitem = draft.workitemBranchPattern
-    ? expandBranchPattern(draft.workitemBranchPattern, {
-        iteration: iterationName || 'Sprint-2026',
-        template: draft.name || '默认',
-        identifier: 'REQ-101',
-      })
+    ? expandBranchPattern(draft.workitemBranchPattern, previewVariables)
     : '';
 
   const addButton = (
@@ -523,6 +522,20 @@ export function BranchTemplatesManager({
                   </Alert.Description>
                 </Alert.Content>
               </Alert>
+            )}
+
+            {/* 交付轨道拓扑实时预览：输入源分支与两条命名规则时重绘；基准≡源主干时自动切直连两节点 */}
+            {(draft.sourceBranch || draft.baselineBranchPattern || draft.workitemBranchPattern) && (
+              <TrackTopologyDiagram
+                sourceBranch={draft.sourceBranch}
+                baselinePattern={draft.baselineBranchPattern}
+                workitemPattern={draft.workitemBranchPattern}
+                variables={{
+                  iteration: previewVariables.iteration,
+                  track: previewTrack,
+                  identifier: 'REQ-101',
+                }}
+              />
             )}
             </ScrollArea>
           </DrawerBody>
