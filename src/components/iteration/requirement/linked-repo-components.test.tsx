@@ -1,9 +1,9 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MrSummary, RepoSummary } from '@/types';
+import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
 import { LinkedRepoHeader } from './linked-repo-header';
-import { LinkedRepoBranchStatus } from './linked-repo-branch-section';
+import { LinkedRepoBranchSection, LinkedRepoBranchStatus } from './linked-repo-branch-section';
 import { LinkedRepoMrStatus } from './linked-repo-mr-list';
 import { LinkedRepoCiStatus } from './linked-repo-ci-status';
 
@@ -113,6 +113,76 @@ describe('Linked Repo Subcomponents', () => {
       });
 
       expect(host.textContent).toContain('与基准已对齐');
+    });
+  });
+
+  describe('LinkedRepoBranchSection track chips', () => {
+    const trackTemplate: BranchRuleTemplate = {
+      id: 'tpl-track',
+      name: '轨道A',
+      sourceBranch: 'master',
+      baselineBranchPattern: 'release/{iteration}/{track}',
+      workitemBranchPattern: 'feature/{identifier}',
+    };
+
+    const renderSection = async (overrides: Record<string, unknown> = {}) => {
+      await act(() => {
+        root.render(
+          <LinkedRepoBranchSection
+            repoId={123}
+            repoName="test-backend-repo"
+            developerBranch="feature/REQ-101"
+            developerBranchState="missing"
+            operationBaseBranch="release/sprint-a/track-a"
+            configuredBaselineBranch="release/sprint-a/track-a"
+            defaultBaseState="loading"
+            onRetryBaseline={vi.fn()}
+            templates={[trackTemplate]}
+            templateEnabled
+            onTemplateChange={vi.fn()}
+            templateSourceBranch="master"
+            templateSelectId="repo-branch-template-123"
+            extraMatchedBranches={[]}
+            {...overrides}
+          />,
+        );
+      });
+    };
+
+    it('renders explicit override track chip instead of warning', async () => {
+      await renderSection({ templateId: 'tpl-track', trackOrigin: 'workitem', trackTemplateName: '轨道A' });
+
+      expect(host.textContent).toContain('轨道：');
+      expect(host.textContent).toContain('轨道A');
+      expect(host.textContent).toContain('[需求覆盖]');
+      expect(host.textContent).not.toContain('继承：');
+      expect(host.textContent).not.toContain('需选模板');
+    });
+
+    it('renders inherited track chip from iteration scope', async () => {
+      await renderSection({ trackOrigin: 'iteration', trackTemplateName: '迭代专属轨道' });
+
+      expect(host.textContent).toContain('继承：迭代专属轨道');
+      expect(host.textContent).toContain('[迭代专属]');
+      expect(host.textContent).not.toContain('需选模板');
+    });
+
+    it('renders inherited track chip from global scope', async () => {
+      await renderSection({ trackOrigin: 'global', trackTemplateName: '全局默认轨道' });
+
+      expect(host.textContent).toContain('继承：全局默认轨道');
+      expect(host.textContent).toContain('[全局默认]');
+      expect(host.textContent).not.toContain('需选模板');
+    });
+
+    it('shows no warning chip and keeps inherit-default option when zero templates', async () => {
+      await renderSection({ templates: [] });
+
+      expect(host.textContent).not.toContain('需选模板');
+      expect(host.textContent).not.toContain('轨道：');
+      expect(host.textContent).not.toContain('继承：');
+      // '__none' 选项保留，语义从"未选择模板"改为"清除覆盖 → 继承默认轨道"
+      expect(host.textContent).toContain('继承默认轨道');
     });
   });
 

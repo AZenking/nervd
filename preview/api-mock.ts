@@ -17,21 +17,27 @@ const settings: SettingsView = {
   watchedRepos: [101, 102],
   allowWriteOps: false,
   workitemRepos: {},
+  // 分支规则模板（与 BranchTemplatesManager 一键预设对齐）：
+  // 融合首项 = 标准主线直连（Trunk-Based 直连演示）；其余覆盖 iteration/{iteration} 与 {track} 局点轨道
   branchRuleTemplates: [
     {
+      id: 'template-trunk', name: '标准主线直连', sourceBranch: 'master',
+      baselineBranchPattern: 'master', workitemBranchPattern: 'feature/{identifier}',
+    },
+    {
+      id: 'template-iteration', name: '标准迭代主线', sourceBranch: 'master',
+      baselineBranchPattern: 'iteration/{iteration}', workitemBranchPattern: 'feature/{identifier}',
+    },
+    {
       id: 'template-site-a', name: 'A 局点', sourceBranch: 'master',
-      baselineBranchPattern: 'iteration/{iteration}/site-a', workitemBranchPattern: 'feature/{identifier}',
-    },
-    {
-      id: 'template-site-b', name: 'B 局点', sourceBranch: 'test',
-      baselineBranchPattern: 'iteration/{iteration}/site-b', workitemBranchPattern: 'feature/{identifier}',
-    },
-    {
-      id: 'template-hotfix', name: '临时 Hotfix', sourceBranch: 'master',
-      baselineBranchPattern: 'hotfix/{iteration}', workitemBranchPattern: 'hotfix/{identifier}',
+      baselineBranchPattern: 'iteration/{iteration}/{track}', workitemBranchPattern: 'feature/{identifier}',
     },
   ],
-  workitemRepoBranchTemplates: {},
+  // 显式覆盖样例：需求 2098（数字编号行，默认迭代 sprint-107）在仓库 101 上指定「A 局点」轨道；
+  // 其余需求/仓库留空 → 验证方案 A 自动继承融合首项（标准主线直连）的继承 chip
+  workitemRepoBranchTemplates: {
+    'wi-2098': { '101': 'template-site-a' },
+  },
   jenkinsConnections: [
     { id: 'jenkins-1', name: '研发 Jenkins', baseUrl: 'https://jenkins.example.com', username: 'charles', hasToken: true },
   ],
@@ -88,7 +94,9 @@ const mockWorkitemUpdates = new Map<string, {
   assignedToId?: string;
 }>();
 
-function applyMockWorkitemUpdate(row: WorkitemRow): WorkitemRow {
+function applyMockWorkitemUpdate(row: WorkitemRow | undefined): WorkitemRow | undefined {
+  // 启动竞态守卫：getWorkitem 早于 listWorkitems 填充行缓存时 cur 为 undefined，直接透传（消费侧已用 cur?. 兜底）
+  if (!row) return row;
   const update = mockWorkitemUpdates.get(row.workitemId);
   return update ? { ...row, ...update } : row;
 }

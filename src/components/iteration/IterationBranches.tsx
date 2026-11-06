@@ -16,7 +16,7 @@ export function IterationBranches({ iterationId, iterationName }: IterationBranc
     <BranchTemplatesManager
       scope="iteration"
       title={`「${iterationName || '当前迭代'}」专属分支模板`}
-      description="为该迭代配置独立分支规则模板。需求关联仓库时将优先匹配并提供该迭代专属模板，同时支持选用全局通用模板。"
+      description="为该迭代配置专属交付轨道（Track/局点）分支生成规则，优先级高于全局模板；未显式覆盖的需求仓库将自动继承迭代专属默认轨道。"
       iterationName={iterationName}
       templates={templates}
       onSaveTemplates={saveTemplates}

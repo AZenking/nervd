@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getMrStatusInfo } from './types';
+import { expandBranchPattern, getMrStatusInfo, resolveRepoBranchRule } from './types';
+import type { BranchRuleTemplate, SettingsView } from '@/types';
 
 describe('getMrStatusInfo', () => {
   it('正确解析待合入状态（opened / open / to_be_merged / reopened）', () => {
@@ -46,5 +47,141 @@ describe('getMrStatusInfo', () => {
     const byFlag = getMrStatusInfo('opened', true);
     expect(byFlag.label).toBe('有冲突');
     expect(byFlag.tone).toBe('rose');
+  });
+});
+
+describe('expandBranchPattern', () => {
+  it('支持 {iteration}、{template} 和 {identifier}', () => {
+    const res = expandBranchPattern('iteration/{iteration}/{template}/feature/{identifier}', {
+      iteration: 'Sprint 2026',
+      template: 'Track A',
+      identifier: 'REQ-101',
+    });
+    expect(res).toBe('iteration/Sprint-2026/Track-A/feature/REQ-101');
+  });
+
+  it('{track} 与 {template} 展开等价，显式 track 覆盖值优先生效', () => {
+    const pattern = 'iteration/{iteration}/{template}/{track}/feat/{identifier}';
+    const byAlias = expandBranchPattern(pattern, {
+      iteration: 'W10',
+      template: 'Site B',
+      identifier: 'REQ-202',
+    });
+    // 未传 track 时，{track} 完全等价于 {template}
+    expect(byAlias).toBe('iteration/W10/Site-B/Site-B/feat/REQ-202');
+
+    const withTrack = expandBranchPattern('track/{track}', {
+      iteration: 'W10',
+      template: 'Site B',
+      identifier: 'REQ-202',
+      track: 'Track X',
+    });
+    expect(withTrack).toBe('track/Track-X');
+  });
+});
+
+describe('resolveRepoBranchRule（交付轨道方案 A 自动继承）', () => {
+  const globalTrack: BranchRuleTemplate & { scope?: 'global' | 'iteration' } = {
+    id: 'default-track',
+    name: '默认主线',
+    sourceBranch: 'master',
+    baselineBranchPattern: 'master',
+    workitemBranchPattern: 'feature/{identifier}',
+    scope: 'global',
+  };
+  const siteTrack: BranchRuleTemplate & { scope?: 'global' | 'iteration' } = {
+    id: 'site-track',
+    name: '局点专版',
+    sourceBranch: 'test',
+    baselineBranchPattern: 'iteration/{iteration}/{track}',
+    workitemBranchPattern: 'feature/{track}/{identifier}',
+    scope: 'iteration',
+  };
+
+  it('需求级显式覆盖命中：按指定模板解析且 origin 为 workitem', () => {
+    const settings = {
+      workitemRepoBranchTemplates: {
+        'req-1': { '101': 'site-track' },
+      },
+    } as unknown as SettingsView;
+
+    const res = resolveRepoBranchRule(settings, 'req-1', 101, 'Sprint-1', 'REQ-1', [globalTrack, siteTrack]);
+    expect(res).toBeDefined();
+    expect(res?.templateName).toBe('局点专版');
+    expect(res?.templateId).toBe('site-track');
+    expect(res?.origin).toBe('workitem');
+    expect(res?.sourceBranch).toBe('test');
+    expect(res?.baselineBranch).toBe('iteration/Sprint-1/局点专版');
+    expect(res?.workitemBranch).toBe('feature/局点专版/REQ-1');
+  });
+
+  it('无显式覆盖：自动继承融合模板首项（迭代专属优先），origin 为 iteration', () => {
+    const settings = {
+      workitemRepoBranchTemplates: {},
+    } as unknown as SettingsView;
+
+    const res = resolveRepoBranchRule(settings, 'req-2', 101, 'Sprint-1', 'REQ-2', [siteTrack, globalTrack]);
+    expect(res).toBeDefined();
+    expect(res?.templateId).toBe('site-track');
+    expect(res?.templateName).toBe('局点专版');
+    expect(res?.origin).toBe('iteration');
+    expect(res?.baselineBranch).toBe('iteration/Sprint-1/局点专版');
+  });
+
+  it('仅有全局模板时：继承全局首项，origin 为 global（直连主干模板解析正常）', () => {
+    const settings = {
+      workitemRepoBranchTemplates: {},
+    } as unknown as SettingsView;
+
+    const res = resolveRepoBranchRule(settings, 'req-3', 101, 'Sprint-1', 'REQ-3', [globalTrack]);
+    expect(res).toBeDefined();
+    expect(res?.templateId).toBe('default-track');
+    expect(res?.origin).toBe('global');
+    expect(res?.sourceBranch).toBe('master');
+    expect(res?.baselineBranch).toBe('master');
+    expect(res?.workitemBranch).toBe('feature/REQ-3');
+  });
+
+  it('未传 customTemplates 时回退 settings.branchRuleTemplates 首项，无 scope 视为 global', () => {
+    const plainTrack: BranchRuleTemplate = {
+      id: 'plain-track',
+      name: '本地模板',
+      sourceBranch: 'develop',
+      baselineBranchPattern: 'iteration/{iteration}/{template}',
+      workitemBranchPattern: 'feature/{identifier}',
+    };
+    const settings = {
+      workitemRepoBranchTemplates: {},
+      branchRuleTemplates: [plainTrack],
+    } as unknown as SettingsView;
+
+    const res = resolveRepoBranchRule(settings, 'req-4', 101, 'Sprint-1', 'REQ-4');
+    expect(res).toBeDefined();
+    expect(res?.templateId).toBe('plain-track');
+    expect(res?.templateName).toBe('本地模板');
+    expect(res?.origin).toBe('global');
+  });
+
+  it('显式覆盖指向已失效模板 ID 时，回退继承融合首项而非报错', () => {
+    const settings = {
+      workitemRepoBranchTemplates: {
+        'req-5': { '101': 'deleted-track' },
+      },
+    } as unknown as SettingsView;
+
+    const res = resolveRepoBranchRule(settings, 'req-5', 101, 'Sprint-1', 'REQ-5', [siteTrack, globalTrack]);
+    expect(res).toBeDefined();
+    expect(res?.templateId).toBe('site-track');
+    expect(res?.origin).toBe('iteration');
+  });
+
+  it('完全没有任何模板时，返回 undefined（保持未配置语义）', () => {
+    const settings = {
+      workitemRepoBranchTemplates: {},
+      branchRuleTemplates: [],
+    } as unknown as SettingsView;
+
+    expect(resolveRepoBranchRule(settings, 'req-6', 101, 'Sprint-1', 'REQ-6', [])).toBeUndefined();
+    expect(resolveRepoBranchRule(settings, 'req-6', 101, 'Sprint-1', 'REQ-6')).toBeUndefined();
   });
 });

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import * as api from '@/lib/api';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { errorLog, humanizeError } from '@/lib/error-format';
-import type { useBranchDivergence } from '../BranchDivergenceCheck';
 import type { IterationBaselineCheck } from './types';
 import { ensureIterationBaseline, type RepoTraceState } from './linked-repo-delivery';
 
@@ -18,7 +17,8 @@ export interface UseLinkedRepoBranchOpsParams {
   hasValidRule: boolean;
   refreshSignal?: number;
   onRetryBaseline: () => void;
-  divergence: ReturnType<typeof useBranchDivergence>;
+  /** 仅消费 refetch（分支写操作后刷新差异）；完整差异状态由卡片侧的 useBranchDivergence 持有。 */
+  divergence: { refetch: () => void };
   loadTrace: () => Promise<{ status: string; errors: string[] }>;
   loadRepoCi: (repoId: number) => Promise<unknown>;
   setToast: (toast: { text: string; kind: 'ok' | 'fail' | 'info' }) => void;

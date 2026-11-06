@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { GitBranchIcon, PlusIcon, XIcon } from 'lucide-react';
-import { Alert, Button as HeroButton, Input, Label, Pagination, TextField } from '@heroui/react';
+import { Alert, Button as HeroButton, Description, Input, Label, Pagination, TextField } from '@heroui/react';
 import { useApp } from '@/store/app';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { BranchRuleTemplate } from '@/types';
@@ -25,9 +25,46 @@ const EMPTY_DRAFT: BranchRuleTemplate = {
   id: '',
   name: '',
   sourceBranch: 'master',
-  baselineBranchPattern: 'iteration/{iteration}/{template}',
+  baselineBranchPattern: 'iteration/{iteration}/{track}',
   workitemBranchPattern: 'feature/{identifier}',
 };
+
+/**
+ * 一键预设草稿（仅填充表单草稿字段，不自动保存）：
+ * 覆盖三种典型交付轨道（Track/局点）——单主干直连 / 迭代集成基线 / 现场局点。
+ */
+const BRANCH_TEMPLATE_PRESETS: Array<{
+  label: string;
+  draft: Pick<BranchRuleTemplate, 'name' | 'sourceBranch' | 'baselineBranchPattern' | 'workitemBranchPattern'>;
+}> = [
+  {
+    label: '🌱 单主干直连',
+    draft: {
+      name: '标准主线直连',
+      sourceBranch: 'master',
+      baselineBranchPattern: 'master',
+      workitemBranchPattern: 'feature/{identifier}',
+    },
+  },
+  {
+    label: '📦 迭代集成基线',
+    draft: {
+      name: '标准迭代主线',
+      sourceBranch: 'master',
+      baselineBranchPattern: 'iteration/{iteration}',
+      workitemBranchPattern: 'feature/{identifier}',
+    },
+  },
+  {
+    label: '🎯 现场局点',
+    draft: {
+      name: '局点专版',
+      sourceBranch: 'master',
+      baselineBranchPattern: 'iteration/{iteration}/{track}',
+      workitemBranchPattern: 'feature/{identifier}',
+    },
+  },
+];
 
 export interface BranchTemplatesManagerProps {
   /** 模板数据列表 */
@@ -52,8 +89,8 @@ export function BranchTemplatesManager({
   scope,
   title = scope === 'iteration' ? '迭代专属分支模板' : '全局分支规则模板',
   description = scope === 'iteration'
-    ? '为当前迭代配置专属的分支生成规则，优先级高于全局模板，需求详情按需选用。'
-    : '为代码仓库预设全局分支生成规则，供需求详情按仓库选用。',
+    ? '为当前迭代配置专属的交付轨道（Track/局点）分支生成规则，优先级高于全局模板，需求详情按需选用。'
+    : '为代码仓库预设全局分支生成规则（每条模板即一条交付轨道 Track/局点），供需求详情按仓库选用。',
   inSettingsCard = false,
   iterationName = '',
 }: BranchTemplatesManagerProps) {
@@ -311,6 +348,9 @@ export function BranchTemplatesManager({
         {'{iteration}'}
       </Badge>
       <Badge variant="outline" className="font-mono">
+        {'{track}'}
+      </Badge>
+      <Badge variant="outline" className="font-mono">
         {'{template}'}
       </Badge>
       <Badge variant="outline" className="font-mono">
@@ -327,7 +367,7 @@ export function BranchTemplatesManager({
           <SettingsRow
             orientation="horizontal"
             label="变量通配说明"
-            description="基准模板支持 {iteration}（当前迭代标识）、{template}（模板名称），需求分支支持 {identifier}（需求编号，如 REQ-101）。"
+            description="基准模板支持 {iteration}（当前迭代标识）、{track}（交付轨道 Track/局点名，等价于 {template} 模板名称，推荐新配置使用 {track}），需求分支支持 {identifier}（需求编号，如 REQ-101）。"
             control={variableHelpControl}
           />
         </SettingsGroup>
@@ -343,8 +383,10 @@ export function BranchTemplatesManager({
                 <span className="flex flex-wrap items-center gap-x-1 text-muted-foreground">
                   基准模板支持
                   <Badge variant="outline" className="font-mono">{'{iteration}'}</Badge>、
+                  <Badge variant="outline" className="font-mono">{'{track}'}</Badge>
+                  （交付轨道 Track/局点名，等价
                   <Badge variant="outline" className="font-mono">{'{template}'}</Badge>
-                  ，需求分支支持
+                  ，推荐新配置使用），需求分支支持
                   <Badge variant="outline" className="font-mono">{'{identifier}'}</Badge>
                   。
                 </span>
@@ -398,11 +440,28 @@ export function BranchTemplatesManager({
               <Alert.Content>
                 <Alert.Description>
                   {scope === 'iteration'
-                    ? '仅在当前迭代生效。支持使用 {iteration}、{template} 与 {identifier} 动态变量。'
-                    : '保存在本机作为全局预设模板，所有迭代与需求均可选用。支持动态通配变量。'}
+                    ? '仅在当前迭代生效，构成该迭代的专属交付轨道（Track/局点）。支持 {iteration}、{track}（等价 {template}）与 {identifier} 动态变量。'
+                    : '保存在本机作为全局预设模板，每条模板即一条交付轨道（Track/局点），所有迭代与需求均可选用。支持 {iteration}、{track}（等价 {template}）与 {identifier} 动态变量。'}
                 </Alert.Description>
               </Alert.Content>
             </Alert>
+
+            {/* 一键预设：仅填充草稿字段（含建议名称，可改），不自动保存 */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="shrink-0 text-[11px] font-medium text-muted-foreground">一键预设：</span>
+              {BRANCH_TEMPLATE_PRESETS.map((preset) => (
+                <Button
+                  key={preset.label}
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  className="h-6 rounded-md font-normal text-muted-foreground hover:text-foreground"
+                  onClick={() => setDraft((prev) => ({ ...prev, ...preset.draft }))}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
 
             <TextField
               isRequired
@@ -411,6 +470,7 @@ export function BranchTemplatesManager({
             >
               <Label>模板名称</Label>
               <Input placeholder="A 局点 / B 局点 / Hotfix" />
+              <Description>即交付轨道（Track/局点）名称，用于 {'{track}'} / {'{template}'} 占位符展开。</Description>
             </TextField>
             <TextField
               isRequired
@@ -419,6 +479,7 @@ export function BranchTemplatesManager({
             >
               <Label>迭代基准的源分支</Label>
               <Input className="font-mono" placeholder="master 或 test" />
+              <Description>迭代基准分支的切出基点；与基准分支同名时即为单主干直连（Trunk-Based），无需创建迭代基准。</Description>
             </TextField>
             <TextField
               isRequired
@@ -426,7 +487,13 @@ export function BranchTemplatesManager({
               onChange={(value) => setDraft({ ...draft, baselineBranchPattern: value })}
             >
               <Label>迭代基准分支命名模板</Label>
-              <Input className="font-mono" placeholder="iteration/{iteration}/{template}" />
+              <Input className="font-mono" placeholder="iteration/{iteration}/{track}" />
+              <Description>
+                支持 <span className="font-mono">{'{iteration}'}</span> 与{' '}
+                <span className="font-mono">{'{track}'}</span>（等价{' '}
+                <span className="font-mono">{'{template}'}</span>，推荐使用{' '}
+                <span className="font-mono">{'{track}'}</span>）。
+              </Description>
             </TextField>
             <TextField
               isRequired
@@ -435,6 +502,9 @@ export function BranchTemplatesManager({
             >
               <Label>需求开发分支命名模板</Label>
               <Input className="font-mono" placeholder="feature/{identifier}" />
+              <Description>
+                支持 <span className="font-mono">{'{identifier}'}</span>（需求编号，如 <span className="font-mono">REQ-101</span>）。
+              </Description>
             </TextField>
 
             {/* 实时分支生成预览（HeroUI Alert） */}

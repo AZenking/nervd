@@ -37,6 +37,42 @@ describe('deriveLinkedRepoDelivery', () => {
     expect(result.conclusion).toContain('迭代基准分支尚未创建');
   });
 
+  it('direct trunk mode never offers create-baseline and treats a missing source as retry', () => {
+    const missing = deriveLinkedRepoDelivery({
+      ...baseFacts,
+      baselineState: 'missing',
+      directConnect: true,
+    });
+    const errored = deriveLinkedRepoDelivery({
+      ...baseFacts,
+      baselineState: 'error',
+      directConnect: true,
+    });
+    const loading = deriveLinkedRepoDelivery({
+      ...baseFacts,
+      baselineState: undefined,
+      directConnect: true,
+    });
+
+    expect(missing.action).toBe('retry');
+    expect(missing.tone).toBe('danger');
+    expect(missing.conclusion).toContain('模板源分支不可用');
+    expect(errored.action).toBe('retry');
+    expect(errored.tone).toBe('danger');
+    expect(loading.action).toBe('querying');
+  });
+
+  it('direct trunk mode continues the pipeline past the baseline stage', () => {
+    const result = deriveLinkedRepoDelivery({
+      ...baseFacts,
+      baselineState: 'exists',
+      directConnect: true,
+      developerBranchState: 'missing',
+    });
+
+    expect(result.action).toBe('create-workitem-branch');
+  });
+
   it('uses a confirmed matched active MR instead of proposing a duplicate MR', () => {
     const result = deriveLinkedRepoDelivery({
       ...baseFacts,
@@ -121,18 +157,36 @@ describe('ensureIterationBaseline', () => {
     expect(createBranch).not.toHaveBeenCalled();
   });
 
-  it('rejects identical target/source and missing source without attempting a write', async () => {
+  it('direct trunk mode reuses the existing shared branch and never creates anything', async () => {
+    const createBranch = vi.fn();
+    const findBranch = vi.fn(async (_repoId: number, name: string) => name === 'master' ? { name } : null);
+
+    const result = await ensureIterationBaseline({
+      repoId: 17,
+      targetBranch: 'master',
+      sourceBranch: 'master',
+      findBranch,
+      createBranch,
+    });
+
+    expect(result).toEqual({ created: false, branchName: 'master' });
+    expect(findBranch).toHaveBeenCalledWith(17, 'master');
+    expect(createBranch).not.toHaveBeenCalled();
+  });
+
+  it('direct trunk mode fails when the shared source branch is missing online', async () => {
     const createBranch = vi.fn();
     const findBranch = vi.fn(async () => null);
 
     await expect(ensureIterationBaseline({
       repoId: 17,
-      targetBranch: 'develop',
-      sourceBranch: 'develop',
+      targetBranch: 'master',
+      sourceBranch: 'master',
       findBranch,
       createBranch,
-    })).rejects.toThrow('不能与迭代基准分支同名');
+    })).rejects.toThrow('模板源分支「master」在线上不存在');
 
+    // 常规派生模式沿用同一文案：源分支缺失时同样不得盲目创建基准
     await expect(ensureIterationBaseline({
       repoId: 17,
       targetBranch: 'iteration/sprint-1/main',

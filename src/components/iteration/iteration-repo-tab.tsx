@@ -26,6 +26,8 @@ import { StatusIcon } from '@/components/status-icon';
 import { JenkinsBuildDialog } from './JenkinsBuildDialog';
 import { BuildWorkbenchTrigger, openBuildWorkbenchFromTrigger, openRepoBuildLogs } from '@/components/build-workbench';
 import { KeyboardPagination } from './keyboard-pagination';
+import { expandBranchPattern } from '@/components/iteration/requirement/types';
+import { getFusedBranchTemplates } from '@/lib/iteration-templates';
 
 type WorkitemItem = ReturnType<typeof useApp.getState>['items'][number];
 
@@ -365,7 +367,7 @@ export function IterationRepoTab({
   scopedItems?: WorkitemItem[];
   onOpenDetail?: (item: WorkitemItem) => void;
 }) {
-  const { repositories, settings, loadRepoCi, repoCiByRepo } = useApp();
+  const { repositories, settings, loadRepoCi, repoCiByRepo, iterations } = useApp();
   const openSettings = useUi((s) => s.openSettings);
   const [repoPageIndex, setRepoPageIndex] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
@@ -391,21 +393,28 @@ export function IterationRepoTab({
       }
     }
 
-    // 从全局仓库中过滤并映射出本迭代涉及的仓库
+    // 建议基准分支来源：融合模板首项（迭代专属优先、全局兜底）；零模板时不建议任何分支。
+    // 注意 iterationKey 为迭代名称，而迭代专属模板按迭代 id 存储，先解析回 id 再做融合。
+    let suggestedBranch: string | undefined;
+    if (iterationKey) {
+      const iterationId = iterations.find((it) => it.name === iterationKey)?.id;
+      const defaultTpl = getFusedBranchTemplates(
+        settings?.branchRuleTemplates ?? [],
+        iterationId ?? iterationKey,
+      )[0];
+      if (defaultTpl) {
+        suggestedBranch = expandBranchPattern(
+          defaultTpl.baselineBranchPattern || 'iteration/{iteration}/{template}',
+          { iteration: iterationKey, template: defaultTpl.name, identifier: '' },
+        );
+      }
+    }
+
+    // 从全局仓库中过滤并映射出本迭代涉及的仓库（建议分支对同一迭代内所有仓库一致，提出循环外只算一次）
     return repositories
       .filter((r) => repoItemMap.has(r.id))
       .map((repo) => {
         const workitems = repoItemMap.get(repo.id) ?? [];
-
-        // 尝试推导本迭代的基准分支规则
-        let suggestedBranch: string | undefined;
-        if (iterationKey && settings?.branchRuleTemplates?.length) {
-          const defaultTpl = settings.branchRuleTemplates[0];
-          const pattern = defaultTpl.baselineBranchPattern || 'iteration/{iteration}/{template}';
-          suggestedBranch = pattern
-            .replace('{iteration}', iterationKey.replace(/\s+/g, '-'))
-            .replace('{template}', defaultTpl.name.replace(/\s+/g, '-'));
-        }
 
         return {
           repo,
@@ -413,7 +422,7 @@ export function IterationRepoTab({
           suggestedBranch,
         };
       });
-  }, [effectiveItems, repositories, settings, iterationKey]);
+  }, [effectiveItems, repositories, settings, iterationKey, iterations]);
 
   // 检查当前是否有任何仓库处于构建中状态
   const anyRunningCount = useMemo(() => {

@@ -404,7 +404,7 @@ export function RequirementProperties({
                   <span>分支规则</span>
                 </span>
               ),
-              children: iterationBranchValue || <span className="text-muted-foreground">未选择模板</span>,
+              children: iterationBranchValue || <span className="text-muted-foreground">未配置轨道</span>,
             },
           ]}
         />

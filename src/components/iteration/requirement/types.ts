@@ -7,6 +7,10 @@ export interface ResolvedRepoBranchRule {
   baselineBranch: string;
   workitemBranch: string;
   templateName: string;
+  /** 命中的分支模板 ID（显式覆盖或自动继承的模板）。 */
+  templateId?: string;
+  /** 继承来源：workitem = 需求级显式覆盖；iteration/global = 方案 A 自动继承的模板作用域。 */
+  origin?: 'workitem' | 'iteration' | 'global';
 }
 
 export interface IterationBaselineCheck {
@@ -17,11 +21,13 @@ export interface IterationBaselineCheck {
 
 export function expandBranchPattern(
   pattern: string,
-  values: { iteration: string; template: string; identifier: string },
+  values: { iteration: string; template: string; identifier: string; track?: string },
 ): string {
   const branchPart = (value: string) => value.trim().replace(/\s+/g, '-').replace(/\\/g, '-');
   return pattern
     .replace(/\{iteration\}/g, branchPart(values.iteration))
+    // {track} 为 {template} 的等价别名（交付轨道 Track/局点），{template} 永久保留兼容旧配置
+    .replace(/\{track\}/g, branchPart(values.track ?? values.template))
     .replace(/\{template\}/g, branchPart(values.template))
     .replace(/\{identifier\}/g, branchPart(values.identifier));
 }
@@ -32,12 +38,19 @@ export function resolveRepoBranchRule(
   repoId: number,
   iterationName: string,
   identifier: string,
-  customTemplates?: BranchRuleTemplate[],
+  customTemplates?: Array<BranchRuleTemplate & { scope?: 'global' | 'iteration' }>,
 ): ResolvedRepoBranchRule | undefined {
   const templateId = settings?.workitemRepoBranchTemplates?.[workitemId]?.[String(repoId)];
-  const allTemplates = customTemplates ?? settings?.branchRuleTemplates ?? [];
-  const template = allTemplates.find((item) => item.id === templateId);
+  const allTemplates: Array<BranchRuleTemplate & { scope?: 'global' | 'iteration' }> =
+    customTemplates ?? settings?.branchRuleTemplates ?? [];
+  const explicit = templateId ? allTemplates.find((item) => item.id === templateId) : undefined;
+  // 方案 A（自动继承）：需求级无显式覆盖（或覆盖指向已失效模板）时，
+  // 回退融合模板首项（迭代专属模板优先 → 全局模板，即 useFusedBranchTemplates 的融合顺序）。
+  const template = explicit ?? (allTemplates.length > 0 ? allTemplates[0] : undefined);
   if (template) {
+    const origin: ResolvedRepoBranchRule['origin'] = explicit
+      ? 'workitem'
+      : template.scope === 'iteration' ? 'iteration' : 'global';
     return {
       sourceBranch: template.sourceBranch,
       baselineBranch: expandBranchPattern(template.baselineBranchPattern, {
@@ -51,9 +64,50 @@ export function resolveRepoBranchRule(
         identifier,
       }),
       templateName: template.name,
+      templateId: template.id,
+      origin,
     };
   }
   return undefined;
+}
+
+export interface ChildMrBranches {
+  /** 子项（缺陷）开发分支：同一交付轨道模板按子项编号展开 */
+  sourceBranch: string;
+  /** 父需求开发分支：同一交付轨道模板按需求编号展开（缺陷 MR 的合入目标） */
+  targetBranch: string;
+}
+
+/**
+ * 缺陷页发起 MR 的分支推导（「缺陷单号分支 → 需求单号分支」）：
+ * - 两次解析共用同一交付轨道模板与同一迭代名：模板查找键统一为父需求 workitemId，
+ *   需求级显式覆盖（workitemRepoBranchTemplates）与方案 A 自动继承（融合模板首项）都自然生效；
+ * - 仅 {identifier} 占位符分别替换为缺陷编号 / 需求编号，保证同轨道；
+ * - 无可用模板时回退 feature/{identifier}（与 LinkedRepoCard 的无迭代回退一致）。
+ */
+export function resolveChildMrBranches(
+  settings: ReturnType<typeof useApp.getState>['settings'],
+  params: {
+    parentWorkitemId: string;
+    parentIdentifier: string;
+    childIdentifier: string;
+    iterationName: string;
+    repoId: number;
+    customTemplates?: Array<BranchRuleTemplate & { scope?: 'global' | 'iteration' }>;
+  },
+): ChildMrBranches {
+  const { parentWorkitemId, parentIdentifier, childIdentifier, iterationName, repoId, customTemplates } = params;
+  const ruleOf = (identifier: string) => resolveRepoBranchRule(
+    settings,
+    parentWorkitemId,
+    repoId,
+    iterationName,
+    identifier,
+    customTemplates,
+  )?.workitemBranch.trim();
+  const sourceBranch = ruleOf(childIdentifier) || `feature/${childIdentifier}`;
+  const targetBranch = ruleOf(parentIdentifier) || `feature/${parentIdentifier}`;
+  return { sourceBranch, targetBranch };
 }
 
 export function mergeRequestRows(value: unknown): Record<string, unknown>[] {

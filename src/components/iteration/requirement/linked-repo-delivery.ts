@@ -6,6 +6,8 @@ export interface LinkedRepoDeliveryInput {
   iterationId?: string;
   placeholderIteration: boolean;
   hasValidRule: boolean;
+  /** 直连主干模式（Trunk-Based）：迭代基准与模板源分支同名，不派生迭代基准分支。 */
+  directConnect?: boolean;
   traceState: RepoTraceState;
   baselineState?: RepoBranchState;
   defaultBaseState?: RepoBranchState;
@@ -88,6 +90,11 @@ export function deriveLinkedRepoDelivery(
       return decision('querying', '正在查询迭代基准', '查询完成后才能判断分支创建顺序');
     }
     if (input.baselineState === 'missing') {
+      // 直连主干模式（Trunk-Based）：源分支即基准，不存在"创建迭代基准"决策；
+      // 源分支缺失视为不可用，只能确认后重试。
+      if (input.directConnect) {
+        return decision('retry', '模板源分支不可用', '直连模式下模板源分支必须已存在，请确认后重试', 'danger');
+      }
       return decision('create-baseline', '迭代基准分支尚未创建', '按分支规则从模板源分支创建', 'warning');
     }
   } else {
@@ -187,7 +194,12 @@ export async function ensureIterationBaseline({
   const target = targetBranch.trim();
   const source = sourceBranch.trim();
   if (!target || !source) throw new Error('分支规则的模板源分支或迭代基准无效');
-  if (target === source) throw new Error('模板源分支不能与迭代基准分支同名');
+  // 直连主干模式（如 Trunk-Based / GitHub Flow）：目标基准与源分支同名，无需派生中间分支；
+  // 源分支必须已存在，绝不调用 createBranch。
+  if (target === source) {
+    if (await findBranch(repoId, target)) return { created: false, branchName: target };
+    throw new Error(`模板源分支「${source}」在线上不存在`);
+  }
 
   if (await findBranch(repoId, target)) return { created: false, branchName: target };
   if (!(await findBranch(repoId, source))) {

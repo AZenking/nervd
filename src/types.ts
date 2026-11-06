@@ -25,7 +25,7 @@ export interface BranchRuleTemplate {
   id: string;
   name: string;
   sourceBranch: string;
-  /** Supports {iteration} and {template}; default: iteration/{iteration}/{template}. */
+  /** Supports {iteration}, {template} and its permanent alias {track}; default: iteration/{iteration}/{template}. */
   baselineBranchPattern: string;
   /** Supports {identifier}; default: feature/{identifier}. */
   workitemBranchPattern: string;

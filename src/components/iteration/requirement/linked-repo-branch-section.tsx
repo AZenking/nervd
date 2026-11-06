@@ -106,11 +106,16 @@ export interface LinkedRepoBranchSectionProps {
   templateId?: string;
   templates: (BranchRuleTemplate | ScopedBranchRuleTemplate)[];
   templateEnabled: boolean;
-  hasValidRule: boolean;
   onTemplateChange: (templateId: string | null) => void;
   templateSourceBranch: string;
   templateSelectId: string;
   extraMatchedBranches: string[];
+  /** 解析后规则命中的交付轨道名（含方案 A 自动继承），用于轨道来源信息 chip。 */
+  trackTemplateName?: string;
+  /** 继承来源：workitem = 需求级显式覆盖；iteration/global = 方案 A 自动继承的模板作用域。 */
+  trackOrigin?: 'workitem' | 'iteration' | 'global';
+  /** 直连主干模式（Trunk-Based）：迭代基准即模板源分支，不派生迭代基准。 */
+  directConnect?: boolean;
 }
 
 export function LinkedRepoBranchSection({
@@ -128,12 +133,17 @@ export function LinkedRepoBranchSection({
   templateId,
   templates,
   templateEnabled,
-  hasValidRule,
   onTemplateChange,
   templateSourceBranch,
   templateSelectId,
   extraMatchedBranches,
+  trackTemplateName,
+  trackOrigin,
+  directConnect,
 }: LinkedRepoBranchSectionProps) {
+  // 轨道来源（方案 A）：优先按解析结果的 origin 判定；origin 缺失时回退以显式 templateId 判定
+  const hasTrackOverride = trackOrigin ? trackOrigin === 'workitem' : Boolean(templateId);
+  const trackOriginLabel = trackOrigin === 'iteration' ? '迭代专属' : '全局默认';
   return (
     <>
       {/* 分支元数据与规则网格 (2x2 Grid) */}
@@ -200,7 +210,8 @@ export function LinkedRepoBranchSection({
               <CopyButton text={operationBaseBranch} label="复制目标基准分支名" />
               {iterationId && baselineState === 'missing' && (
                 <Chip size="sm" variant="soft" color="warning" className="h-5 px-1.5 text-[11px]">
-                  未创建
+                  {/* 直连主干无"创建迭代基准"动作：缺失即模板源分支本身不可用 */}
+                  {directConnect ? '源分支缺失' : '未创建'}
                 </Chip>
               )}
               {iterationId && baselineState === 'error' && (
@@ -233,12 +244,13 @@ export function LinkedRepoBranchSection({
             <div className="min-w-0 flex-1 max-w-56">
               <SearchableSelect
                 id={templateSelectId}
-                ariaLabel={'为 ' + repoName + ' 选择分支模板'}
+                ariaLabel={'为 ' + repoName + ' 选择交付轨道模板'}
                 className="h-7 w-full text-xs py-0.5"
                 value={templateId || '__none'}
                 onValueChange={(value) => onTemplateChange(value && value !== '__none' ? value : null)}
                 items={[
-                  { label: '未选择模板', value: '__none' },
+                  // '__none' = 清除需求级覆盖，回到方案 A 自动继承（迭代专属优先 → 全局默认）
+                  { label: '继承默认轨道', value: '__none' },
                   ...templates.map((template): SearchableSelectOption<string> => {
                     const scopeTag =
                       'scope' in template && template.scope === 'iteration'
@@ -254,17 +266,30 @@ export function LinkedRepoBranchSection({
                 ]}
               />
             </div>
-            {!hasValidRule && (
+            {/* 轨道来源信息 chip（muted 信息态，非警告）：显式覆盖 / 方案 A 自动继承 */}
+            {hasTrackOverride && trackTemplateName ? (
               <Chip
                 size="sm"
-                variant="soft"
-                color="warning"
-                className="h-5 shrink-0 px-1.5 text-[11px]"
-                title="需要选择有效模板"
+                variant="secondary"
+                className="h-5 shrink-0 gap-1 px-1.5 text-[11px] text-muted-foreground"
+                title="此需求显式覆盖的交付轨道（Track/局点）"
               >
-                需选模板
+                <span className="shrink-0">轨道：</span>
+                <span className="max-w-28 truncate font-mono">{trackTemplateName}</span>
+                <span className="shrink-0">[需求覆盖]</span>
               </Chip>
-            )}
+            ) : trackTemplateName ? (
+              <Chip
+                size="sm"
+                variant="secondary"
+                className="h-5 shrink-0 gap-1 px-1.5 text-[11px] text-muted-foreground"
+                title="未显式覆盖时自动继承：迭代专属模板优先，其次全局默认轨道"
+              >
+                <span className="shrink-0">继承：</span>
+                <span className="max-w-28 truncate font-mono">{trackTemplateName}</span>
+                <span className="shrink-0">[{trackOriginLabel}]</span>
+              </Chip>
+            ) : null}
           </div>
         ) : (
           <div />
@@ -284,7 +309,7 @@ export function LinkedRepoBranchSection({
               </Chip>
             </div>
           )}
-          {iterationId && templateSourceBranch && baselineState === 'exists' && (
+          {iterationId && templateSourceBranch && !directConnect && baselineState === 'exists' && (
             <div className="min-w-0 flex-1">
               <IterationDevDivergence
                 repoId={repoId}
@@ -303,6 +328,7 @@ export function LinkedRepoBranchSection({
         <BranchDivergenceCheck
           repoId={repoId}
           developmentBranch={developerBranch}
+          developerBranchState={developerBranchState}
           baselineBranch={operationBaseBranch}
           baselineState={iterationId ? baselineState : defaultBaseState}
           onRetryBaseline={onRetryBaseline}

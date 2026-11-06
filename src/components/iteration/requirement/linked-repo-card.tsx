@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Surface } from '@heroui/react';
 import { ciStatusText } from '@/lib/ci';
 import { formatDateTime, formatDuration } from '@/lib/format';
 import { useApp } from '@/store/app';
+import { useUi } from '@/store/ui';
 import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
 import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
@@ -109,6 +110,11 @@ function getRepoPalette(name: string): string {
   return REPO_PALETTES[Math.abs(hash) % REPO_PALETTES.length];
 }
 
+/** 直连主干模式（Trunk-Based）：占位符展开后迭代基准分支与模板源分支同名，不派生迭代基准。 */
+export function isDirectConnectRule(rule: ResolvedRepoBranchRule): boolean {
+  return rule.baselineBranch.trim() === rule.sourceBranch.trim();
+}
+
 export function LinkedRepoCard({
   repo,
   identifier,
@@ -145,29 +151,25 @@ export function LinkedRepoCard({
   const hasValidRule = Boolean(
     templateSourceBranch
       && configuredBaselineBranch
-      && branchRule?.workitemBranch.trim()
-      && templateSourceBranch !== configuredBaselineBranch,
+      && branchRule?.workitemBranch.trim(),
   );
   const developerBranch = branchRule?.workitemBranch.trim()
     || (!iterationId && identifier ? 'feature/' + identifier : '');
   const operationBaseBranch = iterationId
     ? (baselineBranch?.trim() || configuredBaselineBranch)
     : 'master';
+  // 直连主干（Trunk-Based）：迭代基准即模板源分支，无"创建迭代基准"环节
+  const directConnect = branchRule ? isDirectConnectRule(branchRule) : false;
 
   const [createMrOpen, setCreateMrOpen] = useState(false);
   const [expandedMrId, setExpandedMrId] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [ciModalOpen, setCiModalOpen] = useState(false);
   const [autoOpenWorkbenchOnBind, setAutoOpenWorkbenchOnBind] = useState(false);
-  const [pendingFocus, setPendingFocus] = useState<'template' | null>(null);
   const [pendingMrScrollId, setPendingMrScrollId] = useState<number | null>(null);
 
-  const divergence = useBranchDivergence(
-    repo.id,
-    developerBranch,
-    operationBaseBranch,
-    baselineState,
-  );
+  // 稳定 ref 间接层：让 ops 先于 divergence hook 调用（ops 需要 refetch，divergence 需要 ops 的 developerBranchState）
+  const divergenceRefetchRef = useRef<() => void>(() => {});
 
   const {
     developerBranchState,
@@ -191,24 +193,24 @@ export function LinkedRepoCard({
     hasValidRule,
     refreshSignal,
     onRetryBaseline,
-    divergence,
+    divergence: { refetch: () => divergenceRefetchRef.current() },
     loadTrace,
     loadRepoCi,
     setToast,
   });
 
-  const templateSelectId = 'repo-branch-template-' + repo.id;
-
+  const divergence = useBranchDivergence(
+    repo.id,
+    developerBranch,
+    operationBaseBranch,
+    baselineState,
+    developerBranchState,
+  );
   useEffect(() => {
-    if (!detailsOpen || !pendingFocus) return;
-    const frame = window.requestAnimationFrame(() => {
-      if (pendingFocus === 'template') {
-        document.getElementById(templateSelectId)?.focus();
-      }
-      setPendingFocus(null);
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [detailsOpen, pendingFocus, templateSelectId]);
+    divergenceRefetchRef.current = divergence.refetch;
+  });
+
+  const templateSelectId = 'repo-branch-template-' + repo.id;
 
   useEffect(() => {
     if (!detailsOpen || pendingMrScrollId == null) return;
@@ -255,6 +257,7 @@ export function LinkedRepoCard({
   const delivery = deriveLinkedRepoDelivery({
     iterationId,
     placeholderIteration,
+    directConnect,
     hasValidRule,
     traceState,
     baselineState,
@@ -320,14 +323,16 @@ export function LinkedRepoCard({
     : !identifier || !developerBranch
       ? '工作项编号或分支名不可用'
       : iterationId && !hasValidRule
-        ? '请先配置有效的分支规则'
-        : iterationId && baselineState !== 'exists'
+        ? '尚未配置任何交付轨道'
+        : iterationId && !directConnect && baselineState !== 'exists'
           ? '请先创建或确认迭代基准分支'
-          : !iterationId && defaultBaseState !== 'exists'
-            ? 'master 分支不可用，无法创建需求分支'
-            : developerBranchState !== 'missing'
-              ? '需求分支尚未确认缺失'
-              : undefined;
+          : iterationId && directConnect && baselineState !== 'exists'
+            ? '直连主干：模板源分支在线上不可用，请先确认源分支存在'
+            : !iterationId && defaultBaseState !== 'exists'
+              ? 'master 分支不可用，无法创建需求分支'
+              : developerBranchState !== 'missing'
+                ? '需求分支尚未确认缺失'
+                : undefined;
 
   const handleViewMr = (mrToView?: MrSummary | { localId: number }) => {
     const target = mrToView || targetActiveMr;
@@ -338,8 +343,9 @@ export function LinkedRepoCard({
   };
 
   const handleConfigureRule = () => {
-    setPendingFocus('template');
-    setDetailsOpen(true);
+    // 零模板引导：一次性配置全局默认交付轨道（设置 → 追溯规则 / 分支模板），
+    // 所有关联仓库将按方案 A 自动继承，无需逐仓库必选。
+    useUi.getState().openSettings('trace');
   };
 
   const renderBuildAction = () => (
@@ -470,11 +476,13 @@ export function LinkedRepoCard({
               templateId={templateId}
               templates={templates}
               templateEnabled={templateEnabled}
-              hasValidRule={hasValidRule}
               onTemplateChange={onTemplateChange}
               templateSourceBranch={templateSourceBranch}
               templateSelectId={templateSelectId}
               extraMatchedBranches={extraMatchedBranches}
+              trackTemplateName={branchRule?.templateName}
+              trackOrigin={branchRule?.origin}
+              directConnect={directConnect}
             />
 
             {/* 合并请求列表 */}

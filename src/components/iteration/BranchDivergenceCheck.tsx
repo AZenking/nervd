@@ -53,6 +53,7 @@ export function useBranchDivergence(
   developmentBranch: string,
   baselineBranch?: string,
   baselineState?: BaselineState,
+  developerBranchState?: BaselineState,
 ): UseBranchDivergenceResult {
   const [check, setCheck] = useState<BranchCheckState>({ status: 'idle' });
   const [diffs, setDiffs] = useState<FileDiffItem[]>([]);
@@ -60,7 +61,13 @@ export function useBranchDivergence(
   const baseline = baselineBranch?.trim() ?? '';
 
   useEffect(() => {
-    if (!baseline || baselineState !== 'exists' || !developmentBranch) {
+    if (
+      !baseline
+      || baselineState !== 'exists'
+      || !developmentBranch
+      || developerBranchState === 'missing'
+      || developerBranchState === 'loading'
+    ) {
       setCheck({ status: 'idle' });
       setDiffs([]);
       return;
@@ -99,7 +106,7 @@ export function useBranchDivergence(
     })();
 
     return () => { active = false; };
-  }, [repoId, developmentBranch, baseline, baselineState, refreshKey]);
+  }, [repoId, developmentBranch, baseline, baselineState, developerBranchState, refreshKey]);
 
   return {
     check,
@@ -114,12 +121,15 @@ export function BranchDivergenceCheck({
   developmentBranch,
   baselineBranch,
   baselineState,
+  developerBranchState,
   onRetryBaseline,
 }: {
   repoId: number;
   developmentBranch: string;
   baselineBranch?: string;
   baselineState: BaselineState;
+  /** 开发分支远端存在性；缺失时跳过 compare，避免对不存在分支发起比较报错。 */
+  developerBranchState?: BaselineState;
   onRetryBaseline: () => void;
 }) {
   const { check, diffs, refetch } = useBranchDivergence(
@@ -127,6 +137,7 @@ export function BranchDivergenceCheck({
     developmentBranch,
     baselineBranch,
     baselineState,
+    developerBranchState,
   );
   const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
   const baseline = baselineBranch?.trim() ?? '';
@@ -148,6 +159,12 @@ export function BranchDivergenceCheck({
     );
   }
   if (baselineState !== 'exists') {
+    return <Skeleton className="h-5 w-24 rounded" />;
+  }
+  if (developerBranchState === 'missing') {
+    return <span className="text-xs text-muted-foreground">需求分支尚未创建</span>;
+  }
+  if (developerBranchState === 'loading') {
     return <Skeleton className="h-5 w-24 rounded" />;
   }
 

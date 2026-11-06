@@ -10,6 +10,7 @@ import { errorLog, humanizeError } from '@/lib/error-format';
 import { aiRecommendRepositories } from '@/lib/ai-api';
 import type { AiRepoRecommendation } from '@/types/ai';
 import type { WorkitemChild } from '@/lib/api';
+import * as api from '@/lib/api';
 import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { probeRepoSignalHits, repoSignalScores } from '@/lib/repo-signals';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,7 @@ import { ChildDetailDrawer } from './child-detail-drawer';
 import { SectionHeader } from '../section-header';
 import { StatusIcon } from '../status-icon';
 import {
+  resolveChildMrBranches,
   resolveRepoBranchRule,
   type IterationBaselineCheck,
   type RequirementDetailsProps,
@@ -43,7 +45,7 @@ import {
 } from './requirement/types';
 import { RequirementDetailsSkeleton } from './requirement/requirement-skeleton';
 import { ChildrenCard } from './requirement/children-card';
-import { LinkedRepoCard } from './requirement/linked-repo-card';
+import { LinkedRepoCard, isDirectConnectRule } from './requirement/linked-repo-card';
 import { Card } from '@/components/ui/card';
 import { LinkRepoModal } from './requirement/link-repo-modal';
 import { BranchStateDiagramModal } from './requirement/branch-state-diagram-modal';
@@ -80,6 +82,7 @@ export function RequirementDetails({
     selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
     iterations, trace, traceLoading, currentUser, pipelines,
     saveWorkitemRepos, saveWorkitemRepoBranchTemplate, saveRepoCiBinding, setToast, reloadCurrentDetail, loadTrace,
+    parentIdOf,
   } = useApp();
   const allowWrite = settings?.allowWriteOps ?? false;
   const [refreshing, setRefreshing] = useState(false);
@@ -133,7 +136,43 @@ export function RequirementDetails({
   const { openWorkitem, chain } = useUi();
   const currentCrumb = chain[chain.length - 1];
   const parentCrumb = chain.length > 1 ? chain[0] : null;
-  const parent = parentWorkitem ?? parentCrumb;
+
+  // 父级上下文兜底：子项未经过父详情钻取直接打开（如最近查看冷启动）时，
+  // 经 store 运行期子→父索引重建父需求（列表行优先，缺失时懒拉父详情补 identifier/subject）。
+  const [indexedParent, setIndexedParent] = useState<RequirementDetailsProps['parentWorkitem']>(null);
+  useEffect(() => {
+    if (parentWorkitem || parentCrumb || !selectedId || loadingDetail) {
+      setIndexedParent(null);
+      return;
+    }
+    const parentId = parentIdOf(selectedId);
+    if (!parentId) {
+      setIndexedParent(null);
+      return;
+    }
+    const row = useApp.getState().items.find((i) => i.workitemId === parentId);
+    if (row) {
+      setIndexedParent({ workitemId: parentId, identifier: row.identifier, subject: row.subject });
+      return;
+    }
+    let alive = true;
+    void api.getWorkitem(parentId)
+      .then((res) => {
+        if (!alive) return;
+        const wi = ((res as Record<string, unknown>)?.workitem ?? res ?? {}) as Record<string, unknown>;
+        const identifier = (typeof wi.identifier === 'string' && wi.identifier)
+          || (typeof wi.serialNumber === 'string' ? wi.serialNumber : '');
+        const subject = (typeof wi.subject === 'string' && wi.subject)
+          || (typeof wi.name === 'string' ? wi.name : '');
+        if (identifier) setIndexedParent({ workitemId: parentId, identifier, subject: subject || undefined });
+      })
+      .catch(() => {
+        // 父级详情拉取失败不阻断子项详情展示
+      });
+    return () => { alive = false; };
+  }, [selectedId, loadingDetail, parentWorkitem, parentCrumb, parentIdOf]);
+
+  const parent = parentWorkitem ?? parentCrumb ?? indexedParent;
 
   const cur = items.find((i) => i.workitemId === selectedId);
   const childFromStore = children.find((c) => c.workitemId === selectedId);
@@ -281,9 +320,12 @@ export function RequirementDetails({
     || cur?.updatedAt
     || '';
 
-  const hasRepoOverride = selectedId != null && Object.prototype.hasOwnProperty.call(settings?.workitemRepos ?? {}, selectedId);
+  // 关联仓库上下文：需求走自身覆盖链；任务/缺陷继承父需求的解析链（父覆盖 → 默认云效仓库），
+  // 继承为解析时行为，不向 settings 落盘子项键。
+  const repoContextId = isRequirement ? selectedId : parent?.workitemId;
+  const hasRepoOverride = repoContextId != null && Object.prototype.hasOwnProperty.call(settings?.workitemRepos ?? {}, repoContextId);
   const effectiveRepoIds = hasRepoOverride
-    ? settings?.workitemRepos[selectedId!] ?? []
+    ? settings?.workitemRepos[repoContextId!] ?? []
     : settings?.watchedRepos ?? [];
   const [savingRepos, setSavingRepos] = useState(false);
   const [isLinkRepoModalOpen, setIsLinkRepoModalOpen] = useState(false);
@@ -339,7 +381,12 @@ export function RequirementDetails({
   const baselineLookups = iterationId
     ? effectiveRepoIds.flatMap((repoId) => {
       const rule = repoBranchRules[repoId];
-      return rule?.baselineBranch.trim() ? [{ repoId, branch: rule.baselineBranch.trim() }] : [];
+      if (!rule?.baselineBranch.trim()) return [];
+      // 直连主干（Trunk-Based）：不发起独立基准查询，探测模板源分支存在性并归并复用为基准状态
+      const branch = isDirectConnectRule(rule)
+        ? rule.sourceBranch.trim()
+        : rule.baselineBranch.trim();
+      return [{ repoId, branch }];
     })
     : [];
   const baselineLookupKey = JSON.stringify(baselineLookups);
@@ -378,10 +425,10 @@ export function RequirementDetails({
     : !sprintId
       ? '未关联迭代'
       : !configuredBaselineCount
-        ? '未选择模板'
+        ? '未配置轨道'
         : configuredBaselineCount === effectiveRepoIds.length && effectiveRepoIds.length === 1
           ? repoBranchRules[effectiveRepoIds[0]].templateName
-          : configuredBaselineCount + ' 个仓库已选择模板';
+          : configuredBaselineCount + ' 个仓库已应用交付轨道';
 
   const linkedRepos = repositories.filter((r) => effectiveRepoIds.includes(r.id));
   const [repoFilter, setRepoFilter] = useState<'all' | 'pending_merge' | 'active' | 'merged'>('all');
@@ -487,9 +534,16 @@ export function RequirementDetails({
     ? linkedRepos.flatMap((repo) => {
         const rule = repoBranchRules[repo.id];
         if (!rule) return [];
+        const directConnect = isDirectConnectRule(rule);
         const branches = branchesByRepoId.get(repo.id) ?? [];
         const baselineCheck = baselineChecks[repo.id];
-        const baselineState = baselineCheck?.branch === rule.baselineBranch ? baselineCheck.state : 'loading';
+        // 直连主干：基准状态归并自源分支探测结果，杜绝"迭代基准未创建（missing）"误报
+        const expectedBaselineBranch = directConnect
+          ? rule.sourceBranch.trim()
+          : rule.baselineBranch.trim();
+        const baselineState = baselineCheck?.branch === expectedBaselineBranch
+          ? baselineCheck.state
+          : 'loading';
         const base = {
           key: `${repo.id}`,
           repoId: repo.id,
@@ -893,13 +947,13 @@ export function RequirementDetails({
                 </Chip>
               </button>
 
-              {/* 迭代基准 Chip */}
+              {/* 交付轨道 Chip */}
               {iterationBranchValue && iterationBranchValue !== '—' && (
                 <Chip
                   size="sm"
                   variant="soft"
                   className="gap-1.5 max-w-56 text-foreground/85 select-none font-mono"
-                  title={`迭代基准规则/模板：${iterationBranchValue}`}
+                  title={`交付轨道（Track/局点）：${iterationBranchValue}`}
                 >
                   <GitBranchIcon className="size-3.5 text-muted-foreground shrink-0" />
                   <Chip.Label className="truncate">
@@ -1321,7 +1375,11 @@ export function RequirementDetails({
                         templateEnabled={Boolean(isRequirement && iterationId)}
                         baselineBranch={rule?.baselineBranch}
                         baselineState={rule
-                          ? baselineCheck?.branch === rule.baselineBranch ? baselineCheck.state : 'loading'
+                          ? baselineCheck?.branch === (isDirectConnectRule(rule)
+                            ? rule.sourceBranch.trim()
+                            : rule.baselineBranch.trim())
+                            ? baselineCheck.state
+                            : 'loading'
                           : undefined}
                         refreshSignal={codeAreaRefreshSignal}
                         onRetryBaseline={() => setBaselineRetry((value) => value + 1)}

@@ -50,7 +50,7 @@
 }
 ```
 - `workitemRepos` 只用于 `Req`；Bug/Task 继续扫描 `watchedRepos`。没有该需求的键时回退到 `watchedRepos`，空数组覆盖默认值。
-- `branchRuleTemplates` 在迭代页维护并保存在本机；模板含源分支、迭代基准分支命名模板和需求开发分支命名模板。基准分支名支持 `{iteration}`、`{template}`，需求分支名支持 `{identifier}`。
+- `branchRuleTemplates` 在迭代页维护并保存在本机；模板含源分支、迭代基准分支命名模板和需求开发分支命名模板。基准分支名支持 `{iteration}`、`{template}` 及其等价别名 `{track}`（`{template}` 永久保留兼容旧配置），需求分支名支持 `{identifier}`。
 - `workitemRepoBranchTemplates` 在需求页逐个仓库选择模板，键为稳定 `workitemId`，内层键为仓库 ID，值为模板 ID。创建真实迭代需求分支时，先检查模板基准；缺失时从模板源分支创建迭代基准，再从迭代基准创建需求分支。MR 默认以需求分支为源、迭代基准为目标。此配置保存在本机。
 - 每个 Jenkins API Token 存在 macOS Keychain：service=`dev.nervd.app`，account=`jenkins:<connectionId>`；Token 不写入 `settings.json`。Jenkins 通过用户名与 API Token 做 HTTP Basic 认证。
 - 未配置 PAT 或 organizationId 时，UI 显示**引导页**（SettingsView）。

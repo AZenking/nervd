@@ -57,10 +57,17 @@ export function LinkedRepoPrimaryAction({
 }: LinkedRepoPrimaryActionProps) {
   switch (action) {
     case 'configure-rule':
+      // 零模板引导：不再暗示逐仓库必选，引导一次性配置全局默认交付轨道（Track/局点），所有仓库自动继承
       return (
-        <Button type="button" size="sm" variant="outline" onPress={onConfigureRule}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onPress={onConfigureRule}
+          title="尚未配置任何交付轨道：前往设置一次性配置全局默认轨道，所有关联仓库将自动继承"
+        >
           <GitBranchIcon data-icon="inline-start" />
-          配置分支规则
+          前往配置交付轨道
         </Button>
       );
     case 'create-baseline':
