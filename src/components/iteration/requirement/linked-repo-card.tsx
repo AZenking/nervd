@@ -71,6 +71,13 @@ export type { LinkedRepoPrimaryActionProps } from './linked-repo-primary-action'
 export { useLinkedRepoBranchOps } from './linked-repo-branch-ops';
 export type { UseLinkedRepoBranchOpsParams } from './linked-repo-branch-ops';
 
+export interface LinkedRepoBugMrContext {
+  /** 缺陷工作项 ID（测试影响范围评论发布目标） */
+  bugWorkitemId: string;
+  requirementIdentifier: string;
+  requirementSubject: string;
+}
+
 export interface LinkedRepoCardProps {
   repo: RepoSummary;
   identifier: string;
@@ -88,6 +95,13 @@ export interface LinkedRepoCardProps {
   baselineBranch?: string;
   baselineState?: IterationBaselineCheck['state'];
   refreshSignal?: number;
+  /**
+   * 缺陷上下文的合并目标覆盖：需求单号分支（「缺陷单号分支 → 需求单号分支」）。
+   * 传入后落差比对 / 建分支源 / MR 目标统一替换为该分支；迭代基准探测仍按 branchRule 展示。
+   */
+  operationBaseBranchOverride?: string;
+  /** 缺陷页发起 MR 的上下文（AI 修改说明与测试影响范围评论） */
+  bugMrContext?: LinkedRepoBugMrContext;
   onRetryBaseline: () => void;
   onTemplateChange: (templateId: string | null) => void;
   onUnlinkRepo?: (repoId: number) => void;
@@ -132,6 +146,8 @@ export function LinkedRepoCard({
   baselineBranch,
   baselineState,
   refreshSignal,
+  operationBaseBranchOverride,
+  bugMrContext,
   onRetryBaseline,
   onTemplateChange,
   onUnlinkRepo,
@@ -158,6 +174,8 @@ export function LinkedRepoCard({
   const operationBaseBranch = iterationId
     ? (baselineBranch?.trim() || configuredBaselineBranch)
     : 'master';
+  // 缺陷上下文合并目标覆盖：缺陷单号分支 → 需求单号分支（落差比对 / 建分支源 / MR 目标统一替换）
+  const effectiveOperationBaseBranch = operationBaseBranchOverride?.trim() || operationBaseBranch;
   // 直连主干（Trunk-Based）：迭代基准即模板源分支，无"创建迭代基准"环节
   const directConnect = branchRule ? isDirectConnectRule(branchRule) : false;
 
@@ -188,7 +206,7 @@ export function LinkedRepoCard({
     placeholderIteration,
     identifier,
     developerBranch,
-    operationBaseBranch,
+    operationBaseBranch: effectiveOperationBaseBranch,
     templateSourceBranch,
     hasValidRule,
     refreshSignal,
@@ -202,7 +220,7 @@ export function LinkedRepoCard({
   const divergence = useBranchDivergence(
     repo.id,
     developerBranch,
-    operationBaseBranch,
+    effectiveOperationBaseBranch,
     baselineState,
     developerBranchState,
   );
@@ -226,8 +244,8 @@ export function LinkedRepoCard({
     const aSourceMatch = developerBranch && a.sourceBranch === developerBranch ? 1 : 0;
     const bSourceMatch = developerBranch && b.sourceBranch === developerBranch ? 1 : 0;
     if (aSourceMatch !== bSourceMatch) return bSourceMatch - aSourceMatch;
-    const aTargetMatch = operationBaseBranch && a.targetBranch === operationBaseBranch ? 1 : 0;
-    const bTargetMatch = operationBaseBranch && b.targetBranch === operationBaseBranch ? 1 : 0;
+    const aTargetMatch = effectiveOperationBaseBranch && a.targetBranch === effectiveOperationBaseBranch ? 1 : 0;
+    const bTargetMatch = effectiveOperationBaseBranch && b.targetBranch === effectiveOperationBaseBranch ? 1 : 0;
     if (aTargetMatch !== bTargetMatch) return bTargetMatch - aTargetMatch;
     return b.localId - a.localId;
   });
@@ -243,13 +261,13 @@ export function LinkedRepoCard({
 
   // An unrelated repository MR must not stand in for this work item's delivery path.
   const sourceMatchingActiveMrs = activeMrs.filter((mr) => developerBranch && mr.sourceBranch === developerBranch);
-  const targetActiveMr = sourceMatchingActiveMrs.find((mr) => mr.targetBranch === operationBaseBranch)
+  const targetActiveMr = sourceMatchingActiveMrs.find((mr) => mr.targetBranch === effectiveOperationBaseBranch)
     ?? sourceMatchingActiveMrs[0];
   const hasMatchingMergedMr = historyMrs.some((mr) =>
     mr.state?.toLowerCase() === 'merged'
       && developerBranch
       && mr.sourceBranch === developerBranch
-      && mr.targetBranch === operationBaseBranch,
+      && mr.targetBranch === effectiveOperationBaseBranch,
   );
 
   const traceState: RepoTraceState = traceRefreshState
@@ -273,10 +291,10 @@ export function LinkedRepoCard({
   });
 
   const targetBranch = delivery.isAllMerged
-    ? (operationBaseBranch || 'master')
+    ? (effectiveOperationBaseBranch || 'master')
     : developerBranchState === 'exists'
       ? developerBranch
-      : (operationBaseBranch || 'master');
+      : (effectiveOperationBaseBranch || 'master');
 
   const buildTarget: BuildWorkbenchTarget = {
     kind: 'repo',
@@ -378,12 +396,12 @@ export function LinkedRepoCard({
         palette={palette}
         developerBranch={developerBranch}
         developerBranchState={developerBranchState}
-        operationBaseBranch={operationBaseBranch}
+        operationBaseBranch={effectiveOperationBaseBranch}
         primaryAction={
           <LinkedRepoPrimaryAction
             action={delivery.action}
             baselineCreating={baselineCreating}
-            operationBaseBranch={operationBaseBranch}
+            operationBaseBranch={effectiveOperationBaseBranch}
             onCreateIterationBaseline={createIterationBaseline}
             branchCreating={branchCreating}
             developerBranch={developerBranch}
@@ -425,7 +443,7 @@ export function LinkedRepoCard({
         divergence={divergence}
         targetActiveMr={targetActiveMr}
         developerBranch={developerBranch}
-        operationBaseBranch={operationBaseBranch}
+        operationBaseBranch={effectiveOperationBaseBranch}
         historyMrs={historyMrs}
         hasMatchingMergedMr={hasMatchingMergedMr}
         onViewMr={handleViewMr}
@@ -441,7 +459,6 @@ export function LinkedRepoCard({
           setCiModalOpen(true);
         }}
       />
-
       {/* 下沉展开折叠面板 */}
       <Collapsible
         open={detailsOpen}
@@ -466,7 +483,7 @@ export function LinkedRepoCard({
               repoName={repo.name}
               developerBranch={developerBranch}
               developerBranchState={developerBranchState}
-              operationBaseBranch={operationBaseBranch}
+              operationBaseBranch={effectiveOperationBaseBranch}
               iterationId={iterationId}
               baselineBranch={baselineBranch}
               configuredBaselineBranch={configuredBaselineBranch}
@@ -535,8 +552,15 @@ export function LinkedRepoCard({
         identifier={identifier}
         subject={subject}
         sourceBranch={developerBranch}
-        targetBranch={operationBaseBranch}
+        targetBranch={effectiveOperationBaseBranch}
         availableBranches={matchedBranches}
+        bugContext={bugMrContext ? {
+          bugWorkitemId: bugMrContext.bugWorkitemId,
+          bugIdentifier: identifier,
+          bugSubject: subject,
+          requirementIdentifier: bugMrContext.requirementIdentifier,
+          requirementSubject: bugMrContext.requirementSubject,
+        } : undefined}
         onSuccess={(info) => {
           divergence.refetch();
           void loadTrace();

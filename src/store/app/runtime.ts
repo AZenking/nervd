@@ -20,6 +20,8 @@ export interface AppRuntime {
   pipelineRunRequests: Map<number, number>;
   repoCiRequests: Map<number, number>;
   childrenRequests: Map<string, number>;
+  /** 子工作项 → 父需求 ID 索引：loadChildren / addOptimisticChild 时写入，供子项解析父级上下文（仓库继承、MR 目标分支） */
+  childParentIndex: Map<string, string>;
   optimisticChildStatuses: Map<string, { status: string; statusId?: string; updatedAt: number }>;
   optimisticChildPreviousStatuses: Map<string, { status?: string; statusId?: string }>;
   optimisticCreatedChildren: Map<string, { parentId: string; item: WorkitemChild; createdAt: number }>;
@@ -35,6 +37,7 @@ export function createAppRuntime(): AppRuntime {
     pipelineRunRequests: new Map(),
     repoCiRequests: new Map(),
     childrenRequests: new Map(),
+    childParentIndex: new Map(),
     optimisticChildStatuses: new Map(),
     optimisticChildPreviousStatuses: new Map(),
     optimisticCreatedChildren: new Map(),

@@ -259,8 +259,9 @@ export async function loadWorkitemTrace(
   identifier: string,
   category: Category,
   settings: Pick<Settings, 'watchedRepos' | 'linkPattern' | 'workitemRepos' | 'repoCiBindings'>,
+  parentWorkitemId?: string,
 ): Promise<TraceResult> {
-  const repoIds = workitemRepoIds(category, workitemId, settings);
+  const repoIds = workitemRepoIds(category, workitemId, settings, parentWorkitemId);
   const repositories = await Promise.all(
     repoIds.map((repoId) =>
       loadRepoTrace(repoId, identifier, settings.linkPattern),

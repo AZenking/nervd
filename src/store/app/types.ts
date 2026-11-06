@@ -109,6 +109,8 @@ export interface WorkitemsSlice {
   ): Promise<boolean>;
   updateChildStatusOptimistic(workitemId: string, newStatus: string, statusId?: string): Promise<boolean>;
   addOptimisticChild(parentWorkitemId: string, childOrChildren: api.WorkitemChild | api.WorkitemChild[]): void;
+  /** 子工作项 → 父需求 ID（运行期索引；未命中返回 undefined） */
+  parentIdOf(workitemId: string): string | undefined;
 }
 
 export interface IterationsSlice {

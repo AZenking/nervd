@@ -3,6 +3,29 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChildrenCard } from './children-card';
 import { useApp } from '@/store/app';
+import * as api from '@/lib/api';
+
+vi.mock('@/lib/api', () => ({
+  listWorkitemTypes: vi.fn().mockResolvedValue([
+    { id: 'type-task', name: '任务', category: 'Task', defaultType: true },
+    { id: 'type-bug', name: '缺陷', category: 'Bug', defaultType: true },
+  ]),
+  createWorkitemChild: vi.fn().mockResolvedValue({
+    workitemId: 'task-9',
+    identifier: 'TASK-909',
+    subject: '编写回归用例',
+    category: 'Task',
+    status: '待办',
+    assignedTo: '林益生',
+  }),
+  createWorkitemComment: vi.fn().mockResolvedValue({ success: true }),
+  setWorkitemEstimatedEffort: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/lib/ai-api', () => ({
+  getAiSettings: vi.fn().mockResolvedValue({ hasApiKey: false, breakdownMode: 'review', defaultBreakdownTags: [] }),
+  aiBreakdownRequirement: vi.fn(),
+}));
 
 let host: HTMLDivElement;
 let root: Root;
@@ -111,5 +134,87 @@ describe('ChildrenCard Fast Create with Select Components', () => {
     const updatedTriggers = host.querySelectorAll('[data-slot="select-trigger"]');
     const updatedAssignee = Array.from(updatedTriggers).find((t) => t.textContent?.includes('张三'));
     expect(updatedAssignee).not.toBeUndefined();
+  });
+});
+
+describe('ChildrenCard 创建动态回写', () => {
+  const renderCard = async () => {
+    await act(async () => {
+      root.render(
+        <ChildrenCard
+          title="子任务"
+          category="Task"
+          description="挂载在该需求下的子任务"
+          items={[]}
+          parentWorkitemId="req-1"
+          parentIdentifier="REQ-101"
+          parentSubject="需求标题"
+          parentAssigneeId="u1"
+          parentAssigneeName="林益生"
+          candidateAssignees={[{ id: 'u1', name: '林益生', role: '需求负责人' }]}
+          onSelect={vi.fn()}
+        />,
+      );
+    });
+  };
+
+  const typeAndSubmit = async (text: string) => {
+    const addBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('新建子任务'),
+    );
+    await act(async () => {
+      addBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    const input = host.querySelector('input[placeholder^="输入子任务名称"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => {
+      setter.call(input, text);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    });
+  };
+
+  beforeEach(() => {
+    vi.mocked(api.createWorkitemChild).mockClear();
+    vi.mocked(api.createWorkitemComment).mockClear();
+    vi.mocked(api.createWorkitemComment).mockResolvedValue({ success: true });
+    const loadChildren = vi.fn().mockResolvedValue(undefined);
+    const addOptimisticChild = vi.fn();
+    const reloadComments = vi.fn().mockResolvedValue(undefined);
+    useApp.setState({ loadChildren, addOptimisticChild, reloadComments } as never);
+  });
+
+  it('单个任务创建成功后向父需求动态发布「概要 + 状态」评论并刷新动态', async () => {
+    await renderCard();
+    await typeAndSubmit('编写回归用例');
+
+    expect(api.createWorkitemChild).toHaveBeenCalledWith('req-1', expect.objectContaining({
+      subject: '编写回归用例',
+      category: 'Task',
+    }));
+    expect(api.createWorkitemComment).toHaveBeenCalledTimes(1);
+    const [workitemId, content, formatType] = vi.mocked(api.createWorkitemComment).mock.calls[0];
+    expect(workitemId).toBe('req-1');
+    expect(formatType).toBe('RICHTEXT');
+    expect(String(content)).toContain('TASK-909');
+    expect(String(content)).toContain('编写回归用例');
+    expect(String(content)).toContain('待办');
+    // 动态刷新面向父需求
+    const reloadComments = useApp.getState().reloadComments as unknown as ReturnType<typeof vi.fn>;
+    expect(reloadComments).toHaveBeenCalledWith('req-1');
+  });
+
+  it('动态评论发布失败不阻断创建流程（无异常抛出）', async () => {
+    vi.mocked(api.createWorkitemComment).mockRejectedValueOnce(new Error('云效 400 拦截'));
+    await renderCard();
+    await typeAndSubmit('编写回归用例');
+
+    expect(api.createWorkitemChild).toHaveBeenCalledTimes(1);
+    // 评论失败后不再刷新动态
+    const reloadComments = useApp.getState().reloadComments as unknown as ReturnType<typeof vi.fn>;
+    expect(reloadComments).not.toHaveBeenCalled();
   });
 });

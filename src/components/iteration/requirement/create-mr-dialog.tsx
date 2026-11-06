@@ -3,7 +3,8 @@ import {
   ArrowRightIcon, GitPullRequestIcon, Loader2Icon, SparklesIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
-import { aiGenerateMergeRequest } from '@/lib/ai-api';
+import { aiGenerateBugMergeContext, aiGenerateMergeRequest, getAiSettings } from '@/lib/ai-api';
+import { markdownToHtml, sanitizeForYunxiao } from '@/lib/richtext';
 import { comparisonCommits } from '../BranchDivergenceCheck';
 import { mergeRequestRows, mergeRequestBranch } from './types';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,15 @@ function parseBranchList(value: unknown): string[] {
   return [...new Set(collect(value).map((name) => name.trim()).filter(Boolean))].sort();
 }
 
+/** 缺陷页发起 MR 的上下文：自动补充缺陷单号与所属需求，AI 生成修改说明并在创建后发布测试影响范围 */
+export interface CreateMrBugContext {
+  bugWorkitemId: string;
+  bugIdentifier: string;
+  bugSubject: string;
+  requirementIdentifier: string;
+  requirementSubject: string;
+}
+
 export interface CreateMrDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -51,6 +61,8 @@ export interface CreateMrDialogProps {
   sourceBranch?: string;
   targetBranch?: string;
   availableBranches?: string[];
+  /** 缺陷上下文：源分支 = 缺陷单号分支，目标分支 = 需求单号分支（由调用方解析） */
+  bugContext?: CreateMrBugContext;
   onSuccess?: (info: { localId?: number; sourceBranch: string; targetBranch: string }) => void;
   onNavigateToMr?: (localId: number) => void;
 }
@@ -65,6 +77,7 @@ export function CreateMrDialog({
   sourceBranch: initialSourceBranch = '',
   targetBranch: initialTargetBranch = '',
   availableBranches = [],
+  bugContext,
   onSuccess,
   onNavigateToMr,
 }: CreateMrDialogProps) {
@@ -77,13 +90,14 @@ export function CreateMrDialog({
   const [remoteBranches, setRemoteBranches] = useState<string[]>([]);
   const [loadingBranches, setLoadingBranches] = useState(false);
 
-  // 记录 AI 生成请求时的上下文，用于异步防竞态与脏检查
-  const aiContextRef = useRef<{
-    source: string;
-    target: string;
-    initiatedTitle: string;
-    initiatedDesc: string;
-  } | null>(null);
+  // 异步防竞态与脏检查的最新值镜像（手动点击与「打开即自动生成」共用，规避闭包过期值）
+  const branchesRef = useRef({ source: '', target: '' });
+  const openRef = useRef(false);
+  const userEditedRef = useRef(false);
+  branchesRef.current = { source: sourceBranch, target: targetBranch };
+  openRef.current = open;
+  // 缺陷上下文：最近一次 AI 生成产出的测试影响范围（MR 创建成功后发布到缺陷自身动态）
+  const bugImpactScopeRef = useRef('');
 
   // 当弹窗打开时初始化表单
   useEffect(() => {
@@ -93,8 +107,13 @@ export function CreateMrDialog({
       setSourceBranch(src);
       setTargetBranch(tgt);
       setTitle(`${identifier} ${subject}`.trim());
-      setDescription(`### 关联工作项\n${identifier} ${subject}\n\n### 变更分支\n${src || '（未选择）'} -> ${tgt || '（未选择）'}`);
+      const workitemSection = bugContext
+        ? `### 关联缺陷\n${identifier} ${subject}\n\n### 所属需求\n${bugContext.requirementIdentifier} ${bugContext.requirementSubject}`
+        : `### 关联工作项\n${identifier} ${subject}`;
+      setDescription(`${workitemSection}\n\n### 变更分支\n${src || '（未选择）'} -> ${tgt || '（未选择）'}`);
       setRemoteBranches(availableBranches);
+      userEditedRef.current = false;
+      bugImpactScopeRef.current = '';
 
       // 异步补拉仓库远端分支列表
       setLoadingBranches(true);
@@ -107,8 +126,23 @@ export function CreateMrDialog({
           // 容错处理
         })
         .finally(() => setLoadingBranches(false));
+
+      // 缺陷上下文 + AI 已配置：打开即自动生成修改说明（失败保留默认预填，仅提示）
+      if (bugContext) {
+        void (async () => {
+          try {
+            const aiSettings = await getAiSettings();
+            if (!aiSettings.hasApiKey || !openRef.current) return;
+            await runAiGenerate();
+          } catch (err) {
+            toast.add({ title: 'AI 自动生成修改说明失败', description: String(err), type: 'info' });
+          }
+        })();
+      }
     }
-  }, [open, identifier, subject, initialSourceBranch, initialTargetBranch, availableBranches, repoId]);
+  // bugContext 对象随渲染重建，这里只依赖稳定原始值
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, identifier, subject, initialSourceBranch, initialTargetBranch, availableBranches, repoId, bugContext?.bugWorkitemId, bugContext?.requirementIdentifier]);
 
   // 合并全部可选分支（保证当前选中的分支即使在初始列表中没有也可见）
   const branchOptions = useMemo<SearchableSelectOption<string>[]>(() => {
@@ -147,26 +181,20 @@ export function CreateMrDialog({
     });
   };
 
-  const handleAiGenerate = async () => {
-    if (!sourceBranch.trim() || !targetBranch.trim()) {
+  /** AI 生成（通用 / 缺陷上下文共用）：读取 refs 最新值做防竞态与脏检查，结果可安全用于「打开即自动生成」 */
+  const runAiGenerate = async () => {
+    const reqSource = branchesRef.current.source.trim();
+    const reqTarget = branchesRef.current.target.trim();
+    if (!reqSource || !reqTarget) {
       toast.add({ title: '请先选定源分支和目标分支', type: 'warning' });
       return;
     }
-    if (sourceBranch.trim() === targetBranch.trim()) {
+    if (reqSource === reqTarget) {
       toast.add({ title: '源分支和目标分支不能相同', type: 'warning' });
       return;
     }
 
     setAiGenerating(true);
-    const reqSource = sourceBranch.trim();
-    const reqTarget = targetBranch.trim();
-    aiContextRef.current = {
-      source: reqSource,
-      target: reqTarget,
-      initiatedTitle: title,
-      initiatedDesc: description,
-    };
-
     try {
       let commitMessages: string[] = [];
       try {
@@ -179,6 +207,40 @@ export function CreateMrDialog({
         // compare 失败时回退直接生成
       }
 
+      if (bugContext) {
+        // 缺陷上下文：一次生成 标题 + 修改说明 + 测试影响范围
+        const draft = await aiGenerateBugMergeContext({
+          bugIdentifier: bugContext.bugIdentifier || identifier,
+          bugSubject: bugContext.bugSubject || subject,
+          requirementIdentifier: bugContext.requirementIdentifier,
+          requirementSubject: bugContext.requirementSubject,
+          sourceBranch: reqSource,
+          targetBranch: reqTarget,
+          commits: commitMessages,
+        });
+
+        // 异步防竞态：弹窗已关闭或分支已变更，放弃静默覆盖
+        if (!openRef.current
+          || branchesRef.current.source.trim() !== reqSource
+          || branchesRef.current.target.trim() !== reqTarget) {
+          toast.add({ title: '分支已更改，已丢弃旧分支的 AI 生成结果', type: 'info' });
+          return;
+        }
+        if (userEditedRef.current) {
+          toast.add({
+            title: '已由 AI 生成修改说明',
+            description: '检测到您在生成期间有新编辑，如需覆盖可再次点击生成。',
+            type: 'info',
+          });
+          return;
+        }
+        setTitle(draft.title);
+        setDescription(draft.description);
+        bugImpactScopeRef.current = draft.testImpactScope.trim();
+        toast.add({ title: '已由 AI 生成修改说明与测试影响范围', type: 'success' });
+        return;
+      }
+
       const draft = await aiGenerateMergeRequest({
         identifier,
         subject,
@@ -187,20 +249,13 @@ export function CreateMrDialog({
         commits: commitMessages,
       });
 
-      // 异步防竞态检查：若分支已发生变更，或者表单已关闭，放弃静默覆盖
-      if (sourceBranch.trim() !== reqSource || targetBranch.trim() !== reqTarget) {
-        toast.add({
-          title: '分支已更改，已丢弃旧分支的 AI 生成结果',
-          type: 'info',
-        });
+      if (!openRef.current
+        || branchesRef.current.source.trim() !== reqSource
+        || branchesRef.current.target.trim() !== reqTarget) {
+        toast.add({ title: '分支已更改，已丢弃旧分支的 AI 生成结果', type: 'info' });
         return;
       }
-
-      // 脏检查：如果用户在生成期间修改了内容，提示并不静默覆盖
-      const userEditedDuringGen = (title !== aiContextRef.current?.initiatedTitle)
-        || (description !== aiContextRef.current?.initiatedDesc);
-
-      if (userEditedDuringGen) {
+      if (userEditedRef.current) {
         toast.add({
           title: '已由 AI 生成描述',
           description: '检测到您在生成期间有新编辑，如需覆盖可再次点击生成。',
@@ -223,7 +278,6 @@ export function CreateMrDialog({
       });
     } finally {
       setAiGenerating(false);
-      aiContextRef.current = null;
     }
   };
 
@@ -299,6 +353,23 @@ export function CreateMrDialog({
         type: 'success',
       });
 
+      // 缺陷上下文：MR 创建成功后，把 AI 生成的测试影响范围自动补充到缺陷自身动态（best-effort）
+      const impactScope = bugImpactScopeRef.current.trim();
+      if (bugContext && impactScope) {
+        try {
+          const html = markdownToHtml(sanitizeForYunxiao(impactScope));
+          await api.createWorkitemComment(bugContext.bugWorkitemId, html, 'RICHTEXT');
+          toast.add({ title: '测试影响范围已补充至缺陷动态', type: 'success' });
+        } catch (commentErr) {
+          toast.add({
+            title: '测试影响范围评论发布失败',
+            description: `${String(commentErr)}（MR 已创建，可手动到缺陷动态补充）`,
+            type: 'warning',
+          });
+        }
+      }
+      bugImpactScopeRef.current = '';
+
       onSuccess?.({
         localId: createdLocalId,
         sourceBranch: src,
@@ -352,16 +423,18 @@ export function CreateMrDialog({
               size="xs"
               variant="outline"
               disabled={aiGenerating || submitting || !sourceBranch.trim() || !targetBranch.trim() || sourceBranch === targetBranch}
-              onPress={() => void handleAiGenerate()}
+              onPress={() => void runAiGenerate()}
               className="h-6 text-xs text-primary border-primary/30 hover:bg-primary/10"
-              title="根据当前分支落差与工作项，AI 智能拟定 MR 标题与说明"
+              title={bugContext
+                ? 'AI 生成 MR 修改说明与测试影响范围（创建成功后自动补充到缺陷动态）'
+                : '根据当前分支落差与工作项，AI 智能拟定 MR 标题与说明'}
             >
               {aiGenerating ? (
                 <Loader2Icon className="size-3 animate-spin mr-1" />
               ) : (
                 <SparklesIcon className="size-3 mr-1 text-primary" />
               )}
-              {aiGenerating ? 'AI 拟定中…' : 'AI 智能拟定描述'}
+              {aiGenerating ? 'AI 生成中…' : bugContext ? 'AI 重新生成' : 'AI 智能拟定描述'}
             </Button>
           </Card.Header>
 
@@ -404,7 +477,10 @@ export function CreateMrDialog({
             <label className="text-xs font-medium text-foreground">MR 标题</label>
             <Input
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                userEditedRef.current = true;
+                setTitle(e.target.value);
+              }}
               placeholder="feat(REQ-xxx): 标题"
               disabled={submitting}
               className="h-8 text-xs font-mono bg-background"
@@ -415,7 +491,10 @@ export function CreateMrDialog({
             <label className="text-xs font-medium text-foreground">详细变更说明 (Markdown)</label>
             <Textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                userEditedRef.current = true;
+                setDescription(e.target.value);
+              }}
               placeholder="变更背景、改动点与自测步骤…"
               rows={7}
               disabled={submitting}

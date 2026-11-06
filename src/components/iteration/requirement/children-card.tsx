@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { getAiSettings, aiBreakdownRequirement } from '@/lib/ai-api';
+import { postChildCreationActivity } from '@/lib/child-activity';
 import type { AiSettingsView } from '@/types/ai';
 import { AiBreakdownDialog } from './ai-breakdown-dialog';
 import { errorLog, humanizeError } from '@/lib/error-format';
@@ -213,7 +214,7 @@ export function ChildrenCard({
   onSelect,
   footnote,
 }: ChildrenCardProps) {
-  const { settings, setToast, loadChildren, addOptimisticChild } = useApp();
+  const { settings, setToast, loadChildren, addOptimisticChild, reloadComments } = useApp();
   const openSettings = useUi((s) => s.openSettings);
   const allowWriteOps = settings?.allowWriteOps ?? false;
 
@@ -338,6 +339,11 @@ export function ChildrenCard({
 
       addOptimisticChild(parentWorkitemId, createdChildren);
       void loadChildren(parentWorkitemId);
+      // AI 批量拆解：需求动态汇总一条（全部任务概要与状态），避免逐条刷屏
+      void postChildCreationActivity(parentWorkitemId, createdChildren, 'Task')
+        .then((posted) => {
+          if (posted) void reloadComments(parentWorkitemId);
+        });
       toast.add({
         title: 'AI 一键拆解完成',
         description: `已自动为 ${parentIdentifier || '当前需求'} 批量创建 ${generated.length} 个子任务`,
@@ -432,6 +438,11 @@ export function ChildrenCard({
       setNewSubject('');
       setIsAdding(false);
       void loadChildren(parentWorkitemId);
+      // 需求动态补充：任务带概要与状态，缺陷只带当前动态（best-effort，失败不阻断）
+      void postChildCreationActivity(parentWorkitemId, [completeChild], isBug ? 'Bug' : 'Task')
+        .then((posted) => {
+          if (posted) void reloadComments(parentWorkitemId);
+        });
     } catch (cause) {
       errorLog('inline-subtask-create', cause);
       setToast({ text: `${title}创建失败：${humanizeError(cause)}`, kind: 'fail' });

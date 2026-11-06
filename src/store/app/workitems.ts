@@ -306,6 +306,10 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
         runtime.childrenRequests.set(workitemId, requestId);
         try {
           const result = await api.listWorkitemChildren(workitemId);
+          // 子→父索引：后续直接选中子项（不经过父详情钻取）也能解析父级上下文
+          for (const child of result.items) {
+            runtime.childParentIndex.set(child.workitemId, workitemId);
+          }
           if (runtime.childrenRequests.get(workitemId) !== requestId) return;
           if (get().selectedId !== workitemId && get().selectedId !== null) return;
           set({
@@ -373,9 +377,14 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
         const selected = current.items.find((item) => item.workitemId === workitemId);
         const child = current.children.find((item) => item.workitemId === workitemId);
         const category = (selected?.category || child?.category || current.category) as Category;
-        if (isCurrent() && settings && workitemRepoIds(category, workitemId, settings).length > 0) {
+        const parentIdOfSelection = category === 'Req' ? undefined : runtime.childParentIndex.get(workitemId);
+        if (isCurrent() && settings && workitemRepoIds(category, workitemId, settings, parentIdOfSelection).length > 0) {
           void get().loadTrace();
         }
+      },
+
+      parentIdOf(workitemId) {
+        return runtime.childParentIndex.get(workitemId);
       },
 
       async reloadComments(workitemId?: string) {
@@ -484,6 +493,7 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
         const children = Array.isArray(childOrChildren) ? childOrChildren : [childOrChildren];
         const createdAt = Date.now();
         for (const child of children) {
+          runtime.childParentIndex.set(child.workitemId, parentWorkitemId);
           runtime.optimisticCreatedChildren.set(child.workitemId, {
             parentId: parentWorkitemId,
             item: { ...child },

@@ -53,6 +53,15 @@ export interface AiMergeRequestDraft {
   description: string;
 }
 
+/** 缺陷页发起 MR 的 AI 一次性产物：MR 标题 + 修改说明（写入 MR 描述）+ 测试影响范围（发布到缺陷动态） */
+export interface AiBugMergeContext {
+  title: string;
+  /** 修改说明：结构化 Markdown，填充 MR 详细变更说明 */
+  description: string;
+  /** 测试影响范围：发布为缺陷动态评论的 Markdown */
+  testImpactScope: string;
+}
+
 export interface AiRepoRecommendation {
   repoId: number;
   repoName: string;

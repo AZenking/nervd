@@ -72,7 +72,9 @@ export function createTraceSlice(runtime: AppRuntime): AppSliceCreator<TraceSlic
       set({ traceLoading: true });
       try {
         const category = (firstString(detail, ['category']) || selected?.category || child?.category || get().category) as Category;
-        const trace = await loadWorkitemTrace(selectedId, identifier, category, settings);
+        // 子项（Task/Bug）追溯仓库继承父需求：经运行期索引解析父级后透传
+        const parentWorkitemId = category === 'Req' ? undefined : get().parentIdOf(selectedId);
+        const trace = await loadWorkitemTrace(selectedId, identifier, category, settings, parentWorkitemId);
         if (!isCurrent()) return { status: 'fail', errors: ['追溯请求已失效'] };
         set({ trace });
         if (category === 'Req') {

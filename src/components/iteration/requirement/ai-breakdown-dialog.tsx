@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { aiBreakdownRequirement } from '@/lib/ai-api';
+import { postChildCreationActivity } from '@/lib/child-activity';
 import type { WorkitemChild, WorkitemTypeOption } from '@/lib/api';
 import { useApp } from '@/store/app';
 import type { AiBreakdownItem } from '@/types/ai';
@@ -66,6 +67,7 @@ export function AiBreakdownDialog({
   const [creating, setCreating] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
   const addOptimisticChild = useApp((s) => s.addOptimisticChild);
+  const reloadComments = useApp((s) => s.reloadComments);
 
   const fallbackAssignee = {
     id: parentAssigneeId || '',
@@ -208,6 +210,11 @@ export function AiBreakdownDialog({
 
       if (createdChildren.length > 0) {
         addOptimisticChild(parentWorkitemId, createdChildren);
+        // AI 批量拆解：需求动态汇总一条（全部任务概要与状态），best-effort 不阻断
+        void postChildCreationActivity(parentWorkitemId, createdChildren, 'Task')
+          .then((posted) => {
+            if (posted) void reloadComments(parentWorkitemId);
+          });
       }
       await onCreated();
       toast.add({
@@ -219,6 +226,11 @@ export function AiBreakdownDialog({
     } catch (err) {
       if (createdChildren.length > 0) {
         addOptimisticChild(parentWorkitemId, createdChildren);
+        // 部分成功：已创建部分同样汇总补充需求动态
+        void postChildCreationActivity(parentWorkitemId, createdChildren, 'Task')
+          .then((posted) => {
+            if (posted) void reloadComments(parentWorkitemId);
+          });
       }
       toast.add({
         title: '批量创建部分失败',

@@ -361,21 +361,44 @@ export function RequirementDetails({
   const sprint = wi.sprint && typeof wi.sprint === 'object'
     ? wi.sprint as Record<string, unknown>
     : {};
-  const sprintId = cur?.sprintId || (typeof sprint.id === 'string' ? sprint.id : '');
-  const iterationId = isRequirement && sprintId && !sprintId.startsWith('placeholder-')
+  // 子项迭代上下文：优先父需求行（继承其交付轨道），回退子项自身 sprint
+  const parentRow = parent ? items.find((i) => i.workitemId === parent.workitemId) : undefined;
+  const sprintId = cur?.sprintId
+    || (typeof sprint.id === 'string' && sprint.id ? sprint.id : '')
+    || parentRow?.sprintId
+    || '';
+  const iterationId = sprintId && !sprintId.startsWith('placeholder-')
     ? sprintId
     : undefined;
-  const placeholderIteration = Boolean(isRequirement && sprintId.startsWith('placeholder-'));
+  const placeholderIteration = Boolean(sprintId.startsWith('placeholder-'));
   const iterationName = iterationId
     ? iterations.find((iteration) => iteration.id === iterationId)?.name
       || cur?.sprintName
+      || parentRow?.sprintName
       || (typeof sprint.name === 'string' ? sprint.name : '')
-    : (cur?.sprintName || (typeof sprint.name === 'string' ? sprint.name : ''));
+    : (cur?.sprintName || parentRow?.sprintName || (typeof sprint.name === 'string' ? sprint.name : ''));
   const fusedTemplates = useFusedBranchTemplates(iterationId);
-  const repoBranchRules: Record<number, ResolvedRepoBranchRule> = iterationId && selectedId
+  // 分支规则上下文：需求取自身；任务/缺陷以父需求为模板查找键（显式覆盖与方案 A 自动继承均生效），
+  // {identifier} 用子项自身编号展开 → rule.workitemBranch 即子项开发分支。
+  const branchRuleContextId = isRequirement ? selectedId : parent?.workitemId;
+  const repoBranchRules: Record<number, ResolvedRepoBranchRule> = iterationId && branchRuleContextId
     ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
-      const rule = resolveRepoBranchRule(settings, selectedId, repoId, iterationName, identifier, fusedTemplates);
+      const rule = resolveRepoBranchRule(settings, branchRuleContextId, repoId, iterationName, identifier, fusedTemplates);
       return rule ? [[repoId, rule]] : [];
+    }))
+    : {};
+  // 缺陷页 MR 分支（「缺陷单号分支 → 需求单号分支」）：目标分支按父需求交付轨道以需求编号展开
+  const bugMrTargetByRepo: Record<number, string> = !isRequirement && category === 'Bug' && parent && identifier
+    ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
+      const { targetBranch } = resolveChildMrBranches(settings, {
+        parentWorkitemId: parent.workitemId,
+        parentIdentifier: parent.identifier,
+        childIdentifier: identifier,
+        iterationName,
+        repoId,
+        customTemplates: fusedTemplates,
+      });
+      return [[repoId, targetBranch]];
     }))
     : {};
   const baselineLookups = iterationId
@@ -999,9 +1022,11 @@ export function RequirementDetails({
                   }}
                   title={`所属父需求：${parent.identifier} ${parent.subject || ''}`}
                 >
-                  <Chip size="sm" variant="soft" color="accent" className="gap-1.5 max-w-48 font-mono">
+                  <Chip size="sm" variant="soft" color="accent" className="gap-1.5 max-w-56 font-mono">
                     <GitForkIcon className="size-3.5 shrink-0" />
-                    <Chip.Label className="truncate">{parent.identifier}</Chip.Label>
+                    <Chip.Label className="truncate">
+                      {parent.identifier}{parent.subject ? ` · ${parent.subject}` : ''}
+                    </Chip.Label>
                   </Chip>
                 </button>
               )}
@@ -1209,36 +1234,49 @@ export function RequirementDetails({
               count={`· ${effectiveRepoIds.length}`}
               action={(
                 <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={recommendingRepos}
-                    onClick={() => void handleRecommendRepos()}
-                    className="h-7 gap-1.5 text-xs text-primary hover:bg-primary/10 cursor-pointer"
-                    title="让 AI 依据需求文本与提交历史，智能推荐关联仓库"
-                  >
-                    {recommendingRepos ? (
-                      <>
-                        <Loader2Icon className="size-3.5 animate-spin" />
-                        <span>推荐中…</span>
-                      </>
-                    ) : (
-                      <>
-                        <SparklesIcon className="size-3.5" />
-                        <span>AI 推荐仓库</span>
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsBranchDiagramModalOpen(true)}
-                    className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-                    title="打开需求分支同步状态拓扑图谱"
-                  >
-                    <GitForkIcon className="size-3.5" />
-                    <span>分支图谱</span>
-                  </Button>
+                  {/* 子项关联仓库继承父需求：增删/推荐/轨道配置在需求页管理，子项只读继承 */}
+                  {!isRequirement && parent && (
+                    <span
+                      className="truncate font-mono text-[11px] text-muted-foreground"
+                      title={`关联仓库继承自父需求：${parent.identifier} ${parent.subject || ''}`}
+                    >
+                      继承自父需求 {parent.identifier}
+                    </span>
+                  )}
+                  {isRequirement && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={recommendingRepos}
+                      onClick={() => void handleRecommendRepos()}
+                      className="h-7 gap-1.5 text-xs text-primary hover:bg-primary/10 cursor-pointer"
+                      title="让 AI 依据需求文本与提交历史，智能推荐关联仓库"
+                    >
+                      {recommendingRepos ? (
+                        <>
+                          <Loader2Icon className="size-3.5 animate-spin" />
+                          <span>推荐中…</span>
+                        </>
+                      ) : (
+                        <>
+                          <SparklesIcon className="size-3.5" />
+                          <span>AI 推荐仓库</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {isRequirement && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsBranchDiagramModalOpen(true)}
+                      className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                      title="打开需求分支同步状态拓扑图谱"
+                    >
+                      <GitForkIcon className="size-3.5" />
+                      <span>分支图谱</span>
+                    </Button>
+                  )}
                   <Tooltip>
                     <TooltipTrigger
                       render={(
@@ -1260,16 +1298,18 @@ export function RequirementDetails({
                     </TooltipTrigger>
                     <TooltipContent>刷新全部关联仓库</TooltipContent>
                   </Tooltip>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 gap-1.5 text-xs cursor-pointer"
-                    onClick={() => setIsLinkRepoModalOpen(true)}
-                  >
-                    <PlusIcon data-icon="inline-start" />
-                    <span>关联仓库</span>
-                  </Button>
-                  {hasRepoOverride && (
+                  {isRequirement && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs cursor-pointer"
+                      onClick={() => setIsLinkRepoModalOpen(true)}
+                    >
+                      <PlusIcon data-icon="inline-start" />
+                      <span>关联仓库</span>
+                    </Button>
+                  )}
+                  {isRequirement && hasRepoOverride && (
                     <DropdownMenu>
                       <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label="更多仓库操作" />}>
                         <MoreHorizontalIcon className="size-3.5" />
@@ -1370,7 +1410,7 @@ export function RequirementDetails({
                         matchedBranches={branchesByRepoId.get(repo.id) ?? []}
                         loadingBranches={traceLoading && !branchesByRepoId.has(repo.id)}
                         traceAvailable={branchesByRepoId.has(repo.id)}
-                        templateId={selectedId ? settings?.workitemRepoBranchTemplates?.[selectedId]?.[String(repo.id)] : undefined}
+                        templateId={branchRuleContextId ? settings?.workitemRepoBranchTemplates?.[branchRuleContextId]?.[String(repo.id)] : undefined}
                         templates={fusedTemplates}
                         templateEnabled={Boolean(isRequirement && iterationId)}
                         baselineBranch={rule?.baselineBranch}
@@ -1384,7 +1424,13 @@ export function RequirementDetails({
                         refreshSignal={codeAreaRefreshSignal}
                         onRetryBaseline={() => setBaselineRetry((value) => value + 1)}
                         onTemplateChange={(templateId) => void saveRepoTemplate(repo.id, templateId)}
-                        onUnlinkRepo={effectiveRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}
+                        onUnlinkRepo={isRequirement && effectiveRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}
+                        operationBaseBranchOverride={!isRequirement && category === 'Bug' ? bugMrTargetByRepo[repo.id] : undefined}
+                        bugMrContext={!isRequirement && category === 'Bug' && parent && selectedId ? {
+                          bugWorkitemId: selectedId,
+                          requirementIdentifier: parent.identifier,
+                          requirementSubject: parent.subject ?? '',
+                        } : undefined}
                       />
                     );
                   })}
@@ -1399,9 +1445,11 @@ export function RequirementDetails({
               <EmptyHint
                 icon={InboxIcon}
                 title="未关联云效仓库"
-                description="可在上方「关联仓库」选择后添加，或点击下方让 AI 智能分析推荐"
+                description={isRequirement
+                  ? '可在上方「关联仓库」选择后添加，或点击下方让 AI 智能分析推荐'
+                  : `关联仓库继承自父需求${parent ? `（${parent.identifier}）` : ''}，请在父需求详情页配置后在此查看`}
                 className="rounded-xl border border-dashed py-8"
-                action={(
+                action={isRequirement ? (
                   <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
                     <Button
                       variant="outline"
@@ -1427,7 +1475,7 @@ export function RequirementDetails({
                       <span>手动选择仓库</span>
                     </Button>
                   </div>
-                )}
+                ) : undefined}
               />
             )}
 

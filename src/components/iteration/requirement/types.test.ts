@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expandBranchPattern, getMrStatusInfo, resolveRepoBranchRule } from './types';
+import { expandBranchPattern, getMrStatusInfo, resolveChildMrBranches, resolveRepoBranchRule } from './types';
 import type { BranchRuleTemplate, SettingsView } from '@/types';
 
 describe('getMrStatusInfo', () => {
@@ -183,5 +183,82 @@ describe('resolveRepoBranchRule（交付轨道方案 A 自动继承）', () => {
 
     expect(resolveRepoBranchRule(settings, 'req-6', 101, 'Sprint-1', 'REQ-6', [])).toBeUndefined();
     expect(resolveRepoBranchRule(settings, 'req-6', 101, 'Sprint-1', 'REQ-6')).toBeUndefined();
+  });
+});
+
+describe('resolveChildMrBranches（缺陷单号分支 → 需求单号分支）', () => {
+  const globalTrack: BranchRuleTemplate & { scope?: 'global' | 'iteration' } = {
+    id: 'default-track',
+    name: '默认主线',
+    sourceBranch: 'master',
+    baselineBranchPattern: 'master',
+    workitemBranchPattern: 'feature/{identifier}',
+    scope: 'global',
+  };
+  const siteTrack: BranchRuleTemplate & { scope?: 'global' | 'iteration' } = {
+    id: 'site-track',
+    name: '局点专版',
+    sourceBranch: 'test',
+    baselineBranchPattern: 'iteration/{iteration}/{track}',
+    workitemBranchPattern: 'feature/{track}/{identifier}',
+    scope: 'iteration',
+  };
+
+  it('自动继承融合首项：源/目标共用同一轨道，仅 {identifier} 分别替换为缺陷/需求编号', () => {
+    const settings = { workitemRepoBranchTemplates: {} } as unknown as SettingsView;
+    const res = resolveChildMrBranches(settings, {
+      parentWorkitemId: 'req-1',
+      parentIdentifier: 'REQ-101',
+      childIdentifier: 'BUG-202',
+      iterationName: 'Sprint 1',
+      repoId: 101,
+      customTemplates: [siteTrack, globalTrack],
+    });
+    expect(res.sourceBranch).toBe('feature/局点专版/BUG-202');
+    expect(res.targetBranch).toBe('feature/局点专版/REQ-101');
+  });
+
+  it('需求级显式覆盖：以父需求 workitemId 为模板查找键命中指定轨道', () => {
+    const settings = {
+      workitemRepoBranchTemplates: { 'req-1': { '101': 'site-track' } },
+    } as unknown as SettingsView;
+    const res = resolveChildMrBranches(settings, {
+      parentWorkitemId: 'req-1',
+      parentIdentifier: 'REQ-101',
+      childIdentifier: 'BUG-202',
+      iterationName: 'Sprint 1',
+      repoId: 101,
+      customTemplates: [globalTrack, siteTrack],
+    });
+    expect(res.sourceBranch).toBe('feature/局点专版/BUG-202');
+    expect(res.targetBranch).toBe('feature/局点专版/REQ-101');
+  });
+
+  it('直连主干预设（feature/{identifier}）下缺陷 → 需求分支同样成立', () => {
+    const settings = { workitemRepoBranchTemplates: {} } as unknown as SettingsView;
+    const res = resolveChildMrBranches(settings, {
+      parentWorkitemId: 'req-1',
+      parentIdentifier: 'REQ-101',
+      childIdentifier: 'BUG-202',
+      iterationName: 'Sprint 1',
+      repoId: 101,
+      customTemplates: [globalTrack],
+    });
+    expect(res.sourceBranch).toBe('feature/BUG-202');
+    expect(res.targetBranch).toBe('feature/REQ-101');
+  });
+
+  it('无任何模板时回退 feature/{identifier}', () => {
+    const settings = { workitemRepoBranchTemplates: {} } as unknown as SettingsView;
+    const res = resolveChildMrBranches(settings, {
+      parentWorkitemId: 'req-1',
+      parentIdentifier: 'REQ-101',
+      childIdentifier: 'BUG-202',
+      iterationName: '',
+      repoId: 101,
+      customTemplates: [],
+    });
+    expect(res.sourceBranch).toBe('feature/BUG-202');
+    expect(res.targetBranch).toBe('feature/REQ-101');
   });
 });

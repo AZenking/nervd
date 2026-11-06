@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
   AiBreakdownItem,
+  AiBugMergeContext,
   AiChatMessage,
   AiCommentSummary,
   AiMergeRequestDraft,
@@ -250,6 +251,71 @@ ${commitListStr}`;
   return {
     title: parsed.title || `${params.identifier}: ${params.subject}`,
     description: parsed.description || `关联需求：${params.identifier}`,
+  };
+}
+
+/**
+ * 缺陷页发起 MR 的一次性 AI 生成：
+ * 输出 MR 标题 + 修改说明（填充 MR 描述）+ 测试影响范围（MR 创建成功后发布到缺陷动态）。
+ */
+export async function aiGenerateBugMergeContext(params: {
+  bugIdentifier: string;
+  bugSubject: string;
+  requirementIdentifier: string;
+  requirementSubject: string;
+  sourceBranch: string;
+  targetBranch: string;
+  commits?: string[];
+}): Promise<AiBugMergeContext> {
+  const settings = await getAiSettings();
+  const customRule = settings.customPrompts?.mergeRequest?.trim();
+
+  const commitListStr = (params.commits && params.commits.length > 0)
+    ? params.commits.slice(0, 15).join('\n')
+    : '（未提供具体 commit 信息，根据缺陷标题推导）';
+
+  const systemPrompt = `你是一名精通 Git 与大型协同规范的代码审查助手与测试专家。
+请根据缺陷信息与 Git 提交历史，一次性生成缺陷修复 MR 的标题、修改说明与测试影响范围。
+严格返回如下 JSON 格式，不要输出其他文字：
+{
+  "title": "fix(缺陷编号): 简要修复描述",
+  "description": "### 缺陷背景\\n...\\n\\n### 修复方案\\n- ...\\n\\n### 自测验证\\n- [ ] ...",
+  "testImpactScope": "### 测试影响范围\\n- 影响模块：...\\n- 建议回归用例：...\\n- 风险提示：..."
+}
+要求：
+1. title 必须包含缺陷编号，遵循 Conventional Commits 规范。
+2. description 为结构化 Markdown 修改说明。
+3. testImpactScope 为独立可发布的测试影响范围说明（Markdown），供测试同学评估回归范围。
+4. 全部输出严禁使用任何 Emoji 表情符号（云效服务端不支持会触发 400 拦截）。${customRule ? `\n\n团队自定义 MR 规范：\n${customRule}` : ''}`;
+
+  const userPrompt = `缺陷编号：${params.bugIdentifier}
+缺陷标题：${params.bugSubject}
+所属需求编号：${params.requirementIdentifier}
+所属需求标题：${params.requirementSubject}
+源分支：${params.sourceBranch}
+目标分支：${params.targetBranch}
+最新 Commit 提交记录：
+${commitListStr}`;
+
+  const responseText = await aiChatCompletion({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.3,
+  });
+
+  const fallback: AiBugMergeContext = {
+    title: `${params.bugIdentifier}: ${params.bugSubject}`,
+    description: `### 关联缺陷\n${params.bugIdentifier} ${params.bugSubject}\n\n### 所属需求\n${params.requirementIdentifier} ${params.requirementSubject}\n\n### 变更分支\n${params.sourceBranch} -> ${params.targetBranch}`,
+    testImpactScope: '',
+  };
+
+  const parsed = parseJsonFromLlm<Partial<AiBugMergeContext>>(responseText, {});
+  return {
+    title: parsed.title || fallback.title,
+    description: parsed.description || fallback.description,
+    testImpactScope: parsed.testImpactScope || '',
   };
 }
 
