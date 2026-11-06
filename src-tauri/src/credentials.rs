@@ -1,13 +1,16 @@
-//! 凭证与设置：PAT 存 macOS Keychain，设置存 app_data_dir/settings.json
+//! 凭证与设置：PAT 存 macOS Keychain，设置存 com.dev.nervd.data/settings.json
 
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 pub const SERVICE: &str = "dev.nervd.app";
 pub const ACCOUNT: &str = "yunxiao_pat";
+
+pub const STORAGE_DIR_NAME: &str = "com.dev.nervd.data";
+pub const LEGACY_STORAGE_DIR_NAME: &str = "dev.nervd.app";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -90,12 +93,63 @@ impl Default for Settings {
     }
 }
 
-pub fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = app
+pub fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let base_dir = app
         .path()
+        .data_dir()
+        .or_else(|_| {
+            app.path().app_data_dir().and_then(|p| {
+                p.parent()
+                    .map(|p| p.to_path_buf())
+                    .ok_or_else(|| tauri::Error::UnknownPath)
+            })
+        })
+        .map_err(|e| format!("无法定位系统数据目录: {e}"))?;
+
+    let target = base_dir.join(STORAGE_DIR_NAME);
+    std::fs::create_dir_all(&target).map_err(|e| format!("创建数据目录失败: {e}"))?;
+    Ok(target)
+}
+
+pub fn legacy_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
         .app_data_dir()
-        .map_err(|e| format!("无法定位应用数据目录: {e}"))?;
-    Ok(dir.join("settings.json"))
+        .or_else(|_| {
+            app.path()
+                .data_dir()
+                .map(|p| p.join(LEGACY_STORAGE_DIR_NAME))
+        })
+        .map_err(|e| format!("无法定位旧数据目录: {e}"))
+}
+
+pub fn migrate_file_if_needed(legacy_path: &Path, target_path: &Path) {
+    if legacy_path.is_file() && !target_path.exists() {
+        if let Some(parent) = target_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Err(e) = std::fs::copy(legacy_path, target_path) {
+            eprintln!(
+                "迁移配置文件失败 (从 {} 到 {}): {e}",
+                legacy_path.display(),
+                target_path.display()
+            );
+            if target_path.exists() {
+                let _ = std::fs::remove_file(target_path);
+            }
+        }
+    }
+}
+
+pub fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = data_dir(app)?;
+    let target = dir.join("settings.json");
+
+    if let Ok(legacy_dir) = legacy_data_dir(app) {
+        let legacy_file = legacy_dir.join("settings.json");
+        migrate_file_if_needed(&legacy_file, &target);
+    }
+
+    Ok(target)
 }
 
 pub fn load_settings(app: &tauri::AppHandle) -> Settings {
@@ -304,5 +358,78 @@ mod tests {
             settings.repo_ci_bindings[&13],
             RepoCiBinding::Flow { .. }
         ));
+    }
+
+    #[test]
+    fn test_migrate_file_if_needed_copies_when_target_missing() {
+        let unique_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir = std::env::temp_dir().join(format!("nervd_test_migration_{unique_id}"));
+        let legacy_dir = test_dir.join(LEGACY_STORAGE_DIR_NAME);
+        let new_dir = test_dir.join(STORAGE_DIR_NAME);
+        std::fs::create_dir_all(&legacy_dir).unwrap();
+
+        let legacy_file = legacy_dir.join("settings.json");
+        let target_file = new_dir.join("settings.json");
+
+        let sample_content = r#"{"organizationId":"test-org","linkPattern":"TEST-(\\d+)"}"#;
+        std::fs::write(&legacy_file, sample_content).unwrap();
+
+        migrate_file_if_needed(&legacy_file, &target_file);
+
+        assert!(target_file.exists());
+        let migrated_content = std::fs::read_to_string(&target_file).unwrap();
+        assert_eq!(migrated_content, sample_content);
+        assert!(legacy_file.exists(), "旧文件应当完好保留作为备份");
+
+        let _ = std::fs::remove_dir_all(&test_dir);
+    }
+
+    #[test]
+    fn test_migrate_file_if_needed_does_not_overwrite_existing_target() {
+        let unique_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir = std::env::temp_dir().join(format!("nervd_test_migration_noop_{unique_id}"));
+        let legacy_dir = test_dir.join(LEGACY_STORAGE_DIR_NAME);
+        let new_dir = test_dir.join(STORAGE_DIR_NAME);
+        std::fs::create_dir_all(&legacy_dir).unwrap();
+        std::fs::create_dir_all(&new_dir).unwrap();
+
+        let legacy_file = legacy_dir.join("settings.json");
+        let target_file = new_dir.join("settings.json");
+
+        std::fs::write(&legacy_file, "legacy content").unwrap();
+        std::fs::write(&target_file, "existing target content").unwrap();
+
+        migrate_file_if_needed(&legacy_file, &target_file);
+
+        let final_content = std::fs::read_to_string(&target_file).unwrap();
+        assert_eq!(
+            final_content, "existing target content",
+            "已存在的目标文件不应被旧文件覆盖"
+        );
+
+        let _ = std::fs::remove_dir_all(&test_dir);
+    }
+
+    #[test]
+    fn test_migrate_file_if_needed_handles_missing_legacy_gracefully() {
+        let unique_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir = std::env::temp_dir().join(format!("nervd_test_migration_missing_{unique_id}"));
+        let legacy_file = test_dir.join("nonexistent_dir").join("settings.json");
+        let target_file = test_dir.join(STORAGE_DIR_NAME).join("settings.json");
+
+        migrate_file_if_needed(&legacy_file, &target_file);
+
+        assert!(!target_file.exists(), "若旧文件不存在，不应生成新文件");
+
+        let _ = std::fs::remove_dir_all(&test_dir);
     }
 }

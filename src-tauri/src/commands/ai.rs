@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 pub const SERVICE: &str = "dev.nervd.app";
 pub const ACCOUNT_AI_KEY: &str = "ai_api_key";
@@ -53,11 +53,15 @@ pub struct ChatMessage {
 }
 
 pub fn ai_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("无法定位应用数据目录: {e}"))?;
-    Ok(dir.join("ai_settings.json"))
+    let dir = crate::credentials::data_dir(app)?;
+    let target = dir.join("ai_settings.json");
+
+    if let Ok(legacy_dir) = crate::credentials::legacy_data_dir(app) {
+        let legacy_file = legacy_dir.join("ai_settings.json");
+        crate::credentials::migrate_file_if_needed(&legacy_file, &target);
+    }
+
+    Ok(target)
 }
 
 pub fn load_ai_settings(app: &AppHandle) -> AiSettings {
@@ -303,4 +307,56 @@ pub async fn ai_chat_completion(
         .ok_or_else(|| "AI 响应格式缺失 choices[0].message.content".to_string())?;
 
     Ok(content.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ai_settings_migration_copies_legacy_file() {
+        let unique_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir = std::env::temp_dir().join(format!("nervd_test_ai_migration_{unique_id}"));
+        let legacy_dir = test_dir.join(crate::credentials::LEGACY_STORAGE_DIR_NAME);
+        let new_dir = test_dir.join(crate::credentials::STORAGE_DIR_NAME);
+        std::fs::create_dir_all(&legacy_dir).unwrap();
+
+        let legacy_file = legacy_dir.join("ai_settings.json");
+        let target_file = new_dir.join("ai_settings.json");
+
+        let sample_ai_settings = r#"{"provider":"dashscope","model":"qwen-turbo","temperature":0.5}"#;
+        std::fs::write(&legacy_file, sample_ai_settings).unwrap();
+
+        crate::credentials::migrate_file_if_needed(&legacy_file, &target_file);
+
+        assert!(target_file.exists());
+        let content = std::fs::read_to_string(&target_file).unwrap();
+        assert_eq!(content, sample_ai_settings);
+        assert!(legacy_file.exists(), "旧 AI 设置文件应完整保留备份");
+
+        let _ = std::fs::remove_dir_all(&test_dir);
+    }
+
+    #[test]
+    fn test_resolve_ai_endpoint() {
+        assert_eq!(
+            resolve_ai_endpoint("https://api.openai.com/v1"),
+            "https://api.openai.com/v1/chat/completions"
+        );
+        assert_eq!(
+            resolve_ai_endpoint("https://api.openai.com/v1/"),
+            "https://api.openai.com/v1/chat/completions"
+        );
+        assert_eq!(
+            resolve_ai_endpoint("https://api.openai.com/v1/chat/completions"),
+            "https://api.openai.com/v1/chat/completions"
+        );
+        assert_eq!(
+            resolve_ai_endpoint("https://api.anthropic.com/v1/messages"),
+            "https://api.anthropic.com/v1/chat/completions"
+        );
+    }
 }
