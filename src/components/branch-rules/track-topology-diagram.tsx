@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -14,18 +14,28 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { GitFork, Maximize2 } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { expandBranchPattern } from '@/components/iteration/requirement/types';
 
+const TrackTopologyModal = lazy(() =>
+  import('./track-topology-modal').then((m) => ({ default: m.TrackTopologyModal })),
+);
+
 /**
  * 交付轨道（Track/局点）拓扑图原语（纯展示，无 store / localStorage 依赖），基于 @xyflow/react 渲染：
+ * - 遵循 HeroUI v3 + Linear 设计规范：采用 Card/Surface 结构、Chip 徽标、清晰微排版与语义色彩。
  * - 三节点形态：源主干 →(派生基准) 迭代基准 →(切出开发) 需求分支；
  *   回程箭头 MR 合入（需求分支→迭代基准），发布时人工 MR 以琥珀虚线（迭代基准→源主干）。
  * - 直连两节点形态：基准模式展开后与源主干同名（Trunk-Based）自动收敛为
  *   源主干 →(直接切出) 需求分支，MR 直接合入回箭头。
  * - 分支名由 expandBranchPattern 展开真实值渲染；节点可选状态光晕（需求详情场景）。
- * - Linear 极简：节点为小圆角胶囊（font-mono 分支名），1px hairline 连线；
- *   窄容器由 ReactFlow fitView 自动缩放适配，无需手工降级布局。
+ * - 紧凑呼吸感：节点为 HeroUI 风格小圆角微卡片（font-mono 分支名），1px hairline 连线；
+ *   充分的节点水平间隙（250px）杜绝连线标签重叠，窄容器由 ReactFlow fitView 自动平滑适配。
+ * - 支持模态弹窗放大检视（allowModal / onExpand），解决在抽屉等狭窄视口中长分支名折叠或看不清的问题。
  */
 
 /** 拓扑节点状态：ready = Emerald 光晕 / missing = 灰占位 / loading = 微光 */
@@ -56,6 +66,16 @@ export interface TrackTopologyDiagramProps {
   /** 节点状态光晕（需求详情场景）；缺省为纯预览态 */
   states?: TrackTopologyStates;
   className?: string;
+  /** 是否允许点击放大弹窗（默认 true） */
+  allowModal?: boolean;
+  /** 自定义弹窗触发回调；若未提供则使用内置 TrackTopologyModal */
+  onExpand?: () => void;
+  /** 模态视图内部渲染标记，避免递归弹窗 */
+  isModalView?: boolean;
+  /** 视图样式模式：compact（默认抽屉紧凑预览）/ expanded（弹窗宽阔视图） */
+  variant?: 'compact' | 'expanded';
+  /** 自定义模板名称（用于弹窗展示） */
+  templateName?: string;
 }
 
 /**
@@ -82,9 +102,9 @@ export const TRACK_TOPOLOGY_LABELS = {
 
 /** 节点状态 → 胶囊视觉（光晕/描边）；预览态（无状态）由调用处使用中性 hairline */
 export const TRACK_NODE_STATE_CLASS: Record<TrackTopologyNodeState, string> = {
-  ready: 'border-success/50 bg-success/5 ring-1 ring-success/25 shadow-[0_0_10px_-4px_var(--color-success)]',
-  missing: 'border-border/70 border-dashed bg-muted/40 text-muted-foreground',
-  loading: 'border-border bg-muted/20 animate-pulse',
+  ready: 'border-success/60 bg-success-soft/20 text-foreground ring-1 ring-success/30 shadow-xs',
+  missing: 'border-border/80 border-dashed bg-surface-secondary/40 text-muted-foreground opacity-80',
+  loading: 'border-border bg-surface ring-1 ring-primary/25 animate-pulse',
 };
 
 /** 分支同步树（ReactFlow 卡片）节点光晕：与 TRACK_NODE_STATE_CLASS 同一状态语义的卡片档 */
@@ -105,29 +125,62 @@ interface TrackNodeData extends Record<string, unknown> {
   kind: string;
   name: string;
   state?: TrackTopologyNodeState;
+  nodeWidth?: number;
 }
 
 type TrackNodeT = Node<TrackNodeData, 'track'>;
 
 function TopologyFlowNode({ data }: NodeProps<TrackNodeT>) {
+  const isReady = data.state === 'ready';
+  const isMissing = data.state === 'missing';
+  const widthStyle = data.nodeWidth ? { width: `${data.nodeWidth}px` } : undefined;
+
   return (
     <div
       data-node={data.nodeKey}
       data-state={data.state}
       title={data.name}
+      style={widthStyle}
       className={cn(
-        'flex min-w-0 max-w-[176px] flex-col gap-0.5 rounded-md border px-2.5 py-1.5',
-        data.state ? TRACK_NODE_STATE_CLASS[data.state] : 'border-border bg-muted/30',
+        'group relative flex min-w-0 flex-col gap-1 rounded-md border px-2.5 py-1.5 transition-all duration-150',
+        data.nodeWidth ? '' : 'w-[152px]',
+        data.state ? TRACK_NODE_STATE_CLASS[data.state] : 'border-border bg-surface text-foreground shadow-xs',
       )}
     >
       <Handle id="tl" type="target" position={Position.Left} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="sr" type="source" position={Position.Right} style={HIDDEN_HANDLE} isConnectable={false} />
-      <Handle id="tb" type="target" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
-      <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
-      <span className="text-[10px] leading-3 text-muted-foreground">{data.kind}</span>
-      <span className="truncate font-mono text-[11px] leading-4 text-foreground/85">
+      <Handle
+        id="tb"
+        type="target"
+        position={Position.Bottom}
+        style={{ ...HIDDEN_HANDLE, left: data.nodeKey === 'baseline' ? '68%' : '50%' }}
+        isConnectable={false}
+      />
+      <Handle
+        id="sb"
+        type="source"
+        position={Position.Bottom}
+        style={{ ...HIDDEN_HANDLE, left: data.nodeKey === 'baseline' ? '32%' : '50%' }}
+        isConnectable={false}
+      />
+
+      <div className="flex items-center gap-1.5 text-[10px] font-medium leading-tight text-muted-foreground">
+        <span
+          className={cn(
+            'size-1.5 shrink-0 rounded-full',
+            data.nodeKey === 'source' && 'bg-primary/80',
+            data.nodeKey === 'baseline' && 'bg-warning/80',
+            data.nodeKey === 'development' && 'bg-accent/80',
+            isReady && 'bg-success',
+            isMissing && 'bg-muted-foreground/40',
+          )}
+          aria-hidden="true"
+        />
+        <span className="truncate">{data.kind}</span>
+      </div>
+      <div className="truncate font-mono text-[11px] font-semibold leading-tight text-foreground select-all">
         {data.name || '—'}
-      </span>
+      </div>
     </div>
   );
 }
@@ -157,6 +210,7 @@ function TopologyFlowEdge({
   markerEnd,
   data,
 }: EdgeProps<TopologyEdgeT>) {
+  const isBottomLoop = sourcePosition === Position.Bottom && targetPosition === Position.Bottom;
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -164,7 +218,7 @@ function TopologyFlowEdge({
     targetX,
     targetY,
     targetPosition,
-    curvature: 0.25,
+    curvature: isBottomLoop ? 0.38 : 0.18,
   });
   const warning = data?.tone === 'warning';
   const color = warning ? EDGE_WARNING : EDGE_MUTED;
@@ -174,15 +228,29 @@ function TopologyFlowEdge({
         id={id}
         path={path}
         markerEnd={markerEnd}
-        style={{ stroke: color, strokeWidth: 1, strokeDasharray: data?.dashed ? '3 3' : undefined }}
+        style={{
+          stroke: color,
+          strokeWidth: 1.25,
+          strokeDasharray: data?.dashed ? '4 3' : undefined,
+          opacity: warning ? 1 : 0.8,
+        }}
       />
       <EdgeLabelRenderer>
-        <span
-          className="nodrag nopan pointer-events-none absolute whitespace-nowrap text-[10px] leading-3"
+        <div
+          className="nodrag nopan pointer-events-none absolute z-10 whitespace-nowrap"
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
         >
-          <span className={warning ? 'text-warning' : 'text-muted-foreground'}>{data?.label}</span>
-        </span>
+          <span
+            className={cn(
+              'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none tracking-tight shadow-xs backdrop-blur-xs select-none',
+              warning
+                ? 'border-warning/40 bg-surface/95 text-warning ring-1 ring-warning/20'
+                : 'border-border/90 bg-surface/95 text-muted-foreground',
+            )}
+          >
+            {data?.label}
+          </span>
+        </div>
       </EdgeLabelRenderer>
     </>
   );
@@ -248,10 +316,11 @@ function RefitOnResize() {
   return <div ref={anchorRef} className="hidden" aria-hidden="true" />;
 }
 
-/** 三节点横向间距：胶囊最大宽 176px + 连线呼吸区 */
-const NODE_GAP = 210;
-/** fitView 留白：给边标签与胶囊呼吸区（同步缓解窄容器标签重叠） */
-const FIT_PADDING = 0.18;
+/** 三节点横向间距：节点宽 152px + 充足连线呼吸区（98px 净空），彻底杜绝边标签与节点重叠 */
+const NODE_GAP = 250;
+
+/** fitView 留白：给边标签与胶囊呼吸区 */
+const FIT_PADDING = 0.16;
 
 // ---------------------------------------------------------------- 拓扑图
 
@@ -264,6 +333,12 @@ export interface TrackTopologyGraph {
   edges: TopologyEdgeT[];
 }
 
+export interface BuildTrackTopologyGraphOptions
+  extends Pick<TrackTopologyDiagramProps, 'sourceBranch' | 'baselinePattern' | 'workitemPattern' | 'variables' | 'states'> {
+  nodeWidth?: number;
+  nodeGap?: number;
+}
+
 /**
  * 纯函数构建拓扑图（组件渲染同源；单测对连线标签/语气/虚线等结构契约在此断言，
  * 避免 jsdom 零尺寸下 ReactFlow 不渲染边标签导致的 DOM 断言盲区）。
@@ -274,7 +349,9 @@ export function buildTrackTopologyGraph({
   workitemPattern,
   variables,
   states,
-}: Pick<TrackTopologyDiagramProps, 'sourceBranch' | 'baselinePattern' | 'workitemPattern' | 'variables' | 'states'>): TrackTopologyGraph {
+  nodeWidth = 152,
+  nodeGap,
+}: BuildTrackTopologyGraphOptions): TrackTopologyGraph {
   const track = variables.track ?? '';
   const expandValues = {
     iteration: variables.iteration,
@@ -286,6 +363,7 @@ export function buildTrackTopologyGraph({
   const baselineName = expandBranchPattern(baselinePattern, expandValues);
   const developmentName = expandBranchPattern(workitemPattern, expandValues);
   const direct = isDirectConnectBranches(sourceName, baselineName);
+  const effectiveGap = nodeGap ?? (nodeWidth > 152 ? Math.max(300, nodeWidth + 100) : NODE_GAP);
 
   const make = (
     nodeKey: TrackNodeData['nodeKey'],
@@ -299,7 +377,7 @@ export function buildTrackTopologyGraph({
     position: { x, y: 0 },
     draggable: false,
     selectable: false,
-    data: { nodeKey, kind, name, state },
+    data: { nodeKey, kind, name, state, nodeWidth },
   });
 
   const nodes: TrackNodeT[] = [
@@ -307,7 +385,7 @@ export function buildTrackTopologyGraph({
   ];
   if (!direct) {
     nodes.push(
-      make('baseline', TRACK_TOPOLOGY_LABELS.kindBaseline, baselineName, states?.baseline, NODE_GAP),
+      make('baseline', TRACK_TOPOLOGY_LABELS.kindBaseline, baselineName, states?.baseline, effectiveGap),
     );
   }
   nodes.push(
@@ -316,7 +394,7 @@ export function buildTrackTopologyGraph({
       TRACK_TOPOLOGY_LABELS.kindDevelopment,
       developmentName,
       states?.development,
-      direct ? NODE_GAP : NODE_GAP * 2,
+      direct ? effectiveGap : effectiveGap * 2,
     ),
   );
 
@@ -347,50 +425,117 @@ export function TrackTopologyDiagram({
   variables,
   states,
   className,
+  allowModal = true,
+  onExpand,
+  isModalView = false,
+  variant = 'compact',
+  templateName,
 }: TrackTopologyDiagramProps) {
+  const [internalModalOpen, setInternalModalOpen] = useState(false);
+  const isExpanded = variant === 'expanded' || isModalView;
+  const nodeWidth = isExpanded ? 210 : 152;
+  const nodeGap = isExpanded ? 310 : NODE_GAP;
+
   const graph = useMemo(
-    () => buildTrackTopologyGraph({ sourceBranch, baselinePattern, workitemPattern, variables, states }),
-    [sourceBranch, baselinePattern, workitemPattern, variables, states],
+    () =>
+      buildTrackTopologyGraph({
+        sourceBranch,
+        baselinePattern,
+        workitemPattern,
+        variables,
+        states,
+        nodeWidth,
+        nodeGap,
+      }),
+    [sourceBranch, baselinePattern, workitemPattern, variables, states, nodeWidth, nodeGap],
   );
 
+  const handleOpenModal = () => {
+    if (onExpand) {
+      onExpand();
+    } else {
+      setInternalModalOpen(true);
+    }
+  };
+
   return (
-    <div
-      data-testid="track-topology"
-      data-form={graph.direct ? 'direct' : 'three-node'}
-      className={cn(
-        'flex flex-col gap-1.5 rounded-md border border-border/60 bg-muted/20 px-3 py-2.5',
-        className,
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-medium leading-3 text-muted-foreground">交付轨道拓扑</span>
-        {graph.direct && (
-          <span className="rounded-xs border border-primary/30 bg-primary/10 px-1.5 py-px text-[10px] leading-4 text-primary">
-            {TRACK_TOPOLOGY_LABELS.directBadge}
-          </span>
+    <>
+      <Card
+        data-testid="track-topology"
+        data-form={graph.direct ? 'direct' : 'three-node'}
+        className={cn(
+          'relative flex flex-col gap-2 rounded-lg border border-border bg-surface-secondary/35 p-3.5 shadow-xs',
+          allowModal && !isModalView && 'cursor-pointer transition-colors hover:border-primary/40 hover:bg-surface-secondary/50',
+          className,
         )}
-      </div>
-      <div className="h-[132px] w-full">
-        <ReactFlow
-          nodes={graph.nodes}
-          edges={graph.edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          fitViewOptions={{ padding: FIT_PADDING, maxZoom: 1 }}
-          minZoom={0.2}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          panOnDrag={false}
-          zoomOnScroll={false}
-          zoomOnPinch={false}
-          zoomOnDoubleClick={false}
-          preventScrolling={false}
-        >
-          <RefitOnResize />
-        </ReactFlow>
-      </div>
-    </div>
+        onClick={allowModal && !isModalView ? handleOpenModal : undefined}
+      >
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-foreground/85">
+            <GitFork className="size-3.5 text-primary" aria-hidden="true" />
+            <span>交付轨道拓扑</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {graph.direct && (
+              <Chip size="sm" variant="soft" color="accent" className="h-5 px-1.5 text-[10px] font-medium">
+                <Chip.Label>{TRACK_TOPOLOGY_LABELS.directBadge}</Chip.Label>
+              </Chip>
+            )}
+            {allowModal && !isModalView && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                onPress={handleOpenModal}
+                title="在弹窗中放大查看拓扑图"
+                aria-label="在弹窗中放大查看交付轨道拓扑"
+              >
+                <Maximize2 className="size-3" aria-hidden="true" />
+                <span>放大查看</span>
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className={cn(isExpanded ? 'h-[180px]' : 'h-[144px]', 'w-full')}>
+          <ReactFlow
+            nodes={graph.nodes}
+            edges={graph.edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            proOptions={{ hideAttribution: true }}
+            fitView
+            fitViewOptions={{ padding: isExpanded ? 0.12 : FIT_PADDING, maxZoom: 1 }}
+            minZoom={0.2}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+            panOnDrag={false}
+            zoomOnScroll={false}
+            zoomOnPinch={false}
+            zoomOnDoubleClick={false}
+            preventScrolling={false}
+          >
+            <RefitOnResize />
+          </ReactFlow>
+        </div>
+      </Card>
+
+      {/* 内置模态弹窗：当未提供外部 onExpand 且点击放大查看时唤起 */}
+      {allowModal && !isModalView && !onExpand && internalModalOpen && (
+        <Suspense fallback={null}>
+          <TrackTopologyModal
+            open={internalModalOpen}
+            onOpenChange={setInternalModalOpen}
+            sourceBranch={sourceBranch}
+            baselinePattern={baselinePattern}
+            workitemPattern={workitemPattern}
+            variables={variables}
+            states={states}
+            templateName={templateName}
+          />
+        </Suspense>
+      )}
+    </>
   );
 }

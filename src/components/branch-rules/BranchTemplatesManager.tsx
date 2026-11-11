@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { GitBranchIcon, PlusIcon, XIcon } from 'lucide-react';
+import { GitBranchIcon, GitFork, PlusIcon, XIcon } from 'lucide-react';
 import { Alert, Button as HeroButton, Description, Input, Label, Pagination, TextField } from '@heroui/react';
 import { useApp } from '@/store/app';
 import { errorLog, humanizeError } from '@/lib/error-format';
@@ -21,6 +21,7 @@ import { EmptyHint } from '@/components/empty-hint';
 import { SettingsGroup, SettingsRow } from '@/components/settings/settings-group';
 import { expandBranchPattern } from '@/components/iteration/requirement/types';
 import { TrackTopologyDiagram } from './track-topology-diagram';
+import { TrackTopologyModal } from './track-topology-modal';
 
 const EMPTY_DRAFT: BranchRuleTemplate = {
   id: '',
@@ -100,6 +101,8 @@ export function BranchTemplatesManager({
   const [editingId, setEditingId] = useState('');
   const [saving, setSaving] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // 独立弹窗快速查看指定模板的拓扑图
+  const [topologyModalTemplate, setTopologyModalTemplate] = useState<BranchRuleTemplate | null>(null);
 
   // 模板列表分页（超出 5 条时分页展示，避免长列表滚动）
   const TEMPLATE_PAGE_SIZE = 5;
@@ -266,6 +269,17 @@ export function BranchTemplatesManager({
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="h-6 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={() => setTopologyModalTemplate(template)}
+                  title="查看该交付轨道的完整分支拓扑图"
+                  aria-label={`查看 ${template.name} 分支拓扑图`}
+                >
+                  <GitFork className="size-3 text-primary" />
+                  <span>拓扑图</span>
+                </Button>
                 <Button variant="outline" size="xs" onClick={() => startEdit(template)}>
                   编辑
                 </Button>
@@ -535,6 +549,7 @@ export function BranchTemplatesManager({
                   track: previewTrack,
                   identifier: 'REQ-101',
                 }}
+                templateName={draft.name || (scope === 'iteration' ? '迭代专属分支模板' : '全局分支模板')}
               />
             )}
             </ScrollArea>
@@ -550,6 +565,25 @@ export function BranchTemplatesManager({
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      {/* 列表行直接点击查看的独立拓扑图弹窗 */}
+      {topologyModalTemplate && (
+        <TrackTopologyModal
+          open={Boolean(topologyModalTemplate)}
+          onOpenChange={(open) => {
+            if (!open) setTopologyModalTemplate(null);
+          }}
+          sourceBranch={topologyModalTemplate.sourceBranch}
+          baselinePattern={topologyModalTemplate.baselineBranchPattern}
+          workitemPattern={topologyModalTemplate.workitemBranchPattern}
+          variables={{
+            iteration: previewVariables.iteration,
+            track: topologyModalTemplate.name,
+            identifier: 'REQ-101',
+          }}
+          templateName={topologyModalTemplate.name}
+        />
+      )}
     </>
   );
 }

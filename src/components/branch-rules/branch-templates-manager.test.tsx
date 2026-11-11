@@ -105,4 +105,22 @@ describe('BranchTemplatesManager 交付轨道拓扑预览', () => {
     expect(diagram?.querySelector('[data-node="baseline"]')?.textContent).toContain('iteration/Sprint-1/默认');
     expect(diagram?.querySelector('[data-node="development"]')?.textContent).toContain('feature/REQ-101');
   });
+
+  it('模板列表项支持点击「拓扑图」按钮直接弹窗检视拓扑', async () => {
+    await renderManager([threeNodeTemplate], 'Sprint-2026');
+
+    const topoBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('拓扑图'),
+    );
+    expect(topoBtn).toBeTruthy();
+
+    await act(async () => {
+      topoBtn?.click();
+    });
+
+    expect(document.body.textContent).toContain('交付轨道分支拓扑');
+    expect(document.body.textContent).toContain('局点专版');
+    expect(document.body.textContent).toContain('master');
+    expect(document.body.textContent).toContain('iteration/Sprint-2026/局点专版');
+  });
 });
