@@ -74,6 +74,10 @@ export function JenkinsInstancesCard() {
                 value={connection.name}
                 placeholder="例如：研发 Jenkins"
                 onChange={(e) => updateJenkins(connection.id, { name: e.target.value })}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.nativeEvent.isComposing) return;
+                }}
                 onBlur={() => void flushAutoSave()}
               />
               <Input
@@ -81,6 +85,10 @@ export function JenkinsInstancesCard() {
                 value={connection.baseUrl}
                 placeholder="https://jenkins.example.com"
                 onChange={(e) => updateJenkins(connection.id, { baseUrl: e.target.value })}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.nativeEvent.isComposing) return;
+                }}
                 onBlur={() => void flushAutoSave()}
               />
               <Input
@@ -88,6 +96,10 @@ export function JenkinsInstancesCard() {
                 value={connection.username}
                 placeholder="用户名"
                 onChange={(e) => updateJenkins(connection.id, { username: e.target.value })}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.nativeEvent.isComposing) return;
+                }}
                 onBlur={() => void flushAutoSave()}
               />
               <Input
@@ -96,6 +108,10 @@ export function JenkinsInstancesCard() {
                 value={jenkinsTokens[connection.id] ?? ''}
                 placeholder={hasSavedToken ? 'Token 已保存（留空保持不变）' : 'API Token'}
                 onChange={(e) => setJenkinsToken(connection.id, e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.nativeEvent.isComposing) return;
+                }}
                 onBlur={() => void flushAutoSave()}
               />
               {error && (
@@ -222,6 +238,10 @@ export function RepoCiBindingsCard() {
             placeholder="输入名称过滤…"
             value={repoFilter}
             onChange={(e) => setRepoFilter(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.nativeEvent.isComposing) return;
+            }}
           />
           {archivedCount > 0 && (
             <Checkbox
@@ -243,7 +263,7 @@ export function RepoCiBindingsCard() {
               if (key) setBoundOnly(key === 'bound');
             }}
           >
-            <Tabs.ListContainer className="w-fit">
+            <Tabs.ListContainer className="w-fit overflow-x-auto">
               <Tabs.List aria-label="仓库过滤">
                 <Tabs.Tab id="bound">
                   已绑定 {boundCount}
@@ -299,9 +319,9 @@ export function RepoCiBindingsCard() {
                 </Select.Trigger>
                 <Select.Popover>
                   <ListBox>
-                    <ListBox.Item id="none" textValue="未绑定">未绑定<ListBox.ItemIndicator /></ListBox.Item>
-                    <ListBox.Item id="flow" textValue="云效 Flow">云效 Flow<ListBox.ItemIndicator /></ListBox.Item>
-                    <ListBox.Item id="jenkins" textValue="Jenkins">Jenkins<ListBox.ItemIndicator /></ListBox.Item>
+                    <ListBox.Item id="none" textValue="未绑定"><span title="未绑定">未绑定</span><ListBox.ItemIndicator /></ListBox.Item>
+                    <ListBox.Item id="flow" textValue="云效 Flow"><span title="云效 Flow">云效 Flow</span><ListBox.ItemIndicator /></ListBox.Item>
+                    <ListBox.Item id="jenkins" textValue="Jenkins"><span title="Jenkins">Jenkins</span><ListBox.ItemIndicator /></ListBox.Item>
                   </ListBox>
                 </Select.Popover>
               </Select>
@@ -345,6 +365,10 @@ export function RepoCiBindingsCard() {
                     value={binding.jobFullName}
                     placeholder="folder/job-name"
                     onChange={(e) => setRepoBinding(repo.id, { ...binding, jobFullName: e.target.value }, false)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.nativeEvent.isComposing) return;
+                    }}
                     onBlur={() => void flushAutoSave()}
                   />
                 </div>

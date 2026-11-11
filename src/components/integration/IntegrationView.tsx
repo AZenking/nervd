@@ -344,12 +344,14 @@ export function IntegrationView() {
   // 键盘快捷键翻页：[ 上一页，] 下一页
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing) return;
       const target = e.target as HTMLElement | null;
       if (
         target &&
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
-          target.isContentEditable)
+          target.isContentEditable ||
+          target.closest('input, textarea, select, [contenteditable="true"]'))
       ) {
         return;
       }
@@ -423,6 +425,7 @@ export function IntegrationView() {
           <Input
             value={base}
             onChange={(event) => setBase(event.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
             placeholder="基准分支 (如 master)"
             aria-label="基准分支"
             className="h-8 w-28 font-mono text-xs"
@@ -430,6 +433,7 @@ export function IntegrationView() {
           <Input
             value={patterns}
             onChange={(event) => setPatterns(event.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
             placeholder={DEFAULT_PATTERNS}
             aria-label="集成分支匹配模式"
             className="h-8 w-56 font-mono text-xs"
@@ -568,7 +572,7 @@ export function IntegrationView() {
                         );
                         if (!workitem) {
                           return (
-                            <Chip key={key} size="sm" variant="soft" className="font-mono">
+                            <Chip key={key} size="sm" variant="soft" className="font-mono" title={key}>
                               {key}
                             </Chip>
                           );
@@ -611,13 +615,14 @@ export function IntegrationView() {
                           <Table.Cell>
                             <div className="flex items-center gap-2 font-mono">
                               <GitBranchIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                              <OverflowTooltip text={row.name} />
+                              <OverflowTooltip text={row.name} title={row.name} />
                             </div>
                           </Table.Cell>
 
                           <Table.Cell>
                             <OverflowTooltip
                               text={row.commitMessage || '—'}
+                              title={row.commitMessage || '—'}
                               className="text-muted-foreground"
                             />
                           </Table.Cell>
@@ -665,7 +670,10 @@ export function IntegrationView() {
                           </Table.Cell>
 
                           <Table.Cell className="text-end">
-                            <span className="text-muted-foreground tabular-nums">
+                            <span
+                              className="text-muted-foreground tabular-nums"
+                              title={row.committedDate ? `提交时间：${row.committedDate}` : undefined}
+                            >
                               {dayOf(row.committedDate)}
                             </span>
                           </Table.Cell>

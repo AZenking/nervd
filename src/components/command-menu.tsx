@@ -300,7 +300,7 @@ export function CommandMenu() {
 
   // active 项滚动进可视区（只滚结果列表自身，不影响外层布局）
   useEffect(() => {
-    rowRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
+    rowRefs.current[activeIndex]?.scrollIntoView?.({ block: 'nearest' });
   }, [activeIndex]);
 
   const runEntry = (entry: CommandEntry | undefined) => {
@@ -317,6 +317,14 @@ export function CommandMenu() {
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // 阻止按键冒泡到父级或全局 window 监听，防止触发全局快捷键（如 g 序列、列表 j/k/x 导航、空格翻页等）
+    if (e.key !== 'Escape') {
+      e.stopPropagation();
+    }
+    // 中文 / 日文等 IME 输入法正在拼字时，放行 Enter、Space 等组合按键，不触发条目激活或光标移动
+    if (e.nativeEvent.isComposing || e.key === 'Process' || (e as any).keyCode === 229) {
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (flat.length) setActive((i) => (i + 1) % flat.length);
@@ -346,13 +354,15 @@ export function CommandMenu() {
               onKeyDown={handleInputKeyDown}
               placeholder="搜索工作项、迭代，或跳转…"
               autoFocus
+              autoComplete="off"
+              spellCheck={false}
               className="h-full w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
 
           {/* 结果列表：HeroUI ListBox（Section 分组 + 语义 option 行，系统级 hover/焦点样式） */}
           {flat.length ? (
-            <ScrollArea size={24} className="max-h-[min(26rem,50vh)] py-2">
+            <ScrollArea size={24} className="max-h-[min(26rem,50vh)] py-2 overscroll-contain">
             <ListBox
               aria-label="命令面板结果"
               selectionMode="none"
@@ -385,9 +395,9 @@ export function CommandMenu() {
                         <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
                           {entry.icon}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-left">{entry.label}</span>
+                        <span className="min-w-0 flex-1 truncate text-left" title={entry.label}>{entry.label}</span>
                         {entry.hint && (
-                          <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
+                          <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground" title={entry.hint}>
                             {entry.hint}
                           </span>
                         )}

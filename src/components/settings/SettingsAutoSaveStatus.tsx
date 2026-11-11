@@ -50,7 +50,7 @@ export function SettingsAutoSaveStatus() {
             {errorMessages.length > 0 ? (
               <ul className="list-disc pl-3 text-muted-foreground/90 space-y-0.5">
                 {errorMessages.map((msg, i) => (
-                  <li key={i}>{msg}</li>
+                  <li key={i} className="truncate" title={msg}>{msg}</li>
                 ))}
               </ul>
             ) : (

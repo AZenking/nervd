@@ -93,7 +93,7 @@ export function ConnectionSection() {
             </Avatar>
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-semibold text-foreground">
+                <span className="truncate text-sm font-semibold text-foreground" title={currentUser?.name}>
                   {currentUser?.name || (loadingCurrentUser ? '正在识别云效用户…' : settings?.hasPat ? '未识别到用户' : '待配置访问令牌')}
                 </span>
                 {currentUser && (
@@ -102,7 +102,7 @@ export function ConnectionSection() {
                   </Chip>
                 )}
               </div>
-              <span className="truncate text-xs text-muted-foreground">
+              <span className="truncate text-xs text-muted-foreground" title={currentUser?.email}>
                 {currentUser?.email ? (
                   currentUser.email
                 ) : settings?.hasPat ? (
@@ -216,6 +216,10 @@ export function ConnectionSection() {
               disabled={!workitemHighlight.enabled}
               value={workitemHighlight.customName ?? ''}
               onChange={(e) => setWorkitemHighlight({ customName: e.target.value })}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.nativeEvent.isComposing) return;
+              }}
               placeholder={currentUser?.name ? `默认匹配：${currentUser.name}` : '如：花名 / 别名'}
             />
           )}

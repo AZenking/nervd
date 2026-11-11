@@ -169,4 +169,47 @@ describe('IntegrationView 性能与算法核心逻辑测试', () => {
       expect(row.comparing).toBe(true);
     });
   });
+
+  describe('输入控件键盘事件防护逻辑', () => {
+    it('在输入框内按 [ 或 ] 翻页键或输入法状态下不应触发翻页行为', () => {
+      let page = 2;
+      const totalPages = 5;
+
+      const handleKey = (e: { key: string; defaultPrevented?: boolean; isComposing?: boolean; target: any }) => {
+        if (e.defaultPrevented || e.isComposing) return;
+        const target = e.target;
+        if (
+          target &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.isContentEditable ||
+            target.closest?.('input, textarea, select, [contenteditable="true"]'))
+        ) {
+          return;
+        }
+        if (e.key === '[') {
+          page = Math.max(1, page - 1);
+        } else if (e.key === ']') {
+          page = Math.min(totalPages, page + 1);
+        }
+      };
+
+      // 1. 输入控件内的 [ 键被让路，不翻页
+      const inputEl = { tagName: 'INPUT', isContentEditable: false };
+      handleKey({ key: '[', target: inputEl });
+      expect(page).toBe(2);
+
+      // 2. 输入法合成期间按 [ 不翻页
+      handleKey({ key: '[', isComposing: true, target: null });
+      expect(page).toBe(2);
+
+      // 3. 非输入控件按 [ 正常翻页
+      handleKey({ key: '[', target: { tagName: 'DIV', isContentEditable: false } });
+      expect(page).toBe(1);
+
+      // 4. 非输入控件按 ] 正常翻页
+      handleKey({ key: ']', target: { tagName: 'DIV', isContentEditable: false } });
+      expect(page).toBe(2);
+    });
+  });
 });

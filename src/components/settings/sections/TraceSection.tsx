@@ -25,6 +25,10 @@ export function TraceSection() {
             className="font-mono"
             value={draft.draft?.linkPattern ?? ''}
             onChange={(e) => draft.update({ linkPattern: e.target.value })}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.nativeEvent.isComposing) return;
+            }}
             onBlur={() => void draft.flushAutoSave()}
           />
         )}
@@ -72,6 +76,10 @@ function DevBranchSettingRow() {
             const next = e.target.value;
             setVal(next);
             setCustomDevBranch(next);
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.nativeEvent.isComposing) return;
           }}
         />
       )}
@@ -122,6 +130,10 @@ function RepoChecklist() {
             placeholder="输入名称过滤…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.nativeEvent.isComposing) return;
+            }}
           />
           {archivedCount > 0 && (
             <Checkbox
@@ -137,7 +149,7 @@ function RepoChecklist() {
               </Checkbox.Content>
             </Checkbox>
           )}
-          <ScrollShadow className="h-48 rounded-md border border-border/60 bg-background/50">
+          <ScrollShadow className="h-48 rounded-md border border-border/60 bg-background/50 overflow-y-auto overscroll-contain">
             <div className="flex flex-col gap-0.5 p-1.5">
               {visibleRepos.map((r) => (
                 <Checkbox
@@ -150,7 +162,7 @@ function RepoChecklist() {
                     <Checkbox.Control>
                       <Checkbox.Indicator />
                     </Checkbox.Control>
-                    <span className="font-mono text-xs">{r.pathWithNamespace || r.name}</span>
+                    <span className="font-mono text-xs truncate" title={r.pathWithNamespace || r.name}>{r.pathWithNamespace || r.name}</span>
                   </Checkbox.Content>
                 </Checkbox>
               ))}

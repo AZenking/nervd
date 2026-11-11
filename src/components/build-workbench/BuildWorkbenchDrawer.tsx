@@ -108,15 +108,16 @@ function RunRow({
         {run.trigger && (
           <OverflowTooltip
             text={run.trigger}
+            title={run.trigger}
             className="mt-0.5 max-w-36 truncate text-[11px] text-muted-foreground"
           />
         )}
       </Table.Cell>
       <Table.Cell className="max-w-44 px-3 py-2.5 align-top">
-        <OverflowTooltip text={branch} className="block truncate font-mono text-xs text-foreground" />
+        <OverflowTooltip text={branch} title={branch} className="block truncate font-mono text-xs text-foreground" />
       </Table.Cell>
       <Table.Cell className="max-w-36 px-3 py-2.5 align-top">
-        <OverflowTooltip text={environment} className="block truncate text-xs text-muted-foreground" />
+        <OverflowTooltip text={environment} title={environment} className="block truncate text-xs text-muted-foreground" />
       </Table.Cell>
       <Table.Cell className="px-3 py-2.5 align-top">
         <StatusBadge status={run.status} size="sm" />
@@ -172,6 +173,7 @@ function RepoRunsPage({
                 <OverflowTooltip
                   as="h2"
                   text={displayRepoName}
+                  title={displayRepoName}
                   className="min-w-0 truncate text-sm font-semibold text-foreground"
                 />
                 <Chip size="sm" variant="soft" color="default">#{target.repoId}</Chip>
@@ -194,19 +196,19 @@ function RepoRunsPage({
                 {
                   key: 'target',
                   label: '构建目标',
-                  children: <OverflowTooltip text={buildTarget} className="min-w-0 flex-1 truncate font-mono font-medium" />,
+                  children: <OverflowTooltip text={buildTarget} title={buildTarget} className="min-w-0 flex-1 truncate font-mono font-medium" />,
                   contentClassName: 'font-mono font-medium',
                 },
                 {
                   key: 'branch',
                   label: '最近分支',
-                  children: <OverflowTooltip text={recentBranch} className="min-w-0 flex-1 truncate font-mono font-medium" />,
+                  children: <OverflowTooltip text={recentBranch} title={recentBranch} className="min-w-0 flex-1 truncate font-mono font-medium" />,
                   contentClassName: 'font-mono font-medium',
                 },
                 {
                   key: 'environment',
                   label: '最近环境',
-                  children: <OverflowTooltip text={recentEnvironment} className="min-w-0 flex-1 truncate font-mono font-medium" />,
+                  children: <OverflowTooltip text={recentEnvironment} title={recentEnvironment} className="min-w-0 flex-1 truncate font-mono font-medium" />,
                   contentClassName: 'font-mono font-medium',
                 },
               ]}
@@ -352,8 +354,8 @@ function FlowParametersPage({
             <Descriptions
               variant="plain"
               items={[
-                { key: 'repo', label: '仓库', children: <OverflowTooltip text={repo?.pathWithNamespace || target.title} className="min-w-0 flex-1 truncate" /> },
-                { key: 'pipeline', label: '流水线', children: <OverflowTooltip text={binding?.provider === 'flow' ? binding.pipelineName || '未选择流水线' : '绑定已变更'} className="min-w-0 flex-1 truncate" /> },
+                { key: 'repo', label: '仓库', children: <OverflowTooltip text={repo?.pathWithNamespace || target.title} title={repo?.pathWithNamespace || target.title} className="min-w-0 flex-1 truncate" /> },
+                { key: 'pipeline', label: '流水线', children: <OverflowTooltip text={binding?.provider === 'flow' ? binding.pipelineName || '未选择流水线' : '绑定已变更'} title={binding?.provider === 'flow' ? binding.pipelineName || '未选择流水线' : '绑定已变更'} className="min-w-0 flex-1 truncate" /> },
                 { key: 'mode', label: '运行方式', children: '使用流水线当前配置' },
               ]}
             />
@@ -398,6 +400,7 @@ function PipelineRunsPage({
                 <OverflowTooltip
                   as="h2"
                   text={pipeline?.pipelineName || target.title}
+                  title={pipeline?.pipelineName || target.title}
                   className="min-w-0 truncate text-sm font-semibold text-foreground"
                 />
                 <Chip size="sm" variant="soft" color="default">#{target.pipelineId}</Chip>
@@ -505,7 +508,7 @@ function PipelineParametersPage({
             <Descriptions
               variant="plain"
               items={[
-                { key: 'pipeline', label: '流水线', children: <OverflowTooltip text={pipeline?.pipelineName || target.title} className="min-w-0 flex-1 truncate" /> },
+                { key: 'pipeline', label: '流水线', children: <OverflowTooltip text={pipeline?.pipelineName || target.title} title={pipeline?.pipelineName || target.title} className="min-w-0 flex-1 truncate" /> },
                 { key: 'pipelineId', label: '流水线 ID', children: String(target.pipelineId), contentClassName: 'font-mono' },
                 { key: 'mode', label: '运行方式', children: '使用当前流水线配置' },
               ]}
@@ -666,9 +669,16 @@ export function BuildWorkbenchDrawer() {
                   )}
                   <div className="min-w-0">
                     <DrawerTitle className="min-w-0 text-sm font-semibold">
-                      <OverflowTooltip text={`${title} · ${pageLabel}`} className="truncate text-sm font-semibold" />
+                      <OverflowTooltip
+                        text={`${title} · ${pageLabel}`}
+                        title={`${title} · ${pageLabel}`}
+                        className="truncate text-sm font-semibold"
+                      />
                     </DrawerTitle>
-                    <DrawerDescription className="mt-0.5 truncate text-xs">
+                    <DrawerDescription
+                      className="mt-0.5 truncate text-xs"
+                      title={target?.kind === 'repo' ? `仓库 #${target.repoId} · 构建工作台` : `流水线 #${target?.kind === 'pipeline' ? target.pipelineId : ''} · 构建工作台`}
+                    >
                       {target?.kind === 'repo' ? `仓库 #${target.repoId}` : `流水线 #${target?.kind === 'pipeline' ? target.pipelineId : ''}`} · 构建工作台
                     </DrawerDescription>
                   </div>

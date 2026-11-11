@@ -259,6 +259,10 @@ export function AiSection() {
               <Input
                 value={settings.baseUrl}
                 onChange={(e) => void handleUpdate({ baseUrl: e.target.value })}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.nativeEvent.isComposing) return;
+                }}
                 placeholder="https://..."
                 className="h-8 font-mono text-xs bg-background"
               />
@@ -285,6 +289,10 @@ export function AiSection() {
             <Input
               value={settings.model}
               onChange={(e) => void handleUpdate({ model: e.target.value })}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.nativeEvent.isComposing) return;
+              }}
               placeholder="qwen-plus"
               className="h-8 font-mono text-xs bg-background"
             />
@@ -322,6 +330,10 @@ export function AiSection() {
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.nativeEvent.isComposing) return;
+                  }}
                   placeholder={settings.hasApiKey ? '••••••••••••••••••••••••••••••••（已加密存储，输入可覆盖）' : '请输入 API Key，如 sk-...'}
                   className="h-8 pr-8 font-mono text-xs bg-background"
                 />

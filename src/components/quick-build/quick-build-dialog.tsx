@@ -108,8 +108,21 @@ export function QuickBuildDialog() {
     }
   };
 
+  // 键盘光标选中项随上下键滚动进入可视区
+  useEffect(() => {
+    itemRefs.current[selectedIndex]?.scrollIntoView?.({ block: 'nearest' });
+  }, [selectedIndex]);
+
   // 键盘操作
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // 阻止按键冒泡，防止触发全局快捷键或关闭外层浮层
+    if (e.key !== 'Escape') {
+      e.stopPropagation();
+    }
+    // 中文 / 日文等 IME 输入法正在拼字时，放行 Enter、Space 等组合按键，不触发构建执行或选项切换
+    if (e.nativeEvent.isComposing || e.key === 'Process' || (e as any).keyCode === 229) {
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex((prev) => (flatEntries.length ? (prev + 1) % flatEntries.length : 0));
@@ -146,6 +159,8 @@ export function QuickBuildDialog() {
               }}
               onKeyDown={handleKeyDown}
               placeholder="快速构建：搜索仓库名、流水线名，回车一键触发…"
+              autoComplete="off"
+              spellCheck={false}
               className="h-full w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground"
             />
             <div className="flex items-center gap-1.5 shrink-0 pl-2">
@@ -155,7 +170,7 @@ export function QuickBuildDialog() {
           </div>
 
           {/* 内容区 */}
-          <ScrollArea className="max-h-[min(26rem,50vh)] py-2">
+          <ScrollArea className="max-h-[min(26rem,50vh)] py-2 overscroll-contain">
             {flatEntries.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center text-xs text-muted-foreground">
                 {q ? (
@@ -203,14 +218,19 @@ export function QuickBuildDialog() {
                                 <TerminalIcon className="size-3.5 text-warning shrink-0" />
                               )}
                               <div className="flex flex-col min-w-0 text-left">
-                                <div className="flex items-center gap-2 font-medium truncate">
-                                  <span>{target.repoName}</span>
-                                  <span className="text-[11px] text-muted-foreground font-normal">
+                                <div className="flex items-center gap-2 font-medium truncate" title={`${target.repoName} · ${target.pipelineName}`}>
+                                  <span className="truncate">{target.repoName}</span>
+                                  <span className="text-[11px] text-muted-foreground font-normal truncate">
                                     {target.pipelineName}
                                   </span>
                                 </div>
                                 {target.parameters && Object.keys(target.parameters).length > 0 && (
-                                  <div className="text-[10px] text-muted-foreground/80 font-mono truncate mt-0.5">
+                                  <div
+                                    className="text-[10px] text-muted-foreground/80 font-mono truncate mt-0.5"
+                                    title={Object.entries(target.parameters)
+                                      .map(([k, v]) => `${k}=${v}`)
+                                      .join(' ')}
+                                  >
                                     {Object.entries(target.parameters)
                                       .map(([k, v]) => `${k}=${v}`)
                                       .join(' ')}
@@ -277,9 +297,9 @@ export function QuickBuildDialog() {
                                 <TerminalIcon className="size-3.5 text-warning shrink-0" />
                               )}
                               <div className="flex flex-col min-w-0 text-left">
-                                <div className="flex items-center gap-2 font-medium truncate">
-                                  <span>{target.repoName}</span>
-                                  <span className="text-[11px] text-muted-foreground font-normal">
+                                <div className="flex items-center gap-2 font-medium truncate" title={`${target.repoName} · ${target.pipelineName}`}>
+                                  <span className="truncate">{target.repoName}</span>
+                                  <span className="text-[11px] text-muted-foreground font-normal truncate">
                                     {target.pipelineName}
                                   </span>
                                 </div>

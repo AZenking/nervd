@@ -518,10 +518,16 @@ export function ScheduleEditorDrawer({
             <div className="flex min-w-0 items-center gap-2.5">
               <CalendarClockIcon className="size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold tracking-tight">
+                <h2
+                  className="truncate text-sm font-semibold tracking-tight"
+                  title={initialTask ? `编辑定时任务 · ${initialTask.name}` : '新建定时任务'}
+                >
                   {initialTask ? `编辑定时任务 · ${initialTask.name}` : '新建定时任务'}
                 </h2>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p
+                  className="truncate text-[11px] text-muted-foreground"
+                  title="配置自动化定时调度策略，支持代码分支安全同步、构建自动化与多源数据巡检"
+                >
                   配置自动化定时调度策略，支持代码分支安全同步、构建自动化与多源数据巡检
                 </p>
               </div>
@@ -565,6 +571,16 @@ export function ScheduleEditorDrawer({
                     <Input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Escape' && e.key !== 'Tab') {
+                          e.stopPropagation();
+                        }
+                      }}
+                      onKeyUp={(e) => {
+                        if (e.key !== 'Escape' && e.key !== 'Tab') {
+                          e.stopPropagation();
+                        }
+                      }}
                       placeholder="例如：每日凌晨开发分支向主干安全合入"
                     />
                   </div>
@@ -573,6 +589,16 @@ export function ScheduleEditorDrawer({
                     <Textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Escape' && e.key !== 'Tab') {
+                          e.stopPropagation();
+                        }
+                      }}
+                      onKeyUp={(e) => {
+                        if (e.key !== 'Escape' && e.key !== 'Tab') {
+                          e.stopPropagation();
+                        }
+                      }}
                       placeholder="简要说明此任务的用途与调度场景（选填）"
                     />
                   </div>
@@ -749,7 +775,7 @@ export function ScheduleEditorDrawer({
                               </Radio.Content>
                               <span data-slot="description" className="block">
                                 代码冲突时，自动以源分支（如{' '}
-                                <span className="break-all font-mono text-foreground">
+                                <span className="break-all font-mono text-foreground" title={sourceBranch || 'dev'}>
                                   {sourceBranch || 'dev'}
                                 </span>
                                 ）的新改为准覆盖目标分支，适合新功能冲刺迭代。
@@ -768,7 +794,7 @@ export function ScheduleEditorDrawer({
                               </Radio.Content>
                               <span data-slot="description" className="block">
                                 代码冲突时，保留目标分支（如{' '}
-                                <span className="break-all font-mono text-foreground">
+                                <span className="break-all font-mono text-foreground" title={targetBranch || 'master'}>
                                   {targetBranch || 'master'}
                                 </span>
                                 ）原本的代码，丢弃冲突改动，确保生产基线稳定。
@@ -829,6 +855,16 @@ export function ScheduleEditorDrawer({
                       <Input
                         value={jenkinsJobName}
                         onChange={(e) => setJenkinsJobName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Escape' && e.key !== 'Tab') {
+                            e.stopPropagation();
+                          }
+                        }}
+                        onKeyUp={(e) => {
+                          if (e.key !== 'Escape' && e.key !== 'Tab') {
+                            e.stopPropagation();
+                          }
+                        }}
                         placeholder="例如: frontend-app/release-build"
                         className="font-mono"
                       />
@@ -850,6 +886,16 @@ export function ScheduleEditorDrawer({
                         type="number"
                         value={pipelineId || ''}
                         onChange={(e) => setPipelineId(Number(e.target.value))}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Escape' && e.key !== 'Tab') {
+                            e.stopPropagation();
+                          }
+                        }}
+                        onKeyUp={(e) => {
+                          if (e.key !== 'Escape' && e.key !== 'Tab') {
+                            e.stopPropagation();
+                          }
+                        }}
                         placeholder="云效流水线数字 ID，如 123456"
                         className="font-mono"
                       />
@@ -859,6 +905,16 @@ export function ScheduleEditorDrawer({
                       <Input
                         value={pipelineName}
                         onChange={(e) => setPipelineName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Escape' && e.key !== 'Tab') {
+                            e.stopPropagation();
+                          }
+                        }}
+                        onKeyUp={(e) => {
+                          if (e.key !== 'Escape' && e.key !== 'Tab') {
+                            e.stopPropagation();
+                          }
+                        }}
                         placeholder="例如: 主应用生产发布流水线"
                       />
                     </div>
@@ -940,6 +996,16 @@ export function ScheduleEditorDrawer({
                             onChange={(e) =>
                               handleIntervalChange(parseInt(e.target.value, 10) || 1, intervalUnit)
                             }
+                            onKeyDown={(e) => {
+                              if (e.key !== 'Escape' && e.key !== 'Tab') {
+                                e.stopPropagation();
+                              }
+                            }}
+                            onKeyUp={(e) => {
+                              if (e.key !== 'Escape' && e.key !== 'Tab') {
+                                e.stopPropagation();
+                              }
+                            }}
                             className="w-16 font-mono"
                           />
                           <TagGroup
@@ -1064,6 +1130,16 @@ export function ScheduleEditorDrawer({
                               onChange={(v) =>
                                 handleFixedTimeChange(fromTimeValue(v), fixedDaysType, fixedWeeklyDay)
                               }
+                              onKeyDown={(e) => {
+                                if (e.key !== 'Escape' && e.key !== 'Tab') {
+                                  e.stopPropagation();
+                                }
+                              }}
+                              onKeyUp={(e) => {
+                                if (e.key !== 'Escape' && e.key !== 'Tab') {
+                                  e.stopPropagation();
+                                }
+                              }}
                             >
                               <TimeField.Group className="font-mono tabular-nums">
                                 <TimeField.Input>
@@ -1096,6 +1172,16 @@ export function ScheduleEditorDrawer({
                             setCron(e.target.value);
                             setPreset('custom');
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key !== 'Escape' && e.key !== 'Tab') {
+                              e.stopPropagation();
+                            }
+                          }}
+                          onKeyUp={(e) => {
+                            if (e.key !== 'Escape' && e.key !== 'Tab') {
+                              e.stopPropagation();
+                            }
+                          }}
                           placeholder="例如: 0 2 * * *"
                           className={cn('font-mono', !cronValidation.valid && 'border-destructive')}
                         />
@@ -1117,7 +1203,7 @@ export function ScheduleEditorDrawer({
                         <span className="shrink-0">预计接下来的执行时间：</span>
                         <span className="flex min-w-0 items-center gap-1.5 font-mono text-[11px] font-normal text-muted-foreground">
                           Cron 规则:
-                          <Chip size="sm" variant="soft" color="accent" className="max-w-56 truncate font-mono">
+                          <Chip size="sm" variant="soft" color="accent" className="max-w-56 truncate font-mono" title={cron}>
                             {cron}
                           </Chip>
                         </span>
@@ -1125,21 +1211,24 @@ export function ScheduleEditorDrawer({
                       {nextRuns.length > 0 ? (
                         // Alert.Description 渲染为 span：直接以 grid 布局承载时间项，避免块级元素嵌进短语内容
                         <Alert.Description className="grid w-full grid-cols-1 gap-1 pt-0.5 font-mono text-[11px] sm:grid-cols-2">
-                          {nextRuns.map((time, idx) => (
-                            <span key={idx} className="flex min-w-0 items-center gap-1.5">
-                              <span className="size-1 shrink-0 rounded-full bg-primary" />
-                              <span className="truncate">
-                                {time.toLocaleString('zh-CN', {
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  weekday: 'short',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: false,
-                                })}
+                          {nextRuns.map((time, idx) => {
+                            const formattedTime = time.toLocaleString('zh-CN', {
+                              month: '2-digit',
+                              day: '2-digit',
+                              weekday: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: false,
+                            });
+                            return (
+                              <span key={idx} className="flex min-w-0 items-center gap-1.5">
+                                <span className="size-1 shrink-0 rounded-full bg-primary" />
+                                <span className="truncate" title={formattedTime}>
+                                  {formattedTime}
+                                </span>
                               </span>
-                            </span>
-                          ))}
+                            );
+                          })}
                         </Alert.Description>
                       ) : (
                         <Alert.Description className="text-destructive">

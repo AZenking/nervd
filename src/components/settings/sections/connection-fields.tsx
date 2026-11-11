@@ -82,6 +82,10 @@ export function PatRow({ orientation = 'horizontal' }: { orientation?: 'vertical
           className="font-mono"
           value={draft.pat}
           onChange={(e) => draft.setPat(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.nativeEvent.isComposing) return;
+          }}
           onBlur={() => {
             if (draft.pat.trim()) void draft.save({ silent: true });
           }}
@@ -108,6 +112,10 @@ export function OrgRow({ orientation = 'horizontal' }: { orientation?: 'vertical
           className="font-mono"
           value={draft.draft?.organizationId ?? ''}
           onChange={(e) => draft.update({ organizationId: e.target.value })}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.nativeEvent.isComposing) return;
+          }}
           onBlur={() => void draft.flushAutoSave()}
           placeholder="60de7a68…"
         />

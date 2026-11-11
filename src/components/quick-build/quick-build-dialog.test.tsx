@@ -93,4 +93,62 @@ describe('QuickBuildDialog', () => {
       expect.objectContaining({ id: 'flow:101', repoName: 'trade-service' }),
     );
   });
+
+  it('stops keydown propagation and supports typing Space without triggering build', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(true);
+    useQuickBuild.setState({ triggerQuickBuild: triggerSpy });
+
+    await act(async () => {
+      root?.render(<QuickBuildDialog />);
+    });
+
+    const input = document.querySelector('input') as HTMLInputElement;
+    const spaceEvent = new KeyboardEvent('keydown', {
+      key: ' ',
+      bubbles: true,
+      cancelable: true,
+    });
+    const stopPropagationSpy = vi.spyOn(spaceEvent, 'stopPropagation');
+
+    await act(async () => {
+      input.dispatchEvent(spaceEvent);
+    });
+
+    expect(stopPropagationSpy).toHaveBeenCalled();
+    expect(triggerSpy).not.toHaveBeenCalled();
+    expect(useUi.getState().quickBuildOpen).toBe(true);
+  });
+
+  it('does not trigger build when Enter is pressed during IME composition', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(true);
+    useQuickBuild.setState({ triggerQuickBuild: triggerSpy });
+
+    await act(async () => {
+      root?.render(<QuickBuildDialog />);
+    });
+
+    const input = document.querySelector('input') as HTMLInputElement;
+    const imeEnterEvent = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(imeEnterEvent, 'isComposing', { value: true });
+
+    await act(async () => {
+      input.dispatchEvent(imeEnterEvent);
+    });
+
+    expect(triggerSpy).not.toHaveBeenCalled();
+    expect(useUi.getState().quickBuildOpen).toBe(true);
+  });
+
+  it('renders title attributes for truncated repository and pipeline names', async () => {
+    await act(async () => {
+      root?.render(<QuickBuildDialog />);
+    });
+
+    const titleEl = document.querySelector('[title*="trade-service · Flow 生产发布"]');
+    expect(titleEl).not.toBeNull();
+  });
 });
