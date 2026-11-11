@@ -97,4 +97,46 @@ describe('SearchableSelect with HeroUI Autocomplete', () => {
     });
     container.remove();
   });
+
+  it('renders list items with OverflowTooltip for long text paths', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    const longRepoPath = 'f6car/F6-saas-independence/foton-workspace-app-service';
+    const items: SearchableSelectOption<string>[] = [
+      { label: longRepoPath, value: 'repo-1' },
+    ];
+
+    await act(async () => {
+      root.render(
+        <SearchableSelect
+          items={items}
+          value={null}
+          onValueChange={() => {}}
+          placeholder="选择仓库..."
+        />
+      );
+    });
+
+    // 打开下拉
+    const trigger = container.querySelector<HTMLElement>('[data-slot="autocomplete-trigger"]');
+    expect(trigger).not.toBeNull();
+    await act(async () => {
+      trigger?.click();
+    });
+
+    // 弹窗内的 ListBox.Item 应包含带有完整路径与 title 属性的文本节点
+    const item = document.querySelector<HTMLElement>('[role="option"]');
+    expect(item).not.toBeNull();
+    const labelSpan = item?.querySelector<HTMLElement>('span[title]');
+    expect(labelSpan).not.toBeNull();
+    expect(labelSpan?.getAttribute('title')).toBe(longRepoPath);
+    expect(labelSpan?.textContent).toBe(longRepoPath);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

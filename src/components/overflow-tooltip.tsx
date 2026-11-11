@@ -1,5 +1,6 @@
 import {
   cloneElement,
+  isValidElement,
   useCallback,
   useId,
   useLayoutEffect,
@@ -41,6 +42,8 @@ export interface OverflowTooltipProps {
   lineClamp?: number;
   /** Base UI render 组合 API；可传入已有 button/a 或显式 focusable 文本控件。 */
   render?: ReactElement;
+  /** 原生 HTML title 提示（默认在文本溢出时自动补齐纯文本文案） */
+  title?: string;
 }
 
 const FOCUSABLE_ANCESTOR_SELECTOR =
@@ -85,13 +88,15 @@ function createVirtualInputRegistry(input: HTMLInputElement): VirtualInputRegist
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.target !== input) return;
     if (VIRTUAL_NAVIGATION_KEYS.has(event.key)) {
       registry.keyboardActive = true;
       queueMicrotask(() => registry.entries.forEach((entry) => entry.evaluate()));
       return;
     }
     if (event.key !== 'Escape') return;
-    const hasOpenTooltip = [...registry.entries.values()].some((entry) => entry.isOpen());
+    const entries = [...registry.entries.values()];
+    const hasOpenTooltip = entries.some((entry) => entry.isOpen());
     if (!hasOpenTooltip) return;
     event.preventDefault();
     event.stopPropagation();
@@ -103,12 +108,12 @@ function createVirtualInputRegistry(input: HTMLInputElement): VirtualInputRegist
     registry.entries.forEach((entry) => entry.close());
   };
 
-  input.addEventListener('keydown', handleKeyDown, true);
+  window.addEventListener('keydown', handleKeyDown, true);
   input.addEventListener('pointerdown', registry.markPointer, true);
   input.addEventListener('mousedown', registry.markPointer, true);
   input.addEventListener('blur', handleBlur, true);
   registry.dispose = () => {
-    input.removeEventListener('keydown', handleKeyDown, true);
+    window.removeEventListener('keydown', handleKeyDown, true);
     input.removeEventListener('pointerdown', registry.markPointer, true);
     input.removeEventListener('mousedown', registry.markPointer, true);
     input.removeEventListener('blur', handleBlur, true);
@@ -161,6 +166,17 @@ function hasSemanticTooltipAncestor(element: HTMLElement): boolean {
   return false;
 }
 
+function extractText(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join('');
+  if (isValidElement(node)) {
+    const props = node.props as { children?: ReactNode };
+    return props.children ? extractText(props.children) : '';
+  }
+  return '';
+}
+
 function hasTooltipContent(value: ReactNode): boolean {
   return value !== null && value !== undefined && value !== false && value !== '';
 }
@@ -197,6 +213,7 @@ export function OverflowTooltip({
   multiline = false,
   lineClamp,
   render,
+  title,
 }: OverflowTooltipProps) {
   const ref = useRef<HTMLElement>(null);
   const tooltipId = `overflow-tooltip-${useId().replace(/:/g, '')}`;
@@ -205,7 +222,8 @@ export function OverflowTooltip({
   const [open, setOpen] = useState(false);
 
   const content = children ?? text;
-  const tipText = tooltip ?? (typeof children === 'string' ? children : text);
+  const tipText = tooltip ?? (typeof children === 'string' ? children : (text ?? children));
+  const rawTipString = typeof tipText === 'string' ? tipText : extractText(tipText);
   const hasTip = hasTooltipContent(tipText);
   const openRef = useRef(open);
   const hasTipRef = useRef(hasTip);
@@ -493,6 +511,25 @@ export function OverflowTooltip({
     setOpen(false);
   }, []);
 
+  const handleMouseEnter = useCallback(() => {
+    const isOver = updateOverflow();
+    if (isOver && hasTipRef.current) {
+      closeSiblingTooltips();
+      setOpen(true);
+    }
+  }, [closeSiblingTooltips, updateOverflow]);
+
+  const handleMouseLeave = useCallback(() => {
+    // 鼠标移出：若未由键盘焦点保持激活，则关闭提示
+    const isFocused =
+      typeof document !== 'undefined' &&
+      (document.activeElement === ref.current ||
+        (focusOwnerRef.current != null && document.activeElement === focusOwnerRef.current));
+    if (!isFocused) {
+      setOpen(false);
+    }
+  }, []);
+
   const renderElement = render;
   const renderProps = renderElement?.props as Record<string, unknown> | undefined;
   const triggerDescribedBy = renderProps?.['aria-describedby'] as string | undefined;
@@ -516,6 +553,7 @@ export function OverflowTooltip({
       <TooltipTrigger
         ref={ref as unknown as Ref<HTMLButtonElement>}
         render={triggerElement}
+        title={title ?? (overflowed && rawTipString ? rawTipString : undefined)}
         className={cn(
           'inline-block max-w-full align-bottom min-w-0',
           !isMultiline && 'truncate',
@@ -523,7 +561,8 @@ export function OverflowTooltip({
           className,
         )}
         style={{ ...lineClampStyle, ...style }}
-        onMouseEnter={updateOverflow}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         onFocus={updateOverflow}
         onBlur={() => setOpen(false)}
         onKeyDown={handleTriggerKeyDown}
@@ -537,6 +576,8 @@ export function OverflowTooltip({
           side={side}
           align={align}
           sideOffset={sideOffset}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={handleMouseLeave}
           className={cn(
             'max-w-md break-words whitespace-normal text-xs leading-relaxed font-normal',
             contentClassName,

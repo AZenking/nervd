@@ -118,6 +118,21 @@ function SelectValue({ className, placeholder, children, ...props }: SelectValue
   )
 }
 
+export interface SelectPopoverProps
+  extends React.ComponentPropsWithRef<typeof HeroSelect.Popover> {}
+
+function SelectPopover({ className, children, ...props }: SelectPopoverProps) {
+  return (
+    <HeroSelect.Popover
+      data-slot="select-popover"
+      className={cn("overscroll-contain", className)}
+      {...props}
+    >
+      {children}
+    </HeroSelect.Popover>
+  )
+}
+
 export interface SelectContentProps
   extends React.ComponentPropsWithRef<typeof HeroSelect.Popover> {
   listBoxProps?: React.ComponentPropsWithRef<typeof ListBox>
@@ -130,15 +145,14 @@ function SelectContent({
   ...props
 }: SelectContentProps) {
   return (
-    <HeroSelect.Popover
-      data-slot="select-popover"
+    <SelectPopover
       className={className}
       {...props}
     >
       <ListBox data-slot="select-listbox" {...listBoxProps}>
         {children}
       </ListBox>
-    </HeroSelect.Popover>
+    </SelectPopover>
   )
 }
 
@@ -195,7 +209,7 @@ const Select = Object.assign(SelectRoot, {
   Value: SelectValue,
   Indicator: HeroSelect.Indicator,
   ClearButton: HeroSelect.ClearButton,
-  Popover: HeroSelect.Popover,
+  Popover: SelectPopover,
   Content: SelectContent,
   Item: SelectItem,
   Section: SelectSection,
@@ -205,6 +219,7 @@ export {
   Select,
   SelectTrigger,
   SelectValue,
+  SelectPopover,
   SelectContent,
   SelectItem,
   SelectSection,

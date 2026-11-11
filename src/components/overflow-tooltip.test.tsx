@@ -72,6 +72,21 @@ describe('OverflowTooltip 溢出测量', () => {
     expect(tooltipContents().map((node) => node.textContent)).toEqual(['标题']);
   });
 
+  it('鼠标 hover 到溢出文本触发器时显示 Tooltip，移出时关闭', async () => {
+    const trigger = await render({ text: '长路径/项目名/组件名' });
+    setMetrics(trigger, { clientWidth: 60, scrollWidth: 200 });
+    await recalculate();
+    expect(tooltipContents()).toHaveLength(0);
+
+    await act(() => trigger.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    await flushObservers();
+    expect(tooltipContents().map((node) => node.textContent)).toEqual(['长路径/项目名/组件名']);
+
+    await act(() => trigger.dispatchEvent(new MouseEvent('mouseout', { bubbles: true })));
+    await flushObservers();
+    expect(tooltipContents()).toHaveLength(0);
+  });
+
   it('支持多行高度测量，且 multiline 不会被默认 truncate 覆盖', async () => {
     const trigger = await render({
       text: '多行标题',
@@ -103,6 +118,38 @@ describe('OverflowTooltip 溢出测量', () => {
     setMetrics(trigger, { clientWidth: 100, scrollWidth: 100 });
     await recalculate();
     expect(tooltipContents()).toHaveLength(0);
+  });
+
+  it('截断溢出时提供原生 title 回退，未截断时不添加多余 title', async () => {
+    const trigger = await render({ text: '长文本需求标题内容' });
+    expect(trigger.getAttribute('title')).toBeNull();
+
+    setMetrics(trigger, { clientWidth: 50, scrollWidth: 150 });
+    await recalculate();
+    expect(trigger.getAttribute('title')).toBe('长文本需求标题内容');
+
+    setMetrics(trigger, { clientWidth: 200, scrollWidth: 150 });
+    await recalculate();
+    expect(trigger.getAttribute('title')).toBeNull();
+  });
+
+  it('支持 ReactNode children 提取纯文本作为 title 回退', async () => {
+    const trigger = await render({
+      children: <span><span>前缀 - </span><strong>需求名称</strong></span>,
+    });
+    setMetrics(trigger, { clientWidth: 50, scrollWidth: 150 });
+    await recalculate();
+    expect(trigger.getAttribute('title')).toBe('前缀 - 需求名称');
+  });
+
+  it('优先使用显式声明的 title', async () => {
+    const trigger = await render({
+      text: '默认文本',
+      title: '自定义说明',
+    });
+    setMetrics(trigger, { clientWidth: 50, scrollWidth: 150 });
+    await recalculate();
+    expect(trigger.getAttribute('title')).toBe('自定义说明');
   });
 });
 

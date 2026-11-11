@@ -134,7 +134,7 @@ function AutocompletePopover({ className, children, ...props }: AutocompletePopo
   return (
     <HeroAutocomplete.Popover
       data-slot="autocomplete-popover"
-      className={className}
+      className={cn("overscroll-contain", className)}
       {...props}
     >
       {children}
@@ -179,6 +179,81 @@ function AutocompleteItem({
   )
 }
 
+export interface SearchFieldProps
+  extends Omit<React.ComponentPropsWithRef<typeof HeroSearchField>, "value" | "defaultValue" | "onChange"> {
+  value?: string | null
+  defaultValue?: string | null
+  onChange?: (value: string) => void
+  onValueChange?: (value: string) => void
+}
+
+function SearchFieldRoot({
+  value,
+  defaultValue,
+  onChange,
+  onValueChange,
+  ...props
+}: SearchFieldProps) {
+  const resolvedValue = value !== undefined ? (value ?? "") : undefined
+  const resolvedDefaultValue = defaultValue !== undefined ? (defaultValue ?? "") : undefined
+
+  const handleChange = (val: string) => {
+    onChange?.(val)
+    onValueChange?.(val)
+  }
+
+  return (
+    <HeroSearchField
+      value={resolvedValue}
+      defaultValue={resolvedDefaultValue}
+      onChange={handleChange}
+      {...props}
+    />
+  )
+}
+
+export interface SearchFieldInputProps
+  extends React.ComponentPropsWithRef<typeof HeroSearchField.Input> {}
+
+function SearchFieldInput({
+  onKeyDown,
+  onKeyUp,
+  ...props
+}: SearchFieldInputProps) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    onKeyDown?.(e)
+    if (e.defaultPrevented) return
+    // 阻止输入法组合状态 (IME) 及空格键事件向上冒泡，防止被父级容器或全局快捷键监听器拦截/吞噬
+    if (e.nativeEvent.isComposing || (e as any).isComposing || e.key === ' ' || e.key === 'Spacebar') {
+      e.stopPropagation()
+    }
+  }
+
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    onKeyUp?.(e)
+    if (e.defaultPrevented) return
+    if (e.nativeEvent.isComposing || (e as any).isComposing || e.key === ' ' || e.key === 'Spacebar') {
+      e.stopPropagation()
+    }
+  }
+
+  return (
+    <HeroSearchField.Input
+      onKeyDown={handleKeyDown}
+      onKeyUp={handleKeyUp}
+      {...props}
+    />
+  )
+}
+
+const SearchField = Object.assign(SearchFieldRoot, {
+  Root: HeroSearchField.Root,
+  Group: HeroSearchField.Group,
+  Input: SearchFieldInput,
+  SearchIcon: HeroSearchField.SearchIcon,
+  ClearButton: HeroSearchField.ClearButton,
+})
+
 const Autocomplete = Object.assign(AutocompleteRoot, {
   Trigger: AutocompleteTrigger,
   Value: AutocompleteValue,
@@ -195,7 +270,7 @@ export {
   AutocompleteValue,
   AutocompletePopover,
   AutocompleteItem,
-  HeroSearchField as SearchField,
+  SearchField,
   ListBox,
   useFilter,
 }

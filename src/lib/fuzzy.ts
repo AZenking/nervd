@@ -10,16 +10,48 @@
  * 7. 顺序子序列模糊匹配（如 "osdp" 匹配 "order-service-deploy-prod"）
  */
 
+export interface FuzzyMatcherContext {
+  q: string;
+  escapedQ: string;
+  boundaryRegex: RegExp;
+  tokens: string[];
+  cleanQuery: string;
+}
+
+/**
+ * 预编译查询词上下文，避免在过滤数百上千个选项时重复编译正则与分词
+ */
+export function createFuzzyMatcherContext(query: string): FuzzyMatcherContext | null {
+  const q = query.trim().toLowerCase();
+  if (!q) return null;
+  const escapedQ = q.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const boundaryRegex = new RegExp('(?:^|[\\/\\-_\\.\\s])' + escapedQ);
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const cleanQuery = q.replace(/[\/\-_\.\s]/g, '');
+  return { q, escapedQ, boundaryRegex, tokens, cleanQuery };
+}
+
 /**
  * 计算目标文本与查询词的模糊匹配得分
+ * 支持传入原始字符串或已预编译的 FuzzyMatcherContext
  * @returns 得分 > 0 表示命中（数值越大匹配度越高），0 表示不匹配
  */
-export function fuzzyScore(text: string, query: string): number {
-  if (!query || !query.trim()) return 1;
+export function fuzzyScore(
+  text: string,
+  queryOrContext: string | FuzzyMatcherContext,
+): number {
   if (!text) return 0;
+  let ctx: FuzzyMatcherContext | null = null;
+  if (typeof queryOrContext === 'string') {
+    ctx = createFuzzyMatcherContext(queryOrContext);
+    if (!ctx) return 1;
+  } else {
+    ctx = queryOrContext;
+    if (!ctx || !ctx.q) return 1;
+  }
 
   const target = text.toLowerCase();
-  const q = query.trim().toLowerCase();
+  const { q, boundaryRegex, tokens, cleanQuery } = ctx;
 
   // 1. 完全相等（最高分）
   if (target === q) return 1000;
@@ -28,8 +60,6 @@ export function fuzzyScore(text: string, query: string): number {
   if (target.startsWith(q)) return 800 - (target.length - q.length) * 0.1;
 
   // 3. 词首边界匹配（例如在 '/', '-', '_', '.', 空格后紧接着命中 query）
-  const escapedQ = q.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-  const boundaryRegex = new RegExp('(?:^|[\\/\\-_\\.\\s])' + escapedQ);
   if (boundaryRegex.test(target)) return 650;
 
   // 4. 连续子串包含
@@ -40,14 +70,12 @@ export function fuzzyScore(text: string, query: string): number {
   }
 
   // 5. 多词空格拆分匹配（输入 "order prod"，两个词均出现在 target 中）
-  const tokens = q.split(/\s+/).filter(Boolean);
   if (tokens.length > 1 && tokens.every((token) => target.includes(token))) {
     return 400;
   }
 
   // 6. 忽略标点符号后的连续子串匹配（如 "orderservice" 匹配 "order-service"）
   const cleanTarget = target.replace(/[\/\-_\.\s]/g, '');
-  const cleanQuery = q.replace(/[\/\-_\.\s]/g, '');
   if (cleanQuery.length >= 2 && cleanTarget.includes(cleanQuery)) {
     return 320;
   }
@@ -99,8 +127,8 @@ export function fuzzyFilter<T>(
   query: string,
   getText: (item: T) => string,
 ): T[] {
-  const trimmed = query.trim();
-  if (!trimmed) {
+  const ctx = createFuzzyMatcherContext(query);
+  if (!ctx) {
     return [...items];
   }
 
@@ -108,7 +136,7 @@ export function fuzzyFilter<T>(
 
   for (const item of items) {
     const text = getText(item);
-    const score = fuzzyScore(text, trimmed);
+    const score = fuzzyScore(text, ctx);
     if (score > 0) {
       scoredEntries.push({ item, score });
     }

@@ -23,7 +23,7 @@ const CUSTOM_VALUE_SENTINEL = '\u0000__custom__';
 export const VIRTUAL_ITEM_HEIGHT = 32;
 export const VIRTUAL_CONTAINER_HEIGHT = 252;
 export const VIRTUAL_OVERSCAN = 4;
-export const AUTO_VIRTUALIZE_THRESHOLD = 30;
+export const AUTO_VIRTUALIZE_THRESHOLD = 50000;
 
 /** 计算虚拟滚动可视切片索引与偏移量 */
 export function computeVirtualSlice(
@@ -59,9 +59,9 @@ function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
   const [scrollTop, setScrollTop] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 当搜索过滤结果集变化时，平滑复位滚动条至顶部
+  // 当搜索过滤结果集变化时，若已产生滚动则平滑复位滚动条至顶部，避免不必要的重新渲染
   useEffect(() => {
-    if (containerRef.current) {
+    if (containerRef.current && containerRef.current.scrollTop !== 0) {
       containerRef.current.scrollTop = 0;
       setScrollTop(0);
     }
@@ -87,7 +87,6 @@ function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
     <ScrollArea
       ref={containerRef}
       onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-      hideScrollBar
       className="max-h-[min(calc(var(--spacing)*72-var(--spacing)*9),calc(var(--available-height)-var(--spacing)*9))] scroll-py-1 overscroll-contain p-1"
       style={{ maxHeight: `${VIRTUAL_CONTAINER_HEIGHT}px` }}
       tabIndex={-1}
@@ -104,8 +103,8 @@ function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
             transform: `translateY(${translateY}px)`,
           }}
         >
-          <ListBox className="w-full">
-            {visibleItems.map((item) => (
+          <ListBox className="w-full !max-h-none !overflow-visible" items={visibleItems}>
+            {(item) => (
               <ListBox.Item
                 key={String(item.value)}
                 id={String(item.value)}
@@ -117,16 +116,18 @@ function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
                 )}
               >
                 {item.badge ? (
-                  <span className="flex items-center justify-between gap-2 w-full min-w-0">
-                    <OverflowTooltip text={item.label} className="min-w-0 flex-1 truncate" />
+                  <span className="flex items-center justify-between gap-2 w-full min-w-0" title={item.label}>
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
                     <span className="shrink-0">{item.badge}</span>
                   </span>
                 ) : (
-                  <OverflowTooltip text={item.label} className="block min-w-0 max-w-full truncate" />
+                  <span className="block min-w-0 w-full truncate" title={item.label}>
+                    {item.label}
+                  </span>
                 )}
                 <ListBox.ItemIndicator />
               </ListBox.Item>
-            ))}
+            )}
           </ListBox>
         </div>
       </div>
@@ -250,18 +251,27 @@ export function SearchableSelect<V extends string | number | null>({
       </Autocomplete.Trigger>
       <Autocomplete.Popover
         className={cn(
-          'min-w-[max(var(--anchor-width),300px)] max-w-[min(var(--available-width),560px)]',
+          'min-w-[max(var(--anchor-width),460px)] max-w-[min(var(--available-width),720px)]',
           popupClassName,
         )}
-        style={{ minWidth: 'max(var(--anchor-width, 0px), 300px)' }}
+        style={{ minWidth: 'max(var(--anchor-width, 0px), 460px)' }}
       >
-        <SearchField aria-label={searchPlaceholder}>
+        <SearchField
+          aria-label={searchPlaceholder}
+          value={inputValue}
+          onChange={setInputValue}
+        >
           <SearchField.Group>
             <SearchField.SearchIcon />
             <SearchField.Input
               placeholder={searchPlaceholder}
-              value={inputValue}
-              onChange={(e: any) => setInputValue(typeof e === 'string' ? e : e?.target?.value ?? '')}
+              onKeyDown={(e) => {
+                // 阻止空格/方向键等冒泡到父级 Autocomplete/Select，防止输入被打断或意外触发下拉选项选中
+                e.stopPropagation();
+              }}
+              onKeyUp={(e) => {
+                e.stopPropagation();
+              }}
             />
             {inputValue && (
               <SearchField.ClearButton onPress={() => setInputValue('')} />
@@ -274,8 +284,7 @@ export function SearchableSelect<V extends string | number | null>({
             emptyText={emptyText}
           />
         ) : (
-          <ScrollArea size={24} className="max-h-60 p-1">
-          <ListBox className="w-full">
+          <ListBox className="w-full max-h-64 overflow-y-auto p-1">
             {displayItems.length === 0 ? (
               <div className="py-3 text-center text-xs text-muted-foreground select-none">
                 {emptyText}
@@ -293,19 +302,20 @@ export function SearchableSelect<V extends string | number | null>({
                   )}
                 >
                   {item.badge ? (
-                    <span className="flex items-center justify-between gap-2 w-full min-w-0">
-                      <OverflowTooltip text={item.label} className="min-w-0 flex-1 truncate" />
+                    <span className="flex items-center justify-between gap-2 w-full min-w-0" title={item.label}>
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       <span className="shrink-0">{item.badge}</span>
                     </span>
                   ) : (
-                    <OverflowTooltip text={item.label} className="block min-w-0 max-w-full truncate" />
+                    <span className="block min-w-0 w-full truncate" title={item.label}>
+                      {item.label}
+                    </span>
                   )}
                   <ListBox.ItemIndicator />
                 </ListBox.Item>
               ))
             )}
           </ListBox>
-          </ScrollArea>
         )}
       </Autocomplete.Popover>
     </Autocomplete>
