@@ -131,19 +131,23 @@ export function WorkitemStatusDropdown({
         align="start"
         className="w-36 p-1 z-50 bg-popover/95 backdrop-blur-md border border-border shadow-level-2"
         onClick={(e) => e.stopPropagation()}
+        header={
+          <>
+            <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              流转状态
+            </div>
+            {loadingStatuses && (
+              <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+                <Spinner className="size-3" />
+                读取状态流程…
+              </div>
+            )}
+            {!loadingStatuses && statuses.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>
+            )}
+          </>
+        }
       >
-        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-          流转状态
-        </div>
-        {loadingStatuses && (
-          <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
-            <Spinner className="size-3" />
-            读取状态流程…
-          </div>
-        )}
-        {!loadingStatuses && statuses.length === 0 && (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>
-        )}
         {!loadingStatuses && statuses.map((st) => (
           <DropdownMenuItem
             key={st.id}

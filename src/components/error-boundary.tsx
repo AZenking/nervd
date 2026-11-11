@@ -10,6 +10,7 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   error: Error | null;
+  componentStack?: string | null;
 }
 
 /**
@@ -17,19 +18,34 @@ interface ErrorBoundaryState {
  * 并提供「重新加载」逃生门（整页 reload，恢复被卸载的 React 根）。
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { error: null };
+  state: ErrorBoundaryState = { error: null, componentStack: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    this.setState({ componentStack: info.componentStack });
     // eslint-disable-next-line no-console
     console.error('[ErrorBoundary]', this.props.label ?? 'unknown', error, info.componentStack);
+    try {
+      localStorage.setItem(
+        'nervd_last_error_details',
+        JSON.stringify({
+          time: new Date().toISOString(),
+          label: this.props.label,
+          message: error.message,
+          stack: error.stack,
+          componentStack: info.componentStack,
+        })
+      );
+    } catch {
+      // ignore
+    }
   }
 
   render() {
-    const { error } = this.state;
+    const { error, componentStack } = this.state;
     if (!error) return this.props.children;
     return (
       <div
@@ -45,6 +61,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             {error.message || String(error)}
           </p>
         </div>
+        {componentStack && (
+          <pre className="max-h-60 max-w-2xl overflow-auto rounded bg-muted/60 p-2 text-left font-mono text-[11px] text-foreground/80">
+            {componentStack}
+          </pre>
+        )}
         <Button
           type="button"
           variant="secondary"

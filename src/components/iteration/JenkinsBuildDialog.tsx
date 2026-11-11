@@ -145,16 +145,23 @@ function ParameterField({
                 <span>选择分支</span>
                 <ChevronDownIcon className="size-3 text-muted-foreground opacity-60" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64 max-h-72 z-[60]">
-                <div className="flex items-center justify-between px-2 py-1.5 border-b border-border/40 text-[11px] font-medium text-muted-foreground select-none">
-                  <span>{branchesLoading ? '正在拉取远端分支…' : '可选分支列表'}</span>
-                  {branchOptions.length > 0 && (
-                    <span className="text-[10px] font-mono opacity-70">{branchOptions.length} 个分支</span>
-                  )}
-                </div>
-                {branchOptions.length === 0 && !branchesLoading && (
-                  <div className="px-2 py-3 text-center text-xs text-muted-foreground">暂无可用的分支候选</div>
-                )}
+              <DropdownMenuContent
+                align="end"
+                className="w-64 max-h-72 z-[60]"
+                header={
+                  <>
+                    <div className="flex items-center justify-between px-2 py-1.5 border-b border-border/40 text-[11px] font-medium text-muted-foreground select-none">
+                      <span>{branchesLoading ? '正在拉取远端分支…' : '可选分支列表'}</span>
+                      {branchOptions.length > 0 && (
+                        <span className="text-[10px] font-mono opacity-70">{branchOptions.length} 个分支</span>
+                      )}
+                    </div>
+                    {branchOptions.length === 0 && !branchesLoading && (
+                      <div className="px-2 py-3 text-center text-xs text-muted-foreground">暂无可用的分支候选</div>
+                    )}
+                  </>
+                }
+              >
                 {branchOptions.map((b) => (
                   <DropdownMenuItem
                     key={b}

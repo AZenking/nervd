@@ -396,14 +396,21 @@ export function AiBreakdownDialog({
                         <OverflowTooltip text={item.assigneeName || '指定人'} title={item.assigneeName || '指定人'} className="min-w-0 truncate" />
                         <ChevronDownIcon className="size-2.5 opacity-60 shrink-0" />
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-44 max-h-56">
-                        <div className="px-2 py-1 text-[11px] text-muted-foreground font-medium border-b border-border/40">
-                          选择任务处理人
-                        </div>
-                        {candidateAssignees.length === 0 ? (
-                          <div className="px-2 py-2 text-xs text-muted-foreground">暂无可选成员列表</div>
-                        ) : (
-                          candidateAssignees.map((c) => {
+                      <DropdownMenuContent
+                        align="end"
+                        className="min-w-44 max-h-56"
+                        header={
+                          <>
+                            <div className="px-2 py-1 text-[11px] text-muted-foreground font-medium border-b border-border/40">
+                              选择任务处理人
+                            </div>
+                            {candidateAssignees.length === 0 && (
+                              <div className="px-2 py-2 text-xs text-muted-foreground">暂无可选成员列表</div>
+                            )}
+                          </>
+                        }
+                      >
+                        {candidateAssignees.length > 0 && candidateAssignees.map((c) => {
                             const isSelected = item.assigneeId === c.id || item.assigneeName === c.name;
                             return (
                               <DropdownMenuItem
@@ -418,8 +425,7 @@ export function AiBreakdownDialog({
                                 )}
                               </DropdownMenuItem>
                             );
-                          })
-                        )}
+                          })}
                       </DropdownMenuContent>
                     </DropdownMenu>
 

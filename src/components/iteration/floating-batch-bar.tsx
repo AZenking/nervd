@@ -77,10 +77,15 @@ export function FloatingBatchBar({
             </Button>
           }
         />
-        <DropdownMenuContent align="center" className="w-36 p-1 z-50">
-          <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-            批量流转为
-          </div>
+        <DropdownMenuContent
+          align="center"
+          className="w-36 p-1 z-50"
+          header={
+            <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              批量流转为
+            </div>
+          }
+        >
           {WORKITEM_STATUS_OPTIONS.map((st) => (
             <DropdownMenuItem
               key={st.name}

@@ -255,16 +255,23 @@ export function ChildDetailDrawer({
           </Chip>
         }
       />
-      <DropdownMenuContent align="start" className="min-w-36 z-50">
-        {loadingStatuses && (
-          <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
-            <Spinner className="size-3" />
-            <span>读取状态流程…</span>
-          </div>
-        )}
-        {!loadingStatuses && statuses.length === 0 && (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>
-        )}
+      <DropdownMenuContent
+        align="start"
+        className="min-w-36 z-50"
+        header={
+          <>
+            {loadingStatuses && (
+              <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+                <Spinner className="size-3" />
+                <span>读取状态流程…</span>
+              </div>
+            )}
+            {!loadingStatuses && statuses.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">暂无可流转状态</div>
+            )}
+          </>
+        }
+      >
         {!loadingStatuses && statuses.map((s) => {
           const isCurrent = s.id === statusId || s.name === statusName;
           return (

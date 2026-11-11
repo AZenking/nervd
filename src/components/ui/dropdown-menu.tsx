@@ -107,6 +107,13 @@ type DropdownMenuContentProps = React.HTMLAttributes<HTMLDivElement> & {
   sideOffset?: number
   alignOffset?: number
   placement?: any
+  /**
+   * 菜单头部/加载/空态插槽。RAC 的集合构建 portal（react-aria 假 Document）不支持裸 JSX
+   * 作为 Menu 直接子级：非 Item 子级的文本节点会命中假 document 未实现的 createTextNode
+   * （触发渲染崩溃），即便容错也会被吞进惰性 template 而不可见。头部类内容必须经由本
+   * 插槽渲染在 Popover 内、Menu 外的真实 DOM 中。
+   */
+  header?: React.ReactNode
   children?: React.ReactNode
 }
 
@@ -117,6 +124,7 @@ function DropdownMenuContent({
   sideOffset = 4,
   className,
   placement: placementProp,
+  header,
   children,
   ...props
 }: DropdownMenuContentProps) {
@@ -135,6 +143,7 @@ function DropdownMenuContent({
     >
       {/* 滚动与边缘渐隐内聚到 ScrollArea；调用方追加的 max-h-*（如 max-h-56/72）
           经 max-h-[inherit] 继续生效，菜单保留全局细滚动条（fade 自动避让滚动条泳道） */}
+      {header}
       <ScrollArea size={24} className="max-h-[inherit] overflow-x-hidden p-1">
         <DropdownHero.Menu
           data-slot="dropdown-menu"

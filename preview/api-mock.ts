@@ -202,10 +202,18 @@ export async function getSettings(): Promise<SettingsView> {
 }
 export async function saveSettings(s: Settings): Promise<SettingsView> {
   await gate('save_settings', [s]);
+  // 真实 Rust 核心层把 Jenkins Token 存于 Keychain，前端保存设置不会回传 hasToken，
+  // 也不会丢掉已存 Token。Mock 保持同语义：按 id 保留既有 hasToken，避免任何一次
+  // 设置自动保存把连接变成「无 Token」，导致构建工作台误报「未配置 Jenkins 实例」。
+  const priorTokens = new Map(settings.jenkinsConnections.map((c) => [c.id, c.hasToken]));
   Object.assign(settings, s, {
     branchRuleTemplates: s.branchRuleTemplates ?? [],
     workitemRepoBranchTemplates: s.workitemRepoBranchTemplates ?? {},
   });
+  settings.jenkinsConnections = (settings.jenkinsConnections ?? []).map((connection) => ({
+    ...connection,
+    hasToken: typeof connection.hasToken === 'boolean' ? connection.hasToken : (priorTokens.get(connection.id) ?? false),
+  }));
   return { ...settings };
 }
 export async function saveWorkitemRepos(workitemId: string, repoIds: number[] | null): Promise<SettingsView> {
