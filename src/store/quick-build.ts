@@ -610,7 +610,7 @@ export function extractConfiguredBuildTargets(
 
   const targets: QuickBuildTarget[] = [];
   const bindings = settings.repoCiBindings;
-  const reposMap = new Map<number, RepoSummary>(repos.map((r) => [r.id, r]));
+  const reposMap = new Map<number, RepoSummary>((repos || []).map((r) => [r.id, r]));
   const connectionsMap = new Map((settings.jenkinsConnections || []).map((c) => [c.id, c.name]));
 
   for (const [repoIdStr, binding] of Object.entries(bindings)) {
@@ -667,8 +667,8 @@ export function markHistoryStaleness(
   history: QuickBuildTarget[],
   configuredTargets: QuickBuildTarget[],
 ): QuickBuildTarget[] {
-  const configuredMap = new Map(configuredTargets.map((t) => [t.targetKey || t.id, t]));
-  return history.map((item) => {
+  const configuredMap = new Map((configuredTargets || []).map((t) => [t.targetKey || t.id, t]));
+  return (history || []).map((item) => {
     const key = item.targetKey || item.id;
     const configured = configuredMap.get(key);
     const isStale = !configured;
