@@ -341,7 +341,7 @@ impl JenkinsClient {
             "tree",
             &format!(
                 "builds[number,displayName,result,timestamp,duration,building,actions[parameters[name,value]]]{{0,{}}}",
-                limit.saturating_sub(1)
+                limit
             ),
         );
         let value = self.get_json(url).await?;
@@ -831,7 +831,7 @@ mod tests {
             .to_ascii_lowercase()
             .contains("authorization: basic ")));
         assert!(requests[1].contains("/jenkins/job/team/job/mobile/job/compile/api/json?"));
-        assert!(requests[2].contains("builds%5Bnumber%2CdisplayName%2Cresult%2Ctimestamp%2Cduration%2Cbuilding%2Cactions%5Bparameters%5Bname%2Cvalue%5D%5D%5D%7B0%2C1%7D"));
+        assert!(requests[2].contains("builds%5Bnumber%2CdisplayName%2Cresult%2Ctimestamp%2Cduration%2Cbuilding%2Cactions%5Bparameters%5Bname%2Cvalue%5D%5D%5D%7B0%2C2%7D"));
         assert!(requests[3].starts_with("POST /jenkins/job/team/job/mobile/job/compile/build "));
         assert!(!requests[3].to_ascii_lowercase().contains("crumb"));
         assert!(

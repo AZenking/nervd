@@ -54,7 +54,7 @@ export function CycleHeaderBanner({
               <Dropdown.Trigger
                 className="flex items-center gap-1.5 text-sm sm:text-base font-semibold tracking-tight text-foreground transition-colors hover:text-primary focus-visible:outline-hidden"
               >
-                <span>{iteration?.name || '当前迭代'}</span>
+                <span className="truncate max-w-[280px]" title={iteration?.name || '当前迭代'}>{iteration?.name || '当前迭代'}</span>
                 <span className="text-[10px] text-muted-foreground">▼</span>
               </Dropdown.Trigger>
               <Dropdown.Popover className="min-w-52 max-h-80">
@@ -77,7 +77,7 @@ export function CycleHeaderBanner({
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <StatusIcon status={it.state} className="size-3.5 shrink-0" />
-                          <Label className="truncate">{it.name}</Label>
+                          <Label className="truncate" title={it.name}>{it.name}</Label>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0 ml-2">
                           {isSelected ? (

@@ -33,6 +33,7 @@ import {
 } from '@/lib/jenkins-cache';
 import { isBranchParameterName, isEnvironmentParameterName } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary } from '@/types';
+import { fetchJobEstimate } from '@/lib/build-estimate';
 
 export interface QuickBuildTriggerFormProps {
   configuredTargets: QuickBuildTarget[];
@@ -142,6 +143,8 @@ export function QuickBuildTriggerForm({
   useEffect(() => {
     if (currentTarget) {
       setParams(currentTarget.parameters || {});
+      // 后台静默预查历史成功构建耗时，触发构建时即可 0ms 呈现真实预估进度
+      void fetchJobEstimate(currentTarget);
     }
   }, [currentTarget?.id]);
 
@@ -287,7 +290,7 @@ export function QuickBuildTriggerForm({
               <ListBox aria-label="目标代码仓库列表">
                 {configuredTargets.map((t) => (
                   <ListBox.Item key={t.id} id={t.id} textValue={t.repoName}>
-                    {t.repoName}
+                    <span className="truncate block" title={t.repoName}>{t.repoName}</span>
                   </ListBox.Item>
                 ))}
               </ListBox>
@@ -323,7 +326,7 @@ export function QuickBuildTriggerForm({
                       const val = j.fullName || ('name' in j ? (j as JenkinsJobSummary).name : '');
                       return (
                         <ListBox.Item key={val} id={val} textValue={val}>
-                          {val}
+                          <span className="truncate block" title={val}>{val}</span>
                         </ListBox.Item>
                       );
                     })}
@@ -365,7 +368,7 @@ export function QuickBuildTriggerForm({
                 <ListBox aria-label="云效 Flow 流水线列表">
                   {pipelines.map((p) => (
                     <ListBox.Item key={p.pipelineName} id={p.pipelineName} textValue={p.pipelineName}>
-                      {p.pipelineName}
+                      <span className="truncate block" title={p.pipelineName}>{p.pipelineName}</span>
                     </ListBox.Item>
                   ))}
                 </ListBox>
@@ -408,9 +411,9 @@ export function QuickBuildTriggerForm({
                     ) : (
                       <TerminalIcon className="size-3 shrink-0 text-warning" />
                     )}
-                    <span className="max-w-[110px] truncate">{record.repoName}</span>
-                    {record.jobFullName && <span className="max-w-[90px] truncate text-[10px] text-muted-foreground">{record.jobFullName}</span>}
-                    {branchText && <span className="max-w-[80px] truncate font-mono text-[10px] text-muted-foreground">{branchText}</span>}
+                    <span className="max-w-[110px] truncate" title={record.repoName}>{record.repoName}</span>
+                    {record.jobFullName && <span className="max-w-[90px] truncate text-[10px] text-muted-foreground" title={record.jobFullName}>{record.jobFullName}</span>}
+                    {branchText && <span className="max-w-[80px] truncate font-mono text-[10px] text-muted-foreground" title={branchText}>{branchText}</span>}
                   </Button>
                   <Tooltip>
                     <Button
@@ -461,6 +464,11 @@ export function QuickBuildTriggerForm({
                     ...(prev['BRANCH'] !== undefined ? { BRANCH: val } : {}),
                   }));
                 }}
+                onKeyDown={(e) => {
+                  // 阻止空格/回车等事件冒泡到外层，防止干扰外层弹窗或切换选项
+                  e.stopPropagation();
+                  if (e.nativeEvent.isComposing) return;
+                }}
                 placeholder="填写构建分支（如 master、feature/xxx）"
                 className="h-8 min-w-0 flex-1 font-mono text-xs"
               />
@@ -493,7 +501,7 @@ export function QuickBuildTriggerForm({
                     <ListBox aria-label="远端分支选项">
                       {branchOptions.map((b) => (
                         <ListBox.Item key={b} id={b} textValue={b} className="font-mono text-xs">
-                          {b}
+                          <span className="truncate block" title={b}>{b}</span>
                         </ListBox.Item>
                       ))}
                     </ListBox>
@@ -525,7 +533,7 @@ export function QuickBuildTriggerForm({
                   <ListBox aria-label="部署环境选项">
                     {envParam.choices.map((c) => (
                       <ListBox.Item key={c} id={c} textValue={c}>
-                        {c}
+                        <span className="truncate block" title={c}>{c}</span>
                       </ListBox.Item>
                     ))}
                   </ListBox>
@@ -552,7 +560,7 @@ export function QuickBuildTriggerForm({
                 <div className="grid grid-cols-1 gap-2.5 rounded-lg border border-border/60 bg-muted/10 p-3 sm:grid-cols-2 lg:grid-cols-3">
                   {otherParams.map((p) => (
                     <div key={p.name} className="flex flex-col gap-1">
-                      <Label className="truncate font-mono text-[10px] text-muted-foreground">{p.name}</Label>
+                      <Label className="truncate font-mono text-[10px] text-muted-foreground" title={p.name}>{p.name}</Label>
                       {p.choices && p.choices.length > 0 ? (
                         <Select
                           aria-label={p.name}
@@ -568,7 +576,7 @@ export function QuickBuildTriggerForm({
                             <ListBox aria-label={p.name}>
                               {p.choices.map((c) => (
                                 <ListBox.Item key={c} id={c} textValue={c}>
-                                  {c}
+                                  <span className="truncate block" title={c}>{c}</span>
                                 </ListBox.Item>
                               ))}
                             </ListBox>
@@ -579,6 +587,11 @@ export function QuickBuildTriggerForm({
                           aria-label={p.name}
                           value={params[p.name] ?? p.defaultValue ?? ''}
                           onChange={(event) => setParams((prev) => ({ ...prev, [p.name]: event.target.value }))}
+                          onKeyDown={(e) => {
+                            // 阻止空格/回车等事件冒泡到外层，防止打断输入或误关外层
+                            e.stopPropagation();
+                            if (e.nativeEvent.isComposing) return;
+                          }}
                           className="h-8 font-mono text-xs"
                         />
                       )}
@@ -596,9 +609,9 @@ export function QuickBuildTriggerForm({
         <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs">
             <span className="font-semibold text-foreground">即将触发：</span>
-            <span className="font-medium text-foreground">{currentTarget.repoName}</span>
+            <span className="font-medium text-foreground truncate max-w-[160px]" title={currentTarget.repoName}>{currentTarget.repoName}</span>
             <span className="text-muted-foreground">·</span>
-            <span className="font-mono text-muted-foreground">{currentTarget.pipelineName}</span>
+            <span className="font-mono text-muted-foreground truncate max-w-[160px]" title={currentTarget.pipelineName}>{currentTarget.pipelineName}</span>
             {branchParamName && (
               <>
                 <span className="text-border">|</span>

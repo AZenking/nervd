@@ -59,7 +59,13 @@ export function WorkitemsDataTable({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.nativeEvent.isComposing) return;
+              }}
               placeholder="搜索工作项编号或标题..."
+              autoComplete="off"
+              spellCheck={false}
               className="h-8 pl-8 pr-7 text-xs"
             />
             {search && (
@@ -103,7 +109,7 @@ export function WorkitemsDataTable({
           </div>
         ) : (
           <Table variant="secondary" className="w-full">
-            <Table.ScrollContainer>
+            <Table.ScrollContainer className="max-h-96 overflow-y-auto overscroll-contain">
               <Table.Content aria-label="工作项列表" className="text-xs">
                 <Table.Header className="border-b border-border/60 bg-transparent text-[11px] text-muted-foreground">
                   <Table.Column isRowHeader className="w-28 px-4 py-2.5 text-start font-mono text-[11px] font-medium text-muted-foreground">
@@ -137,7 +143,7 @@ export function WorkitemsDataTable({
                         onAction={() => onOpenDetail(item)}
                       >
                         <Table.Cell className="px-4 py-2.5">
-                          <span className="font-mono text-xs font-semibold text-foreground">
+                          <span className="font-mono text-xs font-semibold text-foreground" title={item.identifier}>
                             {item.identifier}
                           </span>
                         </Table.Cell>
@@ -152,7 +158,7 @@ export function WorkitemsDataTable({
                         <Table.Cell className="px-3 py-2.5">
                           <div className="flex items-center gap-1.5">
                             <StatusIcon status={item.status} className="size-3.5 shrink-0" />
-                            <span className="text-xs text-muted-foreground">{item.status}</span>
+                            <span className="text-xs text-muted-foreground" title={item.status}>{item.status}</span>
                           </div>
                         </Table.Cell>
 

@@ -1,15 +1,22 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Button, Card, Chip, Table } from '@heroui/react';
 import { ExternalLinkIcon, FileTextIcon, GitBranchIcon, XIcon } from 'lucide-react';
 import { StatusIcon } from '@/components/status-icon';
 import { statusMeta } from '@/components/StatusBadge';
 import { openRepoBuildLogs, openPipelineRunLogs } from '@/components/build-workbench';
 import { openExternal } from '@/lib/yunxiao-link';
+import { ciStatusInfo } from '@/lib/ci';
 import { useApp } from '@/store/app';
 import { useQuickBuild, type BuildState } from '@/store/quick-build';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { BuildProgressBar } from './build-progress-bar';
+import {
+  getEstimateKey,
+  getCachedEstimate,
+  setCachedEstimate,
+  fetchJobEstimate,
+} from '@/lib/build-estimate';
 
 export interface ActiveBuildItem {
   id: string;
@@ -32,6 +39,39 @@ export interface ActiveBuildItem {
   branch?: string;
   environment?: string;
   isTracked?: boolean;
+}
+
+/** 从历史 runs 中检索上一条成功构建的执行时长 (ms) 作为进度估算基准 */
+export function findPrevSuccessDurationMs(
+  runs: Array<{
+    status?: string | null;
+    durationMs?: number | null;
+    startTime?: number | null;
+    endTime?: number | null;
+    runId?: string | number | null;
+    pipelineRunId?: string | number | null;
+  }>,
+  currentRunId?: string | number | null,
+): number | null {
+  for (const r of runs) {
+    if (!r) continue;
+    const itemRunId = r.runId ?? r.pipelineRunId;
+    if (currentRunId && itemRunId && String(itemRunId) === String(currentRunId)) {
+      continue;
+    }
+    if (statusMeta(r.status).tone === 'run') {
+      continue;
+    }
+    if (ciStatusInfo(r.status).tone === 'ok') {
+      if (typeof r.durationMs === 'number' && r.durationMs > 0) {
+        return r.durationMs;
+      }
+      if (typeof r.startTime === 'number' && typeof r.endTime === 'number' && r.endTime > r.startTime) {
+        return r.endTime - r.startTime;
+      }
+    }
+  }
+  return null;
 }
 
 export function useActiveBuildItems(): ActiveBuildItem[] {
@@ -75,6 +115,35 @@ export function useActiveBuildItems(): ActiveBuildItem[] {
       const key = tracked.target.targetKey || tracked.target.id;
       seenTargetKeys.add(key);
 
+      // 计算历史基准时长（多级阶梯）：
+      // 1. 本地跟踪记录中已有的预估时长
+      // 2. 本地持久化与内存估算缓存（支持同 Job 跨会话即时复用）
+      // 3. 对应 repo 快照或 flow 历史 runs
+      const estimateKey = getEstimateKey(tracked.target);
+      let estimatedDurationMs: number | null =
+        tracked.estimatedDurationMs ??
+        getCachedEstimate(estimateKey) ??
+        null;
+
+      if (!estimatedDurationMs) {
+        if (isJenkins && tracked.target.repoId) {
+          const repoRuns = repoCiByRepo[tracked.target.repoId]?.snapshot?.runs ?? [];
+          estimatedDurationMs = findPrevSuccessDurationMs(repoRuns, tracked.runId);
+        } else if (!isJenkins) {
+          const pId = tracked.target.pipelineId;
+          const pRuns = pId ? (runsByPipeline[pId] ?? []) : [];
+          estimatedDurationMs = findPrevSuccessDurationMs(pRuns, tracked.runId);
+          if (!estimatedDurationMs && tracked.target.repoId) {
+            const repoRuns = repoCiByRepo[tracked.target.repoId]?.snapshot?.runs ?? [];
+            estimatedDurationMs = findPrevSuccessDurationMs(repoRuns, tracked.runId);
+          }
+        }
+      }
+
+      if (estimatedDurationMs && estimateKey) {
+        setCachedEstimate(estimateKey, estimatedDurationMs);
+      }
+
       list.push({
         id: tracked.id,
         kind: isJenkins ? 'repo' : 'pipeline',
@@ -83,6 +152,7 @@ export function useActiveBuildItems(): ActiveBuildItem[] {
         subTitle: tracked.target.pipelineName || tracked.target.jobFullName,
         runId: tracked.runId || (tracked.queueId ? `队列 #${tracked.queueId}` : '排队中'),
         startTime: tracked.startedAt || tracked.submittedAt,
+        estimatedDurationMs,
         repoId: tracked.target.repoId,
         pipelineId: tracked.target.pipelineId,
         connectionId: tracked.target.connectionId,
@@ -138,10 +208,7 @@ export function useActiveBuildItems(): ActiveBuildItem[] {
           }
         }
 
-        const prevSuccess = snapshot.runs
-          ?.slice(1)
-          .find((r) => r.status === 'SUCCESS' && typeof r.durationMs === 'number' && r.durationMs > 0);
-        const estimatedDurationMs = prevSuccess?.durationMs ?? null;
+        const estimatedDurationMs = findPrevSuccessDurationMs(snapshot.runs ?? [], runId);
 
         list.push({
           id: `repo-${repoId}-${runId}`,
@@ -169,12 +236,7 @@ export function useActiveBuildItems(): ActiveBuildItem[] {
       const pRuns = runsByPipeline[p.pipelineId] ?? [];
       const latest = pRuns[0];
       if (latest && statusMeta(latest.status).tone === 'run') {
-        const prevSuccess = pRuns.slice(1).find(
-          (r) => (r.status === 'SUCCESS' || r.status === 'ok') && typeof r.startTime === 'number' && typeof (r as any).endTime === 'number',
-        );
-        const estimatedDurationMs = prevSuccess
-          ? Math.max(0, (prevSuccess as any).endTime - (prevSuccess.startTime || 0))
-          : null;
+        const estimatedDurationMs = findPrevSuccessDurationMs(pRuns, latest.pipelineRunId);
 
         list.push({
           id: `pipeline-${p.pipelineId}-${latest.pipelineRunId}`,
@@ -255,21 +317,21 @@ function BuildTargetDetails({ item }: { item: ActiveBuildItem }) {
   return (
     <div className="min-w-0">
       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <span className="min-w-0 truncate font-medium text-foreground">{item.title}</span>
+        <span className="min-w-0 truncate font-medium text-foreground" title={item.title}>{item.title}</span>
         {item.subTitle && (
-          <span className="min-w-0 truncate text-xs text-muted">· {item.subTitle}</span>
+          <span className="min-w-0 truncate text-xs text-muted" title={item.subTitle}>· {item.subTitle}</span>
         )}
       </div>
       {(item.branch || item.environment) && (
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           {item.branch && (
-            <span className="flex min-w-0 items-center gap-1 font-mono">
+            <span className="flex min-w-0 items-center gap-1 font-mono" title={item.branch}>
               <GitBranchIcon className="size-2.5 shrink-0" />
               <span className="truncate">{item.branch}</span>
             </span>
           )}
           {item.environment && (
-            <Chip size="sm" variant="tertiary" color="default" className="font-mono text-[10px]">
+            <Chip size="sm" variant="tertiary" color="default" className="font-mono text-[10px]" title={item.environment}>
               <Chip.Label>{item.environment}</Chip.Label>
             </Chip>
           )}
@@ -375,6 +437,27 @@ export function QuickBuildActiveTable({
   onOpenLogs = defaultHandleOpenLogs,
 }: QuickBuildActiveTableProps) {
   const dismissTrackedBuild = useQuickBuild((s) => s.dismissTrackedBuild);
+
+  // 当任务处于排队或运行中且尚未获取到预估时长时，自动从远端异步预查历史成功构建耗时
+  useEffect(() => {
+    for (const item of activeBuilds) {
+      if (!item.estimatedDurationMs && item.isTracked) {
+        const target = {
+          type: (item.provider === 'Jenkins' ? 'jenkins' : 'flow') as 'jenkins' | 'flow',
+          connectionId: item.connectionId,
+          jobFullName: item.jobFullName,
+          pipelineId: item.pipelineId,
+          repoId: item.repoId,
+        };
+        void fetchJobEstimate(target, item.runId).then((dur) => {
+          if (dur) {
+            useQuickBuild.getState().updateTrackedEstimatedDuration(item.id, dur);
+          }
+        });
+      }
+    }
+  }, [activeBuilds]);
+
   if (activeBuilds.length === 0) return null;
 
   const isSingleBuild = activeBuilds.length === 1;
@@ -410,7 +493,7 @@ export function QuickBuildActiveTable({
         </div>
       ) : (
         <Table variant="secondary" className="w-full">
-          <Table.ScrollContainer>
+          <Table.ScrollContainer className="max-h-72 overflow-y-auto overscroll-contain">
             <Table.Content aria-label="活跃构建列表" className="text-xs">
               <Table.Header className="border-b border-border/60 bg-transparent text-xs text-muted">
                 <Table.Column isRowHeader className="w-36 px-4 py-2 text-start text-xs font-medium text-muted">

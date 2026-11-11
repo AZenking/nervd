@@ -68,7 +68,16 @@ export function OverviewView() {
   const [drawerWorkitemId, setDrawerWorkitemId] = useState<string | null>(null);
 
   const watchedRepos = settings?.watchedRepos ?? [];
-  const watchedReposKey = watchedRepos.join(',');
+  const ciBoundRepos = useMemo(() => {
+    if (!settings?.repoCiBindings) return [];
+    return Object.keys(settings.repoCiBindings)
+      .map(Number)
+      .filter((id) => !isNaN(id) && id > 0);
+  }, [settings?.repoCiBindings]);
+  const overviewCiRepoIds = useMemo(() => {
+    return Array.from(new Set([...watchedRepos, ...ciBoundRepos]));
+  }, [watchedRepos, ciBoundRepos]);
+  const overviewCiRepoIdsKey = overviewCiRepoIds.join(',');
   const dataContextKey = `${settings?.organizationId ?? ''}:${settings?.defaultSpaceIdentifier ?? ''}`;
   const activeCategoryState = overviewByCategory[activeCategory];
 
@@ -77,9 +86,9 @@ export function OverviewView() {
     void loadOverviewIterations();
     void loadOverviewCategory('Req');
     void loadPipelines();
-    void Promise.all(watchedRepos.map((repoId) => loadRepoCi(repoId)));
+    void Promise.all(overviewCiRepoIds.map((repoId) => loadRepoCi(repoId)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataContextKey, watchedReposKey]);
+  }, [dataContextKey, overviewCiRepoIdsKey]);
 
   useEffect(() => {
     void loadOverviewCategory(activeCategory);
@@ -135,7 +144,7 @@ export function OverviewView() {
     void loadOverviewIterations({ refresh: true });
     void loadOverviewCategory(activeCategory, { refresh: true });
     void loadPipelines();
-    void Promise.all(watchedRepos.map((repoId) => loadRepoCi(repoId)));
+    void Promise.all(overviewCiRepoIds.map((repoId) => loadRepoCi(repoId)));
   };
 
   const openDetail = (item: (typeof recentItems)[number]) => {

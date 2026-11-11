@@ -4,6 +4,13 @@ import { useApp } from './app';
 import type { RepoSummary, Settings } from '@/types';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { statusMeta } from '@/components/StatusBadge';
+import {
+  getEstimateKey,
+  getCachedEstimate,
+  setCachedEstimate,
+  extractSuccessDuration,
+  fetchJobEstimate,
+} from '@/lib/build-estimate';
 
 export type BuildState = 'queued' | 'running' | 'success' | 'fail' | 'canceled' | 'unknown';
 
@@ -33,6 +40,8 @@ export interface QuickBuildTarget {
   lastTriggeredAt?: number;
   triggerCount?: number;
   lastBuildState?: BuildState;
+  estimatedDurationMs?: number;
+  lastDurationMs?: number;
   isConfigured?: boolean;
   isStale?: boolean;
 }
@@ -55,6 +64,7 @@ export interface TrackedBuild {
   queueTimeout?: boolean;
   branch?: string;
   environment?: string;
+  estimatedDurationMs?: number | null;
 }
 
 const MAX_HISTORY = 10;
@@ -84,10 +94,15 @@ export function getHistoryStorageKey(orgId?: string | null, spaceId?: string | n
 function loadStoredHistory(orgId?: string | null, spaceId?: string | null): QuickBuildTarget[] {
   if (typeof window === 'undefined' || !window.localStorage) return [];
   try {
-    const key = getHistoryStorageKey(orgId, spaceId);
+    const effectiveOrgId = orgId ?? useApp.getState().settings?.organizationId;
+    const effectiveSpaceId = spaceId ?? useApp.getState().settings?.defaultSpaceIdentifier;
+    const key = getHistoryStorageKey(effectiveOrgId, effectiveSpaceId);
     let raw = window.localStorage.getItem(key);
     // 向后兼容未隔离的旧数据（仅当隔离键无数据时）
-    if (!raw && (!orgId || !spaceId)) {
+    if (!raw) {
+      raw = window.localStorage.getItem('nervd:quick-build-history:unscoped');
+    }
+    if (!raw) {
       raw = window.localStorage.getItem('nervd:quick-build-history');
     }
     if (!raw) return [];
@@ -138,6 +153,8 @@ interface QuickBuildState {
   clearHistory(): void;
   /** 移除一条跟踪记录 */
   dismissTrackedBuild(id: string): void;
+  /** 更新指定构建任务的预估执行时长 (ms) */
+  updateTrackedEstimatedDuration(id: string, estimatedDurationMs: number): void;
   /** 发起构建，返回触发结果与跟踪状态 */
   triggerQuickBuild(
     target: QuickBuildTarget,
@@ -163,7 +180,9 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
 
   loadHistoryForContext(orgId, spaceId) {
     const loaded = loadStoredHistory(orgId, spaceId);
-    set({ history: loaded });
+    if (loaded.length > 0) {
+      set({ history: loaded });
+    }
   },
 
   recordBuild(target, parameters, state) {
@@ -210,6 +229,15 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
     set({ trackedBuilds: get().trackedBuilds.filter((b) => b.id !== id) });
   },
 
+  updateTrackedEstimatedDuration(id, estimatedDurationMs) {
+    if (!id || typeof estimatedDurationMs !== 'number' || estimatedDurationMs <= 0) return;
+    set((state) => ({
+      trackedBuilds: state.trackedBuilds.map((b) =>
+        b.id === id ? { ...b, estimatedDurationMs } : b,
+      ),
+    }));
+  },
+
   async triggerQuickBuild(target, customParameters) {
     const app = useApp.getState();
     const allowWriteOps = app.settings?.allowWriteOps ?? false;
@@ -247,6 +275,8 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
 
         const runId = triggerRes?.pipelineRunId || triggerRes?.runId ? String(triggerRes.pipelineRunId || triggerRes.runId) : undefined;
         const now = Date.now();
+        const estimateKey = getEstimateKey(target);
+        const initialEstimate = getCachedEstimate(estimateKey) ?? target.estimatedDurationMs ?? target.lastDurationMs ?? null;
 
         const tracked: TrackedBuild = {
           id: `flow-${target.pipelineId || target.repoId}-${now}`,
@@ -260,11 +290,20 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
           statusText: '已提交 · 云效 Flow 构建中',
           branch: branchVal,
           environment: envVal,
+          estimatedDurationMs: initialEstimate,
         };
 
         set((state) => ({
           trackedBuilds: [tracked, ...state.trackedBuilds.filter((b) => b.target.id !== key || b.state !== 'queued')],
         }));
+
+        if (!initialEstimate) {
+          void fetchJobEstimate(target, runId).then((dur) => {
+            if (dur) {
+              get().updateTrackedEstimatedDuration(tracked.id, dur);
+            }
+          });
+        }
 
         app.markRepoCiActive(90_000);
         app.setToast({
@@ -299,6 +338,8 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
 
         const queueId = res?.queueId;
         const now = Date.now();
+        const estimateKey = getEstimateKey(target);
+        const initialEstimate = getCachedEstimate(estimateKey) ?? target.estimatedDurationMs ?? target.lastDurationMs ?? null;
 
         // 拼接外部直达链接
         let webUrl: string | undefined;
@@ -322,11 +363,20 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
           webUrl,
           branch: branchVal,
           environment: envVal,
+          estimatedDurationMs: initialEstimate,
         };
 
         set((state) => ({
           trackedBuilds: [tracked, ...state.trackedBuilds.filter((b) => b.target.id !== key || b.state !== 'queued')],
         }));
+
+        if (!initialEstimate) {
+          void fetchJobEstimate(target).then((dur) => {
+            if (dur) {
+              get().updateTrackedEstimatedDuration(tracked.id, dur);
+            }
+          });
+        }
 
         app.markRepoCiActive(90_000);
         app.setToast({
@@ -406,6 +456,15 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
                   queueTimeout: false,
                   statusText: '正在构建',
                 };
+                if (!item.estimatedDurationMs) {
+                  const targetRef = item.target;
+                  const itemId = item.id;
+                  void fetchJobEstimate(targetRef, runId).then((dur) => {
+                    if (dur) {
+                      get().updateTrackedEstimatedDuration(itemId, dur);
+                    }
+                  });
+                }
                 updatedAny = true;
                 continue;
               } else if (qInfo.cancelled) {
@@ -419,11 +478,21 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
                 continue;
               } else if (qInfo.leftQueue) {
                 // 已离开队列，查询最新 runs 匹配
-                const runs = await api.getJenkinsJobRuns(item.target.connectionId, item.target.jobFullName, 1);
+                const runs = await api.getJenkinsJobRuns(item.target.connectionId, item.target.jobFullName, 6);
+                const prevDuration = extractSuccessDuration(runs);
+                if (prevDuration) {
+                  setCachedEstimate(getEstimateKey(item.target), prevDuration);
+                }
                 const latest = runs[0];
                 if (latest) {
                   const tone = statusMeta(latest.status).tone;
                   const state: BuildState = tone === 'run' ? 'running' : tone === 'ok' ? 'success' : tone === 'fail' ? 'fail' : 'unknown';
+                  const actualDuration = (typeof latest.durationMs === 'number' && latest.durationMs > 3000)
+                    ? latest.durationMs
+                    : (now - (latest.startTime || item.startedAt || item.submittedAt));
+                  if (state === 'success' && actualDuration > 3000) {
+                    setCachedEstimate(getEstimateKey(item.target), actualDuration);
+                  }
                   nextList[i] = {
                     ...item,
                     state,
@@ -431,6 +500,7 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
                     runNumber: latest.runId,
                     startedAt: latest.startTime || now,
                     completedAt: state !== 'running' ? now : undefined,
+                    estimatedDurationMs: item.estimatedDurationMs || prevDuration || null,
                     statusText: state === 'running' ? '正在构建' : state === 'success' ? '构建成功' : '构建失败',
                   };
                   updatedAny = true;
@@ -443,14 +513,31 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
           }
         } else if (item.state === 'running' && item.runId) {
           try {
-            const runs = await api.getJenkinsJobRuns(item.target.connectionId, item.target.jobFullName, 3);
+            const runs = await api.getJenkinsJobRuns(item.target.connectionId, item.target.jobFullName, 6);
+            const prevDuration = extractSuccessDuration(runs, item.runId);
+            if (prevDuration) {
+              setCachedEstimate(getEstimateKey(item.target), prevDuration);
+              if (!nextList[i].estimatedDurationMs) {
+                nextList[i] = {
+                  ...nextList[i],
+                  estimatedDurationMs: prevDuration,
+                };
+                updatedAny = true;
+              }
+            }
             const matched = runs.find((r) => r.runId === item.runId) || runs[0];
             if (matched) {
               const tone = statusMeta(matched.status).tone;
               if (tone !== 'run') {
                 const state: BuildState = tone === 'ok' ? 'success' : tone === 'fail' ? 'fail' : 'canceled';
+                const actualDuration = (typeof matched.durationMs === 'number' && matched.durationMs > 3000)
+                  ? matched.durationMs
+                  : (now - (item.startedAt || item.submittedAt));
+                if (state === 'success' && actualDuration > 3000) {
+                  setCachedEstimate(getEstimateKey(item.target), actualDuration);
+                }
                 nextList[i] = {
-                  ...item,
+                  ...nextList[i],
                   state,
                   completedAt: now,
                   statusText: state === 'success' ? '构建成功' : state === 'fail' ? '构建失败' : '构建结束',
@@ -471,8 +558,12 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
               const tone = statusMeta(status).tone;
               if (tone !== 'run') {
                 const state: BuildState = tone === 'ok' ? 'success' : tone === 'fail' ? 'fail' : 'canceled';
+                const actualDuration = now - (item.startedAt || item.submittedAt);
+                if (state === 'success' && actualDuration > 3000) {
+                  setCachedEstimate(getEstimateKey(item.target), actualDuration);
+                }
                 nextList[i] = {
-                  ...item,
+                  ...nextList[i],
                   state,
                   completedAt: now,
                   statusText: state === 'success' ? '构建成功' : state === 'fail' ? '构建失败' : '构建结束',

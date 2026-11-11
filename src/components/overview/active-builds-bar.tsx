@@ -8,6 +8,8 @@ import { openRepoBuildLogs, openPipelineRunLogs } from '@/components/build-workb
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/lib/yunxiao-link';
 import { BuildProgressBar } from './build-progress-bar';
+import { findPrevSuccessDurationMs } from './quick-build-active-table';
+import { getEstimateKey, getCachedEstimate } from '@/lib/build-estimate';
 
 export interface ActiveBuildItem {
   id: string;
@@ -58,22 +60,25 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
 
       // 构建 Jenkins 外部链接
       let externalUrl: string | null = null;
-      if (isJenkins) {
-        const binding = settings?.repoCiBindings?.[String(repoId)];
-        if (binding && binding.provider === 'jenkins') {
-          const conn = settings?.jenkinsConnections?.find((c) => c.id === binding.connectionId);
-          if (conn?.baseUrl && binding.jobFullName) {
-            const trimmed = conn.baseUrl.replace(/\/+$/, '');
-            const parts = binding.jobFullName.split('/').filter(Boolean).map(encodeURIComponent);
-            externalUrl = `${trimmed}/job/${parts.join('/job/')}/${runId}`;
-          }
+      const binding = settings?.repoCiBindings?.[String(repoId)];
+      if (isJenkins && binding && binding.provider === 'jenkins') {
+        const conn = settings?.jenkinsConnections?.find((c) => c.id === binding.connectionId);
+        if (conn?.baseUrl && binding.jobFullName) {
+          const trimmed = conn.baseUrl.replace(/\/+$/, '');
+          const parts = binding.jobFullName.split('/').filter(Boolean).map(encodeURIComponent);
+          externalUrl = `${trimmed}/job/${parts.join('/job/')}/${runId}`;
         }
       }
 
-      const prevSuccess = snapshot.runs
-        ?.slice(1)
-        .find((r) => r.status === 'SUCCESS' && typeof r.durationMs === 'number' && r.durationMs > 0);
-      const estimatedDurationMs = prevSuccess?.durationMs ?? null;
+      const estimateKey = getEstimateKey({
+        type: isJenkins ? 'jenkins' : 'flow',
+        connectionId: binding?.provider === 'jenkins' ? binding.connectionId : undefined,
+        jobFullName: binding?.provider === 'jenkins' ? binding.jobFullName : undefined,
+        repoId,
+      });
+      const estimatedDurationMs =
+        findPrevSuccessDurationMs(snapshot.runs ?? [], runId) ??
+        getCachedEstimate(estimateKey);
 
       repoBuilds.push({
         id: `repo-${repoId}-${runId}`,
@@ -96,12 +101,7 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
     const pRuns = runsByPipeline[p.pipelineId] ?? [];
     const latest = pRuns[0];
     if (latest && statusMeta(latest.status).tone === 'run') {
-      const prevSuccess = pRuns.slice(1).find(
-        (r) => (r.status === 'SUCCESS' || r.status === 'ok') && typeof r.startTime === 'number' && typeof (r as any).endTime === 'number',
-      );
-      const estimatedDurationMs = prevSuccess
-        ? Math.max(0, (prevSuccess as any).endTime - (prevSuccess.startTime || 0))
-        : null;
+      const estimatedDurationMs = findPrevSuccessDurationMs(pRuns, latest.pipelineRunId);
 
       flowBuilds.push({
         id: `pipeline-${p.pipelineId}-${latest.pipelineRunId}`,
@@ -156,7 +156,7 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2.5 pt-1">
+      <div className="flex flex-col gap-2.5 pt-1 max-h-60 overflow-y-auto overscroll-contain pr-1">
         {activeBuilds.map((item) => (
           <Card
             key={item.id}
@@ -175,9 +175,9 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
                 </Chip>
 
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
-                  <span className="font-medium text-foreground truncate">{item.title}</span>
+                  <span className="font-medium text-foreground truncate" title={item.title}>{item.title}</span>
                   {item.subTitle && (
-                    <span className="text-muted-foreground truncate text-[11px]">· {item.subTitle}</span>
+                    <span className="text-muted-foreground truncate text-[11px]" title={item.subTitle}>· {item.subTitle}</span>
                   )}
                   <span className="font-mono font-medium text-foreground">#{item.runId}</span>
                 </div>

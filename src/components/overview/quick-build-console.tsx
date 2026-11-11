@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Chip, Tooltip } from '@heroui/react';
 import {
   ChevronDownIcon,
@@ -45,6 +45,10 @@ export function QuickBuildConsole() {
   const activeBuilds = useActiveBuildItems();
 
   const [buildFormOpen, setBuildFormOpen] = useState(false);
+
+  useEffect(() => {
+    useQuickBuild.getState().loadHistoryForContext(settings?.organizationId, settings?.defaultSpaceIdentifier);
+  }, [settings?.organizationId, settings?.defaultSpaceIdentifier]);
 
   const configuredTargets = useMemo(
     () => extractConfiguredBuildTargets(settings, repositories),

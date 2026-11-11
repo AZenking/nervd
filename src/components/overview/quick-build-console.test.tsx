@@ -233,4 +233,60 @@ describe('QuickBuildConsole', () => {
     expect(document.body.textContent).toContain('任务（Job）');
     expect(document.body.textContent).toContain('build-job');
   });
+
+  it('自动根据 settings 的组织空间标识从 LocalStorage 加载隔离历史并恢复最近配置', async () => {
+    const orgId = 'org-corp-x';
+    const spaceId = 'space-team-alpha';
+    const scopedKey = `nervd:quick-build-history:${orgId}:${spaceId}`;
+    localStorage.setItem(
+      scopedKey,
+      JSON.stringify([
+        {
+          id: 'jenkins:101:conn-1:build-job',
+          targetKey: 'jenkins:101:conn-1:build-job',
+          type: 'jenkins',
+          repoId: 101,
+          repoName: 'order-service',
+          pipelineName: 'build-job',
+          connectionId: 'conn-1',
+          jobFullName: 'build-job',
+          parameters: { branch: 'release/v2.0', ENV: 'prod' },
+          lastTriggeredAt: Date.now() - 5000,
+        },
+      ]),
+    );
+
+    useQuickBuild.setState({ history: [] });
+    useApp.setState({
+      settings: {
+        organizationId: orgId,
+        defaultSpaceIdentifier: spaceId,
+        linkPattern: '',
+        watchedRepos: [101],
+        allowWriteOps: true,
+        workitemRepos: {},
+        branchRuleTemplates: [],
+        workitemRepoBranchTemplates: {},
+        jenkinsConnections: [{ id: 'conn-1', name: '主 Jenkins', baseUrl: '', username: '', hasToken: true }],
+        repoCiBindings: {
+          '101': {
+            provider: 'jenkins',
+            connectionId: 'conn-1',
+            jobFullName: 'build-job',
+            parameters: { branch: 'master' },
+          },
+        },
+        hasPat: true,
+      },
+    });
+
+    await act(async () => {
+      root?.render(<QuickBuildConsole />);
+    });
+
+    expect(useQuickBuild.getState().history).toHaveLength(1);
+    expect(useQuickBuild.getState().history[0].parameters?.branch).toBe('release/v2.0');
+    expect(document.body.textContent).toContain('release/v2.0');
+    expect(document.body.textContent).toContain('prod');
+  });
 });

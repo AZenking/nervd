@@ -54,7 +54,7 @@ export function RepoCiSummary() {
         {watchedRepos.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted-foreground">未配置重点仓库</div>
         ) : (
-          <ul className="divide-y divide-border/60" aria-label="重点仓库 CI 状态列表">
+          <ul className="divide-y divide-border/60 max-h-80 overflow-y-auto overscroll-contain pr-1" aria-label="重点仓库 CI 状态列表">
             {watchedRepos.map((repoId) => {
               const entry = repoCiByRepo[repoId];
               const snapshot = entry?.snapshot;
@@ -79,14 +79,14 @@ export function RepoCiSummary() {
                   <StatusIcon status={isUnbound ? 'OTHER' : entry?.error ? 'FAIL' : rawStatus} className="size-4 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate text-xs font-medium text-foreground">{name}</span>
+                      <span className="truncate text-xs font-medium text-foreground" title={name}>{name}</span>
                       <Chip size="sm" variant="soft" color={isUnbound ? 'default' : ciColor(Boolean(entry?.loading), entry?.error, rawStatus)}>
                         {status}
                       </Chip>
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-muted-foreground">
                       <span>{ciProviderLabel(settings?.repoCiBindings?.[String(repoId)])}</span>
-                      {snapshot?.name && <span>{snapshot.name}</span>}
+                      {snapshot?.name && <span className="truncate max-w-[200px]" title={snapshot.name}>{snapshot.name}</span>}
                       {latest?.runId && <span className="font-mono">#{latest.runId}</span>}
                       {latest?.startTime && <span>{formatDateTime(latest.startTime)}</span>}
                     </div>
@@ -139,13 +139,13 @@ export function FlowPipelineSummary() {
         ) : pipelines.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted-foreground">暂无组织级 Flow 运行数据</div>
         ) : (
-          <ul className="divide-y divide-border/60" aria-label="组织级 Flow 状态列表">
+          <ul className="divide-y divide-border/60 max-h-80 overflow-y-auto overscroll-contain pr-1" aria-label="组织级 Flow 状态列表">
             {pipelines.map((pipeline) => {
               const latest = runsByPipeline[pipeline.pipelineId]?.[0];
               return (
                 <li key={pipeline.pipelineId} className="flex items-center gap-2.5 py-3 first:pt-1 last:pb-1">
                   <StatusIcon status={latest?.status || pipeline.status} className="size-4 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{pipeline.pipelineName}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground" title={pipeline.pipelineName}>{pipeline.pipelineName}</span>
                   {latest ? (
                     <StatusBadge status={latest.status} size="sm" />
                   ) : (

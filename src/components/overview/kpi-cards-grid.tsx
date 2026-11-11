@@ -41,7 +41,7 @@ function MetricCard({
       className="gap-0 p-0"
     >
       <Card.Header className="flex flex-row items-center justify-between gap-2 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
-        <Card.Title className="text-xs font-medium text-muted-foreground">
+        <Card.Title className="text-xs font-medium text-muted-foreground truncate" title={label}>
           {label}
         </Card.Title>
         {icon}
