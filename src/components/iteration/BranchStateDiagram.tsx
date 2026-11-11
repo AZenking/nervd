@@ -411,6 +411,7 @@ export default function BranchStateDiagram({
           nodes={nodes}
           edges={[...rootEdges, ...edges]}
           nodeTypes={nodeTypes}
+          proOptions={{ hideAttribution: true }}
           fitView
           fitViewOptions={{ padding: 0.1 }}
           minZoom={0.25}

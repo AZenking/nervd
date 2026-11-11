@@ -254,6 +254,7 @@ export function LinkRepoModal({
                             <GitBranchIcon className="size-3.5 shrink-0 text-primary" />
                             <OverflowTooltip
                               text={repoName}
+                              title={repoName}
                               className="min-w-0 truncate font-semibold text-xs text-foreground"
                             />
                           </div>
@@ -268,7 +269,10 @@ export function LinkRepoModal({
                           <Tooltip>
                             <TooltipTrigger
                               render={(
-                                <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground cursor-help" />
+                                <span
+                                  className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground cursor-help"
+                                  title={repoPath}
+                                />
                               )}
                             >
                               {repoPath}
@@ -386,6 +390,7 @@ export function LinkRepoModal({
                   track: previewTemplate.name,
                   identifier: previewContext.identifier,
                 }}
+                templateName={previewTemplate.name}
               />
             )}
 

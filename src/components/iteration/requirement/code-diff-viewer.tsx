@@ -221,6 +221,7 @@ export function CodeDiffViewer({
 
             <OverflowTooltip
               text={activeFilePath || `${diffs.length} 个文件变动`}
+              title={activeFilePath || `${diffs.length} 个文件变动`}
               className="max-w-[280px] truncate font-mono text-[11px] text-muted-foreground"
             />
           </div>
@@ -361,12 +362,14 @@ function DiffItemCard({
 
             <OverflowTooltip
               text={filePath}
+              title={filePath}
               className="min-w-0 truncate font-mono font-medium text-foreground text-[11px]"
             />
 
             {file.renamedFile && file.oldPath !== file.newPath && (
               <OverflowTooltip
                 text={`重命名自 ${file.oldPath}`}
+                title={`重命名自 ${file.oldPath}`}
                 className="min-w-0 truncate text-[10px] text-muted-foreground font-mono"
               />
             )}

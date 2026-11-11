@@ -258,7 +258,7 @@ export function AiBreakdownDialog({
           </div>
           <DialogDescription className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
             <span className="font-mono font-medium text-foreground">{parentIdentifier}</span>
-            <OverflowTooltip text={parentSubject} className="min-w-0 truncate" />
+            <OverflowTooltip text={parentSubject} title={parentSubject} className="min-w-0 truncate" />
           </DialogDescription>
         </DialogHeader>
 
@@ -336,6 +336,16 @@ export function AiBreakdownDialog({
                     <Input
                       value={item.subject}
                       onChange={(e) => updateSubject(item.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Escape' && e.key !== 'Tab') {
+                          e.stopPropagation();
+                        }
+                      }}
+                      onKeyUp={(e) => {
+                        if (e.key !== 'Escape' && e.key !== 'Tab') {
+                          e.stopPropagation();
+                        }
+                      }}
                       placeholder="子任务名称…"
                       disabled={creating}
                       className="h-7 text-xs flex-1 bg-background"
@@ -350,6 +360,16 @@ export function AiBreakdownDialog({
                         step={0.5}
                         value={item.estimatedHours ?? ''}
                         onChange={(e) => updateHours(item.id, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Escape' && e.key !== 'Tab') {
+                            e.stopPropagation();
+                          }
+                        }}
+                        onKeyUp={(e) => {
+                          if (e.key !== 'Escape' && e.key !== 'Tab') {
+                            e.stopPropagation();
+                          }
+                        }}
                         placeholder="—"
                         disabled={creating}
                         className="h-7 w-14 text-xs font-mono tabular-nums bg-background px-1.5 text-center"
@@ -373,10 +393,10 @@ export function AiBreakdownDialog({
                         }
                       >
                         <UserIcon className="size-3 shrink-0" />
-                        <OverflowTooltip text={item.assigneeName || '指定人'} className="min-w-0 truncate" />
+                        <OverflowTooltip text={item.assigneeName || '指定人'} title={item.assigneeName || '指定人'} className="min-w-0 truncate" />
                         <ChevronDownIcon className="size-2.5 opacity-60 shrink-0" />
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-44 max-h-56 overflow-y-auto">
+                      <DropdownMenuContent align="end" className="min-w-44 max-h-56">
                         <div className="px-2 py-1 text-[11px] text-muted-foreground font-medium border-b border-border/40">
                           选择任务处理人
                         </div>
@@ -389,11 +409,12 @@ export function AiBreakdownDialog({
                               <DropdownMenuItem
                                 key={c.id || c.name}
                                 onSelect={() => updateAssignee(item.id, c.id, c.name)}
+                                title={c.name}
                                 className={cn('text-xs cursor-pointer flex items-center justify-between', isSelected && 'font-medium text-primary')}
                               >
-                                <OverflowTooltip text={c.name} className="min-w-0 truncate" />
+                                <OverflowTooltip text={c.name} title={c.name} className="min-w-0 truncate" />
                                 {c.role && (
-                                  <span className="text-[10px] text-muted-foreground/70 ml-2 shrink-0">{c.role}</span>
+                                  <span className="text-[10px] text-muted-foreground/70 ml-2 shrink-0" title={c.role}>{c.role}</span>
                                 )}
                               </DropdownMenuItem>
                             );
@@ -456,15 +477,16 @@ export function AiBreakdownDialog({
                       <span>批量指派勾选项…</span>
                       <ChevronDownIcon className="size-3 opacity-70" />
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-44 max-h-56 overflow-y-auto">
+                    <DropdownMenuContent align="start" className="min-w-44 max-h-56">
                       {candidateAssignees.map((c) => (
                         <DropdownMenuItem
                           key={c.id || c.name}
                           onSelect={() => handleBatchAssign(c.id, c.name)}
+                          title={c.name}
                           className="text-xs cursor-pointer flex items-center justify-between"
                         >
-                          <span>{c.name}</span>
-                          {c.role && <span className="text-[10px] text-muted-foreground/70 ml-2">({c.role})</span>}
+                          <span className="truncate" title={c.name}>{c.name}</span>
+                          {c.role && <span className="text-[10px] text-muted-foreground/70 ml-2" title={c.role}>({c.role})</span>}
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>

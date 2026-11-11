@@ -100,6 +100,7 @@ export function LinkedRepoHeader({
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <OverflowTooltip
               text={repo.name}
+              title={repo.name}
               className="text-sm font-semibold tracking-tight text-foreground"
             />
             {repo.pathWithNamespace && (
@@ -125,6 +126,7 @@ export function LinkedRepoHeader({
             >
               <OverflowTooltip
                 text={developerBranch || '未配置需求分支'}
+                title={developerBranch || '未配置需求分支'}
                 className="max-w-40 truncate sm:max-w-56"
               />
             </Chip>
@@ -137,6 +139,7 @@ export function LinkedRepoHeader({
             >
               <OverflowTooltip
                 text={operationBaseBranch || '未配置目标基准'}
+                title={operationBaseBranch || '未配置目标基准'}
                 className="max-w-40 truncate sm:max-w-56"
               />
             </Chip>

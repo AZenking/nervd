@@ -55,6 +55,7 @@ export function CodeDiffDrawer({
                 <DrawerTitle className="min-w-0 flex-1 text-sm font-semibold text-foreground">
                   <OverflowTooltip
                     text={`${title} · 代码变更`}
+                    title={`${title} · 代码变更`}
                     className="block max-w-full truncate"
                   />
                 </DrawerTitle>

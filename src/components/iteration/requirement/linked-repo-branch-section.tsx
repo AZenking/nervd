@@ -158,7 +158,7 @@ export function LinkedRepoBranchSection({
                 variant="soft"
                 className="h-5 max-w-36 gap-1 px-1.5 font-mono text-xs font-semibold sm:max-w-48"
               >
-                <OverflowTooltip text={developerBranch} className="max-w-32 truncate sm:max-w-44" />
+                <OverflowTooltip text={developerBranch} title={developerBranch} className="max-w-32 truncate sm:max-w-44" />
               </Chip>
               <CopyButton text={developerBranch} label="复制需求分支名" />
               {developerBranchState === 'exists' && (
@@ -199,7 +199,7 @@ export function LinkedRepoBranchSection({
                       color="accent"
                       className="h-5 max-w-36 cursor-help gap-1 px-1.5 font-mono text-xs sm:max-w-48"
                     >
-                      <span className="max-w-32 truncate sm:max-w-44">{operationBaseBranch}</span>
+                      <span className="max-w-32 truncate sm:max-w-44" title={operationBaseBranch}>{operationBaseBranch}</span>
                     </Chip>
                   }
                 />
@@ -275,7 +275,7 @@ export function LinkedRepoBranchSection({
                 title="此需求显式覆盖的交付轨道（Track/局点）"
               >
                 <span className="shrink-0">轨道：</span>
-                <span className="max-w-28 truncate font-mono">{trackTemplateName}</span>
+                <span className="max-w-28 truncate font-mono" title={trackTemplateName}>{trackTemplateName}</span>
                 <span className="shrink-0">[需求覆盖]</span>
               </Chip>
             ) : trackTemplateName ? (
@@ -286,7 +286,7 @@ export function LinkedRepoBranchSection({
                 title="未显式覆盖时自动继承：迭代专属模板优先，其次全局默认轨道"
               >
                 <span className="shrink-0">继承：</span>
-                <span className="max-w-28 truncate font-mono">{trackTemplateName}</span>
+                <span className="max-w-28 truncate font-mono" title={trackTemplateName}>{trackTemplateName}</span>
                 <span className="shrink-0">[{trackOriginLabel}]</span>
               </Chip>
             ) : null}
@@ -305,7 +305,7 @@ export function LinkedRepoBranchSection({
                 variant="secondary"
                 className="h-5 max-w-32 gap-1 px-1.5 font-mono text-xs font-normal"
               >
-                <OverflowTooltip text={templateSourceBranch} className="max-w-28 truncate" />
+                <OverflowTooltip text={templateSourceBranch} title={templateSourceBranch} className="max-w-28 truncate" />
               </Chip>
             </div>
           )}
@@ -353,7 +353,7 @@ export function LinkedRepoBranchSection({
                     variant="secondary"
                     className="h-5 max-w-64 gap-1 px-1.5 font-mono text-xs font-normal"
                   >
-                    <OverflowTooltip text={branch} className="max-w-56 truncate" />
+                    <OverflowTooltip text={branch} title={branch} className="max-w-56 truncate" />
                   </Chip>
                   <CopyButton text={branch} label="复制分支名" />
                   {templateEnabled && operationBaseBranch && (

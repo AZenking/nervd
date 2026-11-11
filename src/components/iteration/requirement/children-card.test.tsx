@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChildrenCard } from './children-card';
 import { useApp } from '@/store/app';
 import * as api from '@/lib/api';
+import type { WorkitemChild } from '@/lib/api';
 
 vi.mock('@/lib/api', () => ({
   listWorkitemTypes: vi.fn().mockResolvedValue([
@@ -138,14 +139,14 @@ describe('ChildrenCard Fast Create with Select Components', () => {
 });
 
 describe('ChildrenCard 创建动态回写', () => {
-  const renderCard = async () => {
+  const renderCard = async (items: any[] = []) => {
     await act(async () => {
       root.render(
         <ChildrenCard
           title="子任务"
           category="Task"
           description="挂载在该需求下的子任务"
-          items={[]}
+          items={items}
           parentWorkitemId="req-1"
           parentIdentifier="REQ-101"
           parentSubject="需求标题"
@@ -216,5 +217,62 @@ describe('ChildrenCard 创建动态回写', () => {
     // 评论失败后不再刷新动态
     const reloadComments = useApp.getState().reloadComments as unknown as ReturnType<typeof vi.fn>;
     expect(reloadComments).not.toHaveBeenCalled();
+  });
+
+  it('行内快速新建输入框在 IME 输入法选词与按键时阻止事件冒泡且不提前提交', async () => {
+    await renderCard();
+    const addBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('新建子任务'),
+    );
+    await act(async () => {
+      addBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    const input = host.querySelector('input[placeholder^="输入子任务名称"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+
+    // 监听冒泡到全局 window 的 keydown 事件（验证不会被全局快捷键截获）
+    let bubbleCount = 0;
+    const onWindowKeyDown = () => { bubbleCount += 1; };
+    window.addEventListener('keydown', onWindowKeyDown);
+
+    // 1. 按 Space 键时阻止冒泡到全局
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+    });
+    expect(bubbleCount).toBe(0);
+
+    // 2. IME 选字阶段按 Enter，不触发 handleCreate
+    await act(async () => {
+      const imeEnter = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(imeEnter, 'isComposing', { value: true });
+      input.dispatchEvent(imeEnter);
+    });
+    expect(api.createWorkitemChild).not.toHaveBeenCalled();
+
+    window.removeEventListener('keydown', onWindowKeyDown);
+  });
+
+  it('工作项行渲染 title 提示属性以支持长文本悬浮查看', async () => {
+    const mockChild: WorkitemChild = {
+      workitemId: 'c-100',
+      identifier: 'TASK-100',
+      subject: '超长子任务标题用于测试 tooltip 和 title 属性截断提示展示',
+      status: '待办',
+      category: 'Task',
+    };
+    await renderCard([mockChild]);
+
+    const row = host.querySelector('[data-testid="child-row"]') as HTMLElement;
+    expect(row).not.toBeNull();
+    expect(row.getAttribute('title')).toContain('TASK-100');
+    expect(row.getAttribute('title')).toContain('超长子任务标题');
+
+    const idSpan = row.querySelector('span.font-mono') as HTMLElement;
+    expect(idSpan).not.toBeNull();
+    expect(idSpan.getAttribute('title')).toBe('TASK-100');
   });
 });

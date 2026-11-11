@@ -411,7 +411,7 @@ export function CreateMrDialog({
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
-            仓库：<span className="font-medium text-foreground">{repoName}</span>
+            仓库：<span className="font-medium text-foreground truncate inline-block max-w-[320px] align-bottom" title={repoName}>{repoName}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -481,6 +481,16 @@ export function CreateMrDialog({
                 userEditedRef.current = true;
                 setTitle(e.target.value);
               }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Escape' && e.key !== 'Tab') {
+                  e.stopPropagation();
+                }
+              }}
+              onKeyUp={(e) => {
+                if (e.key !== 'Escape' && e.key !== 'Tab') {
+                  e.stopPropagation();
+                }
+              }}
               placeholder="feat(REQ-xxx): 标题"
               disabled={submitting}
               className="h-8 text-xs font-mono bg-background"
@@ -494,6 +504,16 @@ export function CreateMrDialog({
               onChange={(e) => {
                 userEditedRef.current = true;
                 setDescription(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Escape' && e.key !== 'Tab') {
+                  e.stopPropagation();
+                }
+              }}
+              onKeyUp={(e) => {
+                if (e.key !== 'Escape' && e.key !== 'Tab') {
+                  e.stopPropagation();
+                }
               }}
               placeholder="变更背景、改动点与自测步骤…"
               rows={7}

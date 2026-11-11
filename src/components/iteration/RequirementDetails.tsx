@@ -845,8 +845,20 @@ export function RequirementDetails({
           )}
           titleClassName="flex min-w-0 items-center gap-2.5 select-text cursor-text"
           actions={(
-            /* 常驻操作：刷新 / 云效直出 / 全屏 / 关闭（原生 HeroUI 图标按钮） */
+            /* 常驻操作：分支图谱 / 刷新 / 云效直出 / 全屏 / 关闭（原生 HeroUI 图标按钮） */
             <div className="flex shrink-0 items-center gap-1">
+              {isRequirement && (
+                <HeroButton
+                  type="button"
+                  variant="ghost"
+                  isIconOnly
+                  size="sm"
+                  onPress={() => setIsBranchDiagramModalOpen(true)}
+                  aria-label="查看分支同步拓扑图谱"
+                >
+                  <GitForkIcon className="size-4" />
+                </HeroButton>
+              )}
               <HeroButton
                 type="button"
                 variant="ghost"

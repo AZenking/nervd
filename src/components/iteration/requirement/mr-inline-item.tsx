@@ -184,11 +184,12 @@ export function MrInlineItem({
         className="flex cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-xs select-none hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="font-mono font-bold text-primary shrink-0">
+          <span className="font-mono font-bold text-primary shrink-0" title={`MR !${mr.localId}`}>
             !{mr.localId}
           </span>
           <OverflowTooltip
             text={mr.title}
+            title={mr.title}
             className="min-w-0 truncate font-medium text-foreground hover:text-primary transition-colors"
           />
         </div>
@@ -217,11 +218,13 @@ export function MrInlineItem({
               <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
               <OverflowTooltip
                 text={mr.sourceBranch}
+                title={`源分支: ${mr.sourceBranch}`}
                 className="min-w-0 truncate text-foreground font-semibold"
               />
               <ArrowRightIcon className="size-3 text-muted-foreground shrink-0" />
               <OverflowTooltip
                 text={mr.targetBranch}
+                title={`目标分支: ${mr.targetBranch}`}
                 className="min-w-0 truncate text-primary font-semibold"
               />
             </div>
@@ -301,11 +304,15 @@ export function MrInlineItem({
                 {commits.slice(0, 5).map((c, i) => (
                   <div key={c.id || i} className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <code className="font-mono text-muted-foreground shrink-0">{c.shortId}</code>
-                      <OverflowTooltip text={c.title} className="min-w-0 truncate text-foreground" />
+                      <code className="font-mono text-muted-foreground shrink-0" title={c.id || c.shortId}>
+                        {c.shortId}
+                      </code>
+                      <OverflowTooltip text={c.title} title={c.title} className="min-w-0 truncate text-foreground" />
                     </div>
                     {c.authorName && (
-                      <span className="text-[10px] text-muted-foreground shrink-0">{c.authorName}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0" title={`提交人: ${c.authorName}`}>
+                        {c.authorName}
+                      </span>
                     )}
                   </div>
                 ))}

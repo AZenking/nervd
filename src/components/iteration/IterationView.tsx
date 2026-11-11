@@ -440,7 +440,9 @@ export function IterationView() {
     if (container) {
       const rowRect = rowEl.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
-      const safetyTop = 44;
+      const headerEl = container.querySelector<HTMLElement>('[data-slot="page-header"], header, .sticky');
+      const headerHeight = headerEl ? headerEl.offsetHeight : 56;
+      const safetyTop = Math.max(headerHeight + 8, 64);
       const safetyBottom = 16;
 
       if (rowRect.top < containerRect.top + safetyTop) {
@@ -516,6 +518,7 @@ export function IterationView() {
     let frames = 0;
     const reassert = () => {
       if (listScrollRef.current !== container) return;
+      if (savedListScrollTopRef.current !== null && savedListScrollTopRef.current !== target) return;
       frames += 1;
       if (container.scrollTop !== target) container.scrollTop = target;
       if (frames < 24) requestAnimationFrame(reassert);
@@ -653,7 +656,7 @@ export function IterationView() {
               <Accordion.Heading>
                 <Accordion.Trigger className="group/group-header -ml-1 flex h-7 w-full cursor-pointer items-center gap-2 rounded px-2 text-left transition-colors hover:bg-muted/60">
                   <StatusIcon status={group.status} className="size-3.5 shrink-0" />
-                  <span className="text-[13px] font-semibold text-foreground/90">{group.status || '未知'}</span>
+                  <span className="text-[13px] font-semibold text-foreground/90" title={group.status || '未知'}>{group.status || '未知'}</span>
                   <Chip
                     size="sm"
                     variant="soft"
@@ -721,6 +724,11 @@ export function IterationView() {
                         }}
                         onKeyDown={(e) => {
                           if (e.defaultPrevented || e.nativeEvent.isComposing) return;
+                          const target = e.target as HTMLElement | null;
+                          if (isEditing(target)) return;
+                          if (target?.closest('button, a, input, select, textarea, [role="button"], [role="checkbox"]')) {
+                            if (target !== e.currentTarget) return;
+                          }
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             applyCursor(flatIndexById.get(rowId) ?? 0);
@@ -772,10 +780,13 @@ export function IterationView() {
                         <RowStatusDropdown item={item} />
 
                         {/* 编号 */}
-                        <span className={cn(
-                          'shrink-0 font-mono text-xs transition-colors',
-                          isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
-                        )}>
+                        <span
+                          className={cn(
+                            'shrink-0 font-mono text-xs transition-colors',
+                            isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
+                          )}
+                          title={item.identifier}
+                        >
                           {item.identifier}
                         </span>
 
@@ -803,6 +814,7 @@ export function IterationView() {
                         {/* 标题 */}
                         <OverflowTooltip
                           text={item.subject}
+                          title={item.subject}
                           className={cn(
                             'min-w-0 flex-1 truncate text-[13px] transition-colors',
                             isActive ? 'text-foreground font-semibold' : 'text-foreground/90 font-medium'
@@ -814,7 +826,10 @@ export function IterationView() {
                           'ml-auto flex shrink-0 items-center gap-2 text-xs transition-colors',
                           isActive ? 'text-foreground/80' : 'text-muted-foreground'
                         )}>
-                          <span className="hidden tabular-nums md:block">
+                          <span
+                            className="hidden tabular-nums md:block"
+                            title={item.updatedAt ? `更新时间：${item.updatedAt}` : undefined}
+                          >
                             {item.updatedAt?.slice(5, 10) || '—'}
                           </span>
                           <UserAvatar

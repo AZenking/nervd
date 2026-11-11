@@ -89,7 +89,7 @@ function ParameterField({
   return (
     <Field className="gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <FieldLabel htmlFor={`param-${parameter.name}`} className="font-mono text-xs font-medium">
+        <FieldLabel htmlFor={`param-${parameter.name}`} className="font-mono text-xs font-medium" title={parameter.name}>
           {parameter.name}
         </FieldLabel>
         <div className="flex items-center gap-1.5">
@@ -115,6 +115,16 @@ function ParameterField({
             id={`param-${parameter.name}`}
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape' && e.key !== 'Tab') {
+                e.stopPropagation();
+              }
+            }}
+            onKeyUp={(e) => {
+              if (e.key !== 'Escape' && e.key !== 'Tab') {
+                e.stopPropagation();
+              }
+            }}
             placeholder="输入分支名（如 master，支持手动填写）"
             className="font-mono text-xs h-8 flex-1"
           />
@@ -135,7 +145,7 @@ function ParameterField({
                 <span>选择分支</span>
                 <ChevronDownIcon className="size-3 text-muted-foreground opacity-60" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64 max-h-72 overflow-y-auto z-[60]">
+              <DropdownMenuContent align="end" className="w-64 max-h-72 z-[60]">
                 <div className="flex items-center justify-between px-2 py-1.5 border-b border-border/40 text-[11px] font-medium text-muted-foreground select-none">
                   <span>{branchesLoading ? '正在拉取远端分支…' : '可选分支列表'}</span>
                   {branchOptions.length > 0 && (
@@ -149,9 +159,10 @@ function ParameterField({
                   <DropdownMenuItem
                     key={b}
                     onClick={() => onChange(b)}
+                    title={b}
                     className="font-mono text-xs cursor-pointer flex items-center justify-between gap-2"
                   >
-                    <OverflowTooltip text={b} className="min-w-0 truncate" />
+                    <OverflowTooltip text={b} title={b} className="min-w-0 truncate" />
                     <div className="flex items-center gap-1 shrink-0 font-sans">
                       {b === defaultBranch && (
                         <span className="text-[10px] text-success font-medium bg-success/10 px-1 py-0.5 rounded">
@@ -191,6 +202,16 @@ function ParameterField({
           id={`param-${parameter.name}`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape' && e.key !== 'Tab') {
+              e.stopPropagation();
+            }
+          }}
+          onKeyUp={(e) => {
+            if (e.key !== 'Escape' && e.key !== 'Tab') {
+              e.stopPropagation();
+            }
+          }}
           placeholder={`输入 ${parameter.name}`}
           className="text-xs h-8"
         />

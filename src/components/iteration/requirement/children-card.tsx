@@ -517,7 +517,11 @@ export function ChildrenCard({
   }, [selectedAssignee, parentAssigneeName, assigneeCandidates]);
 
   const inlineAddRow = (
-    <Surface variant="secondary" className="flex flex-wrap items-center gap-2 p-2 rounded-lg border border-border/70 transition-colors">
+    <Surface
+      variant="secondary"
+      onKeyDown={(e) => e.stopPropagation()}
+      className="flex flex-wrap items-center gap-2 p-2 rounded-lg border border-border/70 transition-colors"
+    >
       {types.length > 1 ? (
         <Select
           aria-label="工作项类型"
@@ -656,9 +660,9 @@ export function ChildrenCard({
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <span className="truncate">{c.name}</span>
+                  <span className="truncate" title={c.name}>{c.name}</span>
                   {c.role && (
-                    <span className="text-[10px] text-muted-foreground/80 shrink-0">({c.role})</span>
+                    <span className="text-[10px] text-muted-foreground/80 shrink-0" title={c.role}>({c.role})</span>
                   )}
                 </div>
                 <ListBox.ItemIndicator />
@@ -677,8 +681,24 @@ export function ChildrenCard({
         className="h-7 rounded-md border-border/70 text-xs flex-1 min-w-44 bg-background"
         disabled={submitting}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') void handleCreate();
-          if (e.key === 'Escape') cancelAdding();
+          if (e.key !== 'Tab') {
+            e.stopPropagation();
+            e.nativeEvent?.stopImmediatePropagation?.();
+          }
+          if (e.nativeEvent.isComposing) return;
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            void handleCreate();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancelAdding();
+          }
+        }}
+        onKeyUp={(e) => {
+          if (e.key !== 'Escape' && e.key !== 'Tab') {
+            e.stopPropagation();
+            e.nativeEvent?.stopImmediatePropagation?.();
+          }
         }}
       />
 
@@ -749,13 +769,18 @@ export function ChildrenCard({
                 tabIndex={0}
                 data-testid="child-row"
                 data-identifier={task.identifier ?? ''}
+                title={`${task.identifier} ${task.subject || ''}`.trim()}
                 className={cn(
                   'group/row flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                   isSelected && 'bg-muted/80 ring-1 ring-primary/40',
                 )}
                 onClick={() => onSelect(task)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') onSelect(task);
+                  if (e.defaultPrevented || e.nativeEvent.isComposing) return;
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    onSelect(task);
+                  }
                 }}
               >
                 {/* 行首：快捷状态切换下拉 */}
@@ -764,7 +789,7 @@ export function ChildrenCard({
                 {/* 编号：Task 浅蓝/默认，Bug 浅红标识 */}
                 <div className="flex w-24 shrink-0 items-center gap-1">
                   {isBug && <BugIcon className="size-3 shrink-0 text-destructive/70" />}
-                  <span className="truncate font-mono text-xs text-muted-foreground">
+                  <span className="truncate font-mono text-xs text-muted-foreground" title={task.identifier}>
                     {task.identifier}
                   </span>
                 </div>
@@ -772,6 +797,7 @@ export function ChildrenCard({
                 {/* 标题：已完成项微弱化 */}
                 <OverflowTooltip
                   text={task.subject || task.identifier}
+                  title={task.subject || task.identifier}
                   className={cn(
                     'min-w-0 flex-1 truncate text-sm font-medium',
                     isCompleted ? 'text-muted-foreground/75' : 'text-foreground/90',

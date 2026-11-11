@@ -115,7 +115,16 @@ export function DiffFileTree({
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
                 setSearchQuery('');
+              } else if (e.key !== 'Tab') {
+                e.stopPropagation();
+              }
+            }}
+            onKeyUp={(e) => {
+              if (e.key !== 'Escape' && e.key !== 'Tab') {
+                e.stopPropagation();
               }
             }}
             placeholder="搜索改动文件..."
@@ -264,6 +273,7 @@ function TreeNodeItem({
           <OverflowTooltip
             text={node.path}
             tooltip={node.path}
+            title={node.path}
             className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium"
           >
             {node.name}
@@ -332,6 +342,7 @@ function TreeNodeItem({
         <OverflowTooltip
           text={node.path}
           tooltip={node.path}
+          title={node.path}
           className="min-w-0 truncate font-mono text-[11px] leading-tight"
         >
           {node.name}
