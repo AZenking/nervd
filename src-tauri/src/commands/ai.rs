@@ -1,6 +1,7 @@
 //! AI 助手 IPC 命令与配置管理
 
 use keyring::Entry;
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -122,6 +123,8 @@ pub async fn get_ai_settings(app: AppHandle) -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn save_ai_settings(app: AppHandle, settings: AiSettings) -> Result<Value, String> {
+    // 落盘前先校验 Base URL，避免把会导致 API Key 外发的地址保存下来
+    validate_ai_base_url(&settings.base_url)?;
     save_ai_settings_file(&app, &settings)?;
     let mut v = serde_json::to_value(&settings).map_err(|e| e.to_string())?;
     if let Some(map) = v.as_object_mut() {
@@ -159,6 +162,126 @@ pub fn resolve_ai_endpoint(base_url: &str) -> String {
     } else {
         format!("{raw}/chat/completions")
     }
+}
+
+/// 校验 AI Base URL，防止被篡改的配置把 Authorization（API Key）发往攻击者控制的主机。
+///
+/// 安全边界按「流量是否离开本机」划分：
+/// - 本机回环地址（`localhost`、`127.0.0.0/8`、`::1`）**允许 http**：Ollama / vLLM 等本地推理服务
+///   通常不提供 TLS，而流量不离开本机，不存在凭据外泄面；
+/// - 其它任何主机必须使用 **https**，否则 API Key 会以明文经过网络；
+/// - 一律拒绝私网 / 链路本地 / CGNAT 地址（`10/8`、`172.16/12`、`192.168/16`、`169.254/16`、
+///   `100.64/10`、`fc00::/7`、`fe80::/10`）与 `*.local` 域名：这些会把 API Key 送到局域网其它机器，
+///   是本条风险的真实来源；
+/// - 路径不允许 `..`，错误信息不回显完整 URL 与 API Key。
+pub fn validate_ai_base_url(raw: &str) -> Result<Url, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("AI Base URL 不能为空".to_string());
+    }
+
+    let url = Url::parse(trimmed).map_err(|_| "AI Base URL 格式无效".to_string())?;
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err("AI Base URL 不允许携带账号密码".to_string());
+    }
+
+    // Url::parse 会自动消解 ".." 段，因此同时检查原始输入与解析后的路径
+    if has_parent_dir(trimmed) || has_parent_dir(url.path()) {
+        return Err("AI Base URL 路径不允许包含 ..".to_string());
+    }
+
+    let host = url
+        .host_str()
+        .ok_or_else(|| "AI Base URL 缺少主机名".to_string())?;
+    let bare_host = host.trim_start_matches('[').trim_end_matches(']');
+    if let Ok(ip) = bare_host.parse::<std::net::IpAddr>() {
+        if is_private_or_link_local_ip(ip) {
+            return Err("AI Base URL 不允许指向内网、链路本地或 CGNAT 地址".to_string());
+        }
+    }
+
+    let loopback = is_loopback_host(host);
+    let scheme = url.scheme();
+    // 仅本机回环允许 http，其余主机一律强制 https
+    if scheme != "https" && !(scheme == "http" && loopback) {
+        return Err(
+            "AI Base URL 必须使用 https（localhost / 127.0.0.1 / ::1 等本机回环地址允许 http）"
+                .to_string(),
+        );
+    }
+
+    let lower = host.trim_end_matches('.').to_ascii_lowercase();
+    if lower.ends_with(".local") {
+        return Err("AI Base URL 不允许指向局域网域名".to_string());
+    }
+
+    Ok(url)
+}
+
+/// 判断主机名或 IP 字面量是否指向本机回环（含 `*.localhost` 与 IPv4-mapped IPv6）。
+fn is_loopback_host(host: &str) -> bool {
+    let bare = host.trim_start_matches('[').trim_end_matches(']');
+    if let Ok(ip) = bare.parse::<std::net::IpAddr>() {
+        return is_loopback_ip(ip);
+    }
+
+    let lower = host.trim_end_matches('.').to_ascii_lowercase();
+    lower == "localhost" || lower.ends_with(".localhost")
+}
+
+fn is_loopback_ip(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+
+    match ip {
+        IpAddr::V4(v4) => v4.is_loopback(),
+        IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.to_ipv4_mapped()
+                    .map(|v4| v4.is_loopback())
+                    .unwrap_or(false)
+        }
+    }
+}
+
+/// 判断 IP 是否属于私网、链路本地、CGNAT 等会把凭据送往局域网其它机器的地址段。
+fn is_private_or_link_local_ip(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+
+    match ip {
+        IpAddr::V4(v4) => {
+            let octets = v4.octets();
+            v4.is_private()           // 10/8、172.16/12、192.168/16
+                || v4.is_link_local() // 169.254/16
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || (octets[0] == 100 && (64..=127).contains(&octets[1])) // 100.64/10 (CGNAT)
+        }
+        IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_private_or_link_local_ip(IpAddr::V4(v4));
+            }
+            let segments = v6.segments();
+            v6.is_unspecified()
+                || (segments[0] & 0xfe00) == 0xfc00 // fc00::/7 唯一本地地址
+                || (segments[0] & 0xffc0) == 0xfe80 // fe80::/10 链路本地
+        }
+    }
+}
+
+/// 检查 URL 路径段中是否包含 ".."（同时识别百分号编码的点）。
+fn has_parent_dir(raw: &str) -> bool {
+    let after_scheme = raw.split_once("://").map(|(_, rest)| rest).unwrap_or(raw);
+    let path_start = after_scheme
+        .find(['/', '?', '#'])
+        .unwrap_or(after_scheme.len());
+    let path_and_more = &after_scheme[path_start..];
+    let path = path_and_more
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(path_and_more);
+
+    let lowered = path.to_ascii_lowercase();
+    lowered.contains("%2e") || path.split('/').any(|segment| segment == "..")
 }
 
 /// 校验 HTTP 响应，拦截重定向（防 IDaaS/SSO 假 200 穿透）与 HTML 网页错误
@@ -203,9 +326,11 @@ pub async fn validate_ai_response(res: reqwest::Response) -> Result<reqwest::Res
 #[tauri::command]
 pub async fn test_ai_connection(app: AppHandle) -> Result<Value, String> {
     let settings = load_ai_settings(&app);
+    // 请求前校验 Base URL，避免把 Keychain 中的 API Key 发往内网或回环地址
+    let base = validate_ai_base_url(&settings.base_url)?;
     let api_key = load_ai_key().ok_or_else(|| "未在 macOS Keychain 中找到 API Key，请先配置并保存密钥".to_string())?;
 
-    let endpoint = resolve_ai_endpoint(&settings.base_url);
+    let endpoint = resolve_ai_endpoint(base.as_str());
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(12))
@@ -265,9 +390,11 @@ pub async fn ai_chat_completion(
     max_tokens: Option<u32>,
 ) -> Result<String, String> {
     let settings = load_ai_settings(&app);
+    // 请求前校验 Base URL，避免把 Keychain 中的 API Key 发往内网或回环地址
+    let base = validate_ai_base_url(&settings.base_url)?;
     let api_key = load_ai_key().ok_or_else(|| "未配置 AI 服务的 API Key，请前往设置中心配置".to_string())?;
 
-    let endpoint = resolve_ai_endpoint(&settings.base_url);
+    let endpoint = resolve_ai_endpoint(base.as_str());
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(45))
@@ -358,5 +485,70 @@ mod tests {
             resolve_ai_endpoint("https://api.anthropic.com/v1/messages"),
             "https://api.anthropic.com/v1/chat/completions"
         );
+    }
+
+    #[test]
+    fn test_validate_ai_base_url_accepts_public_https_and_local_loopback() {
+        assert!(validate_ai_base_url("https://api.openai.com/v1").is_ok());
+        assert!(validate_ai_base_url("https://dashscope.aliyuncs.com/compatible-mode/v1").is_ok());
+        // 本机回环：http 不离开本机，允许（Ollama / vLLM 等本地推理服务）
+        assert!(validate_ai_base_url("http://localhost:11434/v1").is_ok());
+        assert!(validate_ai_base_url("https://localhost/v1").is_ok());
+        assert!(validate_ai_base_url("http://127.0.0.1:8080/v1").is_ok());
+        assert!(validate_ai_base_url("https://127.1.2.3/v1").is_ok());
+        assert!(validate_ai_base_url("http://[::1]:11434/v1").is_ok());
+        assert!(validate_ai_base_url("https://api.localhost/v1").is_ok());
+        assert!(validate_ai_base_url("https://[::ffff:127.0.0.1]/v1").is_ok());
+    }
+
+    #[test]
+    fn test_validate_ai_base_url_http_only_allowed_for_loopback() {
+        let cases = [
+            // 本机回环：允许 http
+            ("http://localhost:11434/v1", true),
+            ("http://127.0.0.1:8080/v1", true),
+            ("http://[::1]:11434/v1", true),
+            // 私网 / 链路本地：无论 http 还是 https 都拒绝
+            ("http://192.168.1.10/v1", false),
+            ("https://192.168.1.10/v1", false),
+            ("http://10.0.0.8/v1", false),
+            ("http://169.254.169.254/latest/meta-data", false),
+            // 非 loopback 的公网主机：强制 https
+            ("http://evil.example.com/v1", false),
+            ("https://evil.example.com/v1", true),
+            // loopback 用 https 同样合法
+            ("https://127.0.0.1/v1", true),
+        ];
+        for (url, expected_ok) in cases {
+            let result = validate_ai_base_url(url);
+            assert_eq!(
+                result.is_ok(),
+                expected_ok,
+                "URL {url} 预期 ok={expected_ok}，实际 {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_ai_base_url_rejects_unsafe_targets() {
+        let cases = [
+            "",
+            "api.openai.com/v1",
+            "http://api.openai.com/v1",
+            "https://10.0.0.8/v1",
+            "https://172.20.1.1/v1",
+            "https://192.168.1.10/v1",
+            "https://169.254.169.254/latest/meta-data",
+            "https://[fd00::1]/v1",
+            "https://[fe80::1]/v1",
+            "https://[::ffff:192.168.1.10]/v1",
+            "https://api.example.com/v1/../admin",
+            "https://api.example.com/v1/%2e%2e/admin",
+            "https://user:secret@api.example.com/v1",
+            "https://printer.local/v1",
+        ];
+        for case in cases {
+            assert!(validate_ai_base_url(case).is_err(), "应拒绝: {case}");
+        }
     }
 }

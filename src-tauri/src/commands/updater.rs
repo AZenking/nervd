@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tauri::AppHandle;
 
@@ -347,24 +348,209 @@ pub struct UpdateProgressPayload {
     pub message: Option<String>,
 }
 
-#[tauri::command]
-pub async fn download_and_install_update(
-    app: AppHandle,
-    download_url: String,
-) -> Result<bool, String> {
+/// 更新包大小上限（200 MB），避免被恶意服务端用超大文件耗尽磁盘
+const MAX_UPDATE_BYTES: u64 = 200 * 1024 * 1024;
+
+/// `.sha256` 校验文件自身的大小上限
+const MAX_SHA256_FILE_BYTES: u64 = 64 * 1024;
+
+/// 校验更新下载地址：只允许 https，且主机必须是 github.com 或 *.githubusercontent.com。
+/// 更新包与校验文件都来自同一官方发布目录，避免 IPC 入参把应用变成任意下载器。
+fn validate_update_url(raw: &str) -> Result<reqwest::Url, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("下载地址无效".to_string());
+    }
+    let url = reqwest::Url::parse(trimmed).map_err(|_| "下载地址无效".to_string())?;
+    if url.scheme() != "https" {
+        return Err("下载地址必须使用 https".to_string());
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err("下载地址不允许携带凭证".to_string());
+    }
+    let host = url
+        .host_str()
+        .ok_or_else(|| "下载地址缺少主机名".to_string())?;
+    if !is_allowed_update_host(host) {
+        return Err("仅允许从 GitHub 官方发布地址下载更新".to_string());
+    }
+    Ok(url)
+}
+
+fn is_allowed_update_host(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    host == "github.com" || host.ends_with(".githubusercontent.com")
+}
+
+/// 由安装包地址派生同目录下的 `.sha256` 校验文件地址（`x.dmg` → `x.dmg.sha256`）。
+fn sha256_sidecar_url(download: &reqwest::Url) -> Result<reqwest::Url, String> {
+    let mut url = download.clone();
+    url.set_path(&format!("{}.sha256", url.path()));
+    url.set_fragment(None);
+    Ok(url)
+}
+
+/// 从校验文件内容（`<hash>  <filename>`，兼容 sha256sum / shasum 输出）中提取 64 位十六进制摘要。
+fn parse_sha256_hex(text: &str) -> Option<String> {
+    text.split_whitespace()
+        .find(|token| token.len() == 64 && token.chars().all(|c| c.is_ascii_hexdigit()))
+        .map(|token| token.to_ascii_lowercase())
+}
+
+/// 计算本地文件 SHA-256。为不新增 Cargo 依赖，优先复用系统 shasum / sha256sum，
+/// Windows 上再回退到自带的 certutil；与 .github/workflows/release.yml 中 calc_sha256 的产出保持一致。
+fn compute_sha256(path: &Path) -> Result<String, String> {
+    let attempts: [(&str, &[&str]); 2] = [("shasum", &["-a", "256"]), ("sha256sum", &[])];
+    let mut reasons: Vec<String> = Vec::new();
+
+    for (program, args) in attempts {
+        match std::process::Command::new(program)
+            .args(args)
+            .arg(path)
+            .output()
+        {
+            Ok(output) if output.status.success() => {
+                if let Some(hash) = parse_sha256_hex(&String::from_utf8_lossy(&output.stdout)) {
+                    return Ok(hash);
+                }
+                reasons.push(format!("{program} 输出无法解析"));
+            }
+            Ok(output) => reasons.push(format!("{program} 退出状态异常 ({})", output.status)),
+            Err(e) => reasons.push(format!("{program} 不可用: {e}")),
+        }
+    }
+
+    // Windows 未提供 shasum / sha256sum 时使用系统自带 certutil（输出同样包含 64 位十六进制摘要）
+    match std::process::Command::new("certutil")
+        .arg("-hashfile")
+        .arg(path)
+        .arg("SHA256")
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            if let Some(hash) = parse_sha256_hex(&String::from_utf8_lossy(&output.stdout)) {
+                return Ok(hash);
+            }
+            reasons.push("certutil 输出无法解析".to_string());
+        }
+        Ok(output) => reasons.push(format!("certutil 退出状态异常 ({})", output.status)),
+        Err(e) => reasons.push(format!("certutil 不可用: {e}")),
+    }
+
+    Err(format!(
+        "无法计算安装包 SHA-256 校验值（{}）",
+        reasons.join("；")
+    ))
+}
+
+/// 下载发布目录中的 `.sha256` 校验文件并解析摘要；任何异常都视为“无法校验”，由调用方中止安装。
+async fn fetch_expected_sha256(
+    client: &reqwest::Client,
+    download: &reqwest::Url,
+) -> Result<String, String> {
+    let sidecar = sha256_sidecar_url(download)?;
+    let res = client
+        .get(sidecar)
+        .header("User-Agent", "nervd-updater")
+        .send()
+        .await
+        .map_err(|e| format!("获取更新校验文件失败，已中止安装: {e}"))?;
+
+    if !res.status().is_success() {
+        return Err(format!(
+            "获取更新校验文件失败 (HTTP {})，已中止安装",
+            res.status()
+        ));
+    }
+
+    if res.content_length().unwrap_or(0) > MAX_SHA256_FILE_BYTES {
+        return Err("更新校验文件体积异常，已中止安装".to_string());
+    }
+
+    let bytes = res
+        .bytes()
+        .await
+        .map_err(|e| format!("读取更新校验文件失败，已中止安装: {e}"))?;
+    if bytes.len() as u64 > MAX_SHA256_FILE_BYTES {
+        return Err("更新校验文件体积异常，已中止安装".to_string());
+    }
+
+    let text = String::from_utf8_lossy(&bytes);
+    parse_sha256_hex(&text).ok_or_else(|| "更新校验文件格式无效，已中止安装".to_string())
+}
+
+/// 生成不可预测的临时文件名片段：优先读取系统随机源，退化时使用时间戳 + PID。
+fn random_token() -> String {
+    #[cfg(unix)]
+    {
+        use std::io::Read;
+        if let Ok(mut file) = std::fs::File::open("/dev/urandom") {
+            let mut buf = [0u8; 16];
+            if file.read_exact(&mut buf).is_ok() {
+                return buf.iter().map(|byte| format!("{byte:02x}")).collect();
+            }
+        }
+    }
+
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{nanos:x}{:x}", std::process::id())
+}
+
+fn installer_extension() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "dmg"
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "exe"
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        "bin"
+    }
+}
+
+/// 以随机临时名 + `create_new(true)` 独占创建下载文件，
+/// 避免固定路径被预置符号链接/同名文件覆盖（符号链接攻击、TOCTOU）。
+fn create_temp_installer() -> Result<(std::fs::File, PathBuf), String> {
+    use std::io::ErrorKind;
+
+    let dir = std::env::temp_dir();
+    for _ in 0..8 {
+        let path = dir.join(format!(
+            "nervd_update_{}.{}",
+            random_token(),
+            installer_extension()
+        ));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(file) => return Ok((file, path)),
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("创建更新临时文件失败: {e}")),
+        }
+    }
+
+    Err("创建更新临时文件失败: 无法生成唯一临时文件名".to_string())
+}
+
+/// 流式下载安装包并上报进度；超过体积上限立即中止。
+async fn stream_installer(
+    app: &AppHandle,
+    client: &reqwest::Client,
+    url: &str,
+    mut file: std::fs::File,
+) -> Result<u64, String> {
     use std::io::Write;
     use std::time::Instant;
     use tauri::Emitter;
-
-    let url = download_url.trim();
-    if url.is_empty() || !url.starts_with("https://") {
-        return Err("下载地址无效".to_string());
-    }
-
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(600))
-        .build()
-        .map_err(|e| format!("创建下载客户端失败: {e}"))?;
 
     let mut res = client
         .get(url)
@@ -378,17 +564,9 @@ pub async fn download_and_install_update(
     }
 
     let total_bytes = res.content_length().unwrap_or(0);
-    let temp_dir = std::env::temp_dir();
-
-    #[cfg(target_os = "macos")]
-    let installer_path = temp_dir.join("nervd_update.dmg");
-    #[cfg(target_os = "windows")]
-    let installer_path = temp_dir.join("nervd_update_setup.exe");
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    let installer_path = temp_dir.join("nervd_update.bin");
-
-    let mut file = std::fs::File::create(&installer_path)
-        .map_err(|e| format!("创建更新临时文件失败: {e}"))?;
+    if total_bytes > MAX_UPDATE_BYTES {
+        return Err(format!("更新包体积异常（{total_bytes} 字节），已中止下载"));
+    }
 
     let start_time = Instant::now();
     let mut last_emit = Instant::now();
@@ -411,9 +589,12 @@ pub async fn download_and_install_update(
         .await
         .map_err(|e| format!("下载安装包数据流失败: {e}"))?
     {
+        transferred += chunk.len() as u64;
+        if transferred > MAX_UPDATE_BYTES {
+            return Err("更新包体积超过 200MB 上限，已中止下载".to_string());
+        }
         file.write_all(&chunk)
             .map_err(|e| format!("写入更新文件失败: {e}"))?;
-        transferred += chunk.len() as u64;
 
         if last_emit.elapsed() >= Duration::from_millis(150)
             || (total_bytes > 0 && transferred >= total_bytes)
@@ -447,93 +628,278 @@ pub async fn download_and_install_update(
     file.flush()
         .map_err(|e| format!("保存更新文件失败: {e}"))?;
 
+    Ok(transferred)
+}
+
+/// 创建本次安装专用的临时挂载点，避免依赖 DMG 自带卷名（卷名可被攻击者控制）。
+#[cfg(target_os = "macos")]
+fn create_mount_point() -> Result<PathBuf, String> {
+    use std::io::ErrorKind;
+
+    let dir = std::env::temp_dir();
+    for _ in 0..8 {
+        let path = dir.join(format!("nervd_mount_{}", random_token()));
+        match std::fs::create_dir(&path) {
+            Ok(()) => return Ok(path),
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("创建临时挂载点失败: {e}")),
+        }
+    }
+
+    Err("创建临时挂载点失败: 无法生成唯一目录名".to_string())
+}
+
+/// 直接以 argv 传参调用 rm，不经过 shell，避免路径被拼接成命令。
+#[cfg(target_os = "macos")]
+fn remove_path(path: &Path) -> Result<(), String> {
+    let status = std::process::Command::new("rm")
+        .arg("-rf")
+        .arg(path)
+        .status()
+        .map_err(|e| format!("清理旧版本失败: {e}"))?;
+    if !status.success() {
+        return Err(format!("清理旧版本失败 (rm {status})"));
+    }
+    Ok(())
+}
+
+/// 用 ditto 复制 .app 目录，完整保留资源分支与权限。
+#[cfg(target_os = "macos")]
+fn copy_app(src: &Path, dest: &Path) -> Result<(), String> {
+    let output = std::process::Command::new("ditto")
+        .arg(src)
+        .arg(dest)
+        .output()
+        .map_err(|e| format!("执行 ditto 复制应用失败: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "复制应用到「应用程序」失败 (ditto {})",
+            output.status
+        ));
+    }
+    Ok(())
+}
+
+/// 从只读 DMG 挂载卷安装 .app：覆盖前先备份到 `nervd.app.bak`，失败可回滚。
+#[cfg(target_os = "macos")]
+fn install_from_volume(volume: &Path) -> Result<(), String> {
+    let app_src = volume.join("nervd.app");
+    let meta =
+        std::fs::symlink_metadata(&app_src).map_err(|_| "安装包中未找到 nervd.app".to_string())?;
+    if !meta.is_dir() {
+        return Err("安装包中的 nervd.app 不是有效目录".to_string());
+    }
+
+    // 挂载点由本进程创建，这里再确认应用真实路径正好位于挂载点根目录下，防止路径穿越
+    let canonical_src = app_src
+        .canonicalize()
+        .map_err(|e| format!("解析安装包路径失败: {e}"))?;
+    let canonical_volume = volume
+        .canonicalize()
+        .map_err(|e| format!("解析挂载点失败: {e}"))?;
+    if canonical_src.parent() != Some(canonical_volume.as_path()) {
+        return Err("安装包内应用路径异常，已中止自动安装".to_string());
+    }
+    if !canonical_src.join("Contents/MacOS/nervd").exists() {
+        return Err("安装包内应用结构与预期不符，已中止自动安装".to_string());
+    }
+
+    let target = Path::new("/Applications/nervd.app");
+    let backup = Path::new("/Applications/nervd.app.bak");
+    let had_previous = target.exists();
+
+    if had_previous {
+        remove_path(backup)?;
+        copy_app(target, backup)?;
+    }
+
+    let install = (|| -> Result<(), String> {
+        if target.exists() {
+            remove_path(target)?;
+        }
+        copy_app(&canonical_src, target)?;
+        if target.join("Contents/MacOS/nervd").exists() {
+            Ok(())
+        } else {
+            Err("安装后应用结构校验失败".to_string())
+        }
+    })();
+
+    if let Err(e) = install {
+        // 安装失败时尽量用备份还原旧版本，避免用户失去可用的应用
+        if had_previous && backup.exists() {
+            let _ = remove_path(target);
+            let _ = copy_app(backup, target);
+        } else if !had_previous {
+            // 首次安装失败时清掉可能残留的半成品，避免用户误启动损坏的应用
+            let _ = remove_path(target);
+        }
+        return Err(e);
+    }
+
+    Ok(())
+}
+
+/// 挂载 DMG 并完成覆盖安装，结束时始终卸载镜像。
+#[cfg(target_os = "macos")]
+fn install_on_macos(dmg: &Path) -> Result<(), String> {
+    let mount_dir = create_mount_point()?;
+
+    let attach = std::process::Command::new("hdiutil")
+        .args([
+            "attach",
+            "-nobrowse",
+            "-readonly",
+            "-noautoopen",
+            "-mountpoint",
+        ])
+        .arg(&mount_dir)
+        .arg(dmg)
+        .output()
+        .map_err(|e| format!("挂载安装包失败: {e}"))?;
+
+    if !attach.status.success() {
+        let stderr = String::from_utf8_lossy(&attach.stderr);
+        let _ = std::fs::remove_dir(&mount_dir);
+        return Err(format!("挂载安装包失败: {}", stderr.trim()));
+    }
+
+    let result = install_from_volume(&mount_dir);
+
+    let detached = std::process::Command::new("hdiutil")
+        .args(["detach", "-force"])
+        .arg(&mount_dir)
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false);
+    if detached {
+        let _ = std::fs::remove_dir(&mount_dir);
+    }
+
+    result
+}
+
+#[tauri::command]
+pub async fn download_and_install_update(
+    app: AppHandle,
+    download_url: String,
+) -> Result<bool, String> {
+    use tauri::Emitter;
+
+    // 1) 只接受 GitHub 官方 https 地址，避免 IPC 入参变成任意下载/安装入口
+    let url = validate_update_url(&download_url)?;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(600))
+        .build()
+        .map_err(|e| format!("创建下载客户端失败: {e}"))?;
+
+    // 2) 随机临时名 + create_new 独占创建，避免符号链接攻击与固定路径覆盖
+    let (file, installer_path) = create_temp_installer()?;
+    let transferred = match stream_installer(&app, &client, url.as_str(), file).await {
+        Ok(transferred) => transferred,
+        Err(e) => {
+            let _ = std::fs::remove_file(&installer_path);
+            return Err(e);
+        }
+    };
+
     let _ = app.emit(
         "update-progress",
         UpdateProgressPayload {
             percent: 100.0,
             transferred_bytes: transferred,
-            total_bytes,
+            total_bytes: transferred,
             speed_bytes_per_sec: 0,
             status: "installing".to_string(),
-            message: Some("下载完成，正在安装更新…".to_string()),
+            message: Some("下载完成，正在校验安装包完整性…".to_string()),
+        },
+    );
+
+    // 3) SHA-256 完整性校验：校验文件缺失、格式异常或摘要不匹配时一律中止安装
+    let verify_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("创建校验客户端失败: {e}"))?;
+    let expected = match fetch_expected_sha256(&verify_client, &url).await {
+        Ok(hash) => hash,
+        Err(e) => {
+            let _ = std::fs::remove_file(&installer_path);
+            return Err(e);
+        }
+    };
+    let actual = match compute_sha256(&installer_path) {
+        Ok(hash) => hash,
+        Err(e) => {
+            let _ = std::fs::remove_file(&installer_path);
+            return Err(e);
+        }
+    };
+    if actual != expected {
+        let _ = std::fs::remove_file(&installer_path);
+        return Err(format!(
+            "安装包完整性校验失败（SHA-256 不匹配，期望 {expected}，实际 {actual}），已中止安装"
+        ));
+    }
+
+    let _ = app.emit(
+        "update-progress",
+        UpdateProgressPayload {
+            percent: 100.0,
+            transferred_bytes: transferred,
+            total_bytes: transferred,
+            speed_bytes_per_sec: 0,
+            status: "installing".to_string(),
+            message: Some("校验通过，正在安装更新…".to_string()),
         },
     );
 
     #[cfg(target_os = "macos")]
     {
-        // 自动剥除已下载 DMG 上的隔离扩展属性（com.apple.quarantine）
-        if let Some(dmg_str) = installer_path.to_str() {
-            let _ = std::process::Command::new("xattr")
-                .args(["-cr", dmg_str])
-                .status();
-        }
-
-        // 尝试自动挂载 DMG 并直接更新 /Applications/nervd.app
-        let mount_output = std::process::Command::new("hdiutil")
-            .args(["attach", "-nobrowse", "-readonly"])
-            .arg(&installer_path)
-            .output();
-
-        let mut replaced = false;
-        if let Ok(output) = mount_output {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let mut mount_point = None;
-            for line in stdout.lines() {
-                if let Some(idx) = line.find("/Volumes/") {
-                    mount_point = Some(line[idx..].trim().to_string());
-                }
+        // 不再调用 xattr -cr 剥离 com.apple.quarantine：隔离属性交由 Gatekeeper 与用户决定。
+        // 自动覆盖安装失败时，打开安装包引导用户手动拖拽，并在 UI 提示「右键 → 打开」。
+        match install_on_macos(&installer_path) {
+            Ok(()) => {
+                let _ = std::fs::remove_file(&installer_path);
+                let _ = app.emit(
+                    "update-progress",
+                    UpdateProgressPayload {
+                        percent: 100.0,
+                        transferred_bytes: transferred,
+                        total_bytes: transferred,
+                        speed_bytes_per_sec: 0,
+                        status: "done".to_string(),
+                        message: Some("安装完成，应用正在重启…".to_string()),
+                    },
+                );
+                // 等待旧进程退出后再拉起新版本
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+                let _ = std::process::Command::new("open")
+                    .arg("/Applications/nervd.app")
+                    .status();
+                tokio::time::sleep(Duration::from_millis(600)).await;
+                app.exit(0);
+                Ok(true)
             }
-
-            if let Some(vol) = mount_point {
-                let app_src = format!("{}/nervd.app", vol);
-                if std::path::Path::new(&app_src).exists() {
-                    // 自动替换并在应用重启前执行 xattr -cr，彻底解除 macOS 隔离阻拦
-                    let replace_script = format!(
-                        "sleep 1; rm -rf /Applications/nervd.app; cp -R \"{app_src}\" /Applications/; xattr -cr /Applications/nervd.app; hdiutil detach \"{vol}\" -force; open /Applications/nervd.app"
-                    );
-                    if let Ok(_child) = std::process::Command::new("sh")
-                        .arg("-c")
-                        .arg(&replace_script)
-                        .spawn()
-                    {
-                        replaced = true;
-                    }
-                }
+            Err(reason) => {
+                let _ = std::process::Command::new("open")
+                    .arg(&installer_path)
+                    .spawn();
+                let _ = app.emit(
+                    "update-progress",
+                    UpdateProgressPayload {
+                        percent: 100.0,
+                        transferred_bytes: transferred,
+                        total_bytes: transferred,
+                        speed_bytes_per_sec: 0,
+                        status: "done".to_string(),
+                        message: Some(format!(
+                            "{reason}。已打开安装包，请手动将 nervd 拖入「应用程序」；若系统提示无法验证开发者，请在 nervd 上右键选择「打开」后重试"
+                        )),
+                    },
+                );
+                Ok(true)
             }
-        }
-
-        if replaced {
-            let _ = app.emit(
-                "update-progress",
-                UpdateProgressPayload {
-                    percent: 100.0,
-                    transferred_bytes: transferred,
-                    total_bytes,
-                    speed_bytes_per_sec: 0,
-                    status: "done".to_string(),
-                    message: Some("安装完成，应用正在重启…".to_string()),
-                },
-            );
-            tokio::time::sleep(Duration::from_millis(600)).await;
-            app.exit(0);
-            Ok(true)
-        } else {
-            // 权限受限或挂载失败时，调用 open 弹出 DMG 挂载盘引导用户覆盖
-            let _ = std::process::Command::new("open")
-                .arg(&installer_path)
-                .spawn();
-            let _ = app.emit(
-                "update-progress",
-                UpdateProgressPayload {
-                    percent: 100.0,
-                    transferred_bytes: transferred,
-                    total_bytes,
-                    speed_bytes_per_sec: 0,
-                    status: "done".to_string(),
-                    message: Some("已打开安装包，请将 nervd 拖入「应用程序」完成更新".to_string()),
-                },
-            );
-            Ok(true)
         }
     }
 
@@ -547,7 +913,7 @@ pub async fn download_and_install_update(
             UpdateProgressPayload {
                 percent: 100.0,
                 transferred_bytes: transferred,
-                total_bytes,
+                total_bytes: transferred,
                 speed_bytes_per_sec: 0,
                 status: "done".to_string(),
                 message: Some("安装程序已启动，应用即将退出并重启…".to_string()),
@@ -565,7 +931,7 @@ pub async fn download_and_install_update(
             UpdateProgressPayload {
                 percent: 100.0,
                 transferred_bytes: transferred,
-                total_bytes,
+                total_bytes: transferred,
                 speed_bytes_per_sec: 0,
                 status: "done".to_string(),
                 message: Some(format!("安装包已保存至: {}", installer_path.display())),
@@ -606,6 +972,58 @@ mod tests {
         assert_eq!(
             extract_tag_from_release_url("https://github.com/AZenking/nervd/releases"),
             None
+        );
+    }
+
+    #[test]
+    fn test_validate_update_url_only_allows_github_https() {
+        assert!(validate_update_url(
+            "https://github.com/AZenking/nervd/releases/download/v1.1.2/nervd_1.1.2_aarch64.dmg"
+        )
+        .is_ok());
+        assert!(validate_update_url(
+            "https://objects.githubusercontent.com/github-production-release-asset/1?sig=abc"
+        )
+        .is_ok());
+        assert!(validate_update_url("http://github.com/a.dmg").is_err());
+        assert!(validate_update_url("https://evil.example/a.dmg").is_err());
+        assert!(validate_update_url("https://github.com.evil.example/a.dmg").is_err());
+        assert!(validate_update_url("https://evilgithubusercontent.com/a.dmg").is_err());
+        assert!(validate_update_url("https://user:pass@github.com/a.dmg").is_err());
+        assert!(validate_update_url("   ").is_err());
+    }
+
+    #[test]
+    fn test_sha256_sidecar_url_and_digest_parsing() {
+        let url = validate_update_url(
+            "https://github.com/AZenking/nervd/releases/download/v1.1.2/nervd_1.1.2_aarch64.dmg",
+        )
+        .unwrap();
+        assert_eq!(
+            sha256_sidecar_url(&url).unwrap().as_str(),
+            "https://github.com/AZenking/nervd/releases/download/v1.1.2/nervd_1.1.2_aarch64.dmg.sha256"
+        );
+
+        let digest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        assert_eq!(
+            parse_sha256_hex(&format!("{digest}  nervd_1.1.2_aarch64.dmg\n")),
+            Some(digest.to_string())
+        );
+        assert_eq!(parse_sha256_hex("not-a-hash  some.dmg"), None);
+        assert_eq!(parse_sha256_hex(""), None);
+    }
+
+    #[test]
+    fn test_compute_sha256_matches_known_digest() {
+        let path = std::env::temp_dir().join(format!("nervd_sha256_{}.txt", random_token()));
+        std::fs::write(&path, b"nervd").unwrap();
+        let digest = compute_sha256(&path);
+        let _ = std::fs::remove_file(&path);
+
+        // echo -n nervd | shasum -a 256
+        assert_eq!(
+            digest.unwrap(),
+            "518c692d4befa1c36415537b6aba009f09a84224d0381836ecf369affefad210"
         );
     }
 }

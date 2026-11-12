@@ -5,13 +5,14 @@
 //! 响应为裸数组：[{id,name,description,status,startDate,endDate,…}]，status ∈ TODO/DOING/ARCHIVED。
 
 use super::common::{as_array, client_of, i64_of, org_of, s, s2};
-use super::workitems::chrono_ms_to_local;
+use crate::timeutil::epoch_ms_to_local_date;
 use crate::AppState;
 use serde_json::{json, Value};
 use tauri::State;
 
+/// 起止日期按本地时区取日期（UTC 16:00 后不再错一天）
 fn date_of(ms: i64) -> String {
-    chrono_ms_to_local(ms).chars().take(10).collect()
+    epoch_ms_to_local_date(ms)
 }
 
 /// 迭代状态映射：TODO→未开始 / DOING→进行中 / ARCHIVED→已归档 / DONE→已完成；

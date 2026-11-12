@@ -5,6 +5,7 @@ mod credentials;
 mod db;
 mod jenkins;
 mod poller;
+mod timeutil;
 pub mod yunxiao;
 
 use std::collections::HashMap;
@@ -123,6 +124,87 @@ fn setup_macos_menu(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// 打开连接；SQLite 层损坏时备份 `.corrupt-<时间戳>` 后重建空库。
+fn open_connection_with_recovery(
+    app: &tauri::AppHandle,
+) -> Result<rusqlite::Connection, String> {
+    match db::open_db(app) {
+        Ok(conn) => Ok(conn),
+        Err(first) => {
+            eprintln!("[db] 打开 nervd.db 失败，尝试备份损坏库并重建: {first}");
+            match db::backup_corrupt_db(app) {
+                Ok(Some(path)) => eprintln!("[db] 已备份损坏数据库: {}", path.display()),
+                Ok(None) => eprintln!("[db] 未找到 nervd.db 文件，直接重建"),
+                Err(e) => eprintln!("[db] 备份损坏数据库失败: {e}"),
+            }
+            db::open_db(app).map_err(|e| format!("重建 nervd.db 失败（原错误: {first}）: {e}"))
+        }
+    }
+}
+
+fn migrate_and_load(
+    app: &tauri::AppHandle,
+    conn: &mut rusqlite::Connection,
+) -> Result<credentials::Settings, String> {
+    db::migrate_if_needed(conn, app)?;
+    db::load_settings(conn)
+}
+
+/// setup 的数据库启动路径：单条坏数据不再让应用永久无法启动。
+/// 自愈顺序（尽量保留用户数据）：
+/// 1. 正常打开并迁移；
+/// 2. 数据库可读但迁移失败 → 判定 settings.json 损坏，隔离后重试；
+/// 3. 数据库层失败 → 备份 `.corrupt-<时间戳>` 后重建空库并重新迁移；
+/// 4. 仍失败才隔离 settings.json 再试，最后返回可读错误（而不是 panic!）。
+fn open_state_with_recovery(
+    app: &tauri::AppHandle,
+) -> Result<(rusqlite::Connection, credentials::Settings), String> {
+    let mut conn = open_connection_with_recovery(app)?;
+
+    match migrate_and_load(app, &mut conn) {
+        Ok(settings) => return Ok((conn, settings)),
+        Err(first) => {
+            eprintln!("[db] 迁移/读取设置失败: {first}");
+            if db::load_settings(&conn).is_ok() {
+                // 数据库读得出来 → 问题在迁移数据源 settings.json，先隔离它，别毁库
+                quarantine_settings_json(app);
+                match migrate_and_load(app, &mut conn) {
+                    Ok(settings) => return Ok((conn, settings)),
+                    Err(second) => eprintln!("[db] 隔离 settings.json 后仍失败: {second}"),
+                }
+            }
+        }
+    }
+
+    // 数据库层兜底：先释放旧连接（触发 WAL 检查点），再备份损坏库后重建空库；
+    // settings.json 若仍可用会被重新导入
+    drop(conn);
+    match db::backup_corrupt_db(app) {
+        Ok(Some(path)) => eprintln!("[db] 已备份数据库: {}", path.display()),
+        Ok(None) => eprintln!("[db] 没有可备份的 nervd.db 文件，直接重建"),
+        Err(e) => eprintln!("[db] 备份数据库失败: {e}"),
+    }
+    let mut conn = db::open_db(app).map_err(|e| format!("重建 nervd.db 失败: {e}"))?;
+    match migrate_and_load(app, &mut conn) {
+        Ok(settings) => Ok((conn, settings)),
+        Err(third) => {
+            eprintln!("[db] 重建数据库后仍失败: {third}；最后尝试隔离 settings.json");
+            quarantine_settings_json(app);
+            migrate_and_load(app, &mut conn)
+                .map(|settings| (conn, settings))
+                .map_err(|e| format!("初始化 nervd.db 失败（已备份重建并隔离 settings.json）: {e}"))
+        }
+    }
+}
+
+fn quarantine_settings_json(app: &tauri::AppHandle) {
+    match db::quarantine_settings_json(app) {
+        Ok(Some(path)) => eprintln!("[db] 已隔离损坏的 settings.json: {}", path.display()),
+        Ok(None) => eprintln!("[db] 没有可隔离的 settings.json"),
+        Err(e) => eprintln!("[db] 隔离 settings.json 失败: {e}"),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -173,12 +255,9 @@ pub fn run() {
                 eprintln!("[menu] failed to set macos menu: {e}");
             }
 
-            // 阶段3：SQLite 数据层是设置的事实源；无库桌面应用不可用 → panic 带清晰信息
-            let db_conn = db::open_db(app.handle())
-                .and_then(|mut conn| db::migrate_if_needed(&mut conn, app.handle()).map(|_| conn))
-                .unwrap_or_else(|e| panic!("初始化 nervd.db 失败: {e}"));
-            let settings = db::load_settings(&db_conn)
-                .unwrap_or_else(|e| panic!("从 nervd.db 读取设置失败: {e}"));
+            // 阶段3：SQLite 数据层是设置的事实源；损坏时自动备份重建，不 panic（见 open_state_with_recovery）
+            let (db_conn, settings) = open_state_with_recovery(app.handle())
+                .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
             let client = credentials::load_pat()
                 .and_then(|p| yunxiao::YunxiaoClient::new(&p).ok())
                 .map(Arc::new);

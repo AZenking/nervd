@@ -7,7 +7,7 @@
 //!
 //! 核心逻辑拆成 `init_conn` / `migrate_from_settings` 等可脱离 AppHandle 的纯函数，`open_db` 只做胶水。
 
-use crate::credentials::{self, BranchRuleTemplate, Settings};
+use crate::credentials::{self, BranchRuleTemplate, Settings, SettingsPatch};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -17,11 +17,71 @@ const KEY_SCHEMA_VERSION: &str = "schema_version";
 const KEY_LOCAL_STORAGE_IMPORTED: &str = "localStorageImported";
 
 pub fn open_db(app: &tauri::AppHandle) -> Result<Connection, String> {
-    let path = credentials::data_dir(app)?.join("nervd.db");
+    let path = db_path(app)?;
     let conn = Connection::open(&path)
         .map_err(|e| format!("打开 nervd.db 失败 ({}): {e}", path.display()))?;
     init_conn(&conn)?;
     Ok(conn)
+}
+
+/// 库文件绝对路径（启动自愈也用它定位 WAL/SHM 伴生文件）
+pub fn db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(credentials::data_dir(app)?.join("nervd.db"))
+}
+
+fn corrupt_suffix() -> String {
+    chrono::Local::now().format("%Y%m%d-%H%M%S").to_string()
+}
+
+/// 启动自愈：把损坏的库（含 `-wal` / `-shm` 伴生文件）改名为 `.corrupt-<时间戳>`。
+/// 库文件不存在时返回 `Ok(None)`（无可备份）。伴生文件改名失败只告警并尝试删除，
+/// 不阻断重建流程。
+pub fn backup_corrupt_db(app: &tauri::AppHandle) -> Result<Option<PathBuf>, String> {
+    let path = db_path(app)?;
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let suffix = corrupt_suffix();
+    let backup = path.with_file_name(format!("nervd.db.corrupt-{suffix}"));
+    std::fs::rename(&path, &backup).map_err(|e| {
+        format!(
+            "备份损坏数据库失败 ({} → {}): {e}",
+            path.display(),
+            backup.display()
+        )
+    })?;
+    for ext in ["-wal", "-shm"] {
+        let from = path.with_file_name(format!("nervd.db{ext}"));
+        if !from.is_file() {
+            continue;
+        }
+        let to = backup.with_file_name(format!("nervd.db.corrupt-{suffix}{ext}"));
+        if std::fs::rename(&from, &to).is_err() && std::fs::remove_file(&from).is_err() {
+            eprintln!("[db] 无法移走旧的 WAL/SHM 伴生文件 {}", from.display());
+        }
+    }
+    Ok(Some(backup))
+}
+
+/// 启动自愈：把无法解析的 settings.json（新数据目录优先，其次旧目录）改名为
+/// `.corrupt-<时间戳>`，返回备份路径；不存在时返回 `Ok(None)`。
+pub fn quarantine_settings_json(app: &tauri::AppHandle) -> Result<Option<PathBuf>, String> {
+    let mut candidates = vec![credentials::data_dir(app)?.join("settings.json")];
+    if let Ok(legacy_dir) = credentials::legacy_data_dir(app) {
+        candidates.push(legacy_dir.join("settings.json"));
+    }
+    let Some(path) = candidates.into_iter().find(|path| path.is_file()) else {
+        return Ok(None);
+    };
+    let backup = path.with_file_name(format!("settings.json.corrupt-{}", corrupt_suffix()));
+    std::fs::rename(&path, &backup).map_err(|e| {
+        format!(
+            "隔离损坏的 settings.json 失败 ({} → {}): {e}",
+            path.display(),
+            backup.display()
+        )
+    })?;
+    Ok(Some(backup))
 }
 
 /// 建表 + PRAGMA（journal_mode=WAL / busy_timeout=5000 / foreign_keys=ON），可单测
@@ -153,15 +213,19 @@ pub fn migrate_from_settings(
 
 /// 从 db 组装完整 `Settings`：app_settings 各键反序列化 + 全局轨道 + 绑定
 pub fn load_settings(conn: &Connection) -> Result<Settings, String> {
-    let mut settings = Settings::default();
-    settings.organization_id = read_key(conn, "organizationId")?;
-    settings.default_space_identifier = read_key(conn, "defaultSpaceIdentifier")?;
-    settings.link_pattern = read_key(conn, "linkPattern")?;
-    settings.watched_repos = read_key(conn, "watchedRepos")?;
-    settings.allow_write_ops = read_key(conn, "allowWriteOps")?;
-    settings.workitem_repos = read_key(conn, "workitemRepos")?;
-    settings.jenkins_connections = read_key(conn, "jenkinsConnections")?;
-    settings.repo_ci_bindings = read_key(conn, "repoCiBindings")?;
+    // 用结构体字面量一次性构造，避免 clippy::field_reassign_with_default
+    let mut settings = Settings {
+        organization_id: read_key(conn, "organizationId")?,
+        default_space_identifier: read_key(conn, "defaultSpaceIdentifier")?,
+        link_pattern: read_key(conn, "linkPattern")?,
+        watched_repos: read_key(conn, "watchedRepos")?,
+        allow_write_ops: read_key(conn, "allowWriteOps")?,
+        workitem_repos: read_key(conn, "workitemRepos")?,
+        jenkins_connections: read_key(conn, "jenkinsConnections")?,
+        repo_ci_bindings: read_key(conn, "repoCiBindings")?,
+        ..Settings::default()
+    };
+    // 轨道与绑定来自独立表，不能写进上面的字面量（需要先执行查询）
     settings.branch_rule_templates = global_tracks(conn)?;
     settings.workitem_repo_branch_templates = load_bindings(conn)?;
     Ok(settings)
@@ -173,9 +237,46 @@ fn read_key<T: serde::de::DeserializeOwned + Default>(
 ) -> Result<T, String> {
     match get_app_setting(conn, key)? {
         None => Ok(T::default()),
-        Some(text) => serde_json::from_str(&text)
-            .map_err(|e| format!("app_settings[{key}] 反序列化失败: {e}")),
+        // 单键 JSON 损坏（历史版本写坏 / 手工编辑）不得让整个应用启动失败：
+        // 记录日志并回退默认值，其余键继续正常加载。
+        Some(text) => match serde_json::from_str(&text) {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                eprintln!("[db] app_settings[{key}] 反序列化失败，回退默认值: {e}");
+                Ok(T::default())
+            }
+        },
     }
+}
+
+/// 只写入 `SettingsPatch` 中显式提供的键；未提供的键在库中原值保持不变。
+/// 轨道/绑定是行级表数据，由调用方走独立命令，不在此处理。
+pub fn upsert_settings_patch(conn: &Connection, patch: &SettingsPatch) -> Result<(), String> {
+    if let Some(value) = &patch.organization_id {
+        write_key(conn, "organizationId", value)?;
+    }
+    if let Some(value) = &patch.default_space_identifier {
+        write_key(conn, "defaultSpaceIdentifier", value)?;
+    }
+    if let Some(value) = &patch.link_pattern {
+        write_key(conn, "linkPattern", value)?;
+    }
+    if let Some(value) = &patch.watched_repos {
+        write_key(conn, "watchedRepos", value)?;
+    }
+    if let Some(value) = &patch.allow_write_ops {
+        write_key(conn, "allowWriteOps", value)?;
+    }
+    if let Some(value) = &patch.workitem_repos {
+        write_key(conn, "workitemRepos", value)?;
+    }
+    if let Some(value) = &patch.jenkins_connections {
+        write_key(conn, "jenkinsConnections", value)?;
+    }
+    if let Some(value) = &patch.repo_ci_bindings {
+        write_key(conn, "repoCiBindings", value)?;
+    }
+    Ok(())
 }
 
 pub fn get_app_setting(conn: &Connection, key: &str) -> Result<Option<String>, String> {
@@ -421,7 +522,7 @@ fn delete_removed_iteration_tracks(
             "DELETE FROM branch_tracks WHERE scope = 'iteration' AND iteration_id = ?1 AND id NOT IN ({placeholders})"
         );
         let values: Vec<&str> = std::iter::once(iteration_id)
-            .chain(ids.into_iter())
+            .chain(ids)
             .collect();
         conn.execute(&sql, rusqlite::params_from_iter(values))
     };
@@ -519,13 +620,15 @@ mod tests {
     }
 
     fn sample_settings() -> Settings {
-        let mut settings = Settings::default();
-        settings.organization_id = "org-1".to_string();
-        settings.default_space_identifier = "space-1".to_string();
-        settings.link_pattern = credentials::LEGACY_LINK_PATTERN.to_string();
-        settings.watched_repos = vec![12, 13];
+        let mut settings = Settings {
+            organization_id: "org-1".to_string(),
+            default_space_identifier: "space-1".to_string(),
+            link_pattern: credentials::LEGACY_LINK_PATTERN.to_string(),
+            watched_repos: vec![12, 13],
+            branch_rule_templates: vec![track("site-a", "A 局点"), track("site-b", "B 局点")],
+            ..Settings::default()
+        };
         settings.workitem_repos.insert("REQ-1".to_string(), vec![12]);
-        settings.branch_rule_templates = vec![track("site-a", "A 局点"), track("site-b", "B 局点")];
         settings
             .workitem_repo_branch_templates
             .insert("REQ-1".to_string(), {
@@ -751,6 +854,46 @@ mod tests {
             })
             .unwrap();
         assert_eq!(total, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn corrupt_single_key_falls_back_to_default_and_keeps_other_keys() {
+        let (conn, dir) = temp_conn("corrupt_key");
+        upsert_app_setting(&conn, "organizationId", "\"org-ok\"").unwrap();
+        upsert_app_setting(&conn, "watchedRepos", "[12,13]").unwrap();
+        // 模拟单键 JSON 损坏（历史版本写坏 / 手工编辑）
+        upsert_app_setting(&conn, "workitemRepos", "{not-valid-json").unwrap();
+        upsert_app_setting(&conn, "repoCiBindings", "{\"12\":").unwrap();
+
+        let loaded = load_settings(&conn).expect("单键损坏不得让 load_settings 失败");
+        assert_eq!(loaded.organization_id, "org-ok");
+        assert_eq!(loaded.watched_repos, vec![12, 13]);
+        assert!(loaded.workitem_repos.is_empty(), "损坏键回退默认值");
+        assert!(loaded.repo_ci_bindings.is_empty(), "损坏键回退默认值");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn settings_patch_writes_only_provided_keys() {
+        let (conn, dir) = temp_conn("patch");
+        upsert_plain_settings(&conn, &sample_settings()).unwrap();
+        let patch: SettingsPatch =
+            serde_json::from_str(r#"{"watchedRepos":[99],"allowWriteOps":true}"#).unwrap();
+        upsert_settings_patch(&conn, &patch).unwrap();
+
+        let loaded = load_settings(&conn).unwrap();
+        assert_eq!(loaded.watched_repos, vec![99], "显式字段被写入");
+        assert!(loaded.allow_write_ops, "显式字段被写入");
+        assert_eq!(
+            loaded.organization_id, "org-1",
+            "未提供的字段保持库中原值"
+        );
+        assert_eq!(
+            loaded.workitem_repos,
+            sample_settings().workitem_repos,
+            "未提供的哈希表保持库中原值（不会被覆盖为空）"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

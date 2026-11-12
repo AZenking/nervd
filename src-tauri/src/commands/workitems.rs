@@ -1,4 +1,5 @@
 use super::common::{as_array, client_of, ensure_write, i64_of, ids_of, names_of, nested_s, org_of, s, s2};
+use crate::timeutil::epoch_ms_to_local;
 use crate::AppState;
 use serde_json::{json, Value};
 use tauri::State;
@@ -58,7 +59,7 @@ pub async fn list_workitems(
                 "sprintId": nested_s(w, "sprint", "id"),
                 "sprintName": nested_s(w, "sprint", "name"),
                 "spaceName": nested_s(w, "space", "name"),
-                "updatedAt": i64_of(w, "gmtModified").map(chrono_ms_to_local).unwrap_or_default(),
+                "updatedAt": i64_of(w, "gmtModified").map(epoch_ms_to_local).unwrap_or_default(),
                 "category": category,
             })
         })
@@ -69,30 +70,6 @@ pub async fn list_workitems(
         None
     };
     Ok(json!({ "items": items, "nextToken": next }))
-}
-
-pub(super) fn chrono_ms_to_local(ms: i64) -> String {
-    // 无 chrono：用系统 date 不可取（无 shell）；手写 ms→UTC 粗转换仅用于展示
-    let secs = ms / 1000;
-    let days = secs / 86400;
-    let rem = secs % 86400;
-    let (h, mi, se) = (rem / 3600, (rem % 3600) / 60, rem % 60);
-    // 1970-01-01 起的天数 → 年月日（民用算法）
-    let (y, mo, d) = civil_from_days(days);
-    format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{se:02}")
-}
-
-fn civil_from_days(z: i64) -> (i64, u32, u32) {
-    let z = z + 719468;
-    let era = if z >= 0 { z } else { z - 146096 } / 146097;
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
-    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 #[tauri::command]
@@ -117,9 +94,12 @@ pub async fn list_workitem_comments(state: State<'_, AppState>, workitem_id: Str
 /// 实测结论（2026-10）：PAT 可用面只有 oapi/v1 族——getRelations 的 ROA 路径在
 /// openapi-rdc 上 302 到文档页、在 devops.{region} 主机上要求 AK 签名（PAT 不可用）；
 /// 而搜索行自带 parentId/idPath/serialNumber/status，字段比关系接口更全。
-/// 覆盖面：每类别取最近 100 条（按 gmtModified 倒序），子项通常在此范围内。
+/// 覆盖面：每类别取最近 100 条（按 gmtModified 倒序），子项通常在此范围内；
+/// 候选达到上限时响应 `truncated: true`，由前端提示"可能存在更多子项"。
 #[tauri::command]
 pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: String) -> Result<Value, String> {
+    const CHILDREN_CANDIDATE_LIMIT: u32 = 100;
+
     let c = client_of(&state)?;
     let org = org_of(&state)?;
     let space = {
@@ -140,22 +120,27 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
             "orderBy": "gmtModified",
             "sort": "desc",
             "page": 1,
-            "perPage": 100,
+            "perPage": CHILDREN_CANDIDATE_LIMIT,
         });
-        async move {
-            c.post(&path, &[], body).await.unwrap_or(Value::Null)
-        }
+        async move { c.post(&path, &[], body).await }
     };
 
-    let (resp_req, resp_task, resp_bug) = tokio::join!(
+    // 任一类别失败都必须把错误抛给前端：旧实现的 unwrap_or(Value::Null)
+    // 会把接口故障伪装成"没有子任务"。
+    let (resp_req, resp_task, resp_bug) = tokio::try_join!(
         search_category("Req"),
         search_category("Task"),
         search_category("Bug"),
-    );
+    )?;
 
+    let mut truncated = false;
     let mut children: Vec<Value> = Vec::new();
-    for resp in [resp_req, resp_task, resp_bug] {
-        let rows = as_array(&resp);
+    for resp in [&resp_req, &resp_task, &resp_bug] {
+        let rows = as_array(resp);
+        // 本地按 parentId 过滤，若某类别候选已达服务端上限，可能漏掉更早的子项
+        if rows.len() >= CHILDREN_CANDIDATE_LIMIT as usize {
+            truncated = true;
+        }
         for w in &rows {
             if s(w, "parentId") != workitem_id {
                 continue;
@@ -176,11 +161,11 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
                 "statusId": nested_s(w, "status", "id"),
                 "status": status_name,
                 "assignedTo": nested_s(w, "assignedTo", "name"),
-                "gmtModified": i64_of(w, "gmtModified").map(chrono_ms_to_local).unwrap_or_default(),
+                "gmtModified": i64_of(w, "gmtModified").map(epoch_ms_to_local).unwrap_or_default(),
             }));
         }
     }
-    Ok(json!({ "items": children }))
+    Ok(json!({ "items": children, "truncated": truncated }))
 }
 
 #[tauri::command]
@@ -773,7 +758,7 @@ pub async fn create_workitem_child(
 
     let gmt_modified = i64_of(row, "gmtModified")
         .or_else(|| i64_of(row, "gmtCreate"))
-        .map(chrono_ms_to_local)
+        .map(epoch_ms_to_local)
         .unwrap_or_default();
 
     Ok(json!({

@@ -613,10 +613,13 @@ impl JenkinsClient {
 pub fn extract_queue_id(location: &str) -> Option<String> {
     let parts: Vec<&str> = location.split('/').filter(|s| !s.is_empty()).collect();
     for i in 0..parts.len() {
-        if parts[i] == "item" && i > 0 && parts[i - 1] == "queue" && i + 1 < parts.len() {
-            if parts[i + 1].chars().all(|c| c.is_ascii_digit()) {
-                return Some(parts[i + 1].to_string());
-            }
+        if parts[i] == "item"
+            && i > 0
+            && parts[i - 1] == "queue"
+            && i + 1 < parts.len()
+            && parts[i + 1].chars().all(|c| c.is_ascii_digit())
+        {
+            return Some(parts[i + 1].to_string());
         }
     }
     None

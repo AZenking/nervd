@@ -1,5 +1,5 @@
 use super::common::{as_array, client_of, org_of, s};
-use crate::credentials::{self, RepoCiBinding, Settings};
+use crate::credentials::{self, RepoCiBinding, Settings, SettingsPatch};
 use crate::{db, AppState};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -160,25 +160,45 @@ fn refresh_mirror(state: &State<'_, AppState>, fresh: Settings) {
     *state.settings.lock().unwrap() = fresh;
 }
 
+/// 行级草稿字段（分支模板/需求仓库绑定）不走 save_settings：
+/// - 与库中一致 = 前端把 get_settings 的完整结果回传，视为无操作（保持全量调用兼容）；
+/// - 与库中不一致 = 调用方试图用全量写改行级数据，明确报错，避免像旧实现那样 eprintln! 后静默成功。
+fn reject_row_level_draft(patch: &SettingsPatch, current: &Settings) -> Result<(), String> {
+    if let Some(templates) = &patch.branch_rule_templates {
+        if templates != &current.branch_rule_templates {
+            return Err(
+                "branchRuleTemplates 不能通过 save_settings 修改，请改用 save_branch_rule_templates"
+                    .into(),
+            );
+        }
+    }
+    if let Some(bindings) = &patch.workitem_repo_branch_templates {
+        if bindings != &current.workitem_repo_branch_templates {
+            return Err(
+                "workitemRepoBranchTemplates 不能通过 save_settings 修改，请改用 save_workitem_repo_branch_template"
+                    .into(),
+            );
+        }
+    }
+    Ok(())
+}
+
+/// 局部更新设置：只写请求里显式出现的字段（`SettingsPatch`），未提供字段保持库中原值。
+/// 前端仍可传完整 Settings（所有字段都会出现），行为与旧的全量保存一致。
 #[tauri::command]
 pub async fn save_settings(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-    settings: Settings,
+    settings: SettingsPatch,
 ) -> Result<Value, String> {
-    validate_settings(&settings)?;
-    // A1 根治点：设置草稿的全量写不得回滚行级轨道/绑定数据 —— 这两类字段显式忽略
-    if !settings.branch_rule_templates.is_empty()
-        || !settings.workitem_repo_branch_templates.is_empty()
-    {
-        eprintln!(
-            "[settings] save_settings 忽略 branchRuleTemplates / workitemRepoBranchTemplates 草稿字段；\
-             行级数据请使用 save_branch_rule_templates / save_iteration_tracks / save_workitem_repo_branch_template"
-        );
-    }
     let fresh = {
         let conn = state.db.lock().unwrap();
-        db::upsert_plain_settings(&conn, &settings)?;
+        let mut current = db::load_settings(&conn)?;
+        reject_row_level_draft(&settings, &current)?;
+        // 用「库中原值 + 显式补丁」做整体校验（例如 Jenkins 绑定引用的连接必须存在）
+        settings.apply_plain_fields_to(&mut current);
+        validate_settings(&current)?;
+        db::upsert_settings_patch(&conn, &settings)?;
         db::load_settings(&conn)?
     };
     refresh_mirror(&state, fresh);
@@ -533,5 +553,61 @@ mod tests {
             },
         ];
         assert!(validate_branch_rule_templates(&templates).is_err());
+    }
+
+    #[test]
+    fn test_reject_row_level_draft_allows_unchanged_full_payload() {
+        let current = Settings {
+            branch_rule_templates: vec![credentials::BranchRuleTemplate {
+                id: "site-a".into(),
+                name: "A".into(),
+                source_branch: "master".into(),
+                baseline_branch_pattern: "iteration/{iteration}".into(),
+                workitem_branch_pattern: "feature/{identifier}".into(),
+            }],
+            ..Settings::default()
+        };
+        let unchanged: SettingsPatch = serde_json::from_value(json!({
+            "organizationId": "org",
+            "branchRuleTemplates": [{
+                "id": "site-a",
+                "name": "A",
+                "sourceBranch": "master",
+                "baselineBranchPattern": "iteration/{iteration}",
+                "workitemBranchPattern": "feature/{identifier}"
+            }],
+            "workitemRepoBranchTemplates": {}
+        }))
+        .unwrap();
+        assert!(
+            reject_row_level_draft(&unchanged, &current).is_ok(),
+            "前端回传未变更的完整设置不应报错（保持全量调用兼容）"
+        );
+    }
+
+    #[test]
+    fn test_reject_row_level_draft_reports_explicit_error_for_changed_templates() {
+        let current = Settings::default();
+        let changed: SettingsPatch = serde_json::from_value(json!({
+            "branchRuleTemplates": [{
+                "id": "site-b",
+                "name": "B",
+                "sourceBranch": "master",
+                "baselineBranchPattern": "iteration/{iteration}",
+                "workitemBranchPattern": "feature/{identifier}"
+            }]
+        }))
+        .unwrap();
+        let err = reject_row_level_draft(&changed, &current).unwrap_err();
+        assert!(
+            err.contains("save_branch_rule_templates"),
+            "错误必须提示改用行级命令，实际: {err}"
+        );
+
+        let changed_bindings: SettingsPatch = serde_json::from_value(json!({
+            "workitemRepoBranchTemplates": {"REQ-1": {"12": "site-a"}}
+        }))
+        .unwrap();
+        assert!(reject_row_level_draft(&changed_bindings, &current).is_err());
     }
 }

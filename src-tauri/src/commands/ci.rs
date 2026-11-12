@@ -95,18 +95,62 @@ pub async fn delete_jenkins_token(
     Ok(true)
 }
 
+/// 测试连接时实际使用的目标配置。
+struct JenkinsTestTarget {
+    base_url: String,
+    username: String,
+    name: String,
+    /// None 表示需要从 Keychain 读取已保存的 Token
+    token: Option<String>,
+}
+
+/// 解析测试连接的目标：
+/// - 显式传入 Token（用户正在输入新 Token 测试）：沿用前端给的 base_url，但绝不读取 Keychain；
+/// - 未显式传入 Token（复用已存 Token）：必须使用服务端保存的 base_url / 用户名，忽略前端传入值，
+///   避免把 Keychain 中的 Token 发往任意主机。
+fn jenkins_test_target(
+    settings: &Settings,
+    requested: &JenkinsConnection,
+    explicit_token: Option<&str>,
+) -> Result<JenkinsTestTarget, String> {
+    if let Some(token) = explicit_token {
+        return Ok(JenkinsTestTarget {
+            base_url: requested.base_url.clone(),
+            username: requested.username.clone(),
+            name: requested.name.clone(),
+            token: Some(token.to_string()),
+        });
+    }
+
+    let stored = configured_connection(settings, &requested.id)?;
+    Ok(JenkinsTestTarget {
+        base_url: stored.base_url,
+        username: stored.username,
+        name: stored.name,
+        token: None,
+    })
+}
+
 #[tauri::command]
 pub async fn test_jenkins_connection(
+    state: State<'_, AppState>,
     connection: JenkinsConnection,
     token: Option<String>,
 ) -> Result<String, String> {
-    let token = token
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| credentials::load_jenkins_token(&connection.id))
-        .ok_or_else(|| "请先输入并保存 Jenkins API Token".to_string())?;
-    let client = JenkinsClient::new(&connection.base_url, &connection.username, &token)?;
+    let explicit = token.filter(|value| !value.trim().is_empty());
+    let settings = state.settings.lock().unwrap().clone();
+    let target = jenkins_test_target(&settings, &connection, explicit.as_deref())?;
+
+    let token = match target.token {
+        Some(token) => token,
+        // 复用已存 Token 时以 id 对应的真实配置为准，绝不使用前端传入的 base_url
+        None => credentials::load_jenkins_token(&connection.id)
+            .ok_or_else(|| format!("Jenkins 实例「{}」尚未保存 API Token", target.name))?,
+    };
+
+    let client = JenkinsClient::new(&target.base_url, &target.username, &token)?;
     client.test_connection().await?;
-    Ok(format!("{} 连接正常", connection.name))
+    Ok(format!("{} 连接正常", target.name))
 }
 
 #[tauri::command]
@@ -578,6 +622,44 @@ mod tests {
             "SUCCESS",
             true
         ));
+    }
+
+    #[test]
+    fn test_jenkins_connection_test_ignores_frontend_base_url_when_token_is_stored() {
+        let mut settings = Settings::default();
+        settings.jenkins_connections.push(JenkinsConnection {
+            id: "corp".into(),
+            name: "公司 Jenkins".into(),
+            base_url: "https://jenkins.corp.example".into(),
+            username: "ci-bot".into(),
+        });
+
+        let requested = JenkinsConnection {
+            id: "corp".into(),
+            name: "伪造实例".into(),
+            base_url: "https://attacker.example".into(),
+            username: "attacker".into(),
+        };
+
+        // 未显式传 Token：必须以服务端保存的配置为准，忽略前端 base_url / username
+        let target = jenkins_test_target(&settings, &requested, None).unwrap();
+        assert_eq!(target.base_url, "https://jenkins.corp.example");
+        assert_eq!(target.username, "ci-bot");
+        assert_eq!(target.name, "公司 Jenkins");
+        assert!(target.token.is_none(), "复用已存 Token 时不应内联 Token");
+
+        // 显式传 Token：允许使用前端 base_url，且不回落 Keychain
+        let target = jenkins_test_target(&settings, &requested, Some("new-token")).unwrap();
+        assert_eq!(target.base_url, "https://attacker.example");
+        assert_eq!(target.username, "attacker");
+        assert_eq!(target.token.as_deref(), Some("new-token"));
+
+        // id 不存在且未传 Token：直接报错，绝不回落到前端地址
+        let unknown = JenkinsConnection {
+            id: "ghost".into(),
+            ..requested.clone()
+        };
+        assert!(jenkins_test_target(&settings, &unknown, None).is_err());
     }
 
     #[test]

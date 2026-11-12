@@ -31,12 +31,15 @@ pub(super) fn ensure_write(state: &State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn rebuild(state: &State<'_, AppState>, app: &tauri::AppHandle) {
-    let settings = credentials::load_settings(app);
+/// 重建云效客户端。
+///
+/// 注意：设置的唯一事实源是 `nervd.db`（由 `commands::settings::rebuild` 在调用本函数后
+/// 立即从 DB 载入并写入 `state.settings`）。这里**不再**读取 legacy `settings.json`，
+/// 否则遗留文件会被周期性「复活」并短暂覆盖内存镜像（旧实现的双事实源问题）。
+pub(super) fn rebuild(state: &State<'_, AppState>, _app: &tauri::AppHandle) {
     let client = credentials::load_pat()
         .and_then(|p| YunxiaoClient::new(&p).ok())
         .map(Arc::new);
-    *state.settings.lock().unwrap() = settings;
     *state.client.lock().unwrap() = client;
 }
 

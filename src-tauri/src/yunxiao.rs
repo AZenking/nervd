@@ -110,8 +110,7 @@ pub fn truncate(s: &str, n: usize) -> String {
     out
 }
 
-/// 当前时间的 IMF-fixdate（RFC 7231），ROA 网关 Date 头要求。
-/// 无 chrono 依赖，手写民用历换算（1970-01-01 = 星期四）。
+/// 当前时间的 IMF-fixdate（RFC 7231），ROA 网关 Date 头要求（UTC，恒定 GMT）。
 fn http_date_now() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -121,37 +120,11 @@ fn http_date_now() -> String {
 }
 
 fn http_date_at(secs: i64) -> String {
-    let days = secs.div_euclid(86400);
-    let rem = secs.rem_euclid(86400);
-    let (y, mo, d) = civil_from_days(days);
-    const WD: [&str; 7] = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
-    const MON: [&str; 12] = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    format!(
-        "{}, {:02} {} {} {:02}:{:02}:{:02} GMT",
-        WD[days.rem_euclid(7) as usize],
-        d,
-        MON[(mo - 1) as usize],
-        y,
-        rem / 3600,
-        (rem % 3600) / 60,
-        rem % 60
-    )
-}
-
-/// 天数 → (年, 月, 日)，民用历（同 commands/workitems.rs 的实现）
-fn civil_from_days(z: i64) -> (i64, i64, i64) {
-    let z = z + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    (if m <= 2 { y + 1 } else { y }, m, d)
+    // GMT 日期与本地时区无关，直接用 chrono 的 UTC 格式化（只保留一份时间换算实现）
+    match chrono::DateTime::from_timestamp(secs, 0) {
+        Some(dt) => dt.format("%a, %d %b %Y %H:%M:%S GMT").to_string(),
+        None => String::new(),
+    }
 }
 
 #[cfg(test)]

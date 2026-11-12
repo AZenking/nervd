@@ -48,7 +48,7 @@ pub enum RepoCiBinding {
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct BranchRuleTemplate {
     pub id: String,
@@ -58,7 +58,7 @@ pub struct BranchRuleTemplate {
     pub workitem_branch_pattern: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub organization_id: String,
@@ -75,6 +75,58 @@ pub struct Settings {
 
 pub const LEGACY_LINK_PATTERN: &str = r"(?:REQ|BUG|TASK)[-_]?(\d+)";
 pub const DEFAULT_LINK_PATTERN: &str = r"([A-Za-z][A-Za-z0-9]{1,15}[-_]\d{1,})";
+
+/// `save_settings` 的局部更新载荷：只有 JSON 中显式出现的字段才是 `Some` 并落库，
+/// 未出现的字段保持 nervd.db 中的原值（避免 serde(default) 把整张
+/// `repoCiBindings` / `workitemRepos` 覆盖为空）。
+///
+/// 兼容性：前端设置页传的是完整 `Settings`，此时所有字段均为 `Some`，
+/// 行为与旧的全量写入一致。
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SettingsPatch {
+    pub organization_id: Option<String>,
+    pub default_space_identifier: Option<String>,
+    pub link_pattern: Option<String>,
+    pub watched_repos: Option<Vec<i64>>,
+    pub allow_write_ops: Option<bool>,
+    pub workitem_repos: Option<HashMap<String, Vec<i64>>>,
+    pub branch_rule_templates: Option<Vec<BranchRuleTemplate>>,
+    pub workitem_repo_branch_templates: Option<HashMap<String, HashMap<i64, String>>>,
+    pub jenkins_connections: Option<Vec<JenkinsConnection>>,
+    pub repo_ci_bindings: Option<HashMap<i64, RepoCiBinding>>,
+}
+
+impl SettingsPatch {
+    /// 把显式提供的标量/列表字段合并进 `settings`（未提供字段保持原值）。
+    /// 轨道与绑定是行级表数据，单独校验/写入，不在此合并。
+    pub fn apply_plain_fields_to(&self, settings: &mut Settings) {
+        if let Some(value) = &self.organization_id {
+            settings.organization_id = value.clone();
+        }
+        if let Some(value) = &self.default_space_identifier {
+            settings.default_space_identifier = value.clone();
+        }
+        if let Some(value) = &self.link_pattern {
+            settings.link_pattern = value.clone();
+        }
+        if let Some(value) = &self.watched_repos {
+            settings.watched_repos = value.clone();
+        }
+        if let Some(value) = &self.allow_write_ops {
+            settings.allow_write_ops = *value;
+        }
+        if let Some(value) = &self.workitem_repos {
+            settings.workitem_repos = value.clone();
+        }
+        if let Some(value) = &self.jenkins_connections {
+            settings.jenkins_connections = value.clone();
+        }
+        if let Some(value) = &self.repo_ci_bindings {
+            settings.repo_ci_bindings = value.clone();
+        }
+    }
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -138,42 +190,6 @@ pub fn migrate_file_if_needed(legacy_path: &Path, target_path: &Path) {
             }
         }
     }
-}
-
-pub fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = data_dir(app)?;
-    let target = dir.join("settings.json");
-
-    if let Ok(legacy_dir) = legacy_data_dir(app) {
-        let legacy_file = legacy_dir.join("settings.json");
-        migrate_file_if_needed(&legacy_file, &target);
-    }
-
-    Ok(target)
-}
-
-pub fn load_settings(app: &tauri::AppHandle) -> Settings {
-    let Ok(path) = settings_path(app) else {
-        return Settings::default();
-    };
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return Settings::default();
-    };
-    let mut s: Settings = serde_json::from_str(&text).unwrap_or_default();
-    // 一次性迁移：旧默认正则（REQ/BUG/TASK 前缀）→ 项目无关新默认
-    if s.link_pattern == LEGACY_LINK_PATTERN {
-        s.link_pattern = DEFAULT_LINK_PATTERN.to_string();
-    }
-    s
-}
-
-pub fn save_settings(app: &tauri::AppHandle, s: &Settings) -> Result<(), String> {
-    let path = settings_path(app)?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("创建数据目录失败: {e}"))?;
-    }
-    let text = serde_json::to_string_pretty(s).map_err(|e| format!("序列化失败: {e}"))?;
-    std::fs::write(path, text).map_err(|e| format!("写入设置失败: {e}"))
 }
 
 pub fn load_pat() -> Option<String> {
@@ -248,6 +264,37 @@ pub fn delete_jenkins_token(connection_id: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settings_patch_only_contains_explicit_fields() {
+        let patch: SettingsPatch =
+            serde_json::from_str(r#"{"watchedRepos":[7],"allowWriteOps":true}"#).unwrap();
+        assert_eq!(patch.watched_repos, Some(vec![7]));
+        assert_eq!(patch.allow_write_ops, Some(true));
+        assert!(patch.organization_id.is_none());
+        assert!(patch.repo_ci_bindings.is_none());
+        assert!(patch.branch_rule_templates.is_none());
+
+        // 漏传的字段不得覆盖库中原值
+        let mut current = Settings {
+            organization_id: "org-keep".into(),
+            ..Settings::default()
+        };
+        current.repo_ci_bindings.insert(
+            12,
+            RepoCiBinding::Flow {
+                pipeline_id: 9,
+                pipeline_name: "keep".into(),
+                branch_parameter: None,
+                parameters: HashMap::new(),
+            },
+        );
+        patch.apply_plain_fields_to(&mut current);
+        assert_eq!(current.organization_id, "org-keep");
+        assert!(current.repo_ci_bindings.contains_key(&12));
+        assert_eq!(current.watched_repos, vec![7]);
+        assert!(current.allow_write_ops);
+    }
 
     #[test]
     fn legacy_settings_load_with_empty_requirement_and_ci_maps() {

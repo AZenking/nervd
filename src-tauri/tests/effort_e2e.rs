@@ -7,10 +7,17 @@
 //! 3. 鉴权头 x-yunxiao-token 真实发出（mock 缺 token 回 401）。
 //!
 //! 运行：先起 mock（scripts/e2e-effort.sh 已封装），再
-//!   cd src-tauri && cargo test --test effort_e2e -- --nocapture
+//!   cd src-tauri && NERVD_E2E=1 cargo test --test effort_e2e -- --nocapture
+//!
+//! 未设置 NERVD_E2E=1 时本用例直接返回（跳过），保证普通 `cargo test` 不依赖外部 mock。
 
 use nervd_lib::yunxiao::YunxiaoClient;
 use serde_json::json;
+
+/// 只有显式开启 NERVD_E2E=1 才访问 mock 服务（默认 `cargo test` 跳过，避免永久变红）
+fn e2e_enabled() -> bool {
+    std::env::var("NERVD_E2E").map(|v| v == "1").unwrap_or(false)
+}
 
 fn base() -> String {
     std::env::var("NERVD_E2E_BASE").unwrap_or_else(|_| "http://127.0.0.1:8765".into())
@@ -18,6 +25,10 @@ fn base() -> String {
 
 #[tokio::test]
 async fn create_then_register_effort_follows_yunxiao_contract() {
+    if !e2e_enabled() {
+        eprintln!("跳过 effort_e2e：未设置 NERVD_E2E=1（需先启动 scripts/e2e-effort.sh 的 mock）");
+        return;
+    }
     let c = YunxiaoClient::new("e2e-token").expect("client");
     let b = base();
 
