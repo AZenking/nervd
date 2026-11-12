@@ -273,7 +273,8 @@ impl JenkinsClient {
             }
         }
 
-        jobs.sort_by(|left, right| left.full_name.to_lowercase().cmp(&right.full_name.to_lowercase()));
+        // 按名称不区分大小写排序（clippy: sort_by_key 更清晰，且只计算一次 key）
+        jobs.sort_by_key(|job| job.full_name.to_lowercase());
         Ok(jobs)
     }
 
