@@ -8,6 +8,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useUi } from '@/store/ui';
 import { useApp } from '@/store/app';
+import { invoke } from '@tauri-apps/api/core';
 
 // @ts-expect-error test act environment
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -153,6 +154,10 @@ describe('IterationView Peek 抽屉详情', () => {
     const drawer = document.querySelector('[data-workspace-peek-drawer][role="dialog"]') as HTMLElement | null;
     expect(drawer).not.toBeNull();
 
+    // 打开动作只 select 一次：抽屉 effect 幂等跳过，避免双发详情 + 评论 + 子项请求
+    const detailCalls = vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === 'get_workitem');
+    expect(detailCalls).toHaveLength(1);
+
     // 列表现场不卸载：抽屉开启后工作项行仍在文档中
     const rowsAfter = document.querySelectorAll('[data-testid="workitem-row"]');
     expect(rowsAfter.length).toBeGreaterThanOrEqual(2);
@@ -184,6 +189,8 @@ describe('IterationView Peek 抽屉详情', () => {
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }));
     });
+    // 联动 select 有 150ms 防抖：等防抖窗口结束再断言
+    await flush(220);
 
     // 光标推进 → 联动 select 下一个工作项，抽屉不关闭
     expect(useApp.getState().selectedId).toBe('item-2');

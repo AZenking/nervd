@@ -50,8 +50,8 @@ import { useApp } from '@/store/app';
 import { listen } from '@tauri-apps/api/event';
 import { hasWorkspaceOverlay, isEditing, performWorkspaceAction } from '@/lib/workspace-actions';
 
-/** g 前缀序列的等待窗口（Linear g+letter：g 后 1200ms 内的下一键才生效） */
-const G_SEQUENCE_TIMEOUT_MS = 1200;
+/** g 前缀序列的等待窗口（AGENTS.md §4.3：g 后 1500ms 内的下一键才生效） */
+const G_SEQUENCE_TIMEOUT_MS = 1500;
 
 /** 弹层组件（HeroUI Dialog / AlertDialog，基于 React Aria）渲染 role="dialog" / role="alertdialog"，出现在 DOM 里即视为有浮层 */
 const OPEN_DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]';
@@ -205,7 +205,8 @@ export function Shell() {
   });
 
   // ---- 全局快捷键层（Linear 操作逻辑，合并原有 ⌘K / ⌘←）----
-  // 处理顺序：① ⌘/Ctrl 组合键（不参与 g 序列）→ ② 浮层/输入焦点让路 → ③ g 前缀序列 → ④ ? 面板 → ⑤ Esc 后退。
+  // 处理顺序：① ⌘/Ctrl 组合键（不参与 g 序列）→ ② 浮层/输入焦点让路 → ③ g 前缀序列 → ④ ? 面板
+  // ⑤ Esc 第五层（整页返回：独立详情 / 系统设置）。前四层 Esc 由浮层、列表与抽屉自行处理。
   // j/k/Enter 与 `/` 列表导航归 IterationView 自身监听，此处不重复绑定。
   const gTimerRef = useRef<number | null>(null);
 
@@ -312,7 +313,16 @@ export function Shell() {
       return;
     }
 
-    // Esc dismisses transient UI; full-page navigation uses Back / ⌘[.
+    // ⑤ Esc 第五层（整页优先）：独立详情全屏页 / 系统设置页返回上一级，并恢复前序滚动位置。
+    //    第一层（浮层）已在上方 return；第二层（多选）与第三/四层（抽屉钻取）只发生在
+    //    IterationView，由该视图自行拦截，这里只在整页视图兜底，避免越级关闭底层状态。
+    if (e.key === 'Escape' && (ui.view === 'requirement' || ui.view === 'full-settings')) {
+      // 构建工作台抽屉正在挂载/退场时交给抽屉自身处理，避免与整页后退叠加
+      if (ui.buildWorkbenchOpen) return;
+      if (!ui.history.length) return;
+      e.preventDefault();
+      void ui.back();
+    }
   });
 
   // 组件卸载时安全清理 g 序列计时器

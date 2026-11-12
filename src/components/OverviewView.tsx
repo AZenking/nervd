@@ -184,7 +184,6 @@ export function OverviewView() {
         contentClassName="w-full"
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="总览"
-        titleClassName="text-sm font-semibold tracking-tight text-foreground"
         scope={
           // 状态项作为标题副信息（subtitle）：连接徽标 + 分页加载进度，随页头单行截断
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { EmptyHint } from '@/components/empty-hint';
 import { SectionHeader } from '@/components/section-header';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { useUi } from '@/store/ui';
 import { toast } from '@/components/ui/toast';
 import * as api from '@/lib/api';
@@ -44,7 +45,9 @@ export function RequirementActivity({
   subtaskStats,
   className,
 }: RequirementActivityProps) {
-  const { settings, reloadComments } = useApp();
+  const { settings, reloadComments } = useApp(
+    useShallow((s) => ({ settings: s.settings, reloadComments: s.reloadComments })),
+  );
   const openSettings = useUi((s) => s.openSettings);
   const allowWrite = settings?.allowWriteOps ?? false;
 

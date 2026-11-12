@@ -14,6 +14,7 @@ import {
   hasCachedJobs,
 } from '@/lib/jenkins-cache';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { useQuickBuild } from '@/store/quick-build';
 import { isBranchParameterName, isEnvironmentParameterName, sortJenkinsJobsWithRecommendation } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
@@ -248,7 +249,14 @@ export function JenkinsBuildParameters({
   onCancel,
   onSuccess,
 }: JenkinsBuildParametersProps) {
-  const { settings, setToast, loadRepoCi, saveRepoCiBinding } = useApp();
+  const { settings, setToast, loadRepoCi, saveRepoCiBinding } = useApp(
+    useShallow((s) => ({
+      settings: s.settings,
+      setToast: s.setToast,
+      loadRepoCi: s.loadRepoCi,
+      saveRepoCiBinding: s.saveRepoCiBinding,
+    })),
+  );
   const connections = (settings?.jenkinsConnections ?? []).filter((connection) => connection.hasToken);
   const currentBinding = settings?.repoCiBindings?.[String(repoId)];
   const savedBinding = currentBinding?.provider === 'jenkins' ? currentBinding : undefined;

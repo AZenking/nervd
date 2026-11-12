@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   CheckIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, Loader2Icon,
   Trash2Icon, ZapIcon,
@@ -10,6 +10,7 @@ import { Button, Chip, Input, TextArea, toast } from '@heroui/react';
 import { cn } from '@/lib/utils';
 import type { AiBreakdownMode, AiCustomPrompts, AiProvider, AiSettingsView, AiTestConnectionResult } from '@/types/ai';
 import { SettingsGroup, SettingsRow } from '../settings-group';
+import { useSettingsDraft } from '@/store/settings-draft';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
@@ -68,12 +69,58 @@ export function AiSection() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<AiTestConnectionResult | null>(null);
 
+  // 端点/模型为「逐字符输入」字段：直接每次按键保存会在半截 URL（如 https://a）时
+  // 命中后端校验并弹错误 Toast。这里改为本地草稿 + 800ms 防抖 / 失焦立即提交。
+  const [baseUrlDraft, setBaseUrlDraft] = useState('');
+  const [modelDraft, setModelDraft] = useState('');
+  const [baseUrlError, setBaseUrlError] = useState<string | null>(null);
+  const settingsRef = useRef(settings);
+  const draftsRef = useRef({ baseUrl: '', model: '' });
+  const saveTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => () => {
+    if (saveTimerRef.current != null) window.clearTimeout(saveTimerRef.current);
+  }, []);
+
+  /** 清理 AI 字段错误并同步设置页右上角「已自动保存」态（AI 设置走独立后端） */
+  const markAiSaved = () => {
+    useSettingsDraft.setState((st) => {
+      const fieldErrors = { ...st.fieldErrors };
+      for (const key of Object.keys(fieldErrors)) {
+        if (key.startsWith('ai-')) delete fieldErrors[key];
+      }
+      return { autoSaveStatus: 'saved', fieldErrors, lastSavedAt: Date.now() };
+    });
+  };
+
+  /** AI 保存失败：只进入「存在错误」态并给出行内提示，不再弹红色 Toast 打断输入 */
+  const markAiError = (field: string, message: string) => {
+    useSettingsDraft.setState((st) => ({
+      autoSaveStatus: 'error',
+      fieldErrors: { ...st.fieldErrors, [field]: message },
+    }));
+  };
+
+  const clearSaveTimer = () => {
+    if (saveTimerRef.current != null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+  };
+
   useEffect(() => {
     let active = true;
     void getAiSettings()
       .then((data) => {
         if (active) {
           setSettings(data);
+          setBaseUrlDraft(data.baseUrl);
+          setModelDraft(data.model);
+          draftsRef.current = { baseUrl: data.baseUrl, model: data.model };
           setLoading(false);
         }
       })
@@ -85,9 +132,16 @@ export function AiSection() {
     };
   }, []);
 
-  const handleUpdate = async (patch: Partial<AiSettingsView>) => {
-    const next = { ...settings, ...patch };
+  /** 提交端点/模型草稿：成功静默更新状态；失败保留输入并标红，用户可继续修正 */
+  const commitAiDrafts = async () => {
+    clearSaveTimer();
+    const { baseUrl, model } = draftsRef.current;
+    const current = settingsRef.current;
+    if (baseUrl === current.baseUrl && model === current.model) return;
+
+    const next = { ...current, baseUrl, model };
     setSettings(next);
+    useSettingsDraft.setState({ autoSaveStatus: 'saving' });
     try {
       await saveAiSettings({
         provider: next.provider,
@@ -98,15 +152,87 @@ export function AiSection() {
         defaultBreakdownTags: next.defaultBreakdownTags,
         customPrompts: next.customPrompts,
       });
+      setBaseUrlError(null);
+      // 若保存期间用户又改了草稿，保持「未保存」并由下一轮防抖继续提交
+      if (draftsRef.current.baseUrl === baseUrl && draftsRef.current.model === model) {
+        markAiSaved();
+      } else {
+        useSettingsDraft.setState({ autoSaveStatus: 'unsaved' });
+      }
     } catch (e) {
-      toast.danger('保存 AI 设置失败', {
-        description: e instanceof Error ? e.message : String(e),
+      const message = e instanceof Error ? e.message : String(e);
+      setBaseUrlError(message);
+      markAiError('ai-base-url', message);
+    }
+  };
+
+  const scheduleAiDrafts = () => {
+    useSettingsDraft.setState({ autoSaveStatus: 'unsaved' });
+    clearSaveTimer();
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      void commitAiDrafts();
+    }, 800);
+  };
+
+  const handleBaseUrlChange = (value: string) => {
+    setBaseUrlDraft(value);
+    draftsRef.current = { ...draftsRef.current, baseUrl: value };
+    setBaseUrlError(null);
+    scheduleAiDrafts();
+  };
+
+  const handleModelChange = (value: string) => {
+    setModelDraft(value);
+    draftsRef.current = { ...draftsRef.current, model: value };
+    scheduleAiDrafts();
+  };
+
+  /** 失焦立即落盘（避免 800ms 窗口内离开页面丢改动） */
+  const flushAiDrafts = () => {
+    void commitAiDrafts();
+  };
+
+  const handleUpdate = async (patch: Partial<AiSettingsView>) => {
+    const next = {
+      ...settings,
+      baseUrl: baseUrlDraft || settings.baseUrl,
+      model: modelDraft || settings.model,
+      ...patch,
+    };
+    clearSaveTimer();
+    setSettings(next);
+    if (patch.baseUrl !== undefined) {
+      setBaseUrlDraft(patch.baseUrl);
+      draftsRef.current = { ...draftsRef.current, baseUrl: patch.baseUrl };
+    }
+    if (patch.model !== undefined) {
+      setModelDraft(patch.model);
+      draftsRef.current = { ...draftsRef.current, model: patch.model };
+    }
+    try {
+      await saveAiSettings({
+        provider: next.provider,
+        baseUrl: next.baseUrl,
+        model: next.model,
+        temperature: next.temperature,
+        breakdownMode: next.breakdownMode,
+        defaultBreakdownTags: next.defaultBreakdownTags,
+        customPrompts: next.customPrompts,
       });
+      setBaseUrlError(null);
+      markAiSaved();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (patch.baseUrl !== undefined) setBaseUrlError(message);
+      markAiError(patch.baseUrl !== undefined ? 'ai-base-url' : 'ai-settings', message);
     }
   };
 
   const handleProviderChange = (provider: AiProvider) => {
     const preset = PROVIDER_PRESETS[provider];
+    // 切换预设时端点/模型来自预设，视为已完成输入，立即保存
+    setBaseUrlError(null);
     void handleUpdate({
       provider,
       baseUrl: preset.baseUrl,
@@ -252,27 +378,41 @@ export function AiSection() {
         {/* Base URL */}
         <SettingsRow
           orientation="vertical"
+          htmlFor="ai-base-url"
           label="API Base URL 端点"
-          description="大模型服务的基础请求路径，系统将自动发起兼容 OpenAI 协议的 /chat/completions 调用（请勿重复附加 /chat/completions 或多填 /messages）。"
+          description="大模型服务的基础请求路径，系统将自动发起兼容 OpenAI 协议的 /chat/completions 调用（请勿重复附加 /chat/completions 或多填 /messages）。本地服务可用 http://localhost，其它地址需 HTTPS。"
           control={
             <div className="flex flex-col gap-1.5 w-full">
               <Input
-                value={settings.baseUrl}
-                onChange={(e) => void handleUpdate({ baseUrl: e.target.value })}
+                id="ai-base-url"
+                value={baseUrlDraft}
+                onChange={(e) => handleBaseUrlChange(e.target.value)}
+                onBlur={flushAiDrafts}
                 onKeyDown={(e) => {
                   e.stopPropagation();
                   if (e.nativeEvent.isComposing) return;
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    flushAiDrafts();
+                  }
                 }}
+                aria-invalid={Boolean(baseUrlError)}
+                aria-describedby={baseUrlError ? 'ai-base-url-error' : undefined}
                 placeholder="https://..."
                 className="h-8 font-mono text-xs bg-background"
               />
-              {settings.baseUrl.includes('/messages') && (
+              {baseUrlError && (
+                <p id="ai-base-url-error" className="text-[11px] leading-4 text-destructive">
+                  {baseUrlError}
+                </p>
+              )}
+              {baseUrlDraft.includes('/messages') && (
                 <p className="text-[11px] text-warning/90">
                   检测到包含 /messages：nervd 遵循 OpenAI 协议标准，后台已自动转换为 /chat/completions。如果您的服务为 OpenAI 兼容接口，建议直接填写基准路径（如 https://.../v1）。
                 </p>
               )}
-              {settings.baseUrl.includes('.f6yc.com') && (
-                <p className="text-[11px] text-muted-foreground/80">
+              {baseUrlDraft.includes('.f6yc.com') && (
+                <p className="text-[11px] text-muted-foreground">
                   企业内网服务提示：若访问公司内部网关，请确保在办公内网或开启 VPN（如 aTrust），避免被公网单点登录 (SSO / IDaaS) 拦截。
                 </p>
               )}
@@ -283,15 +423,22 @@ export function AiSection() {
         {/* 模型名称 */}
         <SettingsRow
           orientation="vertical"
+          htmlFor="ai-model"
           label="模型名称 (Model)"
           description="调用的模型标识，如通义千问 qwen-plus、qwen-turbo，DeepSeek 的 deepseek-chat 等。"
           control={
             <Input
-              value={settings.model}
-              onChange={(e) => void handleUpdate({ model: e.target.value })}
+              id="ai-model"
+              value={modelDraft}
+              onChange={(e) => handleModelChange(e.target.value)}
+              onBlur={flushAiDrafts}
               onKeyDown={(e) => {
                 e.stopPropagation();
                 if (e.nativeEvent.isComposing) return;
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  flushAiDrafts();
+                }
               }}
               placeholder="qwen-plus"
               className="h-8 font-mono text-xs bg-background"
@@ -307,6 +454,7 @@ export function AiSection() {
       >
         <SettingsRow
           orientation="vertical"
+          htmlFor="ai-api-key"
           label={
             <div className="flex items-center gap-2">
               <span>API Key</span>
@@ -327,6 +475,7 @@ export function AiSection() {
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <Input
+                  id="ai-api-key"
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}

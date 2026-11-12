@@ -3,6 +3,7 @@ import { Surface } from '@heroui/react';
 import { ciStatusText } from '@/lib/ci';
 import { formatDateTime, formatDuration } from '@/lib/format';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { useUi } from '@/store/ui';
 import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
 import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
@@ -158,7 +159,15 @@ export function LinkedRepoCard({
     loadTrace,
     loadRepoCi,
     setToast,
-  } = useApp();
+  } = useApp(
+    useShallow((s) => ({
+      repoCiByRepo: s.repoCiByRepo,
+      settings: s.settings,
+      loadTrace: s.loadTrace,
+      loadRepoCi: s.loadRepoCi,
+      setToast: s.setToast,
+    })),
+  );
   const entry = repoCiByRepo[repo.id];
   const snapshot = entry?.snapshot;
   const ciBinding = settings?.repoCiBindings?.[String(repo.id)];
@@ -512,7 +521,7 @@ export function LinkedRepoCard({
               onToggleMr={(localId) => setExpandedMrId((prev) => (prev === localId ? null : localId))}
               onRefresh={() => {
                 divergence.refetch();
-                void loadTrace();
+                void loadTrace({ force: true });
               }}
               onCreateMr={() => setCreateMrOpen(true)}
             />
@@ -563,7 +572,7 @@ export function LinkedRepoCard({
         } : undefined}
         onSuccess={(info) => {
           divergence.refetch();
-          void loadTrace();
+          void loadTrace({ force: true });
           if (info?.localId) handleViewMr({ localId: info.localId });
         }}
         onNavigateToMr={(localId) => handleViewMr({ localId })}

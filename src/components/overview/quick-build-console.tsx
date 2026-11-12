@@ -70,7 +70,7 @@ export function QuickBuildConsole() {
   const handleRerun = async (target: QuickBuildTarget) => {
     if (!allowWriteOps) {
       useApp.getState().setToast({
-        text: '当前处于只读保护模式，无法发起构建。可在「设置 → 安全策略」开启写操作。',
+        text: '当前处于只读保护模式，无法触发构建。可在「设置 → 安全策略」开启写操作。',
         kind: 'fail',
       });
       return;
@@ -145,7 +145,7 @@ export function QuickBuildConsole() {
           ) : (
             <>
               <PlayIcon className="size-3 fill-current" />
-              <span>发起构建</span>
+              <span>触发构建</span>
             </>
           )}
         </Button>
@@ -229,7 +229,7 @@ export function QuickBuildConsole() {
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content className="max-w-xs text-xs">
-                  当前处于只读保护模式，无法发起构建。可在
+                  当前处于只读保护模式，无法触发构建。可在
                   <button
                     type="button"
                     onClick={() => openSettings('security')}

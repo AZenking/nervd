@@ -11,6 +11,7 @@ import type { RepoSummary, RepoCiBinding } from '@/types';
 import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
 import type { AiRepoRecommendation } from '@/types/ai';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { RepoCiBindingFields } from './repo-ci-binding-fields';
 import { cn } from '@/lib/utils';
@@ -95,7 +96,19 @@ export function LinkRepoModal({
   const {
     settings, pipelines, loadingPipelines, loadPipelines,
     items, children, detail, selectedId, iterations,
-  } = useApp();
+  } = useApp(
+    useShallow((s) => ({
+      settings: s.settings,
+      pipelines: s.pipelines,
+      loadingPipelines: s.loadingPipelines,
+      loadPipelines: s.loadPipelines,
+      items: s.items,
+      children: s.children,
+      detail: s.detail,
+      selectedId: s.selectedId,
+      iterations: s.iterations,
+    })),
+  );
   const [selectedRepoPath, setSelectedRepoPath] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [selectedCiBinding, setSelectedCiBinding] = useState<RepoCiBinding | null>(null);

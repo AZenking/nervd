@@ -96,7 +96,7 @@ describe('QuickBuildConsole', () => {
     });
     expect(document.body.textContent).not.toContain('构建分支');
     act(() => {
-      [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('发起构建'))?.click();
+      [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('触发构建'))?.click();
     });
 
     expect(document.body.textContent).toContain('快捷构建控制台');
@@ -117,11 +117,11 @@ describe('QuickBuildConsole', () => {
     });
     expect(document.body.textContent).not.toContain('构建目标');
     act(() => {
-      [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('发起构建'))?.click();
+      [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('触发构建'))?.click();
     });
 
     const triggerBtn = [...document.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('立即发起构建'),
+      b.textContent?.includes('立即触发构建'),
     );
     expect(triggerBtn).toBeDefined();
 
@@ -129,11 +129,11 @@ describe('QuickBuildConsole', () => {
     await act(async () => {
       triggerBtn?.click();
     });
-    expect(document.body.textContent).toContain('确认发起构建');
+    expect(document.body.textContent).toContain('确认触发构建');
 
     // 第二次点击实际触发
     const confirmBtn = [...document.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('确认发起构建'),
+      b.textContent?.includes('确认触发构建'),
     );
     await act(async () => {
       confirmBtn?.click();
@@ -227,7 +227,7 @@ describe('QuickBuildConsole', () => {
       root?.render(<QuickBuildConsole />);
     });
     act(() => {
-      [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('发起构建'))?.click();
+      [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('触发构建'))?.click();
     });
 
     expect(document.body.textContent).toContain('任务（Job）');

@@ -405,13 +405,10 @@ function normalizeListContext(context: IterationListContext): IterationListConte
   };
 }
 
-function workspaceScrollTop(): number {
-  if (typeof document === 'undefined') return 0;
-  const value = document.querySelector<HTMLElement>('.workspace-scroll')?.scrollTop ?? 0;
-  return Number.isFinite(value) && value >= 0 ? value : 0;
-}
+/** 最近一次工作区滚动位置：由滚动事件同步缓存，避免导航/序列化路径同步读取 DOM 触发布局。 */
+let lastWorkspaceScrollTop = 0;
 
-function captureSnapshot(state: UiStore, scrollTop = workspaceScrollTop()): NavSnapshot {
+function captureSnapshot(state: UiStore, scrollTop = lastWorkspaceScrollTop): NavSnapshot {
   return {
     view: state.view,
     settingsSection: state.settingsSection,
@@ -445,14 +442,48 @@ function readStoredNavigation(): NavigationRecordParseResult {
   }
 }
 
-function persistNavigation(state: UiStore, currentScrollTop?: number): void {
+/** localStorage 中最近一次「导航动作」写入的历史栈副本（高频写入时复用，避免重复序列化）。 */
+let persistedHistory: NavSnapshot[] = [];
+let persistedForwardHistory: NavSnapshot[] = [];
+
+/**
+ * 瞬态交互态不落盘：光标、多选集合与折叠分组属于当前会话现场，重启后回到默认，
+ * 避免每次 j/k 都序列化大对象；内存中的导航历史仍保留完整现场用于后退/前进。
+ */
+function sanitizePersistedSnapshot(snapshot: NavSnapshot): NavSnapshot {
+  const copy = copySnapshot(snapshot);
+  copy.listContext = {
+    ...copy.listContext,
+    cursorWorkitemId: null,
+    collapsedStatuses: [],
+    selectedWorkitemIds: [],
+  };
+  return copy;
+}
+
+interface PersistNavigationOptions {
+  scrollTop?: number;
+  /** true = 导航动作（同时写历史栈）；false = 高频界面态（仅刷新当前快照）。 */
+  withHistory?: boolean;
+}
+
+function persistNavigation(state: UiStore, options: PersistNavigationOptions = {}): void {
   try {
     if (typeof localStorage === 'undefined') return;
+    const withHistory = options.withHistory ?? true;
+    const current = sanitizePersistedSnapshot(
+      captureSnapshot(state, options.scrollTop ?? lastWorkspaceScrollTop),
+    );
+    if (withHistory) {
+      persistedHistory = state.history.map((snapshot) => sanitizePersistedSnapshot(snapshot));
+      persistedForwardHistory = state.forwardHistory.map((snapshot) => sanitizePersistedSnapshot(snapshot));
+    }
     const record: PersistedNavigation = {
       version: NAVIGATION_STORAGE_VERSION,
-      current: captureSnapshot(state, currentScrollTop ?? workspaceScrollTop()),
-      history: state.history.map(copySnapshot),
-      forwardHistory: state.forwardHistory.map(copySnapshot),
+      current,
+      // 高频写入只刷新当前快照，历史栈沿用上次导航动作写入的副本（最多 30 份）。
+      history: persistedHistory,
+      forwardHistory: persistedForwardHistory,
     };
     localStorage.setItem(NAVIGATION_STORAGE_KEY, JSON.stringify(record));
   } catch {
@@ -460,7 +491,31 @@ function persistNavigation(state: UiStore, currentScrollTop?: number): void {
   }
 }
 
+/** 300ms 防抖：j/k 光标与多选变化不再每次同步序列化整份导航记录。 */
+let navigationPersistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleNavigationPersist(): void {
+  if (navigationPersistTimer) clearTimeout(navigationPersistTimer);
+  navigationPersistTimer = setTimeout(() => {
+    navigationPersistTimer = null;
+    persistNavigation(useUi.getState(), { withHistory: false });
+  }, 300);
+}
+
+/** 页面隐藏 / 卸载前立即落盘，避免防抖窗口内丢失最后一次导航现场。 */
+function flushNavigationPersist(): void {
+  if (navigationPersistTimer) {
+    clearTimeout(navigationPersistTimer);
+    navigationPersistTimer = null;
+  }
+  persistNavigation(useUi.getState(), { withHistory: true });
+}
+
 const storedNavigationAtStartup = readStoredNavigation();
+if (storedNavigationAtStartup.status === 'valid') {
+  persistedHistory = storedNavigationAtStartup.value.history.map((snapshot) => sanitizePersistedSnapshot(snapshot));
+  persistedForwardHistory = storedNavigationAtStartup.value.forwardHistory.map((snapshot) => sanitizePersistedSnapshot(snapshot));
+}
 const defaultNavigationSnapshot: NavSnapshot = {
   view: 'overview',
   settingsSection: 'connection',
@@ -501,7 +556,8 @@ export const useUi = create<UiStore>((set, get) => {
     ...state.history,
     captureSnapshot(state),
   ].slice(-HISTORY_LIMIT);
-  const persistCurrent = (scrollTop?: number) => persistNavigation(get(), scrollTop);
+  // 导航动作（切换视图 / 后退前进 / 打开设置）同步写盘且连同历史栈；高频界面态走防抖。
+  const persistCurrent = (scrollTop?: number) => persistNavigation(get(), { scrollTop, withHistory: true });
   const restoreSnapshot = async (snapshot: NavSnapshot) => {
     const restored = copySnapshot(snapshot);
     set({
@@ -514,6 +570,7 @@ export const useUi = create<UiStore>((set, get) => {
       listContext: restored.listContext,
       restoreScroll: restored.scrollTop,
     });
+    lastWorkspaceScrollTop = restored.scrollTop;
     let app = useApp.getState();
     if (app.category !== restored.category) {
       await app.setCategory(restored.category);
@@ -541,12 +598,12 @@ export const useUi = create<UiStore>((set, get) => {
       const current = get().listContext;
       const next = normalizeListContext({ ...current, ...patch });
       set({ listContext: next });
-      persistCurrent();
+      scheduleNavigationPersist();
     },
     listSearch: startupSnapshot.listSearch,
     setListSearch: (value) => {
       set({ listSearch: value });
-      persistCurrent();
+      scheduleNavigationPersist();
     },
     history: storedNavigationAtStartup.status === 'valid'
       ? storedNavigationAtStartup.value.history.map(copySnapshot)
@@ -756,11 +813,11 @@ export const useUi = create<UiStore>((set, get) => {
           : [...values, value];
         return { filters: { ...st.filters, [kind]: next } };
       });
-      persistCurrent();
+      scheduleNavigationPersist();
     },
     clearFilters: () => {
       set({ filters: { assignees: [], related: [], statuses: [] } });
-      persistCurrent();
+      scheduleNavigationPersist();
     },
     openWorkitem: (workitemId, crumb, parent) => {
       const st = get();
@@ -852,29 +909,18 @@ export function restoreNavigation(): Promise<void> {
   return useUi.getState().restoreNavigation();
 }
 
-let scrollPersistTimer: ReturnType<typeof setTimeout> | null = null;
-const flushNavigationScroll = () => {
-  if (scrollPersistTimer) {
-    clearTimeout(scrollPersistTimer);
-    scrollPersistTimer = null;
-  }
-  persistNavigation(useUi.getState());
-};
-
 if (typeof document !== 'undefined') {
   document.addEventListener('scroll', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || !target.classList.contains('workspace-scroll')) return;
-    if (scrollPersistTimer) clearTimeout(scrollPersistTimer);
-    scrollPersistTimer = setTimeout(() => {
-      scrollPersistTimer = null;
-      persistNavigation(useUi.getState());
-    }, 150);
+    // 滚动事件同步缓存偏移（读取事件目标的现成值，不触发查询/布局），落盘统一走 300ms 防抖。
+    lastWorkspaceScrollTop = Number.isFinite(target.scrollTop) && target.scrollTop >= 0 ? target.scrollTop : 0;
+    scheduleNavigationPersist();
   }, true);
 }
 if (typeof window !== 'undefined') {
-  window.addEventListener('pagehide', flushNavigationScroll);
-  window.addEventListener('beforeunload', flushNavigationScroll);
+  window.addEventListener('pagehide', flushNavigationPersist);
+  window.addEventListener('beforeunload', flushNavigationPersist);
 }
 
 /**

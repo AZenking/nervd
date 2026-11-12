@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { useUi } from '@/store/ui';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 
@@ -60,7 +61,12 @@ export function SearchableAssigneePopover({
   className,
 }: SearchableAssigneePopoverProps) {
   const openSettings = useUi((s) => s.openSettings);
-  const { settings, updateWorkitemAssigneeOptimistic } = useApp();
+  const { settings, updateWorkitemAssigneeOptimistic } = useApp(
+    useShallow((s) => ({
+      settings: s.settings,
+      updateWorkitemAssigneeOptimistic: s.updateWorkitemAssigneeOptimistic,
+    })),
+  );
   const allowWriteOps = settings?.allowWriteOps ?? false;
 
   const [isOpen, setIsOpen] = useState(false);

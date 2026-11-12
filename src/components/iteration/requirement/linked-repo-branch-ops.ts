@@ -19,7 +19,7 @@ export interface UseLinkedRepoBranchOpsParams {
   onRetryBaseline: () => void;
   /** 仅消费 refetch（分支写操作后刷新差异）；完整差异状态由卡片侧的 useBranchDivergence 持有。 */
   divergence: { refetch: () => void };
-  loadTrace: () => Promise<{ status: string; errors: string[] }>;
+  loadTrace: (options?: { force?: boolean }) => Promise<{ status: string; errors: string[] }>;
   loadRepoCi: (repoId: number) => Promise<unknown>;
   setToast: (toast: { text: string; kind: 'ok' | 'fail' | 'info' }) => void;
 }
@@ -103,7 +103,7 @@ export function useLinkedRepoBranchOps({
     onRetryBaseline();
     divergence.refetch();
     try {
-      const result = await loadTrace();
+      const result = await loadTrace({ force: true });
       if (result.status === 'success') {
         setTraceRefreshState('ready');
         setToast({ text: successText, kind: 'ok' });
@@ -229,7 +229,7 @@ export function useLinkedRepoBranchOps({
 
       onRetryBaseline();
       divergence.refetch();
-      const traceResult = await loadTrace();
+      const traceResult = await loadTrace({ force: true });
       if (traceResult.status !== 'success') {
         errors.push(
           '追溯数据未完整刷新' +

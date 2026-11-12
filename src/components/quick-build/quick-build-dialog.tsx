@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '@heroui/react';
 import {
+  AlertTriangleIcon,
   ClockIcon,
+  LockIcon,
   PlayIcon,
   SearchIcon,
   TerminalIcon,
@@ -11,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { Kbd } from '@/components/ui/kbd';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   extractConfiguredBuildTargets,
@@ -34,15 +37,33 @@ export function QuickBuildDialog() {
   const open = useUi((s) => s.quickBuildOpen);
   const setOpen = useUi((s) => s.setQuickBuildOpen);
   const settings = useApp((s) => s.settings);
+  const allowWriteOps = useApp((s) => s.settings?.allowWriteOps ?? false);
   const repositories = useApp((s) => s.repositories);
+  const openSettings = useUi((s) => s.openSettings);
   const history = useQuickBuild((s) => s.history);
   const triggeringId = useQuickBuild((s) => s.triggeringId);
   const triggerQuickBuild = useQuickBuild((s) => s.triggerQuickBuild);
 
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  /** 两段式确认：第一次 Enter/点击进入待确认态（4s 无操作自动复位），第二次才真正触发 */
+  const [armedId, setArmedId] = useState<string | null>(null);
+  const armTimerRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  /** 复位待确认态（清除计时器；幂等） */
+  const disarm = () => {
+    setArmedId(null);
+    if (armTimerRef.current != null) {
+      window.clearTimeout(armTimerRef.current);
+      armTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => () => {
+    if (armTimerRef.current != null) window.clearTimeout(armTimerRef.current);
+  }, []);
 
   // 1. 获取所有已配置的流水线目标
   const configuredTargets = useMemo(
@@ -84,14 +105,24 @@ export function QuickBuildDialog() {
     };
   }, [history, configuredTargets, q]);
 
-  // 打开时重置光标与输入框
+  // 打开时重置光标、输入框与两段式确认态
   useEffect(() => {
     if (open) {
       setQuery('');
       setSelectedIndex(0);
+      setArmedId(null);
+      if (armTimerRef.current != null) {
+        window.clearTimeout(armTimerRef.current);
+        armTimerRef.current = null;
+      }
       setTimeout(() => inputRef.current?.focus(), 16);
     }
   }, [open]);
+
+  // 搜索词变化后先前选中的目标不再对应，复位确认态
+  useEffect(() => {
+    setArmedId(null);
+  }, [query]);
 
   // 越界保护
   useEffect(() => {
@@ -106,6 +137,25 @@ export function QuickBuildDialog() {
     if (success) {
       setOpen(false);
     }
+  };
+
+  /**
+   * 两段式确认（AGENTS.md §5.2：向导内用 inline confirm，避免弹窗套弹窗）：
+   * 只读模式直接交给 store 弹 Toast（不进入确认态）；可写时第一次进入待确认态，第二次才提交。
+   */
+  const requestTrigger = (target: QuickBuildTarget) => {
+    if (!allowWriteOps) {
+      void handleTrigger(target);
+      return;
+    }
+    if (armedId !== target.id) {
+      if (armTimerRef.current != null) window.clearTimeout(armTimerRef.current);
+      setArmedId(target.id);
+      armTimerRef.current = window.setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    void handleTrigger(target);
   };
 
   // 键盘光标选中项随上下键滚动进入可视区
@@ -135,7 +185,7 @@ export function QuickBuildDialog() {
       e.preventDefault();
       const current = flatEntries[selectedIndex];
       if (current) {
-        void handleTrigger(current);
+        requestTrigger(current);
       }
     }
   };
@@ -159,15 +209,37 @@ export function QuickBuildDialog() {
               }}
               onKeyDown={handleKeyDown}
               placeholder="快速构建：搜索仓库名、流水线名，回车一键触发…"
+              aria-label="搜索快速构建目标"
               autoComplete="off"
               spellCheck={false}
               className="h-full w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground"
             />
             <div className="flex items-center gap-1.5 shrink-0 pl-2">
-              <Kbd>↵ 运行</Kbd>
+              <Kbd>↵ 确认</Kbd>
               <Kbd>esc</Kbd>
             </div>
           </div>
+
+          {/* 只读门控提示：写权限关闭时显式告知并给出直达设置入口（不再只有底层 Toast） */}
+          {!allowWriteOps && (
+            <div
+              role="status"
+              className="flex shrink-0 items-center gap-2 border-b border-border bg-warning/10 px-4 py-2 text-xs text-foreground"
+            >
+              <LockIcon className="size-3.5 shrink-0 text-warning" />
+              <span className="min-w-0 flex-1">
+                当前为只读模式，触发构建前需在「设置 → 安全」开启写权限。
+              </span>
+              <Button
+                variant="link"
+                size="xs"
+                className="shrink-0 text-xs"
+                onPress={() => openSettings('security')}
+              >
+                前往设置
+              </Button>
+            </div>
+          )}
 
           {/* 内容区 */}
           <ScrollArea className="max-h-[min(26rem,50vh)] py-2 overscroll-contain">
@@ -193,6 +265,7 @@ export function QuickBuildDialog() {
                         const idx = flatEntries.indexOf(target);
                         const isSelected = idx === selectedIndex;
                         const isTriggering = triggeringId === target.id;
+                        const isArmed = armedId === target.id;
 
                         return (
                           <button
@@ -201,7 +274,7 @@ export function QuickBuildDialog() {
                               itemRefs.current[idx] = el;
                             }}
                             type="button"
-                            onClick={() => void handleTrigger(target)}
+                            onClick={() => requestTrigger(target)}
                             onMouseEnter={() => setSelectedIndex(idx)}
                             disabled={isTriggering}
                             className={cn(
@@ -213,20 +286,38 @@ export function QuickBuildDialog() {
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               {target.type === 'flow' ? (
-                                <WorkflowIcon className="size-3.5 text-primary shrink-0" />
+                                <WorkflowIcon
+                                  className={cn(
+                                    'size-3.5 shrink-0',
+                                    isSelected ? 'text-accent-foreground' : 'text-primary',
+                                  )}
+                                />
                               ) : (
-                                <TerminalIcon className="size-3.5 text-warning shrink-0" />
+                                <TerminalIcon
+                                  className={cn(
+                                    'size-3.5 shrink-0',
+                                    isSelected ? 'text-accent-foreground' : 'text-warning',
+                                  )}
+                                />
                               )}
                               <div className="flex flex-col min-w-0 text-left">
                                 <div className="flex items-center gap-2 font-medium truncate" title={`${target.repoName} · ${target.pipelineName}`}>
                                   <span className="truncate">{target.repoName}</span>
-                                  <span className="text-[11px] text-muted-foreground font-normal truncate">
+                                  <span
+                                    className={cn(
+                                      'text-[11px] font-normal truncate',
+                                      isSelected ? 'text-accent-foreground' : 'text-muted-foreground',
+                                    )}
+                                  >
                                     {target.pipelineName}
                                   </span>
                                 </div>
                                 {target.parameters && Object.keys(target.parameters).length > 0 && (
                                   <div
-                                    className="text-[10px] text-muted-foreground/80 font-mono truncate mt-0.5"
+                                    className={cn(
+                                      'mt-0.5 truncate font-mono text-[10px]',
+                                      isSelected ? 'text-accent-foreground' : 'text-muted-foreground',
+                                    )}
                                     title={Object.entries(target.parameters)
                                       .map(([k, v]) => `${k}=${v}`)
                                       .join(' ')}
@@ -239,19 +330,39 @@ export function QuickBuildDialog() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0 text-[11px] text-muted-foreground ml-2">
+                            <div
+                              className={cn(
+                                'ml-2 flex shrink-0 items-center gap-2 text-[11px]',
+                                isSelected ? 'text-accent-foreground' : 'text-muted-foreground',
+                              )}
+                            >
                               {target.lastTriggeredAt && (
                                 <span>{formatRelativeTime(target.lastTriggeredAt)}</span>
                               )}
-                              <div
-                                className={cn(
-                                  'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition-opacity',
-                                  isSelected ? 'bg-primary text-primary-foreground' : 'opacity-0',
-                                )}
-                              >
-                                <PlayIcon className="size-2.5 fill-current" />
-                                <span>触发</span>
-                              </div>
+                              {allowWriteOps ? (
+                                <div
+                                  className={cn(
+                                    'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition-opacity',
+                                    isArmed
+                                      ? 'bg-(--warning-soft) text-(--warning-soft-foreground) ring-1 ring-warning/40'
+                                      : isSelected
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'opacity-0',
+                                  )}
+                                >
+                                  {isArmed ? (
+                                    <AlertTriangleIcon className="size-2.5" />
+                                  ) : (
+                                    <PlayIcon className="size-2.5 fill-current" />
+                                  )}
+                                  <span>{isArmed ? '确认触发 (4s)' : '触发构建'}</span>
+                                </div>
+                              ) : (
+                                <span className="flex items-center gap-1 rounded bg-default px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                  <LockIcon className="size-2.5" />
+                                  只读
+                                </span>
+                              )}
                             </div>
                           </button>
                         );
@@ -272,6 +383,7 @@ export function QuickBuildDialog() {
                         const idx = flatEntries.indexOf(target);
                         const isSelected = idx === selectedIndex;
                         const isTriggering = triggeringId === target.id;
+                        const isArmed = armedId === target.id;
 
                         return (
                           <button
@@ -280,7 +392,7 @@ export function QuickBuildDialog() {
                               itemRefs.current[idx] = el;
                             }}
                             type="button"
-                            onClick={() => void handleTrigger(target)}
+                            onClick={() => requestTrigger(target)}
                             onMouseEnter={() => setSelectedIndex(idx)}
                             disabled={isTriggering}
                             className={cn(
@@ -292,29 +404,59 @@ export function QuickBuildDialog() {
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               {target.type === 'flow' ? (
-                                <WorkflowIcon className="size-3.5 text-primary shrink-0" />
+                                <WorkflowIcon
+                                  className={cn(
+                                    'size-3.5 shrink-0',
+                                    isSelected ? 'text-accent-foreground' : 'text-primary',
+                                  )}
+                                />
                               ) : (
-                                <TerminalIcon className="size-3.5 text-warning shrink-0" />
+                                <TerminalIcon
+                                  className={cn(
+                                    'size-3.5 shrink-0',
+                                    isSelected ? 'text-accent-foreground' : 'text-warning',
+                                  )}
+                                />
                               )}
                               <div className="flex flex-col min-w-0 text-left">
                                 <div className="flex items-center gap-2 font-medium truncate" title={`${target.repoName} · ${target.pipelineName}`}>
                                   <span className="truncate">{target.repoName}</span>
-                                  <span className="text-[11px] text-muted-foreground font-normal truncate">
+                                  <span
+                                    className={cn(
+                                      'text-[11px] font-normal truncate',
+                                      isSelected ? 'text-accent-foreground' : 'text-muted-foreground',
+                                    )}
+                                  >
                                     {target.pipelineName}
                                   </span>
                                 </div>
                               </div>
                             </div>
 
-                            <div
-                              className={cn(
-                                'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition-opacity ml-2',
-                                isSelected ? 'bg-primary text-primary-foreground' : 'opacity-0',
-                              )}
-                            >
-                              <PlayIcon className="size-2.5 fill-current" />
-                              <span>触发</span>
-                            </div>
+                            {allowWriteOps ? (
+                              <div
+                                className={cn(
+                                  'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition-opacity ml-2',
+                                  isArmed
+                                    ? 'bg-(--warning-soft) text-(--warning-soft-foreground) ring-1 ring-warning/40'
+                                    : isSelected
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'opacity-0',
+                                )}
+                              >
+                                {isArmed ? (
+                                  <AlertTriangleIcon className="size-2.5" />
+                                ) : (
+                                  <PlayIcon className="size-2.5 fill-current" />
+                                )}
+                                <span>{isArmed ? '确认触发 (4s)' : '触发构建'}</span>
+                              </div>
+                            ) : (
+                              <span className="ml-2 flex items-center gap-1 rounded bg-default px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                <LockIcon className="size-2.5" />
+                                只读
+                              </span>
+                            )}
                           </button>
                         );
                       })}
@@ -336,7 +478,7 @@ export function QuickBuildDialog() {
               <span aria-hidden="true">·</span>
               <span className="flex items-center gap-1">
                 <Kbd>↵</Kbd>
-                触发运行
+                {armedId ? '再次确认触发' : '进入确认'}
               </span>
               <span aria-hidden="true">·</span>
               <span className="flex items-center gap-1">
@@ -344,7 +486,7 @@ export function QuickBuildDialog() {
                 关闭
               </span>
             </div>
-            <span className="text-[11px] font-mono text-muted-foreground/80">⌘B 随时呼出</span>
+            <span className="text-[11px] font-mono text-muted-foreground">⌘B 随时呼出</span>
           </div>
         </Modal.Dialog>
       </Modal.Container>

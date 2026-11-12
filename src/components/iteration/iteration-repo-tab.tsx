@@ -12,6 +12,7 @@ import {
   ChevronRightIcon,
 } from 'lucide-react';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { useUi } from '@/store/ui';
 import type { RepoSummary } from '@/types';
 import { buildRunParameter, ciProviderLabel, ciStatusInfo, ciStatusText } from '@/lib/ci';
@@ -57,7 +58,9 @@ export function IterationRepoCard({
   onOpenDetail?: (item: WorkitemItem) => void;
 }) {
   const { repo, workitems, suggestedBranch } = repoItem;
-  const { repoCiByRepo, settings } = useApp();
+  const { repoCiByRepo, settings } = useApp(
+    useShallow((s) => ({ repoCiByRepo: s.repoCiByRepo, settings: s.settings })),
+  );
 
   const entry = repoCiByRepo[repo.id];
   const snapshot = entry?.snapshot;
@@ -367,7 +370,15 @@ export function IterationRepoTab({
   scopedItems?: WorkitemItem[];
   onOpenDetail?: (item: WorkitemItem) => void;
 }) {
-  const { repositories, settings, loadRepoCi, repoCiByRepo, iterations } = useApp();
+  const { repositories, settings, loadRepoCi, repoCiByRepo, iterations } = useApp(
+    useShallow((s) => ({
+      repositories: s.repositories,
+      settings: s.settings,
+      loadRepoCi: s.loadRepoCi,
+      repoCiByRepo: s.repoCiByRepo,
+      iterations: s.iterations,
+    })),
+  );
   const openSettings = useUi((s) => s.openSettings);
   const [repoPageIndex, setRepoPageIndex] = useState(1);
   const [refreshing, setRefreshing] = useState(false);

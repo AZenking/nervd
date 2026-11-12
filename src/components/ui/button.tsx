@@ -5,7 +5,9 @@ import { cn } from '@/lib/utils'
 
 const buttonVariants = tv(
   {
-    base: "",
+    // 圆角规范：HeroUI v3 的 .button 默认 rounded-3xl（24px，h-8 下即胶囊），
+    // 按 DESIGN.md §2.2 收紧到 rounded-md（6px）；link 变体无背景形状，不受影响。
+    base: "rounded-md",
     variants: {
       variant: {
         default: "",

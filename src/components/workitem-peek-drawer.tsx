@@ -40,7 +40,12 @@ export function WorkitemPeekDrawer({
   const openWorkitem = useUi((s) => s.openWorkitem);
 
   useEffect(() => {
-    if (workitemId) {
+    if (!workitemId) return;
+    // 幂等兜底：IterationView.openDetail / 钻取 / 恢复导航通常已自行 select，
+    // 这里只在 store 尚未对准目标（或上次详情加载失败且未在加载中）时补发一次，
+    // 避免「打开即双发详情 + 评论 + 子项」导致骨架闪烁。
+    const { selectedId, detail, loadingDetail } = useApp.getState();
+    if (selectedId !== workitemId || (!detail && !loadingDetail)) {
       void useApp.getState().select(workitemId);
     }
   }, [workitemId]);

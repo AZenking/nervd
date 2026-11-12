@@ -353,6 +353,14 @@ export function CommandMenu() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleInputKeyDown}
               placeholder="搜索工作项、迭代，或跳转…"
+              aria-label="搜索命令"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={flat.length > 0}
+              aria-controls={flat.length ? 'command-menu-listbox' : undefined}
+              aria-activedescendant={
+                flat.length ? `command-menu-listbox-option-${flat[activeIndex]?.id}` : undefined
+              }
               autoFocus
               autoComplete="off"
               spellCheck={false}
@@ -364,6 +372,7 @@ export function CommandMenu() {
           {flat.length ? (
             <ScrollArea size={24} className="max-h-[min(26rem,50vh)] py-2 overscroll-contain">
             <ListBox
+              id="command-menu-listbox"
               aria-label="命令面板结果"
               selectionMode="none"
               onAction={(key) => runEntry(entryByKey.get(String(key)))}
@@ -387,17 +396,29 @@ export function CommandMenu() {
                         onMouseEnter={() => setActive(index)}
                         className={cn(
                           'mx-2 h-9 px-2.5 text-sm',
-                          // 常驻弱高亮：当前即此目标；键盘/hover 命中时以 bg-accent 覆盖
-                          entry.active && !isActiveRow && 'bg-accent/50',
-                          isActiveRow && 'bg-accent',
+                          // 常驻弱高亮：当前即此目标（浅 accent 底保留正文对比度）；键盘/hover 命中时用实色 accent
+                          entry.active && !isActiveRow && 'bg-accent/10',
+                          isActiveRow && 'bg-accent text-accent-foreground',
                         )}
                       >
-                        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+                        <span
+                          className={cn(
+                            'flex size-4 shrink-0 items-center justify-center',
+                            isActiveRow ? 'text-accent-foreground' : 'text-muted-foreground',
+                          )}
+                        >
                           {entry.icon}
                         </span>
                         <span className="min-w-0 flex-1 truncate text-left" title={entry.label}>{entry.label}</span>
                         {entry.hint && (
-                          <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground" title={entry.hint}>
+                          <span
+                            className={cn(
+                              'ml-auto shrink-0 font-mono text-xs',
+                              // 实色 accent 上必须用 accent-foreground（muted 在 #5e6ad2 上仅 1.07:1）
+                              isActiveRow ? 'text-accent-foreground' : 'text-muted-foreground',
+                            )}
+                            title={entry.hint}
+                          >
                             {entry.hint}
                           </span>
                         )}

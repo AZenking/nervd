@@ -105,7 +105,7 @@ export function SettingsView({
   const canEnterWorkbench = Boolean(settings?.hasPat && settings?.organizationId);
 
   if (embedded) {
-    // 工作区设置：页头与主页（总览）保持一致——sticky 全宽单行 + 紧凑 text-sm 标题 + 右上角自动保存状态；
+    // 工作区设置：页头与主页（总览）保持一致——sticky 全宽单行 + 统一 h1（26px）标题 + 右上角自动保存状态；
     // 分区导航在左侧栏（设置菜单），分区功能说明下沉正文首行，内容列仍按 Linear 版式居中展示
     return (
       <div className="flex flex-col gap-6">
@@ -114,7 +114,6 @@ export function SettingsView({
           contentClassName="w-full"
           navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
           title={activeSection.label}
-          titleClassName="text-sm font-semibold tracking-tight text-foreground"
           actions={<SettingsAutoSaveStatus />}
         />
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-20">

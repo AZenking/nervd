@@ -117,16 +117,23 @@ export interface WorkitemChildrenResult {
   items: WorkitemChild[];
   /** 空结果时后端带回的原始响应片段（诊断包装形态用） */
   rawSample?: string;
+  /**
+   * 后端因「每类只取最近 N 条再本地按 parentId 过滤」而可能截断时为 true。
+   * UI 据此提示「可能还有更多子项」，避免把截断误读成「没有子任务」。
+   */
+  truncated?: boolean;
 }
 
 export async function listWorkitemChildren(workitemId: string): Promise<WorkitemChildrenResult> {
   const resp = await invoke('list_workitem_children', { workitemId }) as {
     items?: unknown;
     rawSample?: unknown;
+    truncated?: unknown;
   };
   return {
     items: Array.isArray(resp?.items) ? (resp.items as WorkitemChild[]) : [],
     rawSample: typeof resp?.rawSample === 'string' && resp.rawSample ? resp.rawSample : undefined,
+    truncated: resp?.truncated === true ? true : undefined,
   };
 }
 export async function getWorkitemWorkflowStatuses(workitemId: string): Promise<WorkitemStatusOption[]> {

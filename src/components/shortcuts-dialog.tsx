@@ -30,7 +30,7 @@ const NAV_ROWS: ShortcutRow[] = [
   { keys: ['⌘,'], label: '打开设置' },
   { keys: ['⌘F'], label: '搜索当前视图（无搜索框时打开命令面板）' },
   { keys: ['⌘R'], label: '刷新当前视图' },
-  { keys: ['Esc'], label: '取消选择或关闭浮层、分栏' },
+  { keys: ['Esc'], label: '关闭浮层 / 取消多选 / 逐层退回详情抽屉' },
 ];
 
 /** 列表组：迭代页工作项列表的光标移动与打开（实现归 IterationView，此处仅展示） */
@@ -47,7 +47,7 @@ const LAYOUT_ROWS: ShortcutRow[] = [
   { keys: ['←→'], label: '聚焦分隔线后调整分栏宽度（±8px）' },
   { keys: ['⇧←→'], label: '大幅调整分栏宽度（±32px）' },
   { keys: ['双击'], label: '分隔线恢复默认宽度' },
-  { keys: ['Esc'], label: '窄窗详情中返回列表' },
+  { keys: ['Esc'], label: '独立详情或设置页返回上一级（恢复滚动位置）' },
 ];
 
 /** 一组快捷键：组标题 + 说明/键位行 */

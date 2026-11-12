@@ -91,6 +91,8 @@ export interface WorkitemsSlice {
   children: api.WorkitemChild[];
   childrenError: string | null;
   childrenDebug: string | null;
+  /** 子项接口因「每类最近 N 条」上限被截断（后端 truncated=true） */
+  childrenTruncated: boolean;
   loadingDetail: boolean;
 
   setCategory(category: Category): Promise<void>;
@@ -159,7 +161,8 @@ export interface TraceSlice {
   /** list_repos 额外透传的云效仓库归档标记；不扩冻结契约 RepoSummary */
   repositories: (RepoSummary & { archived?: boolean })[];
   repoRefreshVersion: Record<number, number>;
-  loadTrace(): Promise<RefreshResult>;
+  /** 加载当前工作项追溯；force=true 时绕过短期缓存（手动刷新场景）。 */
+  loadTrace(options?: { force?: boolean }): Promise<RefreshResult>;
   loadRepos(): Promise<void>;
   refreshRepoTrace(repoId: number): Promise<RefreshResult>;
   saveBranchRuleTemplates(templates: BranchRuleTemplate[]): Promise<void>;

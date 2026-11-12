@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { useUi } from '@/store/ui';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { StatusIcon } from '@/components/status-icon';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
@@ -117,7 +118,12 @@ export function DetailAssigneePopover({
   className?: string;
 }) {
   const openSettings = useUi((s) => s.openSettings);
-  const { settings, updateWorkitemAssigneeOptimistic } = useApp();
+  const { settings, updateWorkitemAssigneeOptimistic } = useApp(
+    useShallow((s) => ({
+      settings: s.settings,
+      updateWorkitemAssigneeOptimistic: s.updateWorkitemAssigneeOptimistic,
+    })),
+  );
   const readOnly = !(settings?.allowWriteOps ?? false);
   const [updating, setUpdating] = useState(false);
 

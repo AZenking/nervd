@@ -248,7 +248,7 @@ export function QuickBuildTriggerForm({
   const handleTriggerClick = async () => {
     if (!allowWriteOps) {
       useApp.getState().setToast({
-        text: '当前处于只读保护模式，无法发起构建。可在「设置 → 安全策略」开启写操作。',
+        text: '当前处于只读保护模式，无法触发构建。可在「设置 → 安全策略」开启写操作。',
         kind: 'fail',
       });
       return;
@@ -450,7 +450,7 @@ export function QuickBuildTriggerForm({
                 <GitBranchIcon className="size-3 text-primary" />
                 <span>构建分支 ({branchParamName || 'branch'})</span>
               </Label>
-              <span className="text-[10px] text-muted-foreground/70">支持输入或选择分支</span>
+              <span className="text-[10px] text-muted-foreground">支持输入或选择分支</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Input
@@ -645,11 +645,11 @@ export function QuickBuildTriggerForm({
                     onPress={() => void handleTriggerClick()}
                   >
                     <PlayIcon className="size-3 fill-current" />
-                    <span>立即发起构建</span>
+                    <span>立即触发构建</span>
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content className="max-w-xs text-xs">
-                  当前处于只读保护模式，无法发起构建。可在
+                  当前处于只读保护模式，无法触发构建。可在
                   <button
                     type="button"
                     onClick={() => openSettings('security')}
@@ -669,7 +669,7 @@ export function QuickBuildTriggerForm({
                 onPress={() => void handleTriggerClick()}
                 className={cn(
                   'h-8 w-full gap-1.5 px-4 text-xs font-medium transition-all sm:w-auto',
-                  confirmArmed && 'bg-warning text-warning-foreground animate-pulse hover:bg-warning/90',
+                  confirmArmed && 'bg-(--warning-soft) text-(--warning-soft-foreground) ring-1 ring-warning/40 animate-pulse hover:bg-(--warning-soft-hover)',
                 )}
               >
                 {isCurrentTriggering ? (
@@ -680,12 +680,12 @@ export function QuickBuildTriggerForm({
                 ) : confirmArmed ? (
                   <>
                     <AlertTriangleIcon className="size-3.5" />
-                    <span>确认发起构建 (4s)</span>
+                    <span>确认触发构建 (4s)</span>
                   </>
                 ) : (
                   <>
                     <PlayIcon className="size-3 fill-current" />
-                    <span>立即发起构建</span>
+                    <span>立即触发构建</span>
                   </>
                 )}
               </Button>

@@ -86,7 +86,7 @@ export function CycleHeaderBanner({
                               <CheckIcon className="size-3" />
                             </span>
                           ) : (
-                            <span className="text-[11px] text-muted-foreground/70">
+                            <span className="text-[11px] text-muted-foreground">
                               {it.state}
                             </span>
                           )}
@@ -121,7 +121,7 @@ export function CycleHeaderBanner({
 
           {/* 日期周期 */}
           <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
-            <CalendarDaysIcon className="size-3 text-muted-foreground/70" />
+            <CalendarDaysIcon className="size-3 text-muted-foreground" />
             <span>{formatSprintDateRange(iteration?.startDate, iteration?.endDate)}</span>
           </span>
 

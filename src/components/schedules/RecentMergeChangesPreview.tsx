@@ -33,7 +33,6 @@ export function RecentMergeChangesPreview({
   className,
 }: RecentMergeChangesPreviewProps) {
   const act = task.action;
-  if (act.type !== 'branch_merge') return null;
 
   const [expanded, setExpanded] = useState(false);
   const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
@@ -53,6 +52,9 @@ export function RecentMergeChangesPreview({
   const items = useApp((s) => s.items);
   const settings = useApp((s) => s.settings);
   const openWorkitem = useUi((s) => s.openWorkitem);
+
+  // hooks 必须无条件执行：非分支合并任务在这里统一退出，避免条件调用改变 hook 顺序
+  if (act.type !== 'branch_merge') return null;
 
   const lastChanges = task.lastMergeChanges;
   // 变更点优先取最新探测结果，若无则使用上次执行产生的持久化变更点
@@ -187,14 +189,14 @@ export function RecentMergeChangesPreview({
 
             {/* 提交作者 */}
             {firstCommit.authorName && (
-              <span className="text-[11px] text-muted-foreground/75 font-mono shrink-0">
+              <span className="text-[11px] text-muted-foreground font-mono shrink-0">
                 · {firstCommit.authorName}
               </span>
             )}
 
             {/* 变动文件数 */}
             {totalDiffs > 0 && (
-              <span className="text-[11px] text-muted-foreground/75 font-mono shrink-0">
+              <span className="text-[11px] text-muted-foreground font-mono shrink-0">
                 · {totalDiffs} 个文件变动
               </span>
             )}
@@ -269,7 +271,7 @@ export function RecentMergeChangesPreview({
                   key={c.id || c.shortId}
                   className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
                 >
-                  <code className="font-mono text-primary/85 font-medium text-[10px] shrink-0">
+                  <code className="font-mono text-primary font-medium text-[10px] shrink-0">
                     {c.shortId || c.id.slice(0, 7)}
                   </code>
                   <span className="truncate text-foreground/85 font-medium">{c.title}</span>
@@ -285,7 +287,7 @@ export function RecentMergeChangesPreview({
                     </button>
                   ))}
                   {c.authorName && (
-                    <span className="font-mono text-[10px] text-muted-foreground/60 shrink-0">
+                    <span className="font-mono text-[10px] text-muted-foreground shrink-0">
                       · {c.authorName}
                     </span>
                   )}
@@ -327,7 +329,7 @@ export function RecentMergeChangesPreview({
       ) : (
         /* 场景 4：尚未执行过合并 */
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="text-muted-foreground/70">尚未执行合并</span>
+          <span className="text-muted-foreground">尚未执行合并</span>
           <button
             type="button"
             onClick={handleProbeChanges}

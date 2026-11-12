@@ -6,6 +6,7 @@ import { RichEditor } from '@/components/ui/rich-editor';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 
 export interface RichDescriptionProps {
@@ -31,7 +32,13 @@ export function RichDescription({
   onEditingChange,
   onSaved,
 }: RichDescriptionProps) {
-  const { settings, setToast, updateWorkitemDescriptionOptimistic } = useApp();
+  const { settings, setToast, updateWorkitemDescriptionOptimistic } = useApp(
+    useShallow((s) => ({
+      settings: s.settings,
+      setToast: s.setToast,
+      updateWorkitemDescriptionOptimistic: s.updateWorkitemDescriptionOptimistic,
+    })),
+  );
   const allowWrite = settings?.allowWriteOps ?? false;
 
   const initialHtml = useMemo(() => extractRichHtml(raw), [raw]);

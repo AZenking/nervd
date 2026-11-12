@@ -4,6 +4,7 @@ import {
   markHistoryStaleness,
   useQuickBuild,
   type QuickBuildTarget,
+  type TrackedBuild,
 } from './quick-build';
 import { useApp } from './app';
 import * as api from '@/lib/api';
@@ -111,6 +112,81 @@ describe('useQuickBuild store', () => {
     expect(result).toMatchObject({ targetKey: 'flow:101', provider: 'flow' });
     expect(api.triggerRepoCi).toHaveBeenCalledWith(101, expect.anything());
     expect(useQuickBuild.getState().history[0].id).toBe('flow:101');
+  });
+
+
+  it('轮询结果按 id 合并：期间被 dismiss 的记录不复活，期间新增记录不丢失', async () => {
+    const target: QuickBuildTarget = {
+      id: 'jenkins:101:conn-1:frontend-job',
+      targetKey: 'jenkins:101:conn-1:frontend-job',
+      type: 'jenkins',
+      repoId: 101,
+      repoName: 'frontend-repo',
+      pipelineName: 'frontend-job',
+      connectionId: 'conn-1',
+      jobFullName: 'frontend-job',
+    };
+    const build: TrackedBuild = {
+      id: 'jenkins-build-1',
+      target,
+      state: 'queued',
+      queueId: '42',
+      parameters: {},
+      submittedAt: Date.now(),
+    };
+    const addedDuringPoll: TrackedBuild = {
+      id: 'flow-build-2',
+      target: { ...target, id: 'flow:101', type: 'flow', pipelineId: 101 },
+      state: 'running',
+      runId: '9',
+      parameters: {},
+      submittedAt: Date.now(),
+    };
+    useQuickBuild.setState({ trackedBuilds: [build] });
+
+    let resolveQueue: (value: unknown) => void = () => {};
+    vi.mocked(api.getJenkinsQueueItem).mockReturnValueOnce(new Promise((resolve) => {
+      resolveQueue = resolve;
+    }) as never);
+
+    const polling = useQuickBuild.getState().pollTrackedBuilds();
+    // 等待网络期间用户 dismiss 了这条记录，同时新触发了一条构建
+    useQuickBuild.getState().dismissTrackedBuild(build.id);
+    useQuickBuild.setState((state) => ({ trackedBuilds: [...state.trackedBuilds, addedDuringPoll] }));
+    resolveQueue({ queueId: '42', leftQueue: false, executableNumber: 105 });
+    await polling;
+
+    const ids = useQuickBuild.getState().trackedBuilds.map((item) => item.id);
+    expect(ids).not.toContain(build.id);
+    expect(ids).toContain(addedDuringPoll.id);
+  });
+
+  it('并发轮询被 in-flight 锁抑制，不会重复请求同一条记录', async () => {
+    const build: TrackedBuild = {
+      id: 'jenkins-build-lock',
+      target: {
+        id: 'jenkins:101:conn-1:frontend-job',
+        type: 'jenkins',
+        repoId: 101,
+        repoName: 'frontend-repo',
+        pipelineName: 'frontend-job',
+        connectionId: 'conn-1',
+        jobFullName: 'frontend-job',
+      },
+      state: 'queued',
+      queueId: '42',
+      parameters: {},
+      submittedAt: Date.now(),
+    };
+    useQuickBuild.setState({ trackedBuilds: [build] });
+    vi.mocked(api.getJenkinsQueueItem).mockResolvedValue({ queueId: '42', leftQueue: false } as never);
+
+    await Promise.all([
+      useQuickBuild.getState().pollTrackedBuilds(),
+      useQuickBuild.getState().pollTrackedBuilds(),
+    ]);
+
+    expect(api.getJenkinsQueueItem).toHaveBeenCalledTimes(1);
   });
 
   it('extractConfiguredBuildTargets parses flow and jenkins configurations', () => {

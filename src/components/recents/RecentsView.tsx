@@ -92,7 +92,6 @@ export function RecentsView() {
         sticky
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="最近查看"
-        titleClassName="text-sm font-semibold tracking-tight text-foreground"
         titleBadge={
           items.length > 0 ? (
             <Chip size="sm" variant="soft" className="font-mono text-[11px] tabular-nums select-none">

@@ -204,6 +204,7 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
       children: [],
       childrenError: null,
       childrenDebug: null,
+      childrenTruncated: false,
       loadingDetail: false,
 
       async setCategory(category: Category) {
@@ -220,6 +221,7 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
           children: [],
           childrenError: null,
           childrenDebug: null,
+          childrenTruncated: false,
           loadingDetail: false,
           trace: null,
           traceLoading: false,
@@ -316,6 +318,7 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
             children: mergeChildrenWithOptimistic(runtime, workitemId, result.items),
             childrenError: null,
             childrenDebug: result.rawSample ?? null,
+            childrenTruncated: result.truncated === true,
           });
           const hasUnindexed = Array.from(runtime.optimisticCreatedChildren.values()).some(
             (record) => record.parentId === workitemId && Date.now() - record.createdAt < 30_000,
@@ -330,7 +333,7 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
           }
         } catch (error) {
           if (runtime.childrenRequests.get(workitemId) !== requestId) return;
-          set({ childrenError: String(error), childrenDebug: null });
+          set({ childrenError: String(error), childrenDebug: null, childrenTruncated: false });
         }
       },
 
@@ -346,6 +349,7 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
           children: [],
           childrenError: null,
           childrenDebug: null,
+          childrenTruncated: false,
           trace: null,
           traceLoading: false,
           loadingDetail: true,
@@ -355,8 +359,18 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
             api.getWorkitem(workitemId),
             api.listWorkitemComments(workitemId).catch(() => ({})),
             api.listWorkitemChildren(workitemId).then(
-              (result) => ({ items: result.items, error: null as string | null, debug: result.rawSample ?? null }),
-              (error: unknown) => ({ items: [] as api.WorkitemChild[], error: String(error), debug: null as string | null }),
+              (result) => ({
+                items: result.items,
+                error: null as string | null,
+                debug: result.rawSample ?? null,
+                truncated: result.truncated === true,
+              }),
+              (error: unknown) => ({
+                items: [] as api.WorkitemChild[],
+                error: String(error),
+                debug: null as string | null,
+                truncated: false,
+              }),
             ),
           ]);
           if (!isCurrent()) return;
@@ -366,12 +380,15 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
             children: mergeChildrenWithOptimistic(runtime, workitemId, childrenResult.items),
             childrenError: childrenResult.error,
             childrenDebug: childrenResult.debug,
+            childrenTruncated: childrenResult.truncated,
             detailFetchedAt: Date.now(),
           });
         } catch (error) {
           if (isCurrent()) get().setToast({ text: `详情加载失败：${String(error)}`, kind: 'fail' });
         } finally {
-          if (get().selectedId === workitemId) set({ loadingDetail: false });
+          // 以请求序号判定当前请求：旧请求收尾不得把新请求的 loadingDetail 提前置 false，
+          // 否则详情骨架会先闪成空壳再被新数据填回。
+          if (isCurrent()) set({ loadingDetail: false });
         }
         const current = get();
         const selected = current.items.find((item) => item.workitemId === workitemId);
@@ -419,7 +436,10 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
           patch.children = mergeChildrenWithOptimistic(runtime, workitemId, childrenResult.value.items);
           patch.childrenError = null;
           patch.childrenDebug = childrenResult.value.rawSample ?? null;
+          patch.childrenTruncated = childrenResult.value.truncated === true;
         } else {
+          patch.childrenError = String(childrenResult.error);
+          patch.childrenTruncated = false;
           errors.push(`子项：${String(childrenResult.error)}`);
         }
         patch.detailFetchedAt = Date.now();

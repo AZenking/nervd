@@ -245,9 +245,15 @@ export function ScheduleEditorDrawer({
   const [notifyOnSuccess, setNotifyOnSuccess] = useState(true);
   const [notifyOnFailure, setNotifyOnFailure] = useState(true);
 
-  // Load initial data when editing or opening
+  // Load initial data when editing or opening.
+  // 依赖只保留「打开 / 切换目标任务」：后台 loadRepos / CI 绑定保存会替换 repositories / settings 引用，
+  // 若把它们放进依赖，用户正在填写的表单会被后台刷新重置。
   useEffect(() => {
     if (!open) return;
+
+    const appState = useApp.getState();
+    const repositoriesForDefaults = appState.repositories;
+    const settingsForDefaults = appState.settings;
 
     if (initialTask) {
       // 旧版本持久化的任务可能缺少新字段：所有读取一律回退默认值，防止编辑态渲染崩溃
@@ -314,7 +320,7 @@ export function ScheduleEditorDrawer({
       setDescription('');
       setEnabled(true);
       setActionType('branch_merge');
-      const defaultRepo = repositories[0]?.id ?? 0;
+      const defaultRepo = repositoriesForDefaults[0]?.id ?? 0;
       setRepoId(defaultRepo);
       setSourceBranch('dev');
       setTargetBranch('master');
@@ -330,13 +336,13 @@ export function ScheduleEditorDrawer({
       setNotifyOnSuccess(true);
       setNotifyOnFailure(true);
 
-      const firstConn = settings?.jenkinsConnections?.[0]?.id ?? '';
+      const firstConn = settingsForDefaults?.jenkinsConnections?.[0]?.id ?? '';
       setJenkinsConnId(firstConn);
       setJenkinsJobName('');
       setPipelineId(0);
       setPipelineName('');
     }
-  }, [open, initialTask, repositories, settings]);
+  }, [open, initialTask?.id]);
 
   // Cron validation & preview
   const cronValidation = useMemo(() => validateCron(cron), [cron]);
@@ -751,7 +757,7 @@ export function ScheduleEditorDrawer({
                         <div className="flex flex-col gap-2 rounded-md border border-border/70 bg-muted/20 p-3">
                           <div className="flex flex-wrap items-center justify-between gap-1">
                             <Label className="text-xs text-muted-foreground">冲突自动裁决偏好</Label>
-                            <span className="text-[11px] text-muted-foreground/80">
+                            <span className="text-[11px] text-muted-foreground">
                               同一行代码两端冲突时的裁决策略
                             </span>
                           </div>
@@ -1162,7 +1168,7 @@ export function ScheduleEditorDrawer({
                           <span className="text-[11px] text-muted-foreground">
                             标准 5 段式 Cron 表达式（分 时 日 月 周）
                           </span>
-                          <span className="font-mono text-[10px] text-muted-foreground/70">
+                          <span className="font-mono text-[10px] text-muted-foreground">
                             * 代表任意，*/N 代表步长
                           </span>
                         </div>

@@ -73,7 +73,7 @@ describe('QuickBuildDialog', () => {
     expect(document.body.textContent).toContain('auth-service');
   });
 
-  it('triggers quick build on click', async () => {
+  it('requires a second inline confirmation before triggering quick build', async () => {
     const triggerSpy = vi.fn().mockResolvedValue(true);
     useQuickBuild.setState({ triggerQuickBuild: triggerSpy });
 
@@ -85,10 +85,17 @@ describe('QuickBuildDialog', () => {
     const tradeBtn = [...buttons].find((b) => b.textContent?.includes('trade-service'));
     expect(tradeBtn).toBeDefined();
 
+    // 第一次点击只进入 4s 待确认态（AGENTS.md §5.2 两段式确认）
     await act(async () => {
       tradeBtn?.click();
     });
+    expect(triggerSpy).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain('确认触发 (4s)');
 
+    // 第二次点击才真正提交
+    await act(async () => {
+      tradeBtn?.click();
+    });
     expect(triggerSpy).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'flow:101', repoName: 'trade-service' }),
     );

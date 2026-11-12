@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   RefreshCwIcon,
   SearchXIcon,
@@ -89,6 +89,160 @@ function groupByStatus(items: WorkitemItem[]): StatusGroup[] {
       - STATUS_TONE_ORDER.indexOf(statusMeta(b.status).tone));
 }
 
+interface WorkitemRowProps {
+  item: WorkitemItem;
+  rowId: string;
+  flatIndex: number;
+  isActive: boolean;
+  isSelected: boolean;
+  isAssigned: boolean;
+  isRelated: boolean;
+  registerRow: (rowId: string, el: HTMLElement | null) => void;
+  onActivate: (item: WorkitemItem, flatIndex: number) => void;
+  onClick: (event: React.MouseEvent, item: WorkitemItem, flatIndex: number) => void;
+  onDoubleClick: (item: WorkitemItem) => void;
+  onKeyDown: (event: React.KeyboardEvent, item: WorkitemItem, flatIndex: number) => void;
+  onContextMenu: (event: React.MouseEvent, item: WorkitemItem, flatIndex: number) => void;
+  onToggleSelect: (workitemId: string) => void;
+}
+
+/**
+ * 单个工作项行（React.memo）：j/k 光标移动或 CI 轮询重渲列表时，未变化的行直接跳过，
+ * 不再为 30 行重建 Dropdown / Checkbox 与事件闭包。回调均由父层 useCallback 保持稳定。
+ */
+const WorkitemRow = memo(function WorkitemRow({
+  item,
+  rowId,
+  flatIndex,
+  isActive,
+  isSelected,
+  isAssigned,
+  isRelated,
+  registerRow,
+  onActivate,
+  onClick,
+  onDoubleClick,
+  onKeyDown,
+  onContextMenu,
+  onToggleSelect,
+}: WorkitemRowProps) {
+  const assignee = item.assignedTo && item.assignedTo !== '—' ? item.assignedTo : '';
+  const setRowRef = useCallback((el: HTMLElement | null) => registerRow(rowId, el), [registerRow, rowId]);
+  return (
+    <ListBox.Item
+      id={rowId}
+      textValue={item.subject}
+      ref={setRowRef}
+      data-active={isActive}
+      data-testid="workitem-row"
+      data-identifier={item.identifier ?? ''}
+      onAction={() => onActivate(item, flatIndex)}
+      onClick={(e) => onClick(e, item, flatIndex)}
+      onDoubleClick={() => onDoubleClick(item)}
+      onKeyDown={(e) => onKeyDown(e, item, flatIndex)}
+      onContextMenu={(e) => onContextMenu(e, item, flatIndex)}
+      className={cn(
+        'group relative flex w-full cursor-pointer items-center gap-2.5 rounded-md text-left transition-colors min-h-0',
+        'hover:bg-muted/60',
+        'data-[active=true]:bg-muted-bg',
+        'h-10 px-2.5 pl-3',
+      )}
+    >
+      {/* 检视光标 / 参与人 / 处理人左侧精致标识线 */}
+      {isAssigned ? (
+        <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-primary" />
+      ) : isRelated ? (
+        <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-warning" />
+      ) : isActive ? (
+        <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-r-full bg-primary/70" />
+      ) : null}
+
+      {/* 多选 Checkbox（Linear 风格：悬停滑出，已选常驻）
+          注意：HeroUI Checkbox 是包裹隐藏 input 的 label，一次点击会冒泡
+          两个 click（原始 + label→input 转发），切换必须挂 onCheckedChange
+          （由 input change 驱动，恰好一次），span 仅负责 stopPropagation
+          屏蔽行点击（打开抽屉/清空多选）。 */}
+      <span
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          'flex size-4 shrink-0 items-center justify-center cursor-pointer transition-opacity',
+          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+        )}
+      >
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={() => onToggleSelect(item.workitemId)}
+          aria-label={`选择 ${item.identifier}`}
+        />
+      </span>
+
+      {/* 原地流转状态下拉 Popover */}
+      <RowStatusDropdown item={item} />
+
+      {/* 编号 */}
+      <span
+        className={cn(
+          'shrink-0 font-mono text-xs transition-colors',
+          isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
+        )}
+        title={item.identifier}
+      >
+        {item.identifier}
+      </span>
+
+      {/* 身份匹配高亮徽标（HeroUI Chip 规范） */}
+      {isAssigned ? (
+        <Chip
+          size="sm"
+          variant="soft"
+          color="accent"
+          className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-sm select-none"
+        >
+          我负责
+        </Chip>
+      ) : isRelated ? (
+        <Chip
+          size="sm"
+          variant="soft"
+          color="warning"
+          className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-sm select-none"
+        >
+          我参与
+        </Chip>
+      ) : null}
+
+      {/* 标题 */}
+      <OverflowTooltip
+        text={item.subject}
+        title={item.subject}
+        className={cn(
+          'min-w-0 flex-1 truncate text-[13px] transition-colors',
+          isActive ? 'text-foreground font-semibold' : 'text-foreground/90 font-medium'
+        )}
+      />
+
+      {/* 右侧信息 */}
+      <span className={cn(
+        'ml-auto flex shrink-0 items-center gap-2 text-xs transition-colors',
+        isActive ? 'text-foreground/80' : 'text-muted-foreground'
+      )}>
+        <span
+          className="hidden tabular-nums md:block"
+          title={item.updatedAt ? `更新时间：${item.updatedAt}` : undefined}
+        >
+          {item.updatedAt?.slice(5, 10) || '—'}
+        </span>
+        <UserAvatar
+          name={assignee}
+          isAssigned={isAssigned}
+          size="sm"
+          showName={false}
+        />
+      </span>
+    </ListBox.Item>
+  );
+});
+
 
 /** 列表行骨架：首屏与翻页加载态共用，尺寸与列布局对齐真实数据行，避免布局跳动 */
 function WorkitemSkeletonRows() {
@@ -142,15 +296,12 @@ function RowStatusDropdown({ item }: { item: WorkitemItem }) {
  * 列表现场（滚动 / 筛选 / 分页 / 多选 / 光标）完整保留；抽屉开启时 j/k 仍可连续检视联动刷新。
  */
 export function IterationView() {
-  const {
-    iterationKey,
-    setIteration,
-    openWorkitem,
-    filters,
-    listContext,
-    updateListContext,
-    restoreScroll,
-  } = useUi();
+  // 分字段订阅：listContext 只用于挂载时恢复现场，若也订阅会在每次 j/k 写回时整页重渲。
+  const iterationKey = useUi((s) => s.iterationKey);
+  const setIteration = useUi((s) => s.setIteration);
+  const openWorkitem = useUi((s) => s.openWorkitem);
+  const filters = useUi((s) => s.filters);
+  const updateListContext = useUi((s) => s.updateListContext);
   const {
     items, repositories, category, setCategory, loadingList, listFetchedAt, loadList, nextToken,
     iterations: realIterations, loadingIterations, loadIterations,
@@ -222,7 +373,7 @@ export function IterationView() {
   }, [scoped, settings, repositories]);
 
   // 分页（需求过多时全量渲染会卡）：每页 30 条，状态分组按当前页切片计算
-  const [pageIndex, setPageIndex] = useState(() => listContext.pageIndex);
+  const [pageIndex, setPageIndex] = useState(() => useUi.getState().listContext.pageIndex);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = useMemo(
     () => filtered.slice((pageIndex - 1) * PAGE_SIZE, pageIndex * PAGE_SIZE),
@@ -299,7 +450,7 @@ export function IterationView() {
   const groups = useMemo(() => groupByStatus(pageItems), [pageItems]);
 
   // 折叠状态：status 原文集合（折叠的组不渲染数据行）
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(listContext.collapsedStatuses));
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(useUi.getState().listContext.collapsedStatuses));
 
   const expandedKeys = useMemo(
     () => new Set(groups.filter((g) => !collapsed.has(g.status)).map((g) => g.status)),
@@ -329,11 +480,11 @@ export function IterationView() {
 
   // Peek 抽屉选中的工作项 ID；null 表示抽屉收起（全宽列表形态）。
   // listContext 持久化键沿用 splitWorkitemId / splitParentWorkitemId（导航快照兼容，不迁移）。
-  const [peekWorkitemId, setPeekWorkitemId] = useState<string | null>(() => listContext.splitWorkitemId);
-  const [peekParentWorkitemId, setPeekParentWorkitemId] = useState<string | null>(() => listContext.splitParentWorkitemId);
+  const [peekWorkitemId, setPeekWorkitemId] = useState<string | null>(() => useUi.getState().listContext.splitWorkitemId);
+  const [peekParentWorkitemId, setPeekParentWorkitemId] = useState<string | null>(() => useUi.getState().listContext.splitParentWorkitemId);
 
   // 顶层视图 Tab：工作项（默认）/ 关联仓库与 CI / 分支模板
-  const [viewTab, setViewTab] = useState<'workitems' | 'repos' | 'branches'>(() => listContext.viewTab);
+  const [viewTab, setViewTab] = useState<'workitems' | 'repos' | 'branches'>(() => useUi.getState().listContext.viewTab);
   useEffect(() => {
     updateListContext({ splitWorkitemId: peekWorkitemId, splitParentWorkitemId: peekParentWorkitemId, viewTab });
   }, [peekWorkitemId, peekParentWorkitemId, updateListContext, viewTab]);
@@ -356,17 +507,33 @@ export function IterationView() {
   }, []);
   useEffect(() => cancelPreviewClick, [cancelPreviewClick]);
 
+  // Peek 下 j/k 联动详情加 150ms 防抖：快速连续检视时只为最终停留项发起详情 / 追溯请求。
+  const peekSelectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelPeekSelect = useCallback(() => {
+    if (peekSelectTimer.current !== null) {
+      clearTimeout(peekSelectTimer.current);
+      peekSelectTimer.current = null;
+    }
+  }, []);
+  useEffect(() => cancelPeekSelect, [cancelPeekSelect]);
+
   /** 打开工作项 Peek 抽屉详情：行点击 / Enter / 右键菜单就地从右侧滑出，列表现场完整保留 */
   const openDetail = useCallback((item: WorkitemItem) => {
     cancelPreviewClick();
+    cancelPeekSelect();
     setPeekWorkitemId(item.workitemId);
     setPeekParentWorkitemId(null);
-    void useApp.getState().select(item.workitemId);
-  }, [cancelPreviewClick]);
+    // 幂等：指针 onAction 与键盘 Enter 可能同时到达；同一项已在加载/已加载时不重复发起详情请求。
+    const app = useApp.getState();
+    if (app.selectedId !== item.workitemId || (!app.detail && !app.loadingDetail)) {
+      void app.select(item.workitemId);
+    }
+  }, [cancelPeekSelect, cancelPreviewClick]);
 
   /** 在独立工作台全屏打开（转入完整页面并收起抽屉） */
   const openInWorkbench = useCallback((item: WorkitemItem) => {
     cancelPreviewClick();
+    cancelPeekSelect();
     setPeekWorkitemId(null);
     setPeekParentWorkitemId(null);
     openWorkitem(item.workitemId, {
@@ -374,7 +541,7 @@ export function IterationView() {
       identifier: item.identifier,
       subject: item.subject,
     });
-  }, [openWorkitem, cancelPreviewClick]);
+  }, [openWorkitem, cancelPeekSelect, cancelPreviewClick]);
 
   /** 复制文本到剪贴板并 toast 反馈 */
   const { copy: copyWithToast } = useClipboard();
@@ -389,11 +556,49 @@ export function IterationView() {
     selectAll,
     clear: clearSelection,
     hasSelected,
-  } = useBatchSelection(listContext.selectedWorkitemIds);
+    setSelectedIds,
+  } = useBatchSelection(useUi.getState().listContext.selectedWorkitemIds);
 
   useEffect(() => {
     updateListContext({ selectedWorkitemIds: [...selectedIds] });
   }, [selectedIds, updateListContext]);
+
+  // 迭代 / 类别 / 筛选变化时清空多选：多选集合不能跨上下文残留，否则批量流转会打到看不见的工作项。
+  const selectionScopeRef = useRef({ category, iterationKey, filterScopeKey });
+  useEffect(() => {
+    const previous = selectionScopeRef.current;
+    if (previous.category === category
+      && previous.iterationKey === iterationKey
+      && previous.filterScopeKey === filterScopeKey) return;
+    selectionScopeRef.current = { category, iterationKey, filterScopeKey };
+    clearSelection();
+  }, [category, clearSelection, filterScopeKey, iterationKey]);
+
+  // 恢复导航快照时与当前已加载/已筛选 items 求交，丢弃不属于本迭代的历史选中项。
+  const selectionPrunedRef = useRef(false);
+  useEffect(() => {
+    if (selectionPrunedRef.current || listFetchedAt == null) return;
+    selectionPrunedRef.current = true;
+    if (!selectedIds.size) return;
+    const visibleIds = new Set(filtered.map((item) => item.workitemId));
+    setSelectedIds((previous) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of previous) {
+        if (visibleIds.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : previous;
+    });
+  }, [filtered, listFetchedAt, selectedIds, setSelectedIds]);
+
+  // 批量条真正可作用的对象：仅当前页实际渲染的可见行（折叠组 / 其他页 / 其他迭代一律排除）。
+  const actionableSelectedIds = useMemo(() => {
+    const visibleIds = new Set(flatIds);
+    const next = new Set<string>();
+    for (const id of selectedIds) if (visibleIds.has(id)) next.add(id);
+    return next;
+  }, [flatIds, selectedIds]);
 
   // 行右键上下文菜单：{行数据, 视口坐标}；受控 DropdownMenu 以隐藏零尺寸 trigger 锚定到该坐标
   const [ctxMenu, setCtxMenu] = useState<{ item: WorkitemItem; x: number; y: number } | null>(null);
@@ -401,12 +606,14 @@ export function IterationView() {
   // 键盘光标：扁平可见行索引；ref 镜像供 keydown 闭包读取（避免逐键重绑监听器）
   const [cursor, setCursor] = useState(0);
   const cursorRef = useRef(0);
+  /** 挂载时的待恢复光标 ID（导航快照），之后不再订阅 listContext。 */
+  const initialCursorWorkitemIdRef = useRef(useUi.getState().listContext.cursorWorkitemId);
   const cursorInitializedRef = useRef(false);
   const pendingCursorIndexRef = useRef<number | null>(null);
   const isKeyboardNavRef = useRef(false);
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
   const listScrollRef = useRef<HTMLDivElement | null>(null);
-  const pendingRestoreScrollRef = useRef(restoreScroll);
+  const pendingRestoreScrollRef = useRef(useUi.getState().restoreScroll);
   const didRestoreScrollRef = useRef(false);
 
   // ---- 列表现场滚动的本地保存 / 恢复（单栏详情态与跨阈值切换共用）----
@@ -467,8 +674,8 @@ export function IterationView() {
   // 初次取得数据时按稳定工作项 ID 恢复光标；之后只随当前可见行收敛，不反复读取旧 ID。
   useEffect(() => {
     if (!cursorInitializedRef.current && (listFetchedAt == null || loadingList)) return;
-    const restoredIndex = !cursorInitializedRef.current && listContext.cursorWorkitemId
-      ? flatIds.indexOf(listContext.cursorWorkitemId)
+    const restoredIndex = !cursorInitializedRef.current && initialCursorWorkitemIdRef.current
+      ? flatIds.indexOf(initialCursorWorkitemIdRef.current)
       : -1;
     const nextCursor = restoredIndex >= 0
       ? restoredIndex
@@ -480,7 +687,7 @@ export function IterationView() {
     } else {
       pendingCursorIndexRef.current = null;
     }
-  }, [cursor, flatIds, applyCursor, listContext.cursorWorkitemId, listFetchedAt, loadingList]);
+  }, [cursor, flatIds, applyCursor, listFetchedAt, loadingList]);
 
   useEffect(() => {
     if (!cursorInitializedRef.current || listFetchedAt == null || (!flatIds.length && loadingList)) return;
@@ -544,18 +751,28 @@ export function IterationView() {
     if (!peekWorkitemId) return;
     // 钻取子任务/缺陷期间，若用户明确按 j/k 移动主列表光标，先清空钻取层级回到主列表项联动
     const currentItem = itemById.get(flatIds[cursor]);
-    if (currentItem && currentItem.workitemId !== peekWorkitemId) {
+    if (!currentItem || currentItem.workitemId === peekWorkitemId) return;
+    const targetId = currentItem.workitemId;
+    // 防抖：j/k 连按时只保留最后一跳，避免每个中间项都触发详情 + 追溯全量扇出
+    cancelPeekSelect();
+    peekSelectTimer.current = setTimeout(() => {
+      peekSelectTimer.current = null;
       setPeekParentWorkitemId(null);
-      setPeekWorkitemId(currentItem.workitemId);
-      void useApp.getState().select(currentItem.workitemId);
-    }
-  }, [cursor, flatIds, itemById, peekWorkitemId]);
+      setPeekWorkitemId(targetId);
+      if (useApp.getState().selectedId !== targetId) {
+        void useApp.getState().select(targetId);
+      }
+    }, 150);
+    return cancelPeekSelect;
+  }, [cancelPeekSelect, cursor, flatIds, itemById, peekWorkitemId]);
 
-  // 阶梯式 Esc（钻取优先于关抽屉）：抽屉内已钻取子工作项时，Esc 先退回父需求而非整个关抽屉。
+  // 阶梯式 Esc：钻取层优先于抽屉层。
+  // 第三优先级：抽屉内已钻取子工作项时，Esc 退回父需求且不关抽屉；
+  // 第四优先级：无钻取层时，Esc 关闭抽屉回到全宽列表。
   // 用捕获阶段监听先于 React Aria 的 document 级 Esc dismiss；抽屉之上有其他浮层（菜单/弹窗/Tooltip）
   // 或焦点在文本编辑中时不接管，交由对应浮层原生处理。
   useEffect(() => {
-    if (!peekWorkitemId || !peekParentWorkitemId) return;
+    if (!peekWorkitemId) return;
     const onKeyDownCapture = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
       if (isEditing(e.target)) return;
@@ -563,14 +780,21 @@ export function IterationView() {
       if (document.querySelector('[role="tooltip"]:not([data-closed]):not([hidden])')) return;
       e.preventDefault();
       e.stopPropagation();
-      const parentId = peekParentWorkitemId;
-      setPeekWorkitemId(parentId);
+      if (peekParentWorkitemId) {
+        const parentId = peekParentWorkitemId;
+        setPeekWorkitemId(parentId);
+        setPeekParentWorkitemId(null);
+        void useApp.getState().select(parentId);
+        return;
+      }
+      cancelPeekSelect();
+      cancelPreviewClick();
+      setPeekWorkitemId(null);
       setPeekParentWorkitemId(null);
-      void useApp.getState().select(parentId);
     };
     window.addEventListener('keydown', onKeyDownCapture, true);
     return () => window.removeEventListener('keydown', onKeyDownCapture, true);
-  }, [peekWorkitemId, peekParentWorkitemId]);
+  }, [cancelPeekSelect, cancelPreviewClick, peekWorkitemId, peekParentWorkitemId]);
 
   // 键盘导航（Linear 操作逻辑核心）：j/↓ k/↑ 循环移动光标，Enter 打开光标行，/ 聚焦筛选输入框。
   // 焦点在文本输入控件 / 命令面板打开时让路；右键菜单打开时按键归菜单（防弹层后方的幽灵光标移动与 Enter 双重动作）；
@@ -640,6 +864,80 @@ export function IterationView() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [flatIds, itemById, openDetail, applyCursor, ctxMenu, totalPages, peekWorkitemId, hasSelected, clearSelection, toggleSelect, selectAll]);
 
+  // 稳定的行回调：与 WorkitemRow memo 配合，j/k 光标移动 / CI 轮询时只重渲真正变化的行。
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+
+  const registerRow = useCallback((rowId: string, el: HTMLElement | null) => {
+    if (el) rowRefs.current.set(rowId, el);
+    else rowRefs.current.delete(rowId);
+  }, []);
+
+  const handleRowActivate = useCallback((item: WorkitemItem, flatIndex: number) => {
+    // RAC 会删除 ListBox.Item 的 DOM onClick，指针激活统一经 onAction 进入；与行点击共用延迟开抽屉，
+    // 保留原生双击语义（双击时由 onDoubleClick 取消挂起的预览 timer）。
+    cancelPreviewClick();
+    applyCursor(flatIndex);
+    clearSelection();
+    setSelectionAnchor(item.workitemId);
+    previewClickTimer.current = setTimeout(() => openDetail(item), ROW_PREVIEW_DELAY_MS);
+  }, [applyCursor, cancelPreviewClick, clearSelection, openDetail, setSelectionAnchor]);
+
+  const handleRowClick = useCallback((
+    e: React.MouseEvent,
+    item: WorkitemItem,
+    flatIndex: number,
+  ) => {
+    cancelPreviewClick();
+    applyCursor(flatIndex);
+    const isMultiSelectClick = e.metaKey || e.ctrlKey;
+    if (e.shiftKey) {
+      selectRange(flatIds, item.workitemId, isMultiSelectClick);
+      return;
+    }
+    if (isMultiSelectClick) {
+      toggleSelect(item.workitemId);
+      return;
+    }
+    clearSelection();
+    setSelectionAnchor(item.workitemId);
+    // Keep the row mounted long enough for a native double-click.
+    previewClickTimer.current = setTimeout(() => openDetail(item), ROW_PREVIEW_DELAY_MS);
+  }, [applyCursor, cancelPreviewClick, clearSelection, flatIds, openDetail, selectRange, setSelectionAnchor, toggleSelect]);
+
+  const handleRowDoubleClick = useCallback((item: WorkitemItem) => {
+    openInWorkbench(item);
+  }, [openInWorkbench]);
+
+  const handleRowKeyDown = useCallback((
+    e: React.KeyboardEvent,
+    item: WorkitemItem,
+    flatIndex: number,
+  ) => {
+    if (e.defaultPrevented || e.nativeEvent.isComposing) return;
+    const target = e.target as HTMLElement | null;
+    if (isEditing(target)) return;
+    if (target?.closest('button, a, input, select, textarea, [role="button"], [role="checkbox"]')) {
+      if (target !== e.currentTarget) return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      applyCursor(flatIndex);
+      openDetail(item);
+    }
+  }, [applyCursor, openDetail]);
+
+  const handleRowContextMenu = useCallback((
+    e: React.MouseEvent,
+    item: WorkitemItem,
+    flatIndex: number,
+  ) => {
+    e.preventDefault();
+    applyCursor(flatIndex);
+    if (!selectedIdsRef.current.has(item.workitemId)) selectOnly(item.workitemId);
+    setCtxMenu({ item, x: e.clientX, y: e.clientY });
+  }, [applyCursor, selectOnly]);
+
   // 工作项列表区块（全宽列表形态；详情检视统一走 Peek 抽屉，不再有分栏 master 形态）
   const renderWorkitemList = () => (
     <section aria-label="迭代工作项" className="flex flex-col gap-3 border-b border-border/70 pb-6">
@@ -681,165 +979,25 @@ export function IterationView() {
                   >
                   {group.items.map((item) => {
                     const rowId = rowKeyOf(item);
-                    const assignee = item.assignedTo && item.assignedTo !== '—' ? item.assignedTo : '';
-                    const isActive = flatIndexById.get(rowId) === cursor || item.workitemId === peekWorkitemId;
                     const match = matchWorkitemUser(item, currentUser, workitemHighlight);
                     return (
-                      <ListBox.Item
+                      <WorkitemRow
                         key={rowId}
-                        id={rowId}
-                        textValue={item.subject}
-                        ref={(el: HTMLElement | null) => {
-                          if (el) rowRefs.current.set(rowId, el);
-                          else rowRefs.current.delete(rowId);
-                        }}
-                        data-active={isActive}
-                        data-testid="workitem-row"
-                        data-identifier={item.identifier ?? ''}
-                        onAction={() => {
-                          applyCursor(flatIndexById.get(rowId) ?? 0);
-                          clearSelection();
-                          setSelectionAnchor(item.workitemId);
-                          openDetail(item);
-                        }}
-                        onClick={(e) => {
-                          cancelPreviewClick();
-                          applyCursor(flatIndexById.get(rowId) ?? 0);
-                          const isMultiSelectClick = e.metaKey || e.ctrlKey;
-                          if (e.shiftKey) {
-                            selectRange(flatIds, item.workitemId, isMultiSelectClick);
-                            return;
-                          }
-                          if (isMultiSelectClick) {
-                            toggleSelect(item.workitemId);
-                            return;
-                          }
-                          clearSelection();
-                          setSelectionAnchor(item.workitemId);
-                          // Keep the row mounted long enough for a native double-click.
-                          previewClickTimer.current = setTimeout(() => openDetail(item), ROW_PREVIEW_DELAY_MS);
-                        }}
-                        onDoubleClick={() => {
-                          openInWorkbench(item);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.defaultPrevented || e.nativeEvent.isComposing) return;
-                          const target = e.target as HTMLElement | null;
-                          if (isEditing(target)) return;
-                          if (target?.closest('button, a, input, select, textarea, [role="button"], [role="checkbox"]')) {
-                            if (target !== e.currentTarget) return;
-                          }
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            applyCursor(flatIndexById.get(rowId) ?? 0);
-                            openDetail(item);
-                          }
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          applyCursor(flatIndexById.get(rowId) ?? 0);
-                          if (!selectedIds.has(item.workitemId)) selectOnly(item.workitemId);
-                          setCtxMenu({ item, x: e.clientX, y: e.clientY });
-                        }}
-                        className={cn(
-                          'group relative flex w-full cursor-pointer items-center gap-2.5 rounded-md text-left transition-colors min-h-0',
-                          'hover:bg-muted/60',
-                          'data-[active=true]:bg-muted-bg',
-                          'h-10 px-2.5 pl-3',
-                        )}
-                      >
-                        {/* 检视光标 / 参与人 / 处理人左侧精致标识线 */}
-                        {match.isAssigned ? (
-                          <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-primary" />
-                        ) : match.isRelated ? (
-                          <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-warning" />
-                        ) : isActive ? (
-                          <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-r-full bg-primary/70" />
-                        ) : null}
-
-                        {/* 多选 Checkbox（Linear 风格：悬停滑出，已选常驻）
-                            注意：HeroUI Checkbox 是包裹隐藏 input 的 label，一次点击会冒泡
-                            两个 click（原始 + label→input 转发），切换必须挂 onCheckedChange
-                            （由 input change 驱动，恰好一次），span 仅负责 stopPropagation
-                            屏蔽行点击（打开抽屉/清空多选）。 */}
-                        <span
-                          onClick={(e) => e.stopPropagation()}
-                          className={cn(
-                            'flex size-4 shrink-0 items-center justify-center cursor-pointer transition-opacity',
-                            selectedIds.has(item.workitemId) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
-                          )}
-                        >
-                          <Checkbox
-                            checked={selectedIds.has(item.workitemId)}
-                            onCheckedChange={() => toggleSelect(item.workitemId)}
-                            aria-label={`选择 ${item.identifier}`}
-                          />
-                        </span>
-
-                        {/* 原地流转状态下拉 Popover */}
-                        <RowStatusDropdown item={item} />
-
-                        {/* 编号 */}
-                        <span
-                          className={cn(
-                            'shrink-0 font-mono text-xs transition-colors',
-                            isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
-                          )}
-                          title={item.identifier}
-                        >
-                          {item.identifier}
-                        </span>
-
-                        {/* 身份匹配高亮徽标（HeroUI Chip 规范） */}
-                        {match.isAssigned ? (
-                          <Chip
-                            size="sm"
-                            variant="soft"
-                            color="accent"
-                            className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-sm select-none"
-                          >
-                            我负责
-                          </Chip>
-                        ) : match.isRelated ? (
-                          <Chip
-                            size="sm"
-                            variant="soft"
-                            color="warning"
-                            className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-sm select-none"
-                          >
-                            我参与
-                          </Chip>
-                        ) : null}
-
-                        {/* 标题 */}
-                        <OverflowTooltip
-                          text={item.subject}
-                          title={item.subject}
-                          className={cn(
-                            'min-w-0 flex-1 truncate text-[13px] transition-colors',
-                            isActive ? 'text-foreground font-semibold' : 'text-foreground/90 font-medium'
-                          )}
-                        />
-
-                        {/* 右侧信息 */}
-                        <span className={cn(
-                          'ml-auto flex shrink-0 items-center gap-2 text-xs transition-colors',
-                          isActive ? 'text-foreground/80' : 'text-muted-foreground'
-                        )}>
-                          <span
-                            className="hidden tabular-nums md:block"
-                            title={item.updatedAt ? `更新时间：${item.updatedAt}` : undefined}
-                          >
-                            {item.updatedAt?.slice(5, 10) || '—'}
-                          </span>
-                          <UserAvatar
-                            name={assignee}
-                            isAssigned={match.isAssigned}
-                            size="sm"
-                            showName={false}
-                          />
-                        </span>
-                      </ListBox.Item>
+                        item={item}
+                        rowId={rowId}
+                        flatIndex={flatIndexById.get(rowId) ?? 0}
+                        isActive={flatIndexById.get(rowId) === cursor || item.workitemId === peekWorkitemId}
+                        isSelected={selectedIds.has(item.workitemId)}
+                        isAssigned={match.isAssigned}
+                        isRelated={match.isRelated}
+                        registerRow={registerRow}
+                        onActivate={handleRowActivate}
+                        onClick={handleRowClick}
+                        onDoubleClick={handleRowDoubleClick}
+                        onKeyDown={handleRowKeyDown}
+                        onContextMenu={handleRowContextMenu}
+                        onToggleSelect={toggleSelect}
+                      />
                     );
                   })}
                 </ListBox>
@@ -901,8 +1059,8 @@ export function IterationView() {
 
   const copyContextSelection = (field: 'identifier' | 'subject', singleItemMessage: string) => {
     if (!ctxMenu) return;
-    const targets = selectedIds.has(ctxMenu.item.workitemId)
-      ? items.filter((item) => selectedIds.has(item.workitemId))
+    const targets = actionableSelectedIds.has(ctxMenu.item.workitemId)
+      ? items.filter((item) => actionableSelectedIds.has(item.workitemId))
       : [ctxMenu.item];
     const copiedText = targets.map((item) => item[field]).filter(Boolean).join('\n');
     const successMessage = targets.length > 1 ? `已复制 ${targets.length} 项` : singleItemMessage;
@@ -963,30 +1121,34 @@ export function IterationView() {
   );
 
   // 底部浮动批量操作条（Linear 式 Floating Batch Bar）
-  const batchBarNode = <FloatingBatchBar selectedIds={selectedIds} onClear={clearSelection} />;
+  const batchBarNode = <FloatingBatchBar selectedIds={actionableSelectedIds} onClear={clearSelection} />;
 
   /** 收起 Peek 抽屉回到全宽列表（Esc / 关闭按钮 / 全屏打开共用）：只清抽屉选择，列表其余现场不动 */
   const closePeekDrawer = useCallback(() => {
+    cancelPeekSelect();
     setPeekWorkitemId(null);
     setPeekParentWorkitemId(null);
-  }, []);
+  }, [cancelPeekSelect]);
 
   /** 钻取子工作项：抽屉内容切换为子项并记录父级（Esc / 面包屑逐层退回） */
   const handleSelectChild = useCallback((child: WorkitemChild) => {
+    cancelPeekSelect();
     setPeekParentWorkitemId(peekWorkitemId);
     setPeekWorkitemId(child.workitemId);
     void useApp.getState().select(child.workitemId);
-  }, [peekWorkitemId]);
+  }, [cancelPeekSelect, peekWorkitemId]);
 
   /** 从子项详情退回父需求 */
   const handleSelectParent = useCallback((parentId: string) => {
+    cancelPeekSelect();
     setPeekWorkitemId(parentId);
     setPeekParentWorkitemId(null);
     void useApp.getState().select(parentId);
-  }, []);
+  }, [cancelPeekSelect]);
 
   /** 抽屉内「全屏打开」：转入独立工作台并收起抽屉（钻取的子项不在主列表时按面包屑参数兜底） */
   const handlePeekOpenWorkbench = useCallback((id: string, identifier?: string, subject?: string) => {
+    cancelPeekSelect();
     const item = itemById.get(id);
     setPeekParentWorkitemId(null);
     if (item) {
@@ -995,7 +1157,7 @@ export function IterationView() {
     }
     setPeekWorkitemId(null);
     openWorkitem(id, { workitemId: id, identifier: identifier ?? '', subject });
-  }, [itemById, openInWorkbench, openWorkitem]);
+  }, [cancelPeekSelect, itemById, openInWorkbench, openWorkitem]);
 
   // 全宽模式：居中单栏浏览形态（单栏窄窗下页头 compact 化）；详情检视统一为右侧 Peek 抽屉
   const fullWidthView = (
@@ -1011,7 +1173,6 @@ export function IterationView() {
         density={singleColumn ? 'compact' : 'regular'}
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="迭代"
-        titleClassName="text-sm font-semibold tracking-tight text-foreground"
         actions={(
           <div className="flex shrink-0 items-center gap-2">
             <Tabs

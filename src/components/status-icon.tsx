@@ -7,8 +7,8 @@ import { statusMeta, type StatusTone } from './StatusBadge';
  * - idle  → 灰色虚线圆（Backlog/Todo）
  * - run   → 黄色半充圆（In Progress，Linear 标志性图形）
  * - fail  → 红色实心圆 + 白叉
- * - ok    → 靛蓝实心圆 + 白勾（Done，Linear 品牌紫 #5e6ad2）
- * 颜色取自 Linear 状态盘，不走主题 token（状态色是全局常量，不随主题翻转）。
+ * - ok    → 成功绿实心圆 + 白勾（Done，emerald #30a46c）
+ * 颜色一律走主题语义 token（sig-ok / sig-fail / sig-run / sig-idle），不随主题翻转。
  */
 
 /** 进行中：左半充圆（Linear In Progress 图形） */
@@ -21,15 +21,15 @@ function HalfCircle({ className }: { className?: string }) {
   );
 }
 
-/** 已完成：实心品牌紫圆 + 白勾（Linear Done 图形） */
+/** 已完成：成功绿实心圆 + 白勾（Linear Done 图形，成功语义用 emerald 而非品牌紫） */
 function DoneCircle({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 14 14" className={className} aria-hidden="true">
-      <circle cx="7" cy="7" r="6" className="fill-primary" />
+      <circle cx="7" cy="7" r="6" className="fill-sig-ok" />
       <path
         d="M4.4 7.3 L6.1 9 L9.6 5.3"
         stroke="currentColor"
-        className="text-primary-foreground"
+        className="text-success-foreground"
         strokeWidth="1.5"
         fill="none"
         strokeLinecap="round"

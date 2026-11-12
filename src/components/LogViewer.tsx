@@ -88,7 +88,11 @@ export function LogViewerContent({
   onBack?: () => void;
   onClose?: () => void;
 } = {}) {
-  const { logView, closeLogs, refreshRepoCiLogs, setToast } = useApp();
+  // 只订阅日志视图与稳定 action，避免其他 slice 的高频 set 触发日志树重渲。
+  const logView = useApp((s) => s.logView);
+  const closeLogs = useApp((s) => s.closeLogs);
+  const refreshRepoCiLogs = useApp((s) => s.refreshRepoCiLogs);
+  const setToast = useApp((s) => s.setToast);
   const contentRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const followLatestRef = useRef(true);
@@ -542,7 +546,8 @@ export function LogViewerContent({
 
 /** 兼容旧调用方：日志内容现在由 BuildWorkbenchDrawer 统一承载。 */
 export function LogViewer() {
-  const { logView, closeLogs } = useApp();
+  const logView = useApp((s) => s.logView);
+  const closeLogs = useApp((s) => s.closeLogs);
   return (
     <Drawer open={!!logView} onOpenChange={(open) => { if (!open) closeLogs(); }} swipeDirection="right">
       <DrawerContent className="w-full sm:w-[560px] md:w-[600px] lg:w-[640px] sm:max-w-none">

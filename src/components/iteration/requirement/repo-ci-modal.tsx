@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { WorkflowIcon, Loader2Icon, CheckIcon, Trash2Icon } from 'lucide-react';
 import type { RepoSummary, RepoCiBinding } from '@/types';
 import { useApp } from '@/store/app';
+import { useShallow } from 'zustand/react/shallow';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { humanizeError } from '@/lib/error-format';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,16 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
     loadPipelines,
     saveRepoCiBinding,
     setToast,
-  } = useApp();
+  } = useApp(
+    useShallow((s) => ({
+      settings: s.settings,
+      pipelines: s.pipelines,
+      loadingPipelines: s.loadingPipelines,
+      loadPipelines: s.loadPipelines,
+      saveRepoCiBinding: s.saveRepoCiBinding,
+      setToast: s.setToast,
+    })),
+  );
 
   const savedBinding = settings?.repoCiBindings?.[String(repo.id)] ?? null;
   const [binding, setBinding] = useState<RepoCiBinding | null>(savedBinding);

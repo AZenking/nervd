@@ -175,7 +175,7 @@ export function BuildProgressBar({
 
         <div className="flex items-center gap-2">
           {hasEstimate && !isOvertime && (
-            <span className="text-muted/80">
+            <span className="text-muted">
               剩余约 <span className="text-foreground/90 font-medium">{remainingText}</span>
             </span>
           )}

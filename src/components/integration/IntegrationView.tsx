@@ -378,7 +378,6 @@ export function IntegrationView() {
         sticky
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="集成分支"
-        titleClassName="text-sm font-semibold tracking-tight text-foreground"
         actions={
           <Tooltip>
             <Button
@@ -634,7 +633,7 @@ export function IntegrationView() {
                                 className={cn(
                                   'flex items-center gap-1 tabular-nums',
                                   row.comparing
-                                    ? 'text-muted-foreground/60'
+                                    ? 'text-muted-foreground'
                                     : diverged
                                       ? 'text-foreground font-medium'
                                       : 'text-muted-foreground',

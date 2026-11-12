@@ -214,7 +214,12 @@ export function ChildrenCard({
   onSelect,
   footnote,
 }: ChildrenCardProps) {
-  const { settings, setToast, loadChildren, addOptimisticChild, reloadComments } = useApp();
+  // 只订阅需要的字段与稳定 action：避免日志 / CI 轮询等高频 set 触发子项卡片整块重渲。
+  const settings = useApp((s) => s.settings);
+  const setToast = useApp((s) => s.setToast);
+  const loadChildren = useApp((s) => s.loadChildren);
+  const addOptimisticChild = useApp((s) => s.addOptimisticChild);
+  const reloadComments = useApp((s) => s.reloadComments);
   const openSettings = useUi((s) => s.openSettings);
   const allowWriteOps = settings?.allowWriteOps ?? false;
 
@@ -881,6 +886,11 @@ export function ChildrenCard({
       {!items.length && error && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-xs text-destructive">
           {title}加载失败：{error}
+        </div>
+      )}
+      {items.length > 0 && error && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-xs text-destructive">
+          刷新{title}列表失败，当前显示的是上次数据：{error}
         </div>
       )}
       {items.length > 0 && footnote && (

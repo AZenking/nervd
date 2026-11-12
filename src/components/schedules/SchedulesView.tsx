@@ -6,11 +6,11 @@ import {
   ClockIcon,
   FileTextIcon,
   FolderGit2Icon,
+  LockIcon,
   GitBranchIcon,
   GitCompareIcon,
   GitMergeIcon,
   PencilIcon,
-  PlayCircleIcon,
   PlusIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -35,6 +35,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ListBox } from '@/components/ui/list-box';
 import { EmptyHint } from '@/components/empty-hint';
 import { ConfirmButton } from '@/components/ConfirmButton';
+import { READONLY_BTN_CLASS, WriteOpButton } from '@/components/WriteOpButton';
 import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScheduleEditorDrawer } from './ScheduleEditorDrawer';
@@ -43,6 +44,8 @@ import { RecentMergeChangesPreview } from './RecentMergeChangesPreview';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { useScheduleStore } from '@/store/schedule';
 import { useApp } from '@/store/app';
+import { useUi } from '@/store/ui';
+import { toast } from '@/components/ui/toast';
 import { runTaskNow } from '@/hooks/use-schedule-runner';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { formatCompactDateTime } from '@/lib/format';
@@ -76,6 +79,8 @@ export function SchedulesView() {
 
   const repositories = useApp((s) => s.repositories);
   const pipelines = useApp((s) => s.pipelines);
+  const allowWriteOps = useApp((s) => s.settings?.allowWriteOps ?? false);
+  const openSettings = useUi((s) => s.openSettings);
 
   // Quick stats
   const activeCount = useMemo(() => tasks.filter((t) => t.enabled).length, [tasks]);
@@ -143,6 +148,23 @@ export function SchedulesView() {
     }
   };
 
+  /** 只读门控：任务启停同样是写操作，禁止静默失败（Toast + 前往设置） */
+  const handleToggleTask = (task: ScheduledTask) => {
+    if (!allowWriteOps) {
+      toast.add({
+        title: '当前处于只读模式',
+        description: `「${task.enabled ? '暂停' : '启用'}定时任务」是写操作。可在「设置 → 安全」中开启写权限后执行。`,
+        type: 'warning',
+        actionProps: {
+          children: '前往设置',
+          onClick: () => openSettings('security'),
+        },
+      });
+      return;
+    }
+    toggleTask(task.id);
+  };
+
   const handleOpenEdit = (task: ScheduledTask) => {
     setEditingTask(task);
     setEditorOpen(true);
@@ -168,7 +190,6 @@ export function SchedulesView() {
         density="compact"
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="定时任务工作台"
-        titleClassName="text-sm font-semibold tracking-tight text-foreground"
         titleBadge={
           <Chip
             size="sm"
@@ -296,6 +317,7 @@ export function SchedulesView() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索任务名称、分支、Cron..."
+                aria-label="搜索定时任务"
                 className="h-8 pl-8 pr-7 text-xs"
               />
               {search && (
@@ -440,7 +462,7 @@ export function SchedulesView() {
                           ) : task.lastStatus === 'failed' ? (
                             <XCircleIcon className="size-4 text-destructive" />
                           ) : (
-                            <div className="size-2.5 rounded-full bg-muted-foreground/40 m-0.5" />
+                            <div className="size-2.5 rounded-full bg-sig-idle m-0.5" />
                           )}
                         </div>
 
@@ -477,7 +499,7 @@ export function SchedulesView() {
                           )}
 
                           {task.description && (
-                            <p className="text-xs text-muted-foreground/80 truncate max-w-xl">
+                            <p className="text-xs text-muted-foreground truncate max-w-xl">
                               {task.description}
                             </p>
                           )}
@@ -493,7 +515,7 @@ export function SchedulesView() {
                               </span>
                             )}
                             {task.nextRunAt && task.enabled && !globalPaused && (
-                              <span className="text-primary/90">
+                              <span className="text-primary">
                                 预计下次：{formatCompactDateTime(task.nextRunAt)}
                               </span>
                             )}
@@ -508,42 +530,66 @@ export function SchedulesView() {
 
                       {/* 右侧动作操作位 */}
                       <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={isRunning || globalPaused}
-                                onClick={() => handleRunNow(task)}
-                                className="h-7 text-xs hover:bg-muted font-medium"
-                                title="立即执行此任务一次"
-                                aria-label="立即执行此任务一次"
-                              >
-                                {isRunning ? (
-                                  <Spinner className="mr-1.5 size-3.5" />
-                                ) : (
-                                  <PlayCircleIcon className="mr-1.5 size-3.5 text-primary" />
-                                )}
-                                立即运行
-                              </Button>
-                            }
-                          />
-                          <TooltipContent>立即执行此任务一次</TooltipContent>
-                        </Tooltip>
+                        <WriteOpButton
+                          label={isRunning ? '运行中…' : '立即运行'}
+                          title="立即执行此任务一次"
+                          confirmLabel="确认立即运行"
+                          variant="ghost"
+                          disabled={isRunning || globalPaused}
+                          disabledReason={
+                            globalPaused ? '调度器已全局暂停，恢复调度后才能运行' : '任务正在执行中'
+                          }
+                          onAction={() => handleRunNow(task)}
+                        />
 
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Switch
-                                checked={task.enabled}
-                                onCheckedChange={() => toggleTask(task.id)}
-                                aria-label={task.enabled ? '点击暂停此任务' : '点击启用此任务'}
-                              />
-                            }
-                          />
-                          <TooltipContent>{task.enabled ? '点击暂停此任务' : '点击启用此任务'}</TooltipContent>
-                        </Tooltip>
+                        {allowWriteOps ? (
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Switch
+                                  checked={task.enabled}
+                                  onCheckedChange={() => handleToggleTask(task)}
+                                  aria-label={task.enabled ? '点击暂停此任务' : '点击启用此任务'}
+                                />
+                              }
+                            />
+                            <TooltipContent>
+                              {task.enabled ? '点击暂停此任务' : '点击启用此任务'}
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          /* 只读：用 aria-disabled 的门控按钮替代 Switch，保留悬停/聚焦与点击告警，
+                             绿点/灰点继续表达启用态，锁图标表达不可写 */
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-disabled="true"
+                                  aria-label={
+                                    task.enabled
+                                      ? '任务已启用；只读模式下无法暂停'
+                                      : '任务已暂停；只读模式下无法启用'
+                                  }
+                                  className={cn('size-7 gap-0.5', READONLY_BTN_CLASS)}
+                                  onPress={() => handleToggleTask(task)}
+                                >
+                                  <span
+                                    className={cn(
+                                      'size-1.5 rounded-full',
+                                      task.enabled ? 'bg-sig-ok' : 'bg-sig-idle',
+                                    )}
+                                  />
+                                  <LockIcon className="size-3" />
+                                </Button>
+                              }
+                            />
+                            <TooltipContent>
+                              写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
 
                         <Tooltip>
                           <TooltipTrigger

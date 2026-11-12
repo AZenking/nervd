@@ -194,6 +194,30 @@ describe('addOptimisticChild and loadChildren optimistic merge', () => {
   });
 });
 
+describe('loadChildren truncated / failure', () => {
+  it('截断标记写入 state；请求失败时记录错误而非静默空列表', async () => {
+    useApp.setState({ selectedId: null, children: [], childrenTruncated: false, childrenError: null });
+    vi.mocked(api.listWorkitemChildren).mockResolvedValueOnce({
+      items: [{
+        workitemId: 'wi-sub-trunc',
+        identifier: 'TASK-201',
+        subject: '最近子项',
+        category: 'Task',
+        status: '待办',
+      }],
+      truncated: true,
+    } as never);
+    await useApp.getState().loadChildren('wi-req-trunc');
+    expect(useApp.getState().childrenTruncated).toBe(true);
+    expect(useApp.getState().children).toHaveLength(1);
+
+    vi.mocked(api.listWorkitemChildren).mockRejectedValueOnce(new Error('children boom'));
+    await useApp.getState().loadChildren('wi-req-trunc');
+    expect(useApp.getState().childrenError).toContain('children boom');
+    expect(useApp.getState().childrenTruncated).toBe(false);
+  });
+});
+
 describe('updateWorkitemAssigneeOptimistic', () => {
   it('成功路径：detail、items、children 乐观更新新负责人，调用 API，并给出 ok Toast', async () => {
     vi.mocked(api.updateWorkitem).mockResolvedValue({ success: true } as never);

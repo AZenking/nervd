@@ -23,7 +23,8 @@ const row = (id: string, over: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // reset 而非 clear：清掉上一用例遗留的 mockResolvedValueOnce 队列，避免跨用例串数据。
+  vi.resetAllMocks();
 });
 
 describe('OverviewSlice', () => {
@@ -48,6 +49,26 @@ describe('OverviewSlice', () => {
     expect(state.loadedCount).toBe(3);
     expect(state.complete).toBe(true);
     expect(state.status).toBe('success');
+  });
+
+  it('超过最大页数 / 条数时停止拉取并一次写入，标记未加载完整', async () => {
+    const store = createAppStore();
+    store.setState({ settings: settings('space-1') });
+    for (let page = 1; page <= 6; page += 1) {
+      vi.mocked(api.listWorkitems).mockResolvedValueOnce({
+        items: [row(`p${page}`)],
+        nextToken: String(page + 1),
+      } as never);
+    }
+
+    await store.getState().loadOverviewCategory('Req');
+
+    const state = store.getState().overviewByCategory.Req;
+    expect(api.listWorkitems).toHaveBeenCalledTimes(5);
+    expect(state.items).toHaveLength(5);
+    expect(state.complete).toBe(false);
+    expect(state.status).toBe('success');
+    expect(state.nextToken).toBe('6');
   });
 
   it('分页失败时保留已经加载的数据并标记 partial', async () => {

@@ -29,10 +29,15 @@ export function SettingsAutoSaveStatus() {
   }
 
   if (autoSaveStatus === 'error') {
-    const errorCount = Object.keys(fieldErrors).length;
+    const errorKeys = Object.keys(fieldErrors);
+    const errorCount = errorKeys.length;
+    // AI 端点为独立保存通道：重试按钮走的是设置草稿保存，对 AI 字段无效；
+    // 改为仅展示错误，用户修正端点后失焦/停止输入会自动重试。
+    const aiOnly = errorKeys.length > 0 && errorKeys.every((key) => key.startsWith('ai-'));
     const errorMessages = Object.entries(fieldErrors).map(([key, msg]) => {
       let label = '配置项';
       if (key === 'space') label = '默认项目空间';
+      else if (key.startsWith('ai-')) label = 'AI 设置';
       else if (key.startsWith('jenkins-')) label = 'Jenkins 实例';
       else if (key.startsWith('repo-')) label = '仓库 CI 绑定';
       return `${label}: ${msg}`;
@@ -48,7 +53,7 @@ export function SettingsAutoSaveStatus() {
           <Tooltip.Content offset={4} placement="bottom end" className="max-w-xs flex flex-col gap-1 text-[11px]">
             <span className="font-semibold text-destructive-foreground">保存未完成：</span>
             {errorMessages.length > 0 ? (
-              <ul className="list-disc pl-3 text-muted-foreground/90 space-y-0.5">
+              <ul className="list-disc pl-3 text-muted-foreground space-y-0.5">
                 {errorMessages.map((msg, i) => (
                   <li key={i} className="truncate" title={msg}>{msg}</li>
                 ))}
@@ -58,17 +63,19 @@ export function SettingsAutoSaveStatus() {
             )}
           </Tooltip.Content>
         </Tooltip>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onPress={() => void retrySave()}
-          className="h-5 gap-1 px-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/10"
-          aria-label="重新尝试保存"
-        >
-          <RotateCcwIcon className="size-2.5" />
-          <span>重试</span>
-        </Button>
+        {!aiOnly && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onPress={() => void retrySave()}
+            className="h-5 gap-1 px-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+            aria-label="重新尝试保存"
+          >
+            <RotateCcwIcon className="size-2.5" />
+            <span>重试</span>
+          </Button>
+        )}
       </div>
     );
   }

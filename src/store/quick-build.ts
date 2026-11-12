@@ -165,6 +165,8 @@ interface QuickBuildState {
 }
 
 let activePollTimer: ReturnType<typeof setInterval> | null = null;
+/** 轮询重入锁：上一轮尚未 await 完成时跳过本轮，避免重复请求与旧快照回写。 */
+let pollInFlight = false;
 
 export const useQuickBuild = create<QuickBuildState>((set, get) => ({
   history: loadStoredHistory(),
@@ -226,7 +228,7 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
   },
 
   dismissTrackedBuild(id) {
-    set({ trackedBuilds: get().trackedBuilds.filter((b) => b.id !== id) });
+    set((state) => ({ trackedBuilds: state.trackedBuilds.filter((b) => b.id !== id) }));
   },
 
   updateTrackedEstimatedDuration(id, estimatedDurationMs) {
@@ -417,186 +419,183 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
   },
 
   async pollTrackedBuilds() {
-    const list = get().trackedBuilds;
-    const active = list.filter((b) => b.state === 'queued' || b.state === 'running');
+    // 防重入：定时器与手动刷新可能并发触发，重复请求会让同一批记录被查询/回写多次。
+    if (pollInFlight) return;
+    const active = get().trackedBuilds.filter((b) => b.state === 'queued' || b.state === 'running');
     if (active.length === 0) return;
 
-    const now = Date.now();
-    let updatedAny = false;
-    const nextList = [...list];
+    pollInFlight = true;
+    try {
+      const now = Date.now();
+      // 只收集本轮字段补丁，结束时按 id 合并到「最新」state：
+      // 等待网络期间被 dismiss 的记录不会复活，期间新触发的记录也不会被旧快照整体覆盖。
+      const patches = new Map<string, Partial<TrackedBuild>>();
+      const patchOf = (id: string, patch: Partial<TrackedBuild>) => {
+        patches.set(id, { ...patches.get(id), ...patch });
+      };
 
-    for (let i = 0; i < nextList.length; i++) {
-      const item = nextList[i];
-      if (item.state !== 'queued' && item.state !== 'running') continue;
+      for (const item of active) {
+        if (item.target.type === 'jenkins' && item.target.connectionId && item.target.jobFullName) {
+          if (item.state === 'queued') {
+            // 1. 排队超时检测
+            if (now - item.submittedAt > QUEUE_TIMEOUT_MS && !item.queueTimeout) {
+              patchOf(item.id, {
+                queueTimeout: true,
+                statusText: '排队超时 · 等待 Jenkins 空闲执行器',
+              });
+            }
 
-      if (item.target.type === 'jenkins' && item.target.connectionId && item.target.jobFullName) {
-        if (item.state === 'queued') {
-          // 1. 排队超时检测
-          if (now - item.submittedAt > QUEUE_TIMEOUT_MS && !item.queueTimeout) {
-            nextList[i] = {
-              ...item,
-              queueTimeout: true,
-              statusText: '排队超时 · 等待 Jenkins 空闲执行器',
-            };
-            updatedAny = true;
-          }
-
-          // 2. 检查队列项状态
-          if (item.queueId) {
-            try {
-              const qInfo = await api.getJenkinsQueueItem(item.target.connectionId, item.queueId);
-              if (qInfo.executableNumber) {
-                const runId = String(qInfo.executableNumber);
-                nextList[i] = {
-                  ...item,
-                  state: 'running',
-                  runId,
-                  runNumber: runId,
-                  startedAt: now,
-                  queueTimeout: false,
-                  statusText: '正在构建',
-                };
-                if (!item.estimatedDurationMs) {
-                  const targetRef = item.target;
-                  const itemId = item.id;
-                  void fetchJobEstimate(targetRef, runId).then((dur) => {
-                    if (dur) {
-                      get().updateTrackedEstimatedDuration(itemId, dur);
-                    }
+            // 2. 检查队列项状态
+            if (item.queueId) {
+              try {
+                const qInfo = await api.getJenkinsQueueItem(item.target.connectionId, item.queueId);
+                if (qInfo.executableNumber) {
+                  const runId = String(qInfo.executableNumber);
+                  patchOf(item.id, {
+                    state: 'running',
+                    runId,
+                    runNumber: runId,
+                    startedAt: now,
+                    queueTimeout: false,
+                    statusText: '正在构建',
                   });
+                  if (!item.estimatedDurationMs) {
+                    const targetRef = item.target;
+                    const itemId = item.id;
+                    void fetchJobEstimate(targetRef, runId).then((dur) => {
+                      if (dur) {
+                        get().updateTrackedEstimatedDuration(itemId, dur);
+                      }
+                    });
+                  }
+                  continue;
+                } else if (qInfo.cancelled) {
+                  patchOf(item.id, {
+                    state: 'canceled',
+                    completedAt: now,
+                    statusText: '已在队列中取消',
+                  });
+                  continue;
+                } else if (qInfo.leftQueue) {
+                  // 已离开队列，查询最新 runs 匹配
+                  const runs = await api.getJenkinsJobRuns(item.target.connectionId, item.target.jobFullName, 6);
+                  const prevDuration = extractSuccessDuration(runs);
+                  if (prevDuration) {
+                    setCachedEstimate(getEstimateKey(item.target), prevDuration);
+                  }
+                  const latest = runs[0];
+                  if (latest) {
+                    const tone = statusMeta(latest.status).tone;
+                    const state: BuildState = tone === 'run' ? 'running' : tone === 'ok' ? 'success' : tone === 'fail' ? 'fail' : 'unknown';
+                    const actualDuration = (typeof latest.durationMs === 'number' && latest.durationMs > 3000)
+                      ? latest.durationMs
+                      : (now - (latest.startTime || item.startedAt || item.submittedAt));
+                    if (state === 'success' && actualDuration > 3000) {
+                      setCachedEstimate(getEstimateKey(item.target), actualDuration);
+                    }
+                    patchOf(item.id, {
+                      state,
+                      runId: latest.runId,
+                      runNumber: latest.runId,
+                      startedAt: latest.startTime || now,
+                      completedAt: state !== 'running' ? now : undefined,
+                      estimatedDurationMs: item.estimatedDurationMs || prevDuration || null,
+                      statusText: state === 'running' ? '正在构建' : state === 'success' ? '构建成功' : '构建失败',
+                    });
+                    continue;
+                  }
                 }
-                updatedAny = true;
-                continue;
-              } else if (qInfo.cancelled) {
-                nextList[i] = {
-                  ...item,
-                  state: 'canceled',
-                  completedAt: now,
-                  statusText: '已在队列中取消',
-                };
-                updatedAny = true;
-                continue;
-              } else if (qInfo.leftQueue) {
-                // 已离开队列，查询最新 runs 匹配
-                const runs = await api.getJenkinsJobRuns(item.target.connectionId, item.target.jobFullName, 6);
-                const prevDuration = extractSuccessDuration(runs);
-                if (prevDuration) {
-                  setCachedEstimate(getEstimateKey(item.target), prevDuration);
+              } catch {
+                // 忽略轮询单次网络抖动
+              }
+            }
+          } else if (item.state === 'running' && item.runId) {
+            try {
+              const runs = await api.getJenkinsJobRuns(item.target.connectionId, item.target.jobFullName, 6);
+              const prevDuration = extractSuccessDuration(runs, item.runId);
+              if (prevDuration) {
+                setCachedEstimate(getEstimateKey(item.target), prevDuration);
+                if (!item.estimatedDurationMs) {
+                  patchOf(item.id, { estimatedDurationMs: prevDuration });
                 }
-                const latest = runs[0];
-                if (latest) {
-                  const tone = statusMeta(latest.status).tone;
-                  const state: BuildState = tone === 'run' ? 'running' : tone === 'ok' ? 'success' : tone === 'fail' ? 'fail' : 'unknown';
-                  const actualDuration = (typeof latest.durationMs === 'number' && latest.durationMs > 3000)
-                    ? latest.durationMs
-                    : (now - (latest.startTime || item.startedAt || item.submittedAt));
+              }
+              const matched = runs.find((r) => r.runId === item.runId) || runs[0];
+              if (matched) {
+                const tone = statusMeta(matched.status).tone;
+                if (tone !== 'run') {
+                  const state: BuildState = tone === 'ok' ? 'success' : tone === 'fail' ? 'fail' : 'canceled';
+                  const actualDuration = (typeof matched.durationMs === 'number' && matched.durationMs > 3000)
+                    ? matched.durationMs
+                    : (now - (item.startedAt || item.submittedAt));
                   if (state === 'success' && actualDuration > 3000) {
                     setCachedEstimate(getEstimateKey(item.target), actualDuration);
                   }
-                  nextList[i] = {
-                    ...item,
+                  patchOf(item.id, {
                     state,
-                    runId: latest.runId,
-                    runNumber: latest.runId,
-                    startedAt: latest.startTime || now,
-                    completedAt: state !== 'running' ? now : undefined,
-                    estimatedDurationMs: item.estimatedDurationMs || prevDuration || null,
-                    statusText: state === 'running' ? '正在构建' : state === 'success' ? '构建成功' : '构建失败',
-                  };
-                  updatedAny = true;
-                  continue;
+                    completedAt: now,
+                    statusText: state === 'success' ? '构建成功' : state === 'fail' ? '构建失败' : '构建结束',
+                  });
                 }
               }
             } catch {
-              // 忽略轮询单次网络抖动
+              // 忽略
             }
           }
-        } else if (item.state === 'running' && item.runId) {
-          try {
-            const runs = await api.getJenkinsJobRuns(item.target.connectionId, item.target.jobFullName, 6);
-            const prevDuration = extractSuccessDuration(runs, item.runId);
-            if (prevDuration) {
-              setCachedEstimate(getEstimateKey(item.target), prevDuration);
-              if (!nextList[i].estimatedDurationMs) {
-                nextList[i] = {
-                  ...nextList[i],
-                  estimatedDurationMs: prevDuration,
-                };
-                updatedAny = true;
-              }
-            }
-            const matched = runs.find((r) => r.runId === item.runId) || runs[0];
-            if (matched) {
-              const tone = statusMeta(matched.status).tone;
-              if (tone !== 'run') {
-                const state: BuildState = tone === 'ok' ? 'success' : tone === 'fail' ? 'fail' : 'canceled';
-                const actualDuration = (typeof matched.durationMs === 'number' && matched.durationMs > 3000)
-                  ? matched.durationMs
-                  : (now - (item.startedAt || item.submittedAt));
-                if (state === 'success' && actualDuration > 3000) {
-                  setCachedEstimate(getEstimateKey(item.target), actualDuration);
+        } else if (item.target.type === 'flow' && item.target.pipelineId) {
+          if (item.runId) {
+            try {
+              const detail: any = await api.getPipelineRun(item.target.pipelineId, Number(item.runId));
+              const status = detail?.status || detail?.pipelineRun?.status;
+              if (status) {
+                const tone = statusMeta(status).tone;
+                if (tone !== 'run') {
+                  const state: BuildState = tone === 'ok' ? 'success' : tone === 'fail' ? 'fail' : 'canceled';
+                  const actualDuration = now - (item.startedAt || item.submittedAt);
+                  if (state === 'success' && actualDuration > 3000) {
+                    setCachedEstimate(getEstimateKey(item.target), actualDuration);
+                  }
+                  patchOf(item.id, {
+                    state,
+                    completedAt: now,
+                    statusText: state === 'success' ? '构建成功' : state === 'fail' ? '构建失败' : '构建结束',
+                  });
                 }
-                nextList[i] = {
-                  ...nextList[i],
-                  state,
-                  completedAt: now,
-                  statusText: state === 'success' ? '构建成功' : state === 'fail' ? '构建失败' : '构建结束',
-                };
-                updatedAny = true;
               }
+            } catch {
+              // 忽略
             }
-          } catch {
-            // 忽略
-          }
-        }
-      } else if (item.target.type === 'flow' && item.target.pipelineId) {
-        if (item.runId) {
-          try {
-            const detail: any = await api.getPipelineRun(item.target.pipelineId, Number(item.runId));
-            const status = detail?.status || detail?.pipelineRun?.status;
-            if (status) {
-              const tone = statusMeta(status).tone;
-              if (tone !== 'run') {
-                const state: BuildState = tone === 'ok' ? 'success' : tone === 'fail' ? 'fail' : 'canceled';
-                const actualDuration = now - (item.startedAt || item.submittedAt);
-                if (state === 'success' && actualDuration > 3000) {
-                  setCachedEstimate(getEstimateKey(item.target), actualDuration);
-                }
-                nextList[i] = {
-                  ...nextList[i],
-                  state,
-                  completedAt: now,
-                  statusText: state === 'success' ? '构建成功' : state === 'fail' ? '构建失败' : '构建结束',
-                };
-                updatedAny = true;
-              }
-            }
-          } catch {
-            // 忽略
           }
         }
       }
-    }
 
-    if (updatedAny) {
-      set({ trackedBuilds: nextList });
+      if (patches.size > 0) {
+        set((state) => ({
+          trackedBuilds: state.trackedBuilds.map((build) => {
+            const patch = patches.get(build.id);
+            return patch ? { ...build, ...patch } : build;
+          }),
+        }));
+      }
+    } finally {
+      pollInFlight = false;
     }
   },
 }));
 
 function ensurePolling(get: () => QuickBuildState) {
   if (activePollTimer) return;
-  activePollTimer = setInterval(async () => {
-    const active = get().trackedBuilds.filter((b) => b.state === 'queued' || b.state === 'running');
-    if (active.length === 0) {
-      if (activePollTimer) {
-        clearInterval(activePollTimer);
-        activePollTimer = null;
-      }
-      return;
-    }
+  // 递归调度：上一轮 await 完成后再排下一轮，天然避免 setInterval 重入；
+  // pollTrackedBuilds 内部还有 in-flight 锁兜底手动刷新等并发入口。
+  const tick = async () => {
+    activePollTimer = null;
+    const active = get().trackedBuilds.some((b) => b.state === 'queued' || b.state === 'running');
+    if (!active) return;
     await get().pollTrackedBuilds();
-  }, 2500);
+    if (get().trackedBuilds.some((b) => b.state === 'queued' || b.state === 'running')) {
+      ensurePolling(get);
+    }
+  };
+  activePollTimer = setTimeout(tick, 2500);
 }
 
 /**

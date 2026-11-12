@@ -24,8 +24,8 @@ export function PipelineCard({
         />
         <BuildWorkbenchTrigger
           target={{ kind: 'pipeline', pipelineId, title: pipelineName }}
-          label="运行"
-          title={`触发 ${pipelineName}`}
+          label="触发构建"
+          title={`触发构建 ${pipelineName}`}
         />
         <Button variant="ghost" size="sm" disabled={!latest} onPress={() => latest && void openPipelineRunLogs(pipelineId, latest.pipelineRunId, pipelineName)}>
           日志
@@ -37,7 +37,6 @@ export function PipelineCard({
             #{latest.pipelineRunId}
             <CopyButton text={String(latest.pipelineRunId)} label="复制运行号" />
           </span>
-          <StatusBadge status={latest.status} size="sm" />
           <span>· {TRIGGER[latest.triggerMode ?? 0] ?? '—'}</span>
           {latest.endTime && (
             <span>· {formatDateTime(latest.endTime)}</span>

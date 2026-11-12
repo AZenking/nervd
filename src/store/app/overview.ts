@@ -25,6 +25,10 @@ const emptyIterationsState = (): OverviewIterationsState => ({
   fetchedAt: null,
 });
 
+/** 总览只做「概览」：限制单次拉取页数与条数，避免首次挂载把整个空间工作项瀑布式抽干。 */
+const MAX_OVERVIEW_PAGES = 5;
+const MAX_OVERVIEW_ITEMS = 300;
+
 const emptyCategories = (): Record<Category, OverviewCategoryState> => ({
   Req: emptyCategoryState(),
   Bug: emptyCategoryState(),
@@ -145,7 +149,9 @@ export function createOverviewSlice(_runtime: AppRuntime): AppSliceCreator<Overv
         let loadedPage = false;
 
         try {
-          while (true) {
+          // 循环内只累积局部变量，结束后一次性 set：避免每页触发一轮全树重渲。
+          let reachedEnd = false;
+          for (let pageCount = 0; pageCount < MAX_OVERVIEW_PAGES; pageCount += 1) {
             const page = await api.listWorkitems({
               category,
               spaceIdentifier,
@@ -160,24 +166,29 @@ export function createOverviewSlice(_runtime: AppRuntime): AppSliceCreator<Overv
             }
 
             const pageNextToken = page.nextToken ?? null;
-            const items = [...collected.values()];
-            updateCategory(category, {
-              items,
-              loadedCount: items.length,
-              nextToken: pageNextToken,
-              complete: pageNextToken === null,
-              status: pageNextToken === null ? 'success' : 'loading',
-              error: null,
-              fetchedAt: pageNextToken === null ? Date.now() : null,
-            });
-
-            if (pageNextToken === null) return;
+            if (pageNextToken === null) {
+              reachedEnd = true;
+              nextToken = undefined;
+              break;
+            }
             if (pageNextToken === previousToken) {
               throw new Error('分页游标未前进');
             }
             previousToken = pageNextToken;
             nextToken = pageNextToken;
+            if (collected.size >= MAX_OVERVIEW_ITEMS) break;
           }
+
+          const items = [...collected.values()].slice(0, MAX_OVERVIEW_ITEMS);
+          updateCategory(category, {
+            items,
+            loadedCount: items.length,
+            nextToken: reachedEnd ? null : nextToken ?? null,
+            complete: reachedEnd,
+            status: 'success',
+            error: null,
+            fetchedAt: Date.now(),
+          });
         } catch (error) {
           if (!isCategoryCurrent(category, requestId, organizationId, spaceIdentifier)) return;
           const items = collected.size > 0 ? [...collected.values()] : previousItems;

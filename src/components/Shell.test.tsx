@@ -151,6 +151,25 @@ describe('Shell Component & Code Splitting Skeletons', () => {
     act(() => tempRoot.unmount());
   });
 
+  it('Esc on a full-page settings view returns to the previous view', async () => {
+    await act(async () => {
+      root!.render(<Shell />);
+    });
+
+    await act(async () => {
+      useUi.getState().openSettings('connection');
+    });
+    expect(useUi.getState().view).toBe('full-settings');
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(useUi.getState().view).toBe('overview');
+  });
+
   it('dynamically switches view to integration with Suspense boundary', async () => {
     await act(async () => {
       root!.render(<Shell />);

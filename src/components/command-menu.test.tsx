@@ -68,6 +68,21 @@ describe('CommandMenu', () => {
     useUi.setState({ commandOpen: false });
   });
 
+  it('exposes combobox semantics wired to the active option', async () => {
+    await act(async () => {
+      root?.render(<CommandMenu />);
+    });
+
+    const input = document.querySelector('input') as HTMLInputElement;
+    expect(input.getAttribute('role')).toBe('combobox');
+    expect(input.getAttribute('aria-controls')).toBe('command-menu-listbox');
+    expect(document.getElementById('command-menu-listbox')).not.toBeNull();
+
+    const activeId = input.getAttribute('aria-activedescendant');
+    expect(activeId).toBeTruthy();
+    expect(document.getElementById(activeId as string)).not.toBeNull();
+  });
+
   it('renders command menu with search input and default entries', async () => {
     await act(async () => {
       root?.render(<CommandMenu />);

@@ -120,7 +120,7 @@ export function KpiCardsGrid({
 
       <MetricCard
         label="需要关注 (构建/CI)"
-        icon={<AlertTriangleIcon className={cn('size-4', totalIssues > 0 ? 'text-destructive' : 'text-muted-foreground/60')} />}
+        icon={<AlertTriangleIcon className={cn('size-4', totalIssues > 0 ? 'text-destructive' : 'text-muted-foreground')} />}
         value={totalIssues}
         suffix="处"
         status={(
@@ -137,7 +137,7 @@ export function KpiCardsGrid({
 
       <MetricCard
         label="交付监控资产"
-        icon={<GitBranchIcon className="size-4 text-muted-foreground/70" />}
+        icon={<GitBranchIcon className="size-4 text-muted-foreground" />}
         value={totalAssets}
         suffix="个"
         status={(

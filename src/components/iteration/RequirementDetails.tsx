@@ -15,8 +15,10 @@ import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
 import { probeRepoSignalHits, repoSignalScores } from '@/lib/repo-signals';
 import { cn } from '@/lib/utils';
 import { useRecentTracker } from '@/hooks/use-recent-tracker';
+import { useClipboard } from '@/hooks/use-clipboard';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
+import { useShallow } from 'zustand/react/shallow';
 import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { Tabs, Button as HeroButton, Surface } from '@heroui/react';
@@ -78,12 +80,39 @@ export function RequirementDetails({
   onSelectParent,
   onBackToList,
 }: RequirementDetailsProps & RequirementDetailsBackToListProps = {}) {
+  // 只订阅详情工作台真正消费的字段：避免日志/CI 轮询等高频 set 触发整个详情树重渲。
   const {
-    selectedId, detail, comments, children, childrenError, childrenDebug, loadingDetail, items, settings, repositories,
+    selectedId, detail, comments, children, childrenError, childrenDebug, childrenTruncated, loadingDetail, items, settings, repositories,
     iterations, trace, traceLoading, currentUser, pipelines,
     saveWorkitemRepos, saveWorkitemRepoBranchTemplate, saveRepoCiBinding, setToast, reloadCurrentDetail, loadTrace,
     parentIdOf,
-  } = useApp();
+  } = useApp(
+    useShallow((s) => ({
+      selectedId: s.selectedId,
+      detail: s.detail,
+      comments: s.comments,
+      children: s.children,
+      childrenError: s.childrenError,
+      childrenDebug: s.childrenDebug,
+      childrenTruncated: s.childrenTruncated,
+      loadingDetail: s.loadingDetail,
+      items: s.items,
+      settings: s.settings,
+      repositories: s.repositories,
+      iterations: s.iterations,
+      trace: s.trace,
+      traceLoading: s.traceLoading,
+      currentUser: s.currentUser,
+      pipelines: s.pipelines,
+      saveWorkitemRepos: s.saveWorkitemRepos,
+      saveWorkitemRepoBranchTemplate: s.saveWorkitemRepoBranchTemplate,
+      saveRepoCiBinding: s.saveRepoCiBinding,
+      setToast: s.setToast,
+      reloadCurrentDetail: s.reloadCurrentDetail,
+      loadTrace: s.loadTrace,
+      parentIdOf: s.parentIdOf,
+    })),
+  );
   const allowWrite = settings?.allowWriteOps ?? false;
   const [refreshing, setRefreshing] = useState(false);
   const [refreshingCodeArea, setRefreshingCodeArea] = useState(false);
@@ -117,7 +146,7 @@ export function RequirementDetails({
     try {
       setCodeAreaRefreshSignal((s) => s + 1);
       setBaselineRetry((v) => v + 1);
-      const result = await loadTrace();
+      const result = await loadTrace({ force: true });
       if (result.status === 'success') {
         setToast({ text: '已刷新关联仓库的分支、提交与合并请求', kind: 'ok' });
       } else if (result.status === 'partial') {
@@ -133,7 +162,8 @@ export function RequirementDetails({
     }
   };
 
-  const { openWorkitem, chain } = useUi();
+  const openWorkitem = useUi((s) => s.openWorkitem);
+  const chain = useUi((s) => s.chain);
   const currentCrumb = chain[chain.length - 1];
   const parentCrumb = chain.length > 1 ? chain[0] : null;
 
@@ -324,13 +354,17 @@ export function RequirementDetails({
   // 继承为解析时行为，不向 settings 落盘子项键。
   const repoContextId = isRequirement ? selectedId : parent?.workitemId;
   const hasRepoOverride = repoContextId != null && Object.prototype.hasOwnProperty.call(settings?.workitemRepos ?? {}, repoContextId);
-  const effectiveRepoIds = hasRepoOverride
-    ? settings?.workitemRepos[repoContextId!] ?? []
-    : settings?.watchedRepos ?? [];
+  const effectiveRepoIds = useMemo(
+    () => (hasRepoOverride
+      ? settings?.workitemRepos[repoContextId!] ?? []
+      : settings?.watchedRepos ?? []),
+    [hasRepoOverride, repoContextId, settings],
+  );
   const [savingRepos, setSavingRepos] = useState(false);
   const [isLinkRepoModalOpen, setIsLinkRepoModalOpen] = useState(false);
   const [isBranchDiagramModalOpen, setIsBranchDiagramModalOpen] = useState(false);
-  const [copiedId, setCopiedId] = useState(false);
+  // 统一剪贴板：失败会给出 fail toast，不再无条件提示复制成功
+  const { copy: copyToClipboard, copied: copiedId } = useClipboard({ duration: 2000 });
 
   const [recommendingRepos, setRecommendingRepos] = useState(false);
   const [recommendedRepos, setRecommendedRepos] = useState<AiRepoRecommendation[]>([]);
@@ -352,10 +386,7 @@ export function RequirementDetails({
 
   const copyIdentifier = () => {
     if (!identifier) return;
-    void navigator.clipboard.writeText(identifier);
-    setCopiedId(true);
-    setToast({ text: `已复制编号 ${identifier}`, kind: 'ok' });
-    setTimeout(() => setCopiedId(false), 2000);
+    void copyToClipboard(identifier, `已复制编号 ${identifier}`);
   };
 
   const sprint = wi.sprint && typeof wi.sprint === 'object'
@@ -381,38 +412,47 @@ export function RequirementDetails({
   // 分支规则上下文：需求取自身；任务/缺陷以父需求为模板查找键（显式覆盖与方案 A 自动继承均生效），
   // {identifier} 用子项自身编号展开 → rule.workitemBranch 即子项开发分支。
   const branchRuleContextId = isRequirement ? selectedId : parent?.workitemId;
-  const repoBranchRules: Record<number, ResolvedRepoBranchRule> = iterationId && branchRuleContextId
-    ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
-      const rule = resolveRepoBranchRule(settings, branchRuleContextId, repoId, iterationName, identifier, fusedTemplates);
-      return rule ? [[repoId, rule]] : [];
-    }))
-    : {};
+  const repoBranchRules: Record<number, ResolvedRepoBranchRule> = useMemo(
+    () => (iterationId && branchRuleContextId
+      ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
+        const rule = resolveRepoBranchRule(settings, branchRuleContextId, repoId, iterationName, identifier, fusedTemplates);
+        return rule ? [[repoId, rule]] : [];
+      }))
+      : {}),
+    [branchRuleContextId, effectiveRepoIds, fusedTemplates, identifier, iterationId, iterationName, settings],
+  );
   // 缺陷页 MR 分支（「缺陷单号分支 → 需求单号分支」）：目标分支按父需求交付轨道以需求编号展开
-  const bugMrTargetByRepo: Record<number, string> = !isRequirement && category === 'Bug' && parent && identifier
-    ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
-      const { targetBranch } = resolveChildMrBranches(settings, {
-        parentWorkitemId: parent.workitemId,
-        parentIdentifier: parent.identifier,
-        childIdentifier: identifier,
-        iterationName,
-        repoId,
-        customTemplates: fusedTemplates,
-      });
-      return [[repoId, targetBranch]];
-    }))
-    : {};
-  const baselineLookups = iterationId
-    ? effectiveRepoIds.flatMap((repoId) => {
-      const rule = repoBranchRules[repoId];
-      if (!rule?.baselineBranch.trim()) return [];
-      // 直连主干（Trunk-Based）：不发起独立基准查询，探测模板源分支存在性并归并复用为基准状态
-      const branch = isDirectConnectRule(rule)
-        ? rule.sourceBranch.trim()
-        : rule.baselineBranch.trim();
-      return [{ repoId, branch }];
-    })
-    : [];
-  const baselineLookupKey = JSON.stringify(baselineLookups);
+  const bugMrTargetByRepo: Record<number, string> = useMemo(
+    () => (!isRequirement && category === 'Bug' && parent && identifier
+      ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
+        const { targetBranch } = resolveChildMrBranches(settings, {
+          parentWorkitemId: parent.workitemId,
+          parentIdentifier: parent.identifier,
+          childIdentifier: identifier,
+          iterationName,
+          repoId,
+          customTemplates: fusedTemplates,
+        });
+        return [[repoId, targetBranch]];
+      }))
+      : {}),
+    [category, effectiveRepoIds, fusedTemplates, identifier, isRequirement, iterationName, parent, settings],
+  );
+  const baselineLookups = useMemo(
+    () => (iterationId
+      ? effectiveRepoIds.flatMap((repoId) => {
+        const rule = repoBranchRules[repoId];
+        if (!rule?.baselineBranch.trim()) return [];
+        // 直连主干（Trunk-Based）：不发起独立基准查询，探测模板源分支存在性并归并复用为基准状态
+        const branch = isDirectConnectRule(rule)
+          ? rule.sourceBranch.trim()
+          : rule.baselineBranch.trim();
+        return [{ repoId, branch }];
+      })
+      : []),
+    [effectiveRepoIds, iterationId, repoBranchRules],
+  );
+  const baselineLookupKey = useMemo(() => JSON.stringify(baselineLookups), [baselineLookups]);
   const [baselineChecks, setBaselineChecks] = useState<Record<number, IterationBaselineCheck>>({});
   const [baselineRetry, setBaselineRetry] = useState(0);
 
@@ -453,17 +493,26 @@ export function RequirementDetails({
           ? repoBranchRules[effectiveRepoIds[0]].templateName
           : configuredBaselineCount + ' 个仓库已应用交付轨道';
 
-  const linkedRepos = repositories.filter((r) => effectiveRepoIds.includes(r.id));
-  const [repoFilter, setRepoFilter] = useState<'all' | 'pending_merge' | 'active' | 'merged'>('all');
-  const branchesByRepoId = new Map(
-    (trace?.repositories ?? []).map((repository) =>
-      [repository.repoId, repository.branches.map((branch) => branch.name)] as const,
-    ),
+  const linkedRepos = useMemo(
+    () => repositories.filter((r) => effectiveRepoIds.includes(r.id)),
+    [effectiveRepoIds, repositories],
   );
-  const mergeRequestsByRepoId = new Map(
-    (trace?.repositories ?? []).map((repository) =>
-      [repository.repoId, repository.mergeRequests] as const,
+  const [repoFilter, setRepoFilter] = useState<'all' | 'pending_merge' | 'active' | 'merged'>('all');
+  const branchesByRepoId = useMemo(
+    () => new Map(
+      (trace?.repositories ?? []).map((repository) =>
+        [repository.repoId, repository.branches.map((branch) => branch.name)] as const,
+      ),
     ),
+    [trace],
+  );
+  const mergeRequestsByRepoId = useMemo(
+    () => new Map(
+      (trace?.repositories ?? []).map((repository) =>
+        [repository.repoId, repository.mergeRequests] as const,
+      ),
+    ),
+    [trace],
   );
 
   // 待合入：存在开放中的 MR（包含待合入、审查中等活跃 MR）
@@ -1576,6 +1625,11 @@ export function RequirementDetails({
 
               return (
                 <div className="flex flex-col gap-6">
+                  {childrenTruncated && (
+                    <p className="text-[11px] text-muted-foreground" data-testid="children-truncated-hint">
+                      仅显示最近的子项，可能还有更多
+                    </p>
+                  )}
                   <ChildrenCard
                     title="子任务"
                     category="Task"

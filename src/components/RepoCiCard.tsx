@@ -78,10 +78,6 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
         <p className="mt-2 text-xs text-muted-foreground">该仓库尚未绑定云效 Flow 或 Jenkins Job，可在设置中配置。</p>
       ) : (
         <>
-          <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs">
-            <span className="text-muted-foreground">当前状态</span>
-            <StatusBadge status={snapshot.status} />
-          </div>
           <div className="mt-3 flex flex-col gap-1.5">
             <div className="eyebrow">
               最近构建 · 仓库 Job 历史
@@ -111,8 +107,8 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
         <p className="text-xs text-muted-foreground">显示该仓库 Job 的近期记录，不按需求过滤。</p>
         <BuildWorkbenchTrigger
           target={{ kind: 'repo', repoId, title: repoName }}
-          label="触发构建"
-          title="触发仓库当前 CI Job"
+          label="触发验证"
+          title="触发仓库当前 CI Job 验证"
         />
       </div>
     );

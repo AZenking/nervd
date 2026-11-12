@@ -6,10 +6,21 @@ import { BranchTemplatesManager } from '@/components/branch-rules';
 export function BranchRulesSection() {
   const draft = useSettingsDraft();
   const savedTemplates = useApp((s) => s.settings?.branchRuleTemplates ?? []);
+  const saveBranchRuleTemplates = useApp((s) => s.saveBranchRuleTemplates);
   const templates = draft.draft?.branchRuleTemplates ?? savedTemplates;
 
-  const handleSaveTemplates = (newTemplates: BranchRuleTemplate[]) => {
-    draft.update({ branchRuleTemplates: newTemplates }, true);
+  /**
+   * 分支模板是行级数据：后端 save_settings 会拒绝修改 branchRuleTemplates，
+   * 必须走专用命令 save_branch_rule_templates。保存后同步草稿/基线，
+   * 避免后续保存其它设置时把旧模板经 save_settings 回传而被拒绝。
+   */
+  const handleSaveTemplates = async (newTemplates: BranchRuleTemplate[]) => {
+    await saveBranchRuleTemplates(newTemplates);
+    const persisted = useApp.getState().settings?.branchRuleTemplates ?? newTemplates;
+    useSettingsDraft.setState((st) => ({
+      draft: st.draft ? { ...st.draft, branchRuleTemplates: persisted } : st.draft,
+      baseline: st.baseline ? { ...st.baseline, branchRuleTemplates: persisted } : st.baseline,
+    }));
   };
 
   return (

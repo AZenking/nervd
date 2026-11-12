@@ -1,10 +1,25 @@
 import * as api from '../../lib/api';
 import { errorLog } from '../../lib/error-format';
-import type { Category } from '../../types';
+import type { Category, SettingsView, TraceResult } from '../../types';
 import { loadWorkitemTrace } from '../workitem-trace';
 import type { AppRuntime } from './runtime';
 import { detailRecords } from './helpers';
 import type { AppSliceCreator, RefreshResult, TraceSlice } from './types';
+
+/** 追溯结果短缓存：同一工作项在 45s 内重复检视时跳过「每仓库 3 请求 + 流水线 runs」扇出。 */
+const TRACE_CACHE_TTL_MS = 45_000;
+
+interface TraceCacheEntry {
+  selectedId: string;
+  identifier: string;
+  category: Category;
+  parentWorkitemId?: string;
+  settings: SettingsView | null;
+  at: number;
+  trace: TraceResult;
+}
+
+let traceCache: TraceCacheEntry | null = null;
 
 function firstString(detail: Record<string, unknown> | null, keys: string[]): string {
   if (!detail) return '';
@@ -50,7 +65,7 @@ export function createTraceSlice(runtime: AppRuntime): AppSliceCreator<TraceSlic
       await get().loadTrace();
     },
 
-    async loadTrace(): Promise<RefreshResult> {
+    async loadTrace(options = {}): Promise<RefreshResult> {
       const requestId = ++runtime.requests.trace;
       const { settings, selectedId, items, detail, children } = get();
       if (!settings || !selectedId) {
@@ -69,14 +84,40 @@ export function createTraceSlice(runtime: AppRuntime): AppSliceCreator<TraceSlic
         return { status: 'fail', errors: ['当前工作项缺少可追溯编号'] };
       }
       const isCurrent = () => requestId === runtime.requests.trace && get().selectedId === selectedId;
+      const category = (firstString(detail, ['category']) || selected?.category || child?.category || get().category) as Category;
+      // 子项（Task/Bug）追溯仓库继承父需求：经运行期索引解析父级后透传
+      const parentWorkitemId = category === 'Req' ? undefined : get().parentIdOf(selectedId);
+
+      // 命中「同工作项 + 同 settings 版本 + 未过期」缓存：直接复用，跳过全量扇出。
+      if (
+        !options.force
+        && traceCache
+        && traceCache.selectedId === selectedId
+        && traceCache.settings === settings
+        && traceCache.identifier === identifier
+        && traceCache.category === category
+        && traceCache.parentWorkitemId === parentWorkitemId
+        && traceCache.trace.workitemId === selectedId
+        && Date.now() - traceCache.at < TRACE_CACHE_TTL_MS
+      ) {
+        if (isCurrent()) set({ trace: traceCache.trace, traceLoading: false });
+        return { status: 'success', errors: [] };
+      }
+
       set({ traceLoading: true });
       try {
-        const category = (firstString(detail, ['category']) || selected?.category || child?.category || get().category) as Category;
-        // 子项（Task/Bug）追溯仓库继承父需求：经运行期索引解析父级后透传
-        const parentWorkitemId = category === 'Req' ? undefined : get().parentIdOf(selectedId);
         const trace = await loadWorkitemTrace(selectedId, identifier, category, settings, parentWorkitemId);
         if (!isCurrent()) return { status: 'fail', errors: ['追溯请求已失效'] };
         set({ trace });
+        traceCache = {
+          selectedId,
+          identifier,
+          category,
+          parentWorkitemId,
+          settings,
+          at: Date.now(),
+          trace,
+        };
         if (category === 'Req') {
           await Promise.all(trace.repositories.map((repo) => get().loadRepoCi(repo.repoId)));
         }
@@ -98,7 +139,7 @@ export function createTraceSlice(runtime: AppRuntime): AppSliceCreator<TraceSlic
       }));
       const previous = get().trace;
       try {
-        const result = await get().loadTrace();
+        const result = await get().loadTrace({ force: true });
         if (result.status === 'fail') return result;
         const current = get().trace;
         if (!current) return { status: 'partial', errors: ['当前工作项没有可用追溯数据'] };

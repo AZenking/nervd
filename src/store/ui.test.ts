@@ -53,7 +53,10 @@ describe('workspace navigation history', () => {
     const scroll = document.createElement('div');
     scroll.className = 'workspace-scroll';
     document.body.appendChild(scroll);
+    // store 不直接读 DOM：滚动位置由滚动事件缓存（与真实工作区一致）
+    const emitScroll = () => scroll.dispatchEvent(new Event('scroll', { bubbles: true }));
     scroll.scrollTop = 180;
+    emitScroll();
 
     const listContext = {
       pageIndex: 4,
@@ -78,6 +81,7 @@ describe('workspace navigation history', () => {
 
     useUi.getState().setView('overview');
     scroll.scrollTop = 42;
+    emitScroll();
     useUi.getState().setView('integration');
 
     await useUi.getState().back();
@@ -113,11 +117,42 @@ describe('workspace navigation history', () => {
     }
 
     scroll.scrollTop = 91;
+    emitScroll();
     window.dispatchEvent(new Event('pagehide'));
     const afterPageHide = parseNavigationRecord(localStorage.getItem('nervd-navigation'));
     expect(afterPageHide.status).toBe('valid');
     if (afterPageHide.status === 'valid') expect(afterPageHide.value.current.scrollTop).toBe(91);
     scroll.remove();
+  });
+
+  it('does not persist transient cursor / selection / collapsed state', () => {
+    useUi.setState({
+      view: 'iteration',
+      listContext: {
+        pageIndex: 3,
+        cursorWorkitemId: 'BUG-17',
+        collapsedStatuses: ['已完成'],
+        selectedWorkitemIds: ['BUG-17', 'BUG-18'],
+        splitWorkitemId: 'BUG-17',
+        splitParentWorkitemId: null,
+        viewTab: 'repos',
+      },
+    });
+    useUi.getState().updateListContext({ cursorWorkitemId: 'BUG-18' });
+    window.dispatchEvent(new Event('pagehide'));
+
+    const stored = parseNavigationRecord(localStorage.getItem('nervd-navigation'));
+    expect(stored.status).toBe('valid');
+    if (stored.status === 'valid') {
+      const context = stored.value.current.listContext;
+      expect(context.pageIndex).toBe(3);
+      expect(context.splitWorkitemId).toBe('BUG-17');
+      expect(context.viewTab).toBe('repos');
+      // 瞬态现场不落盘（重启回到默认），但导航后退/前进仍由内存历史保留。
+      expect(context.cursorWorkitemId).toBeNull();
+      expect(context.collapsedStatuses).toEqual([]);
+      expect(context.selectedWorkitemIds).toEqual([]);
+    }
   });
 
   it('validates schema without rejecting IDs that may load after startup', () => {

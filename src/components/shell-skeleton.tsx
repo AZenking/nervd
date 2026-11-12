@@ -14,7 +14,6 @@ export function IntegrationViewSkeleton() {
         sticky
         navigation={<Skeleton className="size-7 rounded-md" />}
         title="集成分支"
-        titleClassName="text-sm font-semibold tracking-tight text-foreground"
         actions={<Skeleton className="h-7 w-7 rounded-md" />}
       />
       <div className="flex flex-col gap-4">
@@ -24,8 +23,8 @@ export function IntegrationViewSkeleton() {
           <Skeleton className="h-8 w-28 rounded-md" />
           <Skeleton className="h-8 w-56 rounded-md" />
         </div>
-        <div className="flex flex-col gap-2">
-        <div className="flex h-8 items-center gap-2 rounded-md bg-muted/70 px-3">
+        <div className="flex flex-col gap-4">
+        <div className="flex h-7 items-center gap-2 rounded-md bg-muted/70 px-3">
           <Skeleton className="size-3.5 rounded" />
           <Skeleton className="h-4 w-32 rounded" />
           <Skeleton className="h-3 w-16 rounded" />
@@ -57,7 +56,6 @@ export function SchedulesViewSkeleton() {
         density="compact"
         navigation={<Skeleton className="size-7 rounded-md" />}
         title="定时任务工作台"
-        titleClassName="text-sm font-semibold tracking-tight text-foreground"
         toolbar={
           <div className="flex items-center justify-end gap-2 w-full">
             <Skeleton className="h-8 w-28 rounded-md" />
@@ -106,7 +104,6 @@ export function SettingsViewSkeleton() {
         sticky
         navigation={<Skeleton className="size-7 rounded-md" />}
         title="系统设置"
-        titleClassName="text-2xl font-semibold tracking-tight text-foreground"
         description="加载配置模块中…"
         actions={<Skeleton className="h-6 w-24 rounded" />}
       />
