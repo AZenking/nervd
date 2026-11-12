@@ -4,7 +4,6 @@
 import { test, expect, type Page } from './fixtures';
 
 const SIDEBAR = '[data-slot="sidebar"]';
-const GAP = '[data-slot="sidebar-gap"]';
 const TRIGGER = '[data-sidebar="trigger"]';
 const SIDEBAR_SEPARATOR = '[role="separator"][aria-label^="调整侧栏宽度"]';
 
@@ -59,6 +58,7 @@ test.describe('Shell 布局自适应', () => {
 
     // 向右大幅拖动 → 钳制到 300
     const box = await separator.boundingBox();
+    if (!box) throw new Error('侧栏分隔线不可见，无法获取拖动起点');
     await page.mouse.move(box.x + box.width / 2, box.y + 120);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 240, box.y + 120, { steps: 10 });
@@ -67,6 +67,7 @@ test.describe('Shell 布局自适应', () => {
 
     // 向左越过下限 → 200
     const box2 = await separator.boundingBox();
+    if (!box2) throw new Error('侧栏分隔线不可见，无法获取二次拖动起点');
     await page.mouse.move(box2.x + box2.width / 2, box2.y + 120);
     await page.mouse.down();
     await page.mouse.move(box2.x + box2.width / 2 - 240, box2.y + 120, { steps: 10 });

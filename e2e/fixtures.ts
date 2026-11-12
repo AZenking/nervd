@@ -2,6 +2,9 @@
 // 选择器三层策略：data-testid（关键交互点）→ 语义锚点（aria）→ store 断言兜底。
 import { test as base, expect, type Page } from '@playwright/test';
 
+/** 复用 Page 类型给各 spec（原先各文件从本模块取 Page 但未导出） */
+export type { Page } from '@playwright/test';
+
 /** 迭代工作项列表容器（语义锚点） */
 export const LIST = 'section[aria-label="迭代工作项"]';
 
@@ -55,7 +58,10 @@ export const mockCallsOf = (page: Page, cmd: string) =>
  * 清零 mock 调用记录，保证各用例计数基线干净。
  * 「第 1 - 30 项」出现 = 初始数据流停止，避免列表在断言期间因新数据到达而重新分组漂移。
  */
-export const test = base.extend({
+/** 自定义 fixture 声明：app 为「已就绪并复位 mock」的 Page，供用例解构使用 */
+type AppFixtures = { app: Page };
+
+export const test = base.extend<AppFixtures>({
   app: [
     async ({ page }, use) => {
       await page.goto('/#workbench');
