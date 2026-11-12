@@ -1,5 +1,12 @@
 {
   "extends": "../tsconfig.json",
-  "compilerOptions": { "noEmit": true },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "compilerOptions": {
+    "noEmit": true,
+    // 根配置面向浏览器且 types 为空；preview 的 Vite 配置需要 Node 内置模块类型
+    "types": ["node"],
+    // preview 仅跑在现代浏览器 / Vite 8，配置里使用了 String.prototype.replaceAll（ES2021）
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["**/*.ts", "**/*.tsx", "**/*.mts"]
 }

@@ -20,6 +20,8 @@ MOCK_PID=$!
 trap 'kill $MOCK_PID 2>/dev/null || true' EXIT
 sleep 1
 
-( cd src-tauri && cargo test --test effort_e2e --quiet )
+# 该集成测试默认在无 NERVD_E2E=1 时早退跳过（避免 cargo test 在无 mock 时误红），
+# 本脚本已拉起 mock，必须显式开启才会真正执行断言。
+( cd src-tauri && NERVD_E2E=1 cargo test --test effort_e2e --quiet )
 diff -u src-tauri/tests/fixtures/effort_e2e_golden.json "$MOCK_DIR/recorded.json"
 echo "E2E 通过：记录与 golden 字节一致"

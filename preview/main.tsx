@@ -12,7 +12,7 @@ import { useUi, initThemeListener, restoreNavigation } from '../src/store/ui';
 import { dismissSplashScreen } from '../src/lib/splash';
 import { toast } from '../src/components/ui/toast';
 import { LandingView } from './landing/LandingView';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 type PreviewMode = 'landing' | 'workbench' | 'onboarding';
 

@@ -1,0 +1,20 @@
+{
+  // E2E / 工具链独立类型检查工程：不并入根 tsconfig.json 的 include，
+  // 避免 node / playwright 类型渗入 src 的浏览器类型环境（根配置保持冻结语义）。
+  // 覆盖：Playwright 用例、Playwright/Vitest 配置、Vitest 全局 setup。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // e2e 与工具链运行在 Node 22+，且用例里使用 Array.prototype.at 等 ES2022 能力
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // 显式引入 Node 类型（process / node:path 等）；避免 @types 目录下的隐式全量注入
+    "types": ["node"]
+  },
+  "include": [
+    "e2e/**/*.ts",
+    "playwright.config.ts",
+    "vitest.config.ts",
+    "vitest.setup.ts"
+  ]
+}

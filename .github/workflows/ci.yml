@@ -26,15 +26,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # cache: 'pnpm' 需要 pnpm 已可用，因此先装 pnpm 再 setup-node
+      # pnpm 版本由 package.json 的 packageManager 字段驱动；不要再写 version（否则 pnpm 报 Multiple versions）
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
+          cache: 'pnpm'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -52,3 +53,59 @@ jobs:
 
       - name: Build frontend bundle
         run: pnpm build
+
+  rust:
+    name: Rust Tests & Clippy
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      # 仅跑库单测：tests/effort_e2e.rs 需要外部 mock（NERVD_E2E=1 才执行）
+      - name: Cargo test (lib)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      # 存量 clippy 告警已清零（verify.sh 第 7 步同样为阻断），此处同步改为阻断。
+      - name: Cargo clippy (-D warnings)
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+  e2e:
+    name: Playwright E2E
+    runs-on: macos-latest
+    # 现有 e2e 用例尚未在 CI 环境稳定跑绿，先接入但不阻断合并；
+    # 稳定后移除 continue-on-error。
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # pnpm 版本由 package.json 的 packageManager 字段驱动；不要再写 version（否则 pnpm 报 Multiple versions）
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: pnpm exec playwright test

@@ -6,6 +6,10 @@
     "module": "ESNext",
     "skipLibCheck": true,
     "ignoreDeprecations": "6.0",
+    // src 面向浏览器：显式禁用 @types 自动注入，避免新装的 @types/node
+    // 悄悄改变 src 的全局类型环境（Node/DOM 同名 API 冲突）。
+    // Node 侧工程（preview / e2e / vite 配置）各自用独立 tsconfig 引入 "node"。
+    "types": [],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]

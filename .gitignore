@@ -14,8 +14,13 @@ node_modules
 # Build outputs
 dist
 dist-ssr
+dist-release/
 preview/dist
+coverage/
+graphify-out/
 *.tsbuildinfo
+# 本地状态文件损坏后的备份（如 settings.json.corrupt-20261112）
+*.corrupt-*
 
 # Test artifacts（playwright / vitest）
 .playwright-browsers/

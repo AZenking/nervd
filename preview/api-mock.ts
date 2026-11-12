@@ -94,6 +94,12 @@ const mockWorkitemUpdates = new Map<string, {
   assignedToId?: string;
 }>();
 
+/** 重载：传入确定行时必定返回确定行（避免调用方把「可能 undefined」再收窄一次） */
+function applyMockWorkitemUpdate(row: WorkitemRow): WorkitemRow;
+/** 重载：仅当传入 undefined 时才可能返回 undefined（启动竞态透传） */
+function applyMockWorkitemUpdate(row: undefined): undefined;
+/** 重载：调用方本身持有可空行时（如 find 未命中）保持可空语义 */
+function applyMockWorkitemUpdate(row: WorkitemRow | undefined): WorkitemRow | undefined;
 function applyMockWorkitemUpdate(row: WorkitemRow | undefined): WorkitemRow | undefined {
   // 启动竞态守卫：getWorkitem 早于 listWorkitems 填充行缓存时 cur 为 undefined，直接透传（消费侧已用 cur?. 兜底）
   if (!row) return row;
