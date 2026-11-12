@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>夕阳沙滩 · 躺平观海 3D (Sunset Beach Lounge)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0c0b10; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif; }
+    #canvas-container { position: absolute; inset: 0; width: 100%; height: 100%; }
+    
+    /* HUD Overlays */
+    #hud {
+      position: absolute; inset: 0; pointer-events: none;
+      display: flex; flex-direction: column; justify-content: space-between;
+      padding: clamp(14px, 2.5vw, 24px);
+      z-index: 10;
+      color: #fff;
+    }
+    .hud-card {
+      background: rgba(22, 16, 28, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 200, 150, 0.25);
+      border-radius: 14px;
+      padding: 10px 18px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      pointer-events: auto;
+    }
+    .top-bar {
+      display: flex; justify-content: space-between; align-items: center; width: 100%;
+    }
+    .title-group h1 {
+      font-size: clamp(17px, 2.2vw, 22px);
+      font-weight: 700;
+      background: linear-gradient(90deg, #ffca85, #ff7e5f);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 0.05em;
+    }
+    .title-group p {
+      font-size: 11px;
+      color: rgba(255, 220, 200, 0.75);
+      margin-top: 3px;
+    }
+    .controls-panel {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 200, 160, 0.35);
+      color: #ffeedd;
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+    .btn:hover {
+      background: rgba(255, 150, 80, 0.3);
+      border-color: rgba(255, 180, 120, 0.7);
+      transform: translateY(-1px);
+    }
+    .btn:active {
+      transform: translateY(1px);
+    }
+    .btn.active {
+      background: linear-gradient(135deg, #ff7e5f, #feb47b);
+      color: #1a0800;
+      border-color: #ffaa66;
+      font-weight: 600;
+    }
+    .btn-wave {
+      background: linear-gradient(135deg, #ff5722, #ffb300);
+      color: #110400;
+      border: none;
+      font-weight: 700;
+      box-shadow: 0 4px 15px rgba(255, 87, 34, 0.45);
+    }
+    .btn-wave:hover {
+      background: linear-gradient(135deg, #ff6d00, #ffc107);
+      box-shadow: 0 6px 20px rgba(255, 109, 0, 0.6);
+    }
+    
+    /* Bottom status */
+    .bottom-bar {
+      display: flex; justify-content: space-between; align-items: flex-end; width: 100%;
+    }
+    .wave-status {
+      display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #ffd2a6;
+    }
+    .wave-meter-box {
+      width: 110px; height: 6px; background: rgba(255, 255, 255, 0.15); border-radius: 3px; overflow: hidden;
+    }
+    .wave-meter-fill {
+      width: 30%; height: 100%; background: linear-gradient(90deg, #ff9966, #ff5e62);
+      transition: width 0.3s ease;
+    }
+    .hints {
+      font-size: 11.5px; color: rgba(255, 255, 255, 0.6);
+      background: rgba(0, 0, 0, 0.45); padding: 6px 12px; border-radius: 8px;
+    }
+
+    /* Big wave splash banner */
+    #big-wave-banner {
+      position: absolute; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(0.85);
+      color: #fff4e0;
+      font-size: clamp(22px, 3.8vw, 36px);
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 25px rgba(255, 100, 30, 0.9), 0 4px 12px rgba(0, 0, 0, 0.85);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 20;
+    }
+    #big-wave-banner.show {
+      opacity: 1; transform: translate(-50%, -50%) scale(1);
+    }
+
+    #vignette {
+      position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(circle at 50% 50%, transparent 45%, rgba(15, 10, 25, 0.25) 75%, rgba(10, 5, 20, 0.5) 100%);
+      mix-blend-mode: multiply;
+      z-index: 2;
+    }
+    #sunset-glow {
+      position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse at 50% 48%, rgba(255, 140, 40, 0.1) 0%, rgba(255, 70, 10, 0.04) 50%, transparent 75%);
+      mix-blend-mode: screen;
+      z-index: 2;
+    }
+  </style>
+  <script src="./public/three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="vignette"></div>
+  <div id="sunset-glow"></div>
+
+  <div id="big-wave-banner">🌊 巨浪涌起 · 惊涛拍岸！</div>
+
+  <div id="hud">
+    <div class="top-bar">
+      <div class="hud-card title-group">
+        <h1>夕阳沙滩 · 躺椅慢时光</h1>
+        <p>沉浸式第一人称海滨体验 · 程序式海浪与物理音效</p>
+      </div>
+
+      <div class="hud-card controls-panel">
+        <button class="btn btn-wave" id="btn-trigger-wave">🌊 掀起大浪</button>
+        <button class="btn" id="btn-audio">🔊 开启海浪音效</button>
+        <button class="btn" id="btn-reset-view">🪑 躺椅视角</button>
+        <button class="btn" id="btn-toggle-time">🌅 夕阳金辉</button>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="hud-card wave-status">
+        <span>海浪动能:</span>
+        <div class="wave-meter-box">
+          <div class="wave-meter-fill" id="wave-energy-bar"></div>
+        </div>
+        <span id="wave-status-text">常规微浪</span>
+      </div>
+
+      <div class="hints">
+        💡 拖拽鼠标转动视角 · 沉浸倾听海浪声 · 点击「掀起大浪」观赏海潮
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // =========================================================================
+  // 1. PROCEDURAL AUDIO SYNTHESIS (Web Audio API)
+  // =========================================================================
+  class SunsetOceanAudio {
+    constructor() {
+      this.ctx = null;
+      this.initialized = false;
+      this.enabled = false;
+      this.masterGain = null;
+      this.waveGain = null;
+      this.windGain = null;
+      this.bigWaveGain = null;
+      this.waveFilter = null;
+      this.windFilter = null;
+      this.nextGullTime = 0;
+    }
+
+    init() {
+      if (this.initialized) return;
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AudioCtx();
+
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.setValueAtTime(0.65, this.ctx.currentTime);
+      this.masterGain.connect(this.ctx.destination);
+
+      // Pink/Brown noise buffer
+      const bufferSize = this.ctx.sampleRate * 5;
+      const noiseBuffer = this.ctx.createBuffer(2, bufferSize, this.ctx.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const data = noiseBuffer.getChannelData(ch);
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+          b6 = white * 0.115926;
+        }
+      }
+
+      this.noiseNode = this.ctx.createBufferSource();
+      this.noiseNode.buffer = noiseBuffer;
+      this.noiseNode.loop = true;
+
+      // Regular wave filter
+      this.waveFilter = this.ctx.createBiquadFilter();
+      this.waveFilter.type = 'lowpass';
+      this.waveFilter.frequency.setValueAtTime(320, this.ctx.currentTime);
+      this.waveFilter.Q.setValueAtTime(1.5, this.ctx.currentTime);
+
+      this.waveGain = this.ctx.createGain();
+      this.waveGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+
+      this.noiseNode.connect(this.waveFilter);
+      this.waveFilter.connect(this.waveGain);
+      this.waveGain.connect(this.masterGain);
+
+      // Sea Breeze / Wind filter
+      this.windFilter = this.ctx.createBiquadFilter();
+      this.windFilter.type = 'bandpass';
+      this.windFilter.frequency.setValueAtTime(450, this.ctx.currentTime);
+      this.windFilter.Q.setValueAtTime(2.2, this.ctx.currentTime);
+
+      this.windGain = this.ctx.createGain();
+      this.windGain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+
+      this.noiseNode.connect(this.windFilter);
+      this.windFilter.connect(this.windGain);
+      this.windGain.connect(this.masterGain);
+
+      // Big Wave rumble
+      this.bigWaveFilter = this.ctx.createBiquadFilter();
+      this.bigWaveFilter.type = 'lowpass';
+      this.bigWaveFilter.frequency.setValueAtTime(180, this.ctx.currentTime);
+      this.bigWaveFilter.Q.setValueAtTime(3.0, this.ctx.currentTime);
+
+      this.bigWaveGain = this.ctx.createGain();
+      this.bigWaveGain.gain.setValueAtTime(0.0, this.ctx.currentTime);
+
+      this.noiseNode.connect(this.bigWaveFilter);
+      this.bigWaveFilter.connect(this.bigWaveGain);
+      this.bigWaveGain.connect(this.masterGain);
+
+      this.noiseNode.start(0);
+      this.initialized = true;
+      this.enabled = true;
+    }
+
+    update(time, waveHeightFactor, isBigWave) {
+      if (!this.initialized || !this.enabled) return;
+
+      const t = time;
+      const swellCycle = (t % 4.5) / 4.5;
+      const swellEnv = Math.pow(Math.sin(swellCycle * Math.PI), 2.2);
+
+      const cutoff = 240 + swellEnv * 650 + (isBigWave ? 480 : 0);
+      this.waveFilter.frequency.setTargetAtTime(cutoff, this.ctx.currentTime, 0.08);
+
+      const waveVol = 0.2 + swellEnv * 0.45 + (isBigWave ? 0.35 : 0);
+      this.waveGain.gain.setTargetAtTime(waveVol, this.ctx.currentTime, 0.08);
+
+      const windCutoff = 350 + Math.sin(t * 0.4) * 120 + Math.sin(t * 0.17) * 90;
+      this.windFilter.frequency.setTargetAtTime(windCutoff, this.ctx.currentTime, 0.2);
+
+      if (isBigWave) {
+        this.bigWaveGain.gain.setTargetAtTime(0.6 * waveHeightFactor, this.ctx.currentTime, 0.15);
+      } else {
+        this.bigWaveGain.gain.setTargetAtTime(0.0, this.ctx.currentTime, 0.4);
+      }
+
+      if (t > this.nextGullTime) {
+        this.playGullCry();
+        this.nextGullTime = t + 10 + Math.random() * 16;
+      }
+    }
+
+    playGullCry() {
+      if (!this.initialized || !this.enabled) return;
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+
+        osc.type = 'sine';
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1800, this.ctx.currentTime);
+        filter.Q.setValueAtTime(2.0, this.ctx.currentTime);
+
+        const now = this.ctx.currentTime;
+        const dur = 0.75 + Math.random() * 0.3;
+
+        osc.frequency.setValueAtTime(1150, now);
+        osc.frequency.exponentialRampToValueAtTime(2200, now + dur * 0.35);
+        osc.frequency.exponentialRampToValueAtTime(1400, now + dur);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.12, now + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(now);
+        osc.stop(now + dur);
+      } catch (e) {}
+    }
+
+    toggle() {
+      if (!this.initialized) {
+        this.init();
+        return true;
+      }
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume();
+        this.enabled = true;
+        return true;
+      } else if (this.enabled) {
+        this.masterGain.gain.setTargetAtTime(0.0, this.ctx.currentTime, 0.1);
+        this.enabled = false;
+        return false;
+      } else {
+        this.masterGain.gain.setTargetAtTime(0.65, this.ctx.currentTime, 0.1);
+        this.enabled = true;
+        return true;
+      }
+    }
+  }
+
+  // =========================================================================
+  // 2. PROCEDURAL TEXTURES (Canvas 2D / Noise)
+  // =========================================================================
+  const TextureGen = {
+    createSandTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      // Vibrant warm golden sand
+      ctx.fillStyle = '#e5b172';
+      ctx.fillRect(0, 0, 512, 512);
+
+      const img = ctx.getImageData(0, 0, 512, 512);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (Math.random() - 0.5) * 32;
+        d[i] = Math.min(255, Math.max(0, d[i] + n + 12));    // R
+        d[i+1] = Math.min(255, Math.max(0, d[i+1] + n + 4)); // G
+        d[i+2] = Math.min(255, Math.max(0, d[i+2] + n - 8)); // B
+      }
+      ctx.putImageData(img, 0, 0);
+
+      // Micro ripples
+      ctx.strokeStyle = 'rgba(190, 130, 70, 0.15)';
+      ctx.lineWidth = 1.5;
+      for (let y = 0; y < 512; y += 12) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + Math.sin(y * 0.1) * 6);
+        for (let x = 0; x < 512; x += 16) {
+          ctx.lineTo(x, y + Math.sin((x + y) * 0.06) * 5);
+        }
+        ctx.stroke();
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(12, 12);
+      return tex;
+    },
+
+    createUmbrellaTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      const cx = 256, cy = 256, r = 256;
+      const numSegments = 16;
+      const angleStep = (Math.PI * 2) / numSegments;
+      const colors = ['#f44336', '#ffffff', '#ff9800', '#ffffff'];
+
+      for (let i = 0; i < numSegments; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, i * angleStep, (i + 1) * angleStep);
+        ctx.closePath();
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      return tex;
+    },
+
+    createWoodTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#9e6234';
+      ctx.fillRect(0, 0, 256, 256);
+
+      ctx.fillStyle = 'rgba(70, 35, 12, 0.22)';
+      for (let y = 0; y < 256; y += 4) {
+        ctx.fillRect(0, y + (Math.sin(y * 0.3) * 2), 256, 1.5);
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    },
+
+    createFoamTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 256, 256);
+
+      for (let i = 0; i < 500; i++) {
+        const x = Math.random() * 256, y = Math.random() * 256, rad = 1 + Math.random() * 5;
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${0.25 + Math.random() * 0.75})`;
+        ctx.fill();
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(10, 10);
+      return tex;
+    }
+  };
+
+  // =========================================================================
+  // 3. MAIN 3D APPLICATION
+  // =========================================================================
+  class SunsetBeachApp {
+    constructor() {
+      this.container = document.getElementById('canvas-container');
+      this.audio = new SunsetOceanAudio();
+      
+      this.time = 0;
+      this.bigWaveTimer = 20.0;
+      this.bigWaveActive = false;
+      this.bigWaveProgress = 0;
+      this.bigWaveIntensity = 0;
+
+      // Relaxed lounge chair POV: looking forward-down at beach and waves
+      this.targetLookX = 0;
+      this.targetLookY = -0.08; // Slightly looking down so chair & beach items are in view!
+      this.lookX = 0;
+      this.lookY = -0.08;
+      this.isMouseDown = false;
+      this.prevMouseX = 0;
+      this.prevMouseY = 0;
+
+      this.initThree();
+      this.buildAtmosphere();
+      this.buildOcean();
+      this.buildBeachTerrain();
+      this.buildLoungeChair();
+      this.buildParasol();
+      this.buildPalmTree();
+      this.buildPropsAndCritters();
+      this.setupEventListeners();
+      this.animate();
+    }
+
+    initThree() {
+      this.scene = new THREE.Scene();
+      this.scene.fog = new THREE.FogExp2(0xf08050, 0.0055);
+
+      this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.08, 1000);
+      // Positioned exactly where a person lies on the beach lounger
+      this.cameraBasePos = new THREE.Vector3(0, 0.88, 1.85);
+      this.camera.position.copy(this.cameraBasePos);
+      this.camera.rotation.order = 'YXZ';
+
+      this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 1.1;
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.container.appendChild(this.renderer.domElement);
+    }
+
+    buildAtmosphere() {
+      // Warm ambient skylight illuminating beach & objects
+      this.ambientLight = new THREE.AmbientLight(0xffcaa0, 1.25);
+      this.scene.add(this.ambientLight);
+
+      // Soft front fill light from sky above/behind camera
+      this.fillLight = new THREE.DirectionalLight(0xffe0b2, 0.7);
+      this.fillLight.position.set(0, 12, 10);
+      this.scene.add(this.fillLight);
+
+      // Low Sunset Sun (Directional Light low over the sea)
+      this.sunLight = new THREE.DirectionalLight(0xff7a33, 2.5);
+      this.sunLight.position.set(0, 7, -100);
+      this.sunLight.castShadow = true;
+      this.sunLight.shadow.mapSize.width = 2048;
+      this.sunLight.shadow.mapSize.height = 2048;
+      this.sunLight.shadow.camera.near = 1;
+      this.sunLight.shadow.camera.far = 180;
+      this.sunLight.shadow.camera.left = -15;
+      this.sunLight.shadow.camera.right = 15;
+      this.sunLight.shadow.camera.top = 15;
+      this.sunLight.shadow.camera.bottom = -5;
+      this.sunLight.shadow.bias = -0.0003;
+      this.scene.add(this.sunLight);
+
+      // Glowing Sun Disc on Horizon
+      const sunGeo = new THREE.SphereGeometry(14, 32, 16);
+      const sunMat = new THREE.MeshBasicMaterial({ color: 0xffe680, fog: false });
+      this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
+      this.sunMesh.position.set(0, 9, -280);
+      this.scene.add(this.sunMesh);
+
+      // Sun halo flare
+      const haloGeo = new THREE.PlaneGeometry(160, 160);
+      const haloCanvas = document.createElement('canvas');
+      haloCanvas.width = 256; haloCanvas.height = 256;
+      const hctx = haloCanvas.getContext('2d');
+      const grad = hctx.createRadialGradient(128, 128, 5, 128, 128, 128);
+      grad.addColorStop(0, 'rgba(255, 235, 160, 0.95)');
+      grad.addColorStop(0.2, 'rgba(255, 130, 50, 0.65)');
+      grad.addColorStop(0.6, 'rgba(240, 70, 30, 0.25)');
+      grad.addColorStop(1, 'rgba(200, 40, 20, 0)');
+      hctx.fillStyle = grad;
+      hctx.fillRect(0, 0, 256, 256);
+      const haloTex = new THREE.CanvasTexture(haloCanvas);
+
+      const haloMat = new THREE.MeshBasicMaterial({
+        map: haloTex,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false
+      });
+      const halo = new THREE.Mesh(haloGeo, haloMat);
+      halo.position.copy(this.sunMesh.position);
+      halo.position.z += 1;
+      this.scene.add(halo);
+
+      // Sunset Sky Dome
+      const skyGeo = new THREE.SphereGeometry(450, 32, 24);
+      const skyMat = new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        depthWrite: false,
+        uniforms: {
+          uSunPos: { value: new THREE.Vector3(0, 9, -280).normalize() },
+          uTopColor: { value: new THREE.Color(0x1a1236) },
+          uMiddleColor: { value: new THREE.Color(0xd94426) },
+          uHorizonColor: { value: new THREE.Color(0xffb347) }
+        },
+        vertexShader: `
+          varying vec3 vWorldPosition;
+          void main() {
+            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+            vWorldPosition = worldPos.xyz;
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vWorldPosition;
+          uniform vec3 uSunPos;
+          uniform vec3 uTopColor;
+          uniform vec3 uMiddleColor;
+          uniform vec3 uHorizonColor;
+          void main() {
+            vec3 dir = normalize(vWorldPosition);
+            float h = dir.y;
+            vec3 sky = mix(uHorizonColor, uMiddleColor, smoothstep(0.0, 0.25, max(0.0, h)));
+            sky = mix(sky, uTopColor, smoothstep(0.2, 0.75, max(0.0, h)));
+
+            float sunDist = dot(dir, uSunPos);
+            float sunGlow = pow(max(0.0, sunDist), 16.0);
+            sky += vec3(1.0, 0.7, 0.3) * sunGlow * 0.8;
+
+            gl_FragColor = vec4(sky, 1.0);
+          }
+        `
+      });
+      const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+      this.scene.add(skyMesh);
+    }
+
+    // =======================================================================
+    // 3.1 OCEAN & GERSTNER WAVE SYSTEM (海浪一层一层扑向沙滩 + 大浪)
+    // =======================================================================
+    buildOcean() {
+      // Ocean plane extending from horizon up to beach shore (Z = -60 to Z = 0.5)
+      const oceanGeo = new THREE.PlaneGeometry(140, 140, 220, 220);
+      oceanGeo.rotateX(-Math.PI / 2);
+
+      this.foamTexture = TextureGen.createFoamTexture();
+
+      this.oceanUniforms = {
+        uTime: { value: 0 },
+        uBigWaveFactor: { value: 0 },
+        uFoamTex: { value: this.foamTexture },
+        uSunDir: { value: new THREE.Vector3(0, 0.08, -1.0).normalize() },
+        uDeepWaterColor: { value: new THREE.Color(0x0e3a4f) },
+        uShallowWaterColor: { value: new THREE.Color(0x3298b3) },
+        uSunGlintColor: { value: new THREE.Color(0xffd685) }
+      };
+
+      const oceanMat = new THREE.ShaderMaterial({
+        uniforms: this.oceanUniforms,
+        vertexShader: `
+          uniform float uTime;
+          uniform float uBigWaveFactor;
+          varying vec3 vWorldPos;
+          varying vec3 vNormal;
+          varying vec2 vUv;
+          varying float vWaveCrest;
+          varying float vShoreProximity;
+
+          vec3 gerstnerWave(vec3 pos, float steepness, float wavelength, vec2 dir, float speed, float time) {
+            float k = 2.0 * 3.14159 / wavelength;
+            float c = sqrt(9.8 / k) * speed;
+            float f = k * (dot(dir, pos.xz) - c * time);
+            float a = steepness / k;
+
+            return vec3(
+              dir.x * (a * cos(f)),
+              a * sin(f),
+              dir.y * (a * cos(f))
+            );
+          }
+
+          void main() {
+            vUv = uv;
+            vec3 pos = position;
+
+            // Shore begins near Z = -2.0 to +0.8
+            float shoreFactor = smoothstep(-50.0, 0.5, pos.z);
+            vShoreProximity = shoreFactor;
+
+            // Layer 1: Ocean swell
+            vec3 w1 = gerstnerWave(pos, 0.2, 24.0, vec2(0.04, 0.99), 1.0, uTime * 0.95);
+            // Layer 2: Main rhythmic waves breaking onto the beach (一层一层)
+            float s2 = 0.38 + shoreFactor * 0.28;
+            vec3 w2 = gerstnerWave(pos, s2, 11.5, vec2(-0.03, 0.99), 1.25, uTime * 1.35 + 1.2);
+            // Layer 3: High-frequency shore wash
+            vec3 w3 = gerstnerWave(pos, 0.16, 5.2, vec2(0.08, 0.98), 1.6, uTime * 1.8 + 2.5);
+
+            // Layer 4: BIG ROGUE WAVE (大浪)
+            float bigWavePos = mod(uTime * 3.6 + 35.0, 100.0) - 65.0;
+            float distToBigCrest = abs(pos.z - bigWavePos);
+            float bigWaveProfile = exp(-pow(distToBigCrest / 8.0, 2.0));
+            float bigWaveHeight = bigWaveProfile * (1.6 * uBigWaveFactor + 0.25);
+
+            vec3 totalDisplacement = (w1 + w2 + w3) * (0.85 + 0.45 * shoreFactor);
+            pos += totalDisplacement;
+            pos.y += bigWaveHeight;
+
+            // Sea slope into sand shelf
+            pos.y -= 0.12 + (pos.z + 15.0) * 0.012;
+
+            vWaveCrest = (totalDisplacement.y + bigWaveHeight);
+            
+            vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+            vWorldPos = worldPos.xyz;
+
+            vec3 approxNormal = normalize(vec3(
+              -(w1.x + w2.x + w3.x) * 0.8,
+              1.0,
+              -(w1.z + w2.z + w3.z) * 0.8 - bigWaveProfile * 0.4
+            ));
+            vNormal = normalize(normalMatrix * approxNormal);
+
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          uniform float uBigWaveFactor;
+          uniform sampler2D uFoamTex;
+          uniform vec3 uSunDir;
+          uniform vec3 uDeepWaterColor;
+          uniform vec3 uShallowWaterColor;
+          uniform vec3 uSunGlintColor;
+
+          varying vec3 vWorldPos;
+          varying vec3 vNormal;
+          varying vec2 vUv;
+          varying float vWaveCrest;
+          varying float vShoreProximity;
+
+          void main() {
+            vec3 viewDir = normalize(cameraPosition - vWorldPos);
+            vec3 normal = normalize(vNormal);
+
+            float depthFade = smoothstep(-45.0, -1.0, vWorldPos.z);
+            vec3 waterCol = mix(uDeepWaterColor, uShallowWaterColor, depthFade * 0.85);
+
+            // Sunset Specular Glitter on waves
+            vec3 halfVec = normalize(viewDir + uSunDir);
+            float spec = pow(max(0.0, dot(normal, halfVec)), 90.0);
+            float broadGlint = pow(max(0.0, dot(normal, halfVec)), 14.0) * 0.35;
+            vec3 sunGlitter = uSunGlintColor * (spec * 3.8 + broadGlint);
+
+            // Animated Foam layer
+            vec2 foamUv = vWorldPos.xz * 0.14 + vec2(0.0, uTime * 0.09);
+            vec4 foamNoise = texture2D(uFoamTex, foamUv);
+            vec4 foamNoise2 = texture2D(uFoamTex, foamUv * 2.2 - vec2(uTime * 0.05));
+
+            float crestFoam = smoothstep(0.28, 0.75, vWaveCrest) * 0.95;
+            float shoreFoam = smoothstep(-3.5, 1.2, vWorldPos.z) * smoothstep(1.2, -0.2, vWorldPos.y);
+            float bigWaveFoam = uBigWaveFactor * smoothstep(0.35, 1.1, vWaveCrest);
+
+            float totalFoam = clamp(crestFoam + shoreFoam * 0.85 + bigWaveFoam, 0.0, 1.0);
+            totalFoam *= (foamNoise.r * 0.7 + foamNoise2.g * 0.55);
+
+            vec3 foamColor = vec3(0.98, 0.96, 0.94);
+            vec3 finalColor = mix(waterCol + sunGlitter, foamColor, totalFoam);
+
+            // Fresnel sky reflection
+            float fresnel = pow(1.0 - max(0.0, dot(viewDir, normal)), 4.0);
+            vec3 skyReflect = vec3(1.0, 0.6, 0.35) * fresnel * 0.6;
+            finalColor += skyReflect;
+
+            gl_FragColor = vec4(finalColor, 0.9 + totalFoam * 0.1);
+          }
+        `,
+        transparent: true,
+        depthWrite: false
+      });
+
+      this.oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
+      this.oceanMesh.position.set(0, -0.01, -26);
+      this.scene.add(this.oceanMesh);
+    }
+
+    // =======================================================================
+    // 3.2 BEACH TERRAIN & WET SAND MIRROR (沙滩与潮湿反光带)
+    // =======================================================================
+    buildBeachTerrain() {
+      const beachGeo = new THREE.PlaneGeometry(80, 50, 80, 80);
+      beachGeo.rotateX(-Math.PI / 2);
+
+      const pos = beachGeo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+
+        let y = 0.0;
+        if (z > 0) {
+          y += Math.pow(z * 0.12, 1.25) * 0.35;
+          y += Math.sin(x * 0.15) * Math.cos(z * 0.2) * 0.15;
+        } else {
+          y += z * 0.08; // Slopes gently down into water
+        }
+        pos.setY(i, y);
+      }
+      beachGeo.computeVertexNormals();
+
+      this.sandTexture = TextureGen.createSandTexture();
+
+      const beachMat = new THREE.MeshStandardMaterial({
+        map: this.sandTexture,
+        roughness: 0.75,
+        metalness: 0.05,
+        color: 0xffd39b
+      });
+
+      this.beachMesh = new THREE.Mesh(beachGeo, beachMat);
+      this.beachMesh.position.set(0, -0.05, 8);
+      this.beachMesh.receiveShadow = true;
+      this.scene.add(this.beachMesh);
+    }
+
+    // =======================================================================
+    // 3.3 LOUNGE CHAIR (第一人称视角可见椅面、两旁木扶手与脚踏)
+    // =======================================================================
+    buildLoungeChair() {
+      this.chairGroup = new THREE.Group();
+      const woodTex = TextureGen.createWoodTexture();
+      const woodMat = new THREE.MeshStandardMaterial({
+        map: woodTex,
+        roughness: 0.55,
+        metalness: 0.1,
+        color: 0xba7e48
+      });
+
+      const fabricMat = new THREE.MeshStandardMaterial({
+        roughness: 0.85,
+        color: 0xe65100 // Bright sunset orange lounger canvas
+      });
+
+      // 1. Slanted Leg Rest extending forward towards the sea (directly in lower view!)
+      const legRestGeo = new THREE.BoxGeometry(0.75, 0.04, 1.2);
+      const legRest = new THREE.Mesh(legRestGeo, fabricMat);
+      legRest.position.set(0, 0.45, 1.15);
+      legRest.rotation.x = 0.12;
+      legRest.castShadow = true;
+      this.chairGroup.add(legRest);
+
+      // Footrest wooden end bar
+      const footBar = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.06, 0.06), woodMat);
+      footBar.position.set(0, 0.38, 0.55);
+      footBar.castShadow = true;
+      this.chairGroup.add(footBar);
+
+      // 2. Wooden Armrests (framed clearly on left & right sides)
+      const armGeo = new THREE.BoxGeometry(0.08, 0.04, 1.1);
+      const leftArm = new THREE.Mesh(armGeo, woodMat);
+      leftArm.position.set(-0.46, 0.7, 1.6);
+      leftArm.rotation.x = 0.15;
+      leftArm.castShadow = true;
+      this.chairGroup.add(leftArm);
+
+      const rightArm = new THREE.Mesh(armGeo, woodMat);
+      rightArm.position.set(0.46, 0.7, 1.6);
+      rightArm.rotation.x = 0.15;
+      rightArm.castShadow = true;
+      this.chairGroup.add(rightArm);
+
+      // Front chair support legs
+      const legGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.5);
+      const frontLegL = new THREE.Mesh(legGeo, woodMat);
+      frontLegL.position.set(-0.42, 0.25, 0.7);
+      frontLegL.castShadow = true;
+      const frontLegR = new THREE.Mesh(legGeo, woodMat);
+      frontLegR.position.set(0.42, 0.25, 0.7);
+      frontLegR.castShadow = true;
+      this.chairGroup.add(frontLegL, frontLegR);
+
+      this.scene.add(this.chairGroup);
+    }
+
+    // =======================================================================
+    // 3.4 BEACH PARASOL (旁边遮阳伞 - 右侧倾斜撑起，美丽条纹伞盖)
+    // =======================================================================
+    buildParasol() {
+      this.parasolGroup = new THREE.Group();
+      this.parasolGroup.position.set(0.82, 0.0, 0.95); // Right next to the chair!
+      this.parasolGroup.rotation.z = -0.22;
+      this.parasolGroup.rotation.y = -0.4; // Tilting gently over chair
+      this.parasolGroup.rotation.x = 0.08;
+
+      // 1. Wooden Pole
+      const poleGeo = new THREE.CylinderGeometry(0.035, 0.035, 2.6, 16);
+      const poleMat = new THREE.MeshStandardMaterial({ color: 0x824c28, roughness: 0.65 });
+      const pole = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.y = 1.2;
+      pole.castShadow = true;
+      this.parasolGroup.add(pole);
+
+      // 2. Striped Parasol Canopy
+      const canopyGeo = new THREE.ConeGeometry(1.4, 0.55, 16, 1, true);
+      const umbrellaTex = TextureGen.createUmbrellaTexture();
+      const canopyMat = new THREE.MeshStandardMaterial({
+        map: umbrellaTex,
+        roughness: 0.75,
+        side: THREE.DoubleSide
+      });
+      const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+      canopy.position.y = 2.25;
+      canopy.castShadow = true;
+      this.parasolGroup.add(canopy);
+
+      // Finial tip at canopy peak
+      const tipGeo = new THREE.SphereGeometry(0.06, 12, 12);
+      const tip = new THREE.Mesh(tipGeo, poleMat);
+      tip.position.y = 2.58;
+      this.parasolGroup.add(tip);
+
+      this.scene.add(this.parasolGroup);
+    }
+
+    // =======================================================================
+    // 3.5 PALM TREE (左侧椰子树与繁茂绿叶树冠)
+    // =======================================================================
+    buildPalmTree() {
+      this.palmGroup = new THREE.Group();
+      this.palmGroup.position.set(-1.45, 0.05, 1.1); // Standing gracefully to the left
+
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6e4a2e, roughness: 0.85 });
+      let prevY = 0;
+      let prevX = 0;
+      const numSegments = 8;
+      for (let i = 0; i < numSegments; i++) {
+        const segGeo = new THREE.CylinderGeometry(0.14 - i * 0.008, 0.17 - i * 0.008, 0.55, 10);
+        const seg = new THREE.Mesh(segGeo, trunkMat);
+        const curX = prevX + Math.sin(i * 0.3) * 0.09;
+        const curY = prevY + 0.48;
+        seg.position.set(curX, curY, 0);
+        seg.rotation.z = Math.sin(i * 0.3) * 0.15;
+        seg.castShadow = true;
+        this.palmGroup.add(seg);
+        prevX = curX;
+        prevY = curY;
+      }
+
+      this.crownGroup = new THREE.Group();
+      this.crownGroup.position.set(prevX, prevY + 0.15, 0);
+
+      const leafMat = new THREE.MeshStandardMaterial({
+        color: 0x2e7d32,
+        roughness: 0.55,
+        side: THREE.DoubleSide
+      });
+
+      this.palmLeaves = [];
+      for (let j = 0; j < 8; j++) {
+        const angle = (j / 8) * Math.PI * 2;
+        const leafGeo = new THREE.PlaneGeometry(0.4, 1.8, 4, 8);
+        const lpos = leafGeo.attributes.position;
+        for (let k = 0; k < lpos.count; k++) {
+          const ly = lpos.getY(k);
+          lpos.setZ(k, -Math.pow((ly + 0.9) / 1.8, 2.0) * 0.5);
+        }
+        leafGeo.computeVertexNormals();
+
+        const leaf = new THREE.Mesh(leafGeo, leafMat);
+        leaf.rotation.y = angle;
+        leaf.rotation.x = 0.75;
+        leaf.castShadow = true;
+        this.crownGroup.add(leaf);
+        this.palmLeaves.push(leaf);
+      }
+
+      // Coconuts
+      const coconutMat = new THREE.MeshStandardMaterial({ color: 0x4a3525, roughness: 0.8 });
+      for (let c = 0; c < 3; c++) {
+        const coconut = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 10), coconutMat);
+        coconut.position.set(Math.cos(c * 2) * 0.16, -0.12, Math.sin(c * 2) * 0.16);
+        coconut.castShadow = true;
+        this.crownGroup.add(coconut);
+      }
+
+      this.palmGroup.add(this.crownGroup);
+      this.scene.add(this.palmGroup);
+    }
+
+    // =======================================================================
+    // 3.6 BEACH PROPS & FAUNA (边桌冰饮、海星、海贝、小蟹、排球)
+    // =======================================================================
+    buildPropsAndCritters() {
+      // 1. Wooden Side Table right beside user's right hand
+      const tableGroup = new THREE.Group();
+      tableGroup.position.set(0.48, 0.04, 1.25);
+
+      const woodMat = new THREE.MeshStandardMaterial({ color: 0x824c28, roughness: 0.65 });
+      const topGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.03, 16);
+      const top = new THREE.Mesh(topGeo, woodMat);
+      top.position.y = 0.44;
+      top.castShadow = true;
+      tableGroup.add(top);
+
+      const legGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.44);
+      for (let i = 0; i < 3; i++) {
+        const tleg = new THREE.Mesh(legGeo, woodMat);
+        const a = (i / 3) * Math.PI * 2;
+        tleg.position.set(Math.cos(a) * 0.16, 0.22, Math.sin(a) * 0.16);
+        tleg.castShadow = true;
+        tableGroup.add(tleg);
+      }
+
+      // Tropical Cocktail with ice, lemon slice and straw
+      const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transmission: 0.85,
+        opacity: 1,
+        transparent: true,
+        roughness: 0.08,
+        ior: 1.5
+      });
+      const drinkGlass = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.045, 0.16, 16), glassMat);
+      drinkGlass.position.set(0, 0.54, 0);
+      tableGroup.add(drinkGlass);
+
+      const liquidMat = new THREE.MeshStandardMaterial({ color: 0xff5722, roughness: 0.1 });
+      const liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.042, 0.13, 16), liquidMat);
+      liquid.position.set(0, 0.52, 0);
+      tableGroup.add(liquid);
+
+      // Turquoise Straw
+      const strawMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff, roughness: 0.3 });
+      const straw = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.22), strawMat);
+      straw.position.set(0.02, 0.61, 0.01);
+      straw.rotation.z = -0.32;
+      tableGroup.add(straw);
+
+      // Lemon slice
+      const lemonMat = new THREE.MeshStandardMaterial({ color: 0xffeb3b, roughness: 0.4 });
+      const lemon = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.008, 12), lemonMat);
+      lemon.position.set(-0.05, 0.62, 0);
+      lemon.rotation.x = Math.PI / 2;
+      tableGroup.add(lemon);
+
+      this.scene.add(tableGroup);
+
+      // 2. Beach Ball resting on the sand to the left
+      const ballGeo = new THREE.SphereGeometry(0.24, 20, 20);
+      const ballMat = new THREE.MeshStandardMaterial({ color: 0x00b0ff, roughness: 0.3 });
+      this.beachBall = new THREE.Mesh(ballGeo, ballMat);
+      this.beachBall.position.set(-0.72, 0.18, 0.95);
+      this.beachBall.castShadow = true;
+      this.scene.add(this.beachBall);
+
+      // 3. Bright Coral-Red Starfish in the sand
+      const starfishGroup = new THREE.Group();
+      starfishGroup.position.set(0.32, 0.05, 0.65); // Right in front on the sand!
+      starfishGroup.rotation.x = 0.12;
+      const starMat = new THREE.MeshStandardMaterial({ color: 0xf44336, roughness: 0.85 });
+      const starCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.025, 10), starMat);
+      starfishGroup.add(starCenter);
+      for (let s = 0; s < 5; s++) {
+        const arm = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.15, 8), starMat);
+        const a = (s / 5) * Math.PI * 2;
+        arm.position.set(Math.cos(a) * 0.08, 0, Math.sin(a) * 0.08);
+        arm.rotation.y = -a + Math.PI / 2;
+        arm.rotation.z = Math.PI / 2;
+        starfishGroup.add(arm);
+      }
+      this.scene.add(starfishGroup);
+
+      // 4. Spiral Seashells scattered along the sand
+      const shellMat = new THREE.MeshStandardMaterial({ color: 0xffecb3, roughness: 0.35 });
+      const shellPositions = [
+        [-0.28, 0.05, 0.55], [0.22, 0.04, 0.5], [-0.45, 0.04, 0.42]
+      ];
+      shellPositions.forEach(sp => {
+        const shell = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.09, 8), shellMat);
+        shell.position.set(...sp);
+        shell.rotation.set(Math.random(), Math.random(), Math.random());
+        this.scene.add(shell);
+      });
+
+      // 5. Beach Crab scurrying near the water line
+      this.crab = new THREE.Group();
+      this.crab.position.set(-0.35, 0.03, 0.48); // In clear view near water!
+      const crabMat = new THREE.MeshStandardMaterial({ color: 0xe64a19, roughness: 0.65 });
+
+      const crabBody = new THREE.Mesh(new THREE.SphereGeometry(0.065, 12, 12), crabMat);
+      crabBody.scale.set(1.4, 0.6, 1.0);
+      crabBody.castShadow = true;
+      this.crab.add(crabBody);
+
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+      const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), eyeMat);
+      leftEye.position.set(-0.035, 0.05, 0.06);
+      const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), eyeMat);
+      rightEye.position.set(0.035, 0.05, 0.06);
+      this.crab.add(leftEye, rightEye);
+
+      const clawL = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.08, 8), crabMat);
+      clawL.position.set(-0.12, 0.03, 0.06);
+      clawL.rotation.set(0.4, 0, 1.2);
+      const clawR = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.08, 8), crabMat);
+      clawR.position.set(0.12, 0.03, 0.06);
+      clawR.rotation.set(0.4, 0, -1.2);
+      this.crab.add(clawL, clawR);
+
+      this.scene.add(this.crab);
+
+      // 6. Flying Seagulls in Distance
+      this.seagulls = [];
+      const gullMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+      for (let g = 0; g < 4; g++) {
+        const gull = new THREE.Group();
+        const wingL = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.15), gullMat);
+        wingL.position.x = -0.3;
+        wingL.rotation.z = 0.2;
+        const wingR = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.15), gullMat);
+        wingR.position.x = 0.3;
+        wingR.rotation.z = -0.2;
+
+        gull.add(wingL, wingR);
+        gull.userData = {
+          wingL: wingL,
+          wingR: wingR,
+          basePos: new THREE.Vector3(-35 + g * 22, 18 + g * 3, -120 - g * 25),
+          speed: 0.8 + g * 0.2,
+          flapSpeed: 4.5 + g * 0.8
+        };
+        gull.position.copy(gull.userData.basePos);
+        this.scene.add(gull);
+        this.seagulls.push(gull);
+      }
+    }
+
+    // =======================================================================
+    // 3.7 INTERACTIVITY & EVENTS
+    // =======================================================================
+    setupEventListeners() {
+      window.addEventListener('resize', () => {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      const onMove = (clientX, clientY) => {
+        if (!this.isMouseDown) return;
+        const dx = clientX - this.prevMouseX;
+        const dy = clientY - this.prevMouseY;
+
+        this.targetLookX -= dx * 0.003;
+        this.targetLookY += dy * 0.0025;
+        this.targetLookX = Math.max(-0.85, Math.min(0.85, this.targetLookX));
+        this.targetLookY = Math.max(-0.35, Math.min(0.35, this.targetLookY));
+
+        this.prevMouseX = clientX;
+        this.prevMouseY = clientY;
+      };
+
+      window.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.hud-card') || e.target.closest('.btn')) return;
+        this.isMouseDown = true;
+        this.prevMouseX = e.clientX;
+        this.prevMouseY = e.clientY;
+      });
+
+      window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+      window.addEventListener('mouseup', () => { this.isMouseDown = false; });
+
+      window.addEventListener('touchstart', (e) => {
+        if (e.target.closest('.hud-card') || e.target.closest('.btn')) return;
+        if (e.touches.length === 1) {
+          this.isMouseDown = true;
+          this.prevMouseX = e.touches[0].clientX;
+          this.prevMouseY = e.touches[0].clientY;
+        }
+      });
+      window.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1) onMove(e.touches[0].clientX, e.touches[0].clientY);
+      });
+      window.addEventListener('touchend', () => { this.isMouseDown = false; });
+
+      const btnWave = document.getElementById('btn-trigger-wave');
+      btnWave.addEventListener('click', () => {
+        this.triggerBigWave();
+      });
+
+      const btnAudio = document.getElementById('btn-audio');
+      btnAudio.addEventListener('click', () => {
+        const isPlaying = this.audio.toggle();
+        if (isPlaying) {
+          btnAudio.classList.add('active');
+          btnAudio.textContent = '🔊 海浪音效播放中';
+        } else {
+          btnAudio.classList.remove('active');
+          btnAudio.textContent = '🔇 开启海浪音效';
+        }
+      });
+
+      const btnResetView = document.getElementById('btn-reset-view');
+      btnResetView.addEventListener('click', () => {
+        this.targetLookX = 0;
+        this.targetLookY = -0.08;
+      });
+
+      const btnToggleTime = document.getElementById('btn-toggle-time');
+      let sunsetMode = true;
+      btnToggleTime.addEventListener('click', () => {
+        sunsetMode = !sunsetMode;
+        if (sunsetMode) {
+          btnToggleTime.textContent = '🌅 夕阳金辉';
+          this.sunLight.color.setHex(0xff7a33);
+          this.renderer.toneMappingExposure = 1.1;
+        } else {
+          btnToggleTime.textContent = '🌙 暮色紫霞';
+          this.sunLight.color.setHex(0xf06292);
+          this.renderer.toneMappingExposure = 0.9;
+        }
+      });
+    }
+
+    triggerBigWave() {
+      if (this.bigWaveActive) return;
+      this.bigWaveActive = true;
+      this.bigWaveProgress = 0;
+      this.bigWaveIntensity = 1.0;
+
+      const banner = document.getElementById('big-wave-banner');
+      banner.classList.add('show');
+      setTimeout(() => banner.classList.remove('show'), 3500);
+
+      const statusText = document.getElementById('wave-status-text');
+      statusText.textContent = '🔥 巨浪咆哮来袭！';
+      statusText.style.color = '#ff6a00';
+    }
+
+    // =======================================================================
+    // 3.8 RENDER LOOP & REAL-TIME ANIMATIONS
+    // =======================================================================
+    animate() {
+      requestAnimationFrame(() => this.animate());
+
+      const dt = 0.016;
+      this.time += dt;
+
+      // Auto trigger big wave periodically
+      this.bigWaveTimer -= dt;
+      if (this.bigWaveTimer <= 0) {
+        this.triggerBigWave();
+        this.bigWaveTimer = 24.0 + Math.random() * 8.0;
+      }
+
+      if (this.bigWaveActive) {
+        this.bigWaveProgress += dt * 0.28;
+        if (this.bigWaveProgress < 0.5) {
+          this.bigWaveIntensity = Math.sin(this.bigWaveProgress * Math.PI);
+        } else if (this.bigWaveProgress < 1.0) {
+          this.bigWaveIntensity = Math.sin(this.bigWaveProgress * Math.PI) * 0.8;
+        } else {
+          this.bigWaveActive = false;
+          this.bigWaveIntensity = 0;
+          document.getElementById('wave-status-text').textContent = '常规微浪';
+          document.getElementById('wave-status-text').style.color = '#ffd2a6';
+        }
+      }
+
+      const energyBar = document.getElementById('wave-energy-bar');
+      const waveVal = Math.min(100, Math.round((0.25 + this.bigWaveIntensity * 0.75 + Math.sin(this.time * 1.4) * 0.1) * 100));
+      energyBar.style.width = waveVal + '%';
+
+      this.oceanUniforms.uTime.value = this.time;
+      this.oceanUniforms.uBigWaveFactor.value = this.bigWaveIntensity;
+
+      this.audio.update(this.time, this.bigWaveIntensity, this.bigWaveActive);
+
+      this.lookX += (this.targetLookX - this.lookX) * 0.08;
+      this.lookY += (this.targetLookY - this.lookY) * 0.08;
+      this.camera.rotation.y = this.lookX;
+      this.camera.rotation.x = this.lookY;
+
+      // Subtle Lounge chair breathing motion
+      const breathY = Math.sin(this.time * 1.2) * 0.008;
+      const breathZ = Math.cos(this.time * 0.6) * 0.005;
+      this.camera.position.set(
+        this.cameraBasePos.x,
+        this.cameraBasePos.y + breathY,
+        this.cameraBasePos.z + breathZ
+      );
+
+      // Palm Tree sway
+      if (this.palmLeaves) {
+        const breeze = Math.sin(this.time * 1.5) * 0.04;
+        this.crownGroup.rotation.z = breeze;
+        this.palmLeaves.forEach((leaf, idx) => {
+          leaf.rotation.z = Math.sin(this.time * 2.0 + idx) * 0.06;
+        });
+      }
+
+      // Crab animation
+      if (this.crab) {
+        const crabX = -0.35 + Math.sin(this.time * 0.9) * 0.28;
+        this.crab.position.x = crabX;
+        this.crab.children[3].rotation.z = 1.2 + Math.sin(this.time * 8.0) * 0.2;
+        this.crab.children[4].rotation.z = -1.2 + Math.cos(this.time * 8.0) * 0.2;
+      }
+
+      // Distant Seagulls flight
+      if (this.seagulls) {
+        this.seagulls.forEach((gull) => {
+          const u = gull.userData;
+          const flap = Math.sin(this.time * u.flapSpeed) * 0.35;
+          u.wingL.rotation.z = 0.2 + flap;
+          u.wingR.rotation.z = -0.2 - flap;
+          gull.position.x = u.basePos.x + Math.sin(this.time * u.speed * 0.3) * 35;
+          gull.position.y = u.basePos.y + Math.cos(this.time * u.speed * 0.5) * 4;
+        });
+      }
+
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    new SunsetBeachApp();
+  });
+  </script>
+</body>
+</html>

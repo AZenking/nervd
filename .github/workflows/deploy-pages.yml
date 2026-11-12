@@ -18,6 +18,10 @@ concurrency:
   group: 'pages'
   cancel-in-progress: true
 
+# 统一 pnpm 供应链时间窗（含 `pnpm tauri build` 内部触发的 install）
+env:
+  npm_config_minimum_release_age: '0'
+
 jobs:
   deploy:
     environment:
