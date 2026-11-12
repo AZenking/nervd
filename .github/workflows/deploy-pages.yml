@@ -38,7 +38,9 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # pnpm 12 在部分环境默认启用 24h 供应链时间窗（ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION），
+        # 与本机默认不一致；显式置 0 保证同一条 lockfile 两侧行为一致。
+        run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
 
       - name: Build landing & preview bundle
         run: pnpm exec vite build --config preview/vite.config.mts --base ./
