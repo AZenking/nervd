@@ -11,21 +11,13 @@ on:
         required: true
         default: 'v1.1.2'
 
-# 代码签名状态：**未启用**（仓库尚无 Apple / Windows 证书）。
-# 启用方式（配置好以下仓库 Secrets 后，按下述改造本文件）：
-#   Apple：APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY
-#          APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID
-#   Windows：WINDOWS_CERTIFICATE / WINDOWS_CERTIFICATE_PASSWORD
-# 注意：**不要**把上述 secret 放到 job 级 env——Tauri 会把「存在但为空」的环境变量
-# 视为已配置签名，进而在打包阶段导入空证书并失败
-# （security import: One or more parameters ... were not valid）。
-# 正确做法是给「导入证书」和「Build」两个 step 单独设置 env，并在导入成功后再写入
-# GITHUB_ENV 供 Build 使用。
 # 默认只读：只有 publish-release 需要 contents: write
 permissions:
   contents: read
 
 env:
+  # pnpm 12 的 24h 供应链时间窗与本地默认(0)不一致，会让 pnpm tauri build
+  # 内部触发的 install 失败；用环境变量对全部 pnpm 调用生效。
   npm_config_minimum_release_age: '0'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -84,11 +76,8 @@ jobs:
     # 全量使用 GitHub 当前活跃的 macOS Apple Silicon (arm64) Runner 池，杜绝 macos-13 停服死锁
     runs-on: macos-latest
 
-    # 签名/公证默认关闭：仓库尚未配置 Apple 证书。
-    # 注意 Tauri 把「存在但为空」的环境变量也当作已配置签名，会在打包阶段导入
-    # 空证书并失败（security import: One or more parameters ... were not valid），
-    # 因此这些 secret 不能放到 job 级 env。
-    # 启用步骤见 .github/workflows/release.yml 顶部注释。
+    # 签名/公证默认关闭（仓库尚无 Apple 证书）。启用方式见文件顶部注释。
+    # 注意：这些 secret 不能放 job 级 env——Tauri 会把「存在但为空」当作已配置签名。
 
     steps:
       - name: Checkout code
@@ -116,6 +105,15 @@ jobs:
           workspaces: './src-tauri -> target'
           # 必须按 target 分 key：arm64 与 x86_64 的产物/依赖特性不同
           key: ${{ matrix.target }}
+
+      - name: Install dependencies
+        # pnpm 12 在部分环境默认启用 24h 供应链时间窗（ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION），
+        # 与本机默认不一致；显式置 0 保证同一条 lockfile 两侧行为一致。
+        run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+
+      - name: Build Tauri DMG (${{ matrix.target }})
+        # APPLE_SIGNING_IDENTITY 存在时，Tauri 会在打包前对 .app 完成 codesign
+        run: pnpm tauri build --target ${{ matrix.target }}
 
       - name: Package Release Assets
         id: package
