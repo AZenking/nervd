@@ -3,42 +3,113 @@
 All notable changes to **nervd** will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.1.3](https://github.com/AZenking/nervd/releases/tag/v1.1.3) - 2026-11-12
+
+### 🐛 Bug Fixes
+
+- *(backend)* Harden update path, fix timezone and settings data loss ([3d6ba07](https://github.com/AZenking/nervd/commit/3d6ba079ac46c1fe2da1b4e73be67e0f38eb0d20))
+- *(ui)* Align design tokens with DESIGN.md and close write-gating gaps ([4c33510](https://github.com/AZenking/nervd/commit/4c335106c8cce829fccbd07ac3477ae1dfa461be))
+
+### ⚡ Performance
+
+- *(frontend)* Eliminate duplicate fetches, full-store rerenders and per-keystroke persistence ([2ee4a59](https://github.com/AZenking/nervd/commit/2ee4a5956d932fc07c5e205232a35acf2e3d8d90))
+
+### 🛠️ Build & Tooling
+
+- *(repo)* Untrack pnpm store and generated graph output ([4abe18c](https://github.com/AZenking/nervd/commit/4abe18c5ba503fa7bc86f2d53a6e6d9f24b497e2))
+
+### Build
+
+- *(gate)* Make verification catch what it previously could not ([a1e7818](https://github.com/AZenking/nervd/commit/a1e781851d70bc3fdfa5c02681b8887ff3816028))
+## [1.1.2](https://github.com/AZenking/nervd/releases/tag/v1.1.2) - 2026-11-11
+
+### 🐛 Bug Fixes
+
+- *(ui)* Resolve dropdown crash from raw text in RAC collection portal ([6033ece](https://github.com/AZenking/nervd/commit/6033ece031231fcec916e8a2c37241501bb6573e))
+## [1.1.1](https://github.com/AZenking/nervd/releases/tag/v1.1.1) - 2026-11-11
+
+### 🐛 Bug Fixes
+
+- *(build)* Disable toplevel mangling to resolve createTextNode collision and bump version to 1.1.1 ([4aeea42](https://github.com/AZenking/nervd/commit/4aeea426352a9b640db9c48bd67e2c3c52c5db6c))
+## [1.1.0](https://github.com/AZenking/nervd/releases/tag/v1.1.0) - 2026-11-11
+
+### 🚀 Features
+
+- *(branch-track)* Direct-connect mode, {track} alias and plan-A auto inheritance ([5baa731](https://github.com/AZenking/nervd/commit/5baa731eea6f76461c23012a50ecdbfeae124616))
+- *(branch-track)* Visual branch topology for track presets and delivery previews ([35fe004](https://github.com/AZenking/nervd/commit/35fe00485a7dde500d2303e8c2421f69f3974a5d))
+- *(storage)* SQLite row-level persistence for settings and branch tracks ([c89b993](https://github.com/AZenking/nervd/commit/c89b9934267e5acb48cfa4bc9d6a681bc6645de5))
+- *(bug-trace)* Bug/Task inherit parent repo chain and add bug MR flow with child activity write-back ([60625e6](https://github.com/AZenking/nervd/commit/60625e64478438c4d48b5dcb01ce7421fbe959f3))
+- *(workbench)* Align modals and settings with HeroUI v3 design system ([57f326a](https://github.com/AZenking/nervd/commit/57f326a7b96f779ad58baf45611dfc9c8a10b7c1))
+- *(iteration)* Streamline requirement workbench and branch sync topology ([add6040](https://github.com/AZenking/nervd/commit/add6040d472d41f6205c6a6b55b69fd5ff6e25f9))
+- *(overview)* Add dynamic build progress bar and multi-tier duration estimation ([fc317d6](https://github.com/AZenking/nervd/commit/fc317d6c36b462b09ae69b750c486143f48a2b4c))
+- *(branch-rules)* Add track topology modal and quick-view entry points ([12a0f2d](https://github.com/AZenking/nervd/commit/12a0f2d6d9542334505dcda0f9f36427bddbd7b2))
+
+### 🐛 Bug Fixes
+
+- *(ui)* Resolve input focus interruption and optimize popover virtualized scrolling ([5abeded](https://github.com/AZenking/nervd/commit/5abeded34fad75ddc2efa43cead9281a8bcbc732))
+
+### ♻️ Refactor
+
+- *(branch-rules)* Rebuild track topology diagram on @xyflow/react ([f00fbca](https://github.com/AZenking/nervd/commit/f00fbcaf986d38ae9ec51fbbbc41ea18864dec85))
+- *(storage)* Migrate settings storage to com.dev.nervd.data with legacy dir migration ([a4542da](https://github.com/AZenking/nervd/commit/a4542dade2e03b1d215bdbb6364555f683bcf1a6))
+
+### 🛠️ Build & Tooling
+
+- Remove redundant image assets ([1cec824](https://github.com/AZenking/nervd/commit/1cec82439c4734d79d14043d8e6ac2fdd3a9583a))
 ## [1.0.0](https://github.com/AZenking/nervd/releases/tag/v1.0.0) - 2026-11-05
 
 ### 🚀 Features
 
-- *(ui)* 全面迁移至 HeroUI v3 无障碍规范体系并引入线性侧边抽屉 (Peek Drawer) ([eb3c67f](https://github.com/AZenking/nervd/commit/eb3c67f5eea5eb4cbe42faaa64ddf71904120a17))
-- *(ui)* 原生 HeroUI Card 统一 StatBand、Stat 与 QuickBuildConsole 容器 ([435c051](https://github.com/AZenking/nervd/commit/435c0519bfd078ba15e1db28f521cf3e09886a8b))
-- *(ui)* 下拉检索框迁移至原生 HeroUI Autocomplete ([5ec3413](https://github.com/AZenking/nervd/commit/5ec3413cb17f54c2596e1919aa786c25345d3c8a))
-- *(theme)* HeroUI v3 主题 Token 与双模数据同步，完善全站深浅色自适应 ([4570e0b](https://github.com/AZenking/nervd/commit/4570e0b37807c4d51cb20f2690d5ae684534f5df))
-- *(ui)* 启动与总览加载采用 HeroUI ProgressBar 及原生 Label ([9792de9](https://github.com/AZenking/nervd/commit/9792de9aa250ef31a980eb63dcba48740d12e697))
-- *(ui)* 模态弹窗与侧栏抽屉全量采用 HeroUI Modal / Drawer 复合组件原语 ([9201464](https://github.com/AZenking/nervd/commit/92014643c137452db89487c53d1007d4fa4c4989))
-- *(ui)* 侧边栏与工作项折叠迁移至 HeroUI Accordion 与 ListBox 原语 ([52fbb82](https://github.com/AZenking/nervd/commit/52fbb82103f5509cbdbbc882791834ee5110ebf1))
-- *(ui)* 状态标识与需求元数据标签全面迁移至 HeroUI Chip ([aa0cd09](https://github.com/AZenking/nervd/commit/aa0cd09fd7180ff9ba47a9ffca53760bc21a6e9a))
-- *(ui)* 标签页迁移至 HeroUI 浮动分段式 Tabs ([f4fdfb8](https://github.com/AZenking/nervd/commit/f4fdfb80a1ae11c8d1976bb2559b32e67a7806f3))
-- *(overview)* 合并快捷构建台与活跃构建流，支持方案B预估进度条与自由选择Job ([00bd3a1](https://github.com/AZenking/nervd/commit/00bd3a18357774ae7003c4046d337f71b12b5b19))
+- *(overview)* 合并快捷构建台与活跃构建流，支持方案B预估进度条与自由选择Job ([00bd3a1](https://github.com/AZenking/nervd/commit/00bd3a1c382fde4164f7a68e74cf414ff399c237))
+- *(ui)* Migrate core UI primitives to HeroUI v3 ([a5b6c02](https://github.com/AZenking/nervd/commit/a5b6c02dd03163e254bc670feb2ebc648d85c8f3))
+- *(sidebar)* Modernize left sidebar to modern SaaS pill style ([e4d15c8](https://github.com/AZenking/nervd/commit/e4d15c87606f5e57252bab4731f8e49b27b11f1b))
+- *(ui)* Update tabs to HeroUI floating pill segmented style ([f4fdfb8](https://github.com/AZenking/nervd/commit/f4fdfb87def114f988f24c19bb2bb40ca7731425))
+- *(ui)* Migrate all statuses to HeroUI Chip component ([aa0cd09](https://github.com/AZenking/nervd/commit/aa0cd09e15fe06f114d6508fa9e068fd30a15079))
+- *(ui)* Migrate requirement detail metadata pills to HeroUI Chip ([160cbd2](https://github.com/AZenking/nervd/commit/160cbd2fcde7101eaa7b26e4c33e754db56760e2))
+- *(ui)* Replace selects with HeroUI Select compound components natively without custom css ([d9ca9a0](https://github.com/AZenking/nervd/commit/d9ca9a0b5127f92b96e38e368308e2f78bf2ff26))
+- *(ui)* Add HeroUI pill tabs to requirement details for section navigation ([bce40c5](https://github.com/AZenking/nervd/commit/bce40c5b130fd9b327f0bd3069f9f72db755a148))
+- *(ui)* Fix sidebar collapsed icon mode clipping and migrate iteration list to HeroUI ListBox ([8484fee](https://github.com/AZenking/nervd/commit/8484fee6ad7841e833cf6c0b5a1d5c3651ea0270))
+- *(ui)* Migrate all drawers to native HeroUI Drawer compound API without custom css overrides ([0b6fb86](https://github.com/AZenking/nervd/commit/0b6fb860cd76e9f6918ff7f505660c223b3e461e))
+- *(ui)* Migrate all modals and dialogs to native HeroUI Modal without custom css overrides ([9201464](https://github.com/AZenking/nervd/commit/9201464eebbda82e7ead07c68d74dc2bae8f9dc0))
+- *(ui)* Migrate all cards to native HeroUI Card component without custom css overrides ([dbdfa9c](https://github.com/AZenking/nervd/commit/dbdfa9ce273d0f87cd5cf375fbdee0d551f2a9d1))
+- *(ui)* Migrate toast and toaster to native HeroUI without custom css overrides ([2db5c22](https://github.com/AZenking/nervd/commit/2db5c22b861aad3b23eadc272d915d9376a24d23))
+- *(ui)* Use HeroUI ProgressBar and Label for startup and overview loading ([9792de9](https://github.com/AZenking/nervd/commit/9792de99cc5969fb0065e067a95e1eb68e1a231e))
+- *(theme)* Align HeroUI v3 theme tokens and dual-flag data-theme synchronization ([4570e0b](https://github.com/AZenking/nervd/commit/4570e0b49126c360aa5753adf15f474d2d0c5e2d))
+- *(ui)* Migrate SearchableSelect to native HeroUI Autocomplete ([5ec3413](https://github.com/AZenking/nervd/commit/5ec3413a57c654b0056cc1bd26523966d7d14236))
+- *(ui)* Migrate StatBand, Stat and QuickBuildConsole to native HeroUI Card ([435c051](https://github.com/AZenking/nervd/commit/435c051f1c8a19bc90ceae3bd4139175d3a6d74e))
+- Migrate UI to HeroUI v3 with Peek Drawer and onboarding wizard ([eb3c67f](https://github.com/AZenking/nervd/commit/eb3c67f5eea5eb4cbe42faaa64ddf71904120a17))
 
 ### 🐛 Bug Fixes
 
-- *(iteration)* 修复行首多选 Checkbox 点击与快捷键交互 ([a50e301](https://github.com/AZenking/nervd/commit/a50e301844b2f1e2920786cf81f9f25757876a47))
-- *(recents)* 键盘光标选中行规范化为柔和背景，避免动作色过度填色 ([fb7da7f](https://github.com/AZenking/nervd/commit/fb7da7fc7ae62df3273eef0762946777558ec48c))
-- *(design)* 全仓设计系统与无障碍对齐排查（交互、阴影、圆角、焦点环） ([f393c96](https://github.com/AZenking/nervd/commit/f393c96c4b9e2cb92b5168010839f1c7d8137351))
-- *(requirement)* 子任务/缺陷行内创建及元数据字段严格遵循 HeroUI 原生 Select 规范 ([e2c9525](https://github.com/AZenking/nervd/commit/e2c95251a37c0438ec6f44d9f676435c2b67f1ee))
-- *(schedules)* 定时任务支持最近合并变更点展示、列表宽度自适应与工具栏对齐 ([edfa750](https://github.com/AZenking/nervd/commit/edfa750697ad321528bc4bf33ce00c6eb230a113))
+- *(ui)* Prevent tab text from wrapping by setting whitespace nowrap ([e3619bd](https://github.com/AZenking/nervd/commit/e3619bd8e06726d89c419664e02c6c4bdce19121))
+- *(ui)* Resolve collapsed sidebar text overflow and migrate iteration to native HeroUI Accordion ([52fbb82](https://github.com/AZenking/nervd/commit/52fbb823ba785c7f5d515214497abd504f0f4ea7))
+- *(theme)* Complete dual-theme light/dark color adaptation across all views ([9c0aa6f](https://github.com/AZenking/nervd/commit/9c0aa6fc5966adf1a4d6ff93490f2c82ca90760a))
+- *(schedules)* Harden edit drawer against legacy task shapes and add error boundaries ([8496d88](https://github.com/AZenking/nervd/commit/8496d88f40b9579b013b4a23e33c2127766ff8df))
+- *(schedules)* Render virtual autocomplete options inside a ListBox collection ([edfa750](https://github.com/AZenking/nervd/commit/edfa750c5ec3ff01bd834ba298835bf1db5de361))
+- *(requirement)* Replace static metadata chips with functional Selects ([e2c9525](https://github.com/AZenking/nervd/commit/e2c9525d33008d016dca7e206186a16be73a32a6))
+- *(design)* Full-repo compliance sweep — interactions, shadows, pills, focus ([f393c96](https://github.com/AZenking/nervd/commit/f393c965daf50d689fa4af12454c69fb5c1e021c))
+- *(recents)* Keyboard cursor row uses muted bg, not violet accent fill ([fb7da7f](https://github.com/AZenking/nervd/commit/fb7da7f3282d6350366408777e51e9a8c7e52b41))
+- *(iteration)* 修复行首多选 Checkbox 点击无效果 ([a50e301](https://github.com/AZenking/nervd/commit/a50e301cceef33fef94fbcbc1eb6bf86bd3b7736))
 
 ### 🎨 UI & Styling
 
-- *(theme)* 清理残余调色板硬编码，头像身份标识与严重程度色阶规范化 ([340c427](https://github.com/AZenking/nervd/commit/340c4270b2404b901a18206d933ca24d3fe27e85))
-- *(theme)* 深度对齐 DESIGN.md v2 主题变量契约与分层阴影规范 ([4591bfc](https://github.com/AZenking/nervd/commit/4591bfcbf47e3a9dd78c9ea24d2757279cb39257))
+- *(requirement)* Right-align status/assignee selects in metadata bar ([7c6095d](https://github.com/AZenking/nervd/commit/7c6095d149cac22626975631082e2baacf6afe18))
+- *(theme)* Align UI with DESIGN.md v2 — semantic tokens, shadow tier, dead CSS ([4591bfc](https://github.com/AZenking/nervd/commit/4591bfc7844524fb7631eb6adf7d5e8909ea2612))
+- *(theme)* Eliminate last raw palette spots — avatar identity tokens + severity tier ([340c427](https://github.com/AZenking/nervd/commit/340c4275b13682d7a21c2b93be01885229731a44))
 
 ### ♻️ Refactor
 
-- *(requirement)* 负责人、严重程度及类型选择器重构为 HeroUI Select 复合组件 ([5d2aff8](https://github.com/AZenking/nervd/commit/5d2aff8085d7b5bf3a71b1aa893661eb1bbdb42a))
+- *(ui)* Directly use HeroUI native Tabs without custom CSS overrides ([8bf0801](https://github.com/AZenking/nervd/commit/8bf0801b8faaf9e79d9386065a965638e7bfe174))
+- *(requirement)* 负责人选择器迁移 HeroUI Select 规范实现 ([5d2aff8](https://github.com/AZenking/nervd/commit/5d2aff841e20dd7a8944e705e0ec7d5e294362f8))
 
 ### 📚 Documentation
 
-- *(design)* 重写 DESIGN.md — HeroUI v3 契约基准 + nervd 覆盖层及全流程交互规范 ([2919e71](https://github.com/AZenking/nervd/commit/2919e715e21976a4ba032dfa9eeb0eef00c7a828))
+- *(design)* Rewrite DESIGN.md — HeroUI v3 contract + nervd override layer ([2919e71](https://github.com/AZenking/nervd/commit/2919e71100d7b23884bbe7e8826dc267bb5d338f))
+- *(changelog)* Update CHANGELOG.md for v1.0.0 ([4a3ca60](https://github.com/AZenking/nervd/commit/4a3ca603dbf58edf8c70f5a96dbf94685ed3aef4))
 
+### 🛠️ Build & Tooling
+
+- Checkpoint WIP before design-spec alignment sweep ([c4fb045](https://github.com/AZenking/nervd/commit/c4fb045fed6a62ed7de63403066bea415dad8cfe))
 ## [0.4.2](https://github.com/AZenking/nervd/releases/tag/v0.4.2) - 2026-11-02
 
 ### 🚀 Features
