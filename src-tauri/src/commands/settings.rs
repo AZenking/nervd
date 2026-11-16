@@ -324,6 +324,36 @@ pub async fn list_iteration_tracks(
     db::iteration_tracks(&conn, &iteration_id)
 }
 
+/// 读取某个 scope 的默认分支轨道（global / iteration）。
+#[tauri::command]
+pub async fn get_branch_track_default(
+    state: State<'_, AppState>,
+    scope: String,
+    iteration_id: Option<String>,
+) -> Result<Option<String>, String> {
+    let scope = scope.trim();
+    if !matches!(scope, "global" | "iteration") {
+        return Err("scope 必须是 global 或 iteration".into());
+    }
+    let iteration_id = iteration_id.as_deref().map(str::trim).filter(|value| !value.is_empty());
+    if scope == "iteration" && iteration_id.is_none() {
+        return Err("迭代默认轨道需要提供 iterationId".into());
+    }
+    let conn = state.db.lock().unwrap();
+    db::default_branch_track(&conn, scope, iteration_id)
+}
+
+/// 设置默认分支轨道；同一 scope / iteration 内只保留一个默认。
+#[tauri::command]
+pub async fn set_branch_track_default(
+    state: State<'_, AppState>,
+    track_id: String,
+) -> Result<bool, String> {
+    let mut conn = state.db.lock().unwrap();
+    db::set_default_branch_track(&mut conn, &track_id)?;
+    Ok(true)
+}
+
 /// 迭代专属分支模板：遗留 localStorage 数据一次性幂等导入
 /// （app_settings 键 localStorageImported=1 后直接返回 Ok(true)）
 #[tauri::command]

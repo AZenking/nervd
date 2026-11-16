@@ -114,6 +114,107 @@ pub fn init_conn(conn: &Connection) -> Result<(), String> {
             track_id TEXT NULL,
             PRIMARY KEY(workitem_id, repo_id),
             FOREIGN KEY(track_id) REFERENCES branch_tracks(id) ON DELETE SET NULL
+        );
+        -- 变更归属：仓库中心事件索引（additive，可重复执行）
+        CREATE TABLE IF NOT EXISTS code_events (
+            id TEXT PRIMARY KEY,
+            repo_id INTEGER NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN ('commit','mr','build')),
+            external_id TEXT NOT NULL,
+            branch TEXT,
+            target_branch TEXT,
+            title TEXT NOT NULL,
+            author TEXT,
+            occurred_at INTEGER NOT NULL,
+            payload_json TEXT NOT NULL,
+            source TEXT NOT NULL CHECK(source IN ('remote','local','ci')),
+            pushed INTEGER NOT NULL DEFAULT 1,
+            backfilled INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_code_events
+            ON code_events(repo_id, kind, external_id);
+        CREATE INDEX IF NOT EXISTS ix_code_events_time
+            ON code_events(occurred_at DESC);
+        CREATE INDEX IF NOT EXISTS ix_code_events_repo
+            ON code_events(repo_id, occurred_at DESC);
+
+        CREATE TABLE IF NOT EXISTS event_workitems (
+            event_id TEXT NOT NULL,
+            workitem_id TEXT,
+            identifier TEXT NOT NULL,
+            relation TEXT NOT NULL CHECK(relation IN ('primary','related','rollup')),
+            confidence TEXT NOT NULL CHECK(confidence IN ('explicit','branch','target','inherited','manual')),
+            PRIMARY KEY(event_id, identifier, relation),
+            FOREIGN KEY(event_id) REFERENCES code_events(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS ix_event_workitems_workitem
+            ON event_workitems(workitem_id, relation);
+        CREATE INDEX IF NOT EXISTS ix_event_workitems_identifier
+            ON event_workitems(identifier);
+
+        CREATE TABLE IF NOT EXISTS workitem_identifiers (
+            identifier TEXT PRIMARY KEY,
+            workitem_id TEXT,
+            category TEXT,
+            subject TEXT,
+            parent_workitem_id TEXT,
+            parent_identifier TEXT,
+            resolved_at INTEGER,
+            error TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS repo_sync_state (
+            repo_id INTEGER NOT NULL,
+            ref TEXT NOT NULL,
+            cursor TEXT,
+            backfilled_at INTEGER,
+            last_sync_at INTEGER,
+            last_error TEXT,
+            PRIMARY KEY(repo_id, ref)
+        );
+
+        CREATE TABLE IF NOT EXISTS activity_posts (
+            event_id TEXT NOT NULL,
+            workitem_id TEXT NOT NULL,
+            batch_key TEXT,
+            comment_id TEXT,
+            status TEXT NOT NULL CHECK(status IN ('pending','posted','failed','skipped')),
+            attempts INTEGER NOT NULL DEFAULT 0,
+            next_retry_at INTEGER,
+            error TEXT,
+            posted_at INTEGER,
+            PRIMARY KEY(event_id, workitem_id)
+        );
+        CREATE INDEX IF NOT EXISTS ix_activity_posts_status
+            ON activity_posts(status, next_retry_at);
+
+        CREATE TABLE IF NOT EXISTS attribution_policy (
+            scope TEXT PRIMARY KEY,
+            child_mode TEXT NOT NULL,
+            parent_mode TEXT NOT NULL,
+            max_per_day INTEGER NOT NULL DEFAULT 5,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS repo_local_bindings (
+            repo_id INTEGER PRIMARY KEY,
+            path TEXT NOT NULL UNIQUE,
+            remote_url TEXT,
+            default_branch TEXT,
+            hook_installed INTEGER NOT NULL DEFAULT 0,
+            hook_mode TEXT NOT NULL DEFAULT 'fill',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS branch_track_topology (
+            track_id TEXT PRIMARY KEY,
+            child_pattern TEXT,
+            child_base TEXT NOT NULL DEFAULT 'requirement',
+            child_mr_target TEXT NOT NULL DEFAULT 'parent',
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY(track_id) REFERENCES branch_tracks(id) ON DELETE CASCADE
         );",
     )
     .map_err(|e| format!("初始化 nervd.db 表结构失败: {e}"))?;
@@ -305,7 +406,7 @@ const TRACK_COLUMNS: &str = "id, name, source_branch, baseline_pattern, workitem
 pub fn global_tracks(conn: &Connection) -> Result<Vec<BranchRuleTemplate>, String> {
     let mut stmt = conn
         .prepare(&format!(
-            "SELECT {TRACK_COLUMNS} FROM branch_tracks WHERE scope = 'global' ORDER BY sort_order"
+            "SELECT {TRACK_COLUMNS} FROM branch_tracks WHERE scope = 'global' ORDER BY is_default DESC, sort_order"
         ))
         .map_err(|e| format!("读取全局轨道失败: {e}"))?;
     let rows = stmt
@@ -323,7 +424,7 @@ pub fn iteration_tracks(
     let mut stmt = conn
         .prepare(&format!(
             "SELECT {TRACK_COLUMNS} FROM branch_tracks
-             WHERE scope = 'iteration' AND iteration_id = ?1 ORDER BY sort_order"
+             WHERE scope = 'iteration' AND iteration_id = ?1 ORDER BY is_default DESC, sort_order"
         ))
         .map_err(|e| format!("读取迭代轨道失败: {e}"))?;
     let rows = stmt
@@ -383,6 +484,57 @@ pub fn track_exists(conn: &Connection, track_id: &str) -> Result<bool, String> {
     .map_err(|e| format!("查询轨道 {track_id} 失败: {e}"))
 }
 
+/// 读取某个 scope（global 或指定 iteration）的默认轨道 ID。
+pub fn default_branch_track(
+    conn: &Connection,
+    scope: &str,
+    iteration_id: Option<&str>,
+) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT id FROM branch_tracks
+         WHERE scope = ?1 AND iteration_id IS ?2 AND is_default = 1
+         ORDER BY sort_order LIMIT 1",
+        params![scope, iteration_id],
+        |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map_err(|e| format!("读取默认分支轨道失败: {e}"))
+}
+
+/// 设置默认轨道：仅影响同一 scope / iteration，事务内保证唯一。
+pub fn set_default_branch_track(conn: &mut Connection, track_id: &str) -> Result<(), String> {
+    let track_id = track_id.trim();
+    if track_id.is_empty() {
+        return Err("分支轨道 ID 不能为空".into());
+    }
+    let (scope, iteration_id): (String, Option<String>) = conn
+        .query_row(
+            "SELECT scope, iteration_id FROM branch_tracks WHERE id = ?1",
+            params![track_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|e| format!("查询分支轨道失败: {e}"))?
+        .ok_or_else(|| "分支轨道不存在".to_string())?;
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("开启默认轨道事务失败: {e}"))?;
+    tx.execute(
+        "UPDATE branch_tracks SET is_default = 0
+         WHERE scope = ?1 AND iteration_id IS ?2",
+        params![scope, iteration_id],
+    )
+    .map_err(|e| format!("清除旧默认轨道失败: {e}"))?;
+    tx.execute(
+        "UPDATE branch_tracks SET is_default = 1 WHERE id = ?1",
+        params![track_id],
+    )
+    .map_err(|e| format!("设置默认轨道失败: {e}"))?;
+    tx.commit()
+        .map_err(|e| format!("提交默认轨道事务失败: {e}"))
+}
+
 // ---------- 行级写助手 ----------
 
 pub fn upsert_app_setting(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
@@ -436,7 +588,7 @@ fn upsert_track(
             source_branch = excluded.source_branch,
             baseline_pattern = excluded.baseline_pattern,
             workitem_pattern = excluded.workitem_pattern,
-            is_default = excluded.is_default,
+            -- 保存模板不应重置默认轨道；默认只能经 set_default_branch_track 修改
             sort_order = excluded.sort_order",
         params![
             template.id,
@@ -871,6 +1023,48 @@ mod tests {
         assert_eq!(loaded.watched_repos, vec![12, 13]);
         assert!(loaded.workitem_repos.is_empty(), "损坏键回退默认值");
         assert!(loaded.repo_ci_bindings.is_empty(), "损坏键回退默认值");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn default_track_is_scoped_and_survives_template_save() {
+        let (mut conn, dir) = temp_conn("default_track");
+        replace_global_tracks(&mut conn, &[track("g1", "G1"), track("g2", "G2")]).unwrap();
+        set_default_branch_track(&mut conn, "g2").unwrap();
+        assert_eq!(
+            default_branch_track(&conn, "global", None).unwrap().as_deref(),
+            Some("g2")
+        );
+        assert_eq!(
+            global_tracks(&conn).unwrap().first().map(|item| item.id.as_str()),
+            Some("g2"),
+            "默认轨道排在最前"
+        );
+
+        replace_iteration_tracks(&mut conn, "it-1", &[track("i1", "I1"), track("i2", "I2")])
+            .unwrap();
+        set_default_branch_track(&mut conn, "i2").unwrap();
+        assert_eq!(
+            default_branch_track(&conn, "iteration", Some("it-1"))
+                .unwrap()
+                .as_deref(),
+            Some("i2")
+        );
+        assert_eq!(
+            default_branch_track(&conn, "global", None).unwrap().as_deref(),
+            Some("g2"),
+            "iteration 默认不影响 global"
+        );
+
+        // 保存模板（行级替换）不得重置默认标记
+        replace_iteration_tracks(&mut conn, "it-1", &[track("i1", "I1"), track("i2", "I2")])
+            .unwrap();
+        assert_eq!(
+            default_branch_track(&conn, "iteration", Some("it-1"))
+                .unwrap()
+                .as_deref(),
+            Some("i2")
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

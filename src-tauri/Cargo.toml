@@ -16,6 +16,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2.5.0"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # 本地时区换算（Local）需要 clock 特性；关闭默认特性以收敛体积（不需要 wasmbind / oldtime）
@@ -26,6 +27,11 @@ keyring = "4"
 tokio = { version = "1", features = ["time", "macros"] }
 httpdate = "1.0.3"
 rusqlite = { version = "0.41.1", features = ["bundled"] }
+regex = "1"
+notify = "8"
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 codegen-units = 1

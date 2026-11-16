@@ -135,7 +135,13 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
 
     let mut truncated = false;
     let mut children: Vec<Value> = Vec::new();
-    for resp in [&resp_req, &resp_task, &resp_bug] {
+    // 类别以「查询维度」为准：云效的 categoryId 有时是工作项类型 UUID，
+    // 直接回读会让 Bug 被当成 Task（前端按 category === 'Bug' 分组时缺陷整块消失）。
+    for (resp, category) in [
+        (&resp_req, "Req"),
+        (&resp_task, "Task"),
+        (&resp_bug, "Bug"),
+    ] {
         let rows = as_array(resp);
         // 本地按 parentId 过滤，若某类别候选已达服务端上限，可能漏掉更早的子项
         if rows.len() >= CHILDREN_CANDIDATE_LIMIT as usize {
@@ -145,27 +151,32 @@ pub async fn list_workitem_children(state: State<'_, AppState>, workitem_id: Str
             if s(w, "parentId") != workitem_id {
                 continue;
             }
-            let ident = {
-                let a = s(w, "identifier");
-                if !a.is_empty() { a } else { s(w, "serialNumber") }
-            };
-            let status_name = {
-                let n = nested_s(w, "status", "name");
-                if !n.is_empty() { n } else { nested_s(w, "status", "displayName") }
-            };
-            children.push(json!({
-                "workitemId": s(w, "id"),
-                "identifier": ident,
-                "subject": s(w, "subject"),
-                "category": s(w, "categoryId"),
-                "statusId": nested_s(w, "status", "id"),
-                "status": status_name,
-                "assignedTo": nested_s(w, "assignedTo", "name"),
-                "gmtModified": i64_of(w, "gmtModified").map(epoch_ms_to_local).unwrap_or_default(),
-            }));
+            children.push(child_row(w, category));
         }
     }
     Ok(json!({ "items": children, "truncated": truncated }))
+}
+
+/// 归一化子工作项行。`category` 由调用方按检索类别传入，避免依赖 categoryId 的形态。
+fn child_row(w: &Value, category: &str) -> Value {
+    let ident = {
+        let a = s(w, "identifier");
+        if !a.is_empty() { a } else { s(w, "serialNumber") }
+    };
+    let status_name = {
+        let n = nested_s(w, "status", "name");
+        if !n.is_empty() { n } else { nested_s(w, "status", "displayName") }
+    };
+    json!({
+        "workitemId": s(w, "id"),
+        "identifier": ident,
+        "subject": s(w, "subject"),
+        "category": category,
+        "statusId": nested_s(w, "status", "id"),
+        "status": status_name,
+        "assignedTo": nested_s(w, "assignedTo", "name"),
+        "gmtModified": i64_of(w, "gmtModified").map(epoch_ms_to_local).unwrap_or_default(),
+    })
 }
 
 #[tauri::command]
@@ -906,6 +917,24 @@ pub async fn proxy_workitem_file(state: State<'_, AppState>, url: String) -> Res
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn child_row_uses_query_category_not_uuid_category_id() {
+        // 真实云效行：categoryId 是类型 UUID，不能据此判断 Bug/Task
+        let row = json!({
+            "id": "wi-1",
+            "identifier": "MANT-102",
+            "subject": "修复材料 id 转换",
+            "categoryId": "a6a1f0c2-2f0e-4a77-9d5b-0a4b8d2e6c11",
+            "parentId": "req-1",
+            "status": { "id": "s1", "name": "已完成" },
+            "assignedTo": { "name": "陈序" }
+        });
+        let bug = child_row(&row, "Bug");
+        assert_eq!(bug["category"], "Bug");
+        let task = child_row(&row, "Task");
+        assert_eq!(task["category"], "Task");
+    }
 
     #[test]
     fn test_match_field_option_with_yunxiao_display_value() {

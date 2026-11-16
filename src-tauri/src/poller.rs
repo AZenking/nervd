@@ -1,17 +1,18 @@
-//! 流水线轮询：latestPipelineRun 状态迁移 → 前端事件 + 系统通知（openapi-rdc 版）
+//! Jenkins 构建轮询：状态迁移 → 前端事件 + 系统通知。
+//!
+//! Flow 线上流水线改为按需查看（总览/快速构建手动 loadPipelines），不再后台轮询，
+//! 避免对无权限流水线做每分钟的无效请求。
 //!
 //! 健壮性约定：
-//! - 两条扫描线（云效 / Jenkins）各自独立失败退避：60s → 2min → 5min，成功即复位；
+//! - 单一扫描线（Jenkins）失败退避：60s → 2min → 5min，成功即复位；
 //! - Jenkins Token 常驻内存（settings / 连接配置变更时失效），不再每轮访问 Keychain；
 //! - 单请求与整轮扫描都有超时上限，避免慢请求拖住后续轮询；
 //! - 窗口不可见时降频（10 分钟）而不是停轮询，后台构建完成仍能发系统通知。
 
-use crate::yunxiao::YunxiaoClient;
 use crate::AppState;
 use crate::{commands, credentials, jenkins::JenkinsClient};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 
@@ -33,9 +34,6 @@ const SCAN_TIMEOUT: Duration = Duration::from_secs(90);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(35);
 /// Jenkins Token 内存缓存有效期（覆盖权限轮换；失效后可重新读 Keychain）
 const TOKEN_TTL: Duration = Duration::from_secs(600);
-
-const MAX_PIPELINES: &str = "20";
-const TERMINAL: [&str; 3] = ["SUCCESS", "FAIL", "CANCELED"];
 
 /// 单条扫描线的调度与退避状态
 struct LineSchedule {
@@ -116,19 +114,16 @@ fn window_visible(app: &tauri::AppHandle) -> bool {
 
 pub fn spawn(app: tauri::AppHandle, inner: AppState) {
     tauri::async_runtime::spawn(async move {
-        // key = "pipelineId:runId" / "connection:job:runId" -> 上次状态
-        let mut seen: HashMap<String, String> = HashMap::new();
+        // key = "connection:job:runId" -> 上次状态
         let mut seen_jenkins: HashMap<String, String> = HashMap::new();
-        let mut cloud_schedule = LineSchedule::immediate();
         let mut jenkins_schedule = LineSchedule::immediate();
         let mut tokens = TokenCache::default();
 
         loop {
             tokio::time::sleep(TICK).await;
-            let (client, settings, visible) = {
-                let c = inner.client.lock().unwrap().clone();
+            let (settings, visible) = {
                 let s = inner.settings.lock().unwrap().clone();
-                (c, s, window_visible(&app))
+                (s, window_visible(&app))
             };
             // settings 或连接配置变更 → Token 缓存整体失效
             tokens.sync_settings(&settings);
@@ -139,90 +134,32 @@ pub fn spawn(app: tauri::AppHandle, inner: AppState) {
             } else {
                 HIDDEN_POLL_INTERVAL
             };
-            let run_cloud = cloud_schedule.is_due(now);
-            let run_jenkins = jenkins_schedule.is_due(now);
-            if !run_cloud && !run_jenkins {
+            if !jenkins_schedule.is_due(now) {
                 continue;
             }
 
-            // 两条扫描线并行，互不拖慢（共用同一取消/超时预算）
-            let cloud_fut = async {
-                if !run_cloud {
-                    return Ok(());
-                }
-                let Some(client) = client.as_ref() else {
-                    return Ok(());
-                };
-                if settings.organization_id.trim().is_empty() {
-                    return Ok(());
-                }
-                match tokio::time::timeout(
-                    SCAN_TIMEOUT,
-                    scan_once(&app, client, &settings.organization_id, &mut seen),
-                )
-                .await
-                {
-                    Ok(result) => result,
-                    Err(_) => Err(format!("云效扫描超时（>{}s）", SCAN_TIMEOUT.as_secs())),
-                }
+            let result = match tokio::time::timeout(
+                SCAN_TIMEOUT,
+                scan_jenkins_once(&app, &inner, &settings, &mut seen_jenkins, &mut tokens),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(_) => Err(format!("Jenkins 扫描超时（>{}s）", SCAN_TIMEOUT.as_secs())),
             };
-            let jenkins_fut = async {
-                if !run_jenkins {
-                    return Ok(());
-                }
-                match tokio::time::timeout(
-                    SCAN_TIMEOUT,
-                    scan_jenkins_once(&app, &inner, &settings, &mut seen_jenkins, &mut tokens),
-                )
-                .await
-                {
-                    Ok(result) => result,
-                    Err(_) => Err(format!("Jenkins 扫描超时（>{}s）", SCAN_TIMEOUT.as_secs())),
-                }
-            };
-            let (cloud_result, jenkins_result) = tokio::join!(cloud_fut, jenkins_fut);
-
-            if run_cloud {
-                match cloud_result {
-                    Ok(()) => cloud_schedule.finish(base, true),
-                    Err(e) => {
-                        eprintln!("[poller] {e}");
-                        cloud_schedule.finish(base, false);
-                    }
-                }
-            }
-            if run_jenkins {
-                match jenkins_result {
-                    Ok(()) => jenkins_schedule.finish(base, true),
-                    Err(e) => {
-                        eprintln!("[jenkins-poller] {e}");
-                        jenkins_schedule.finish(base, false);
-                    }
+            match result {
+                Ok(()) => jenkins_schedule.finish(base, true),
+                Err(e) => {
+                    eprintln!("[jenkins-poller] {e}");
+                    jenkins_schedule.finish(base, false);
                 }
             }
 
-            if seen.len() > 500 {
-                seen.retain(|_, v| v == "RUNNING" || v == "WAITING");
-            }
             if seen_jenkins.len() > 500 {
                 seen_jenkins.retain(|_, v| v == "RUNNING" || v == "WAITING");
             }
         }
     });
-}
-
-/// 单请求超时封装（云效 HTTP 客户端自带 30s，这里给出轮询层可读错误并留出余量）
-async fn request_timeout<F>(label: &str, fut: F) -> Result<Value, String>
-where
-    F: std::future::Future<Output = Result<Value, String>>,
-{
-    match tokio::time::timeout(REQUEST_TIMEOUT, fut).await {
-        Ok(result) => result,
-        Err(_) => Err(format!(
-            "{label} 请求超时（>{}s）",
-            REQUEST_TIMEOUT.as_secs()
-        )),
-    }
 }
 
 async fn scan_jenkins_once(
@@ -333,104 +270,4 @@ async fn scan_jenkins_once(
         failures.len(),
         total
     ))
-}
-
-async fn scan_once(
-    app: &tauri::AppHandle,
-    client: &Arc<YunxiaoClient>,
-    org: &str,
-    seen: &mut HashMap<String, String>,
-) -> Result<(), String> {
-    let resp = request_timeout(
-        "流水线列表",
-        client.get(
-            &format!("/oapi/v1/flow/organizations/{org}/pipelines"),
-            &[
-                ("page", "1".to_string()),
-                ("perPage", MAX_PIPELINES.to_string()),
-            ],
-        ),
-    )
-    .await?;
-    let pipelines = resp.as_array().cloned().unwrap_or_else(|| {
-        resp.get("pipelines")
-            .and_then(|x| x.as_array())
-            .cloned()
-            .unwrap_or_default()
-    });
-
-    let mut queried = 0usize;
-    let mut failures = 0usize;
-    for p in &pipelines {
-        let pid = p
-            .get("id")
-            .and_then(|x| x.as_i64())
-            .or_else(|| p.get("pipelineId").and_then(|x| x.as_i64()))
-            .unwrap_or(0);
-        let pname = p
-            .get("name")
-            .and_then(|x| x.as_str())
-            .or_else(|| p.get("pipelineName").and_then(|x| x.as_str()))
-            .unwrap_or("?");
-        if pid == 0 {
-            continue;
-        }
-        queried += 1;
-        let latest = match request_timeout(
-            &format!("流水线 {pid} 最新运行"),
-            client.get(
-                &format!(
-                    "/oapi/v1/flow/organizations/{org}/pipelines/{pid}/runs/latestPipelineRun"
-                ),
-                &[],
-            ),
-        )
-        .await
-        {
-            Ok(latest) => latest,
-            Err(e) => {
-                // 单条流水线失败不拖垮整轮，但必须留痕（旧实现静默 continue）
-                eprintln!("[poller] {pname}(#{pid}) 最新运行获取失败: {e}");
-                failures += 1;
-                continue;
-            }
-        };
-        let rid = latest
-            .get("pipelineRunId")
-            .and_then(|x| x.as_i64())
-            .unwrap_or(0);
-        let status = latest
-            .get("status")
-            .and_then(|x| x.as_str())
-            .unwrap_or_default()
-            .to_string();
-        if rid == 0 || status.is_empty() {
-            continue;
-        }
-        let key = format!("{pid}:{rid}");
-        let prev = seen.insert(key.clone(), status.clone());
-        let was_active = matches!(prev.as_deref(), Some("RUNNING") | Some("WAITING"));
-        let now_terminal = TERMINAL.contains(&status.as_str());
-        if was_active && now_terminal && prev.as_deref() != Some(status.as_str()) {
-            let payload = json!({
-                "pipelineId": pid,
-                "pipelineName": pname,
-                "runId": rid,
-                "status": status,
-            });
-            let _ = app.emit("pipeline-run-finished", payload);
-            use tauri_plugin_notification::NotificationExt;
-            let _ = app
-                .notification()
-                .builder()
-                .title("nervd · 流水线完成")
-                .body(format!("{pname} #{rid} → {status}"))
-                .show();
-        }
-    }
-    // 全部流水线都失败时上抛，触发退避，避免对故障网关做 60s 一次的无效轮询
-    if queried > 0 && failures == queried {
-        return Err(format!("{failures}/{queried} 条流水线的最新运行获取失败"));
-    }
-    Ok(())
 }

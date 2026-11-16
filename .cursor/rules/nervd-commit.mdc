@@ -1,0 +1,11 @@
+---
+description: nervd 提交规范（Conventional Commits + Refs 归属）
+alwaysApply: true
+---
+
+遵循仓库根目录的 AGENTS.md §6.5。提交必须：
+
+- 使用 `./scripts/agent-commit.sh -m "<type>(<scope>): <subject>"`，禁止直接 `git commit`；
+- 标题符合 Conventional Commits（feat/fix/docs/style/refactor/perf/test/build/ci/chore/revert）；
+- 带 `Refs: <工作项编号>`（脚本自动补）；缺失上下文时向用户确认或用 `--workitem`；
+- 禁止 `--no-verify`。

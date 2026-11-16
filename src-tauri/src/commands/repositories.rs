@@ -1,12 +1,26 @@
-use super::common::{as_array, client_of, ensure_write, fetch_all_codeup_pages, i64_of, org_of, s, s2};
+use super::common::{
+    as_array, client_of, ensure_write, fetch_all_codeup_pages, i64_of, org_of, s, s2,
+};
 use crate::AppState;
 use serde_json::{json, Value};
 use tauri::State;
 
 // ---------- 仓库 / 分支 / commit ----------
 
+/// 仓库 ID 统一校验：0/负数视为无效，避免拼出 `/repositories/0/...` 的无意义请求
+fn ensure_repo_id(repo_id: i64) -> Result<(), String> {
+    if repo_id <= 0 {
+        return Err("仓库 ID 无效".into());
+    }
+    Ok(())
+}
+
 #[tauri::command]
-pub async fn list_repos(state: State<'_, AppState>, search: Option<String>, page: Option<i64>) -> Result<Value, String> {
+pub async fn list_repos(
+    state: State<'_, AppState>,
+    search: Option<String>,
+    page: Option<i64>,
+) -> Result<Value, String> {
     let c = client_of(&state)?;
     let org = org_of(&state)?;
     let mut base_q = Vec::new();
@@ -54,9 +68,7 @@ pub async fn list_branches(
     page: Option<i64>,
     per_page: Option<i64>,
 ) -> Result<Value, String> {
-    if repo_id <= 0 {
-        return Err("仓库 ID 无效".into());
-    }
+    ensure_repo_id(repo_id)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;
     let mut base_q = Vec::new();
@@ -90,9 +102,7 @@ pub async fn compare_branches(
     from_branch: String,
     to_branch: String,
 ) -> Result<Value, String> {
-    if repo_id <= 0 {
-        return Err("仓库 ID 无效".into());
-    }
+    ensure_repo_id(repo_id)?;
     let from_branch = from_branch.trim();
     let to_branch = to_branch.trim();
     if from_branch.is_empty() || to_branch.is_empty() {
@@ -119,7 +129,12 @@ pub async fn compare_branches(
 
 /// POST branches?branch=&ref=（参数在 query）
 #[tauri::command]
-pub async fn create_branch(state: State<'_, AppState>, repo_id: i64, branch_name: String, ref_name: String) -> Result<Value, String> {
+pub async fn create_branch(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    branch_name: String,
+    ref_name: String,
+) -> Result<Value, String> {
     ensure_write(&state)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;
@@ -132,26 +147,59 @@ pub async fn create_branch(state: State<'_, AppState>, repo_id: i64, branch_name
 }
 
 #[tauri::command]
-pub async fn list_repository_commits(state: State<'_, AppState>, repo_id: i64, page: Option<i64>) -> Result<Value, String> {
+pub async fn list_repository_commits(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    page: Option<i64>,
+    ref_name: Option<String>,
+    start: Option<String>,
+    end: Option<String>,
+) -> Result<Value, String> {
+    ensure_repo_id(repo_id)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let q = vec![
-        ("page", page.unwrap_or(1).to_string()),
+    let mut q = vec![
+        ("page", page.unwrap_or(1).max(1).to_string()),
         ("perPage", "100".to_string()),
     ];
-    c.get(&format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/commits"), &q).await
+    if let Some(reference) = ref_name {
+        let reference = reference.trim();
+        if !reference.is_empty() {
+            q.push(("refName", reference.to_string()));
+        }
+    }
+    if let Some(value) = start {
+        let value = value.trim();
+        if !value.is_empty() {
+            q.push(("start", value.to_string()));
+        }
+    }
+    if let Some(value) = end {
+        let value = value.trim();
+        if !value.is_empty() {
+            q.push(("end", value.to_string()));
+        }
+    }
+    c.get(
+        &format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/commits"),
+        &q,
+    )
+    .await
 }
 
 // ---------- MR（oapi 里叫 changeRequests）----------
 
 /// 组织级列表，projectIds 过滤到本仓库，使用统一分页收集器自动取全
 #[tauri::command]
-pub async fn list_merge_requests(state: State<'_, AppState>, repo_id: i64, state_filter: Option<String>) -> Result<Value, String> {
+pub async fn list_merge_requests(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    state_filter: Option<String>,
+) -> Result<Value, String> {
+    ensure_repo_id(repo_id)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;
-    let mut base_q = vec![
-        ("projectIds", repo_id.to_string()),
-    ];
+    let mut base_q = vec![("projectIds", repo_id.to_string())];
     if let Some(st) = state_filter {
         let st = st.trim();
         if !st.is_empty() {
@@ -164,6 +212,7 @@ pub async fn list_merge_requests(state: State<'_, AppState>, repo_id: i64, state
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn create_merge_request(
     state: State<'_, AppState>,
     repo_id: i64,
@@ -171,7 +220,10 @@ pub async fn create_merge_request(
     source_branch: String,
     target_branch: String,
     description: Option<String>,
+    work_item_ids: Option<String>,
+    reviewer_ids: Option<Vec<String>>,
 ) -> Result<Value, String> {
+    ensure_repo_id(repo_id)?;
     ensure_write(&state)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;
@@ -185,6 +237,23 @@ pub async fn create_merge_request(
     if let Some(d) = description {
         body["description"] = json!(d);
     }
+    if let Some(ids) = work_item_ids {
+        let ids = ids.trim();
+        if !ids.is_empty() {
+            // 云效 CreateMergeRequest 的 workItemIds 为逗号分隔字符串（见 docs/yunxiao-api.md）
+            body["workItemIds"] = json!(ids);
+        }
+    }
+    if let Some(reviewers) = reviewer_ids {
+        let reviewers: Vec<String> = reviewers
+            .into_iter()
+            .map(|id| id.trim().to_string())
+            .filter(|id| !id.is_empty())
+            .collect();
+        if !reviewers.is_empty() {
+            body["reviewerIds"] = json!(reviewers);
+        }
+    }
     c.post(
         &format!("/oapi/v1/codeup/organizations/{org}/repositories/{repo_id}/changeRequests"),
         &[],
@@ -194,7 +263,11 @@ pub async fn create_merge_request(
 }
 
 #[tauri::command]
-pub async fn merge_merge_request(state: State<'_, AppState>, repo_id: i64, local_id: i64) -> Result<Value, String> {
+pub async fn merge_merge_request(
+    state: State<'_, AppState>,
+    repo_id: i64,
+    local_id: i64,
+) -> Result<Value, String> {
     ensure_write(&state)?;
     let c = client_of(&state)?;
     let org = org_of(&state)?;

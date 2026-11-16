@@ -76,6 +76,12 @@ EOF
 fi
 echo "   契约内容与基线一致"
 
+echo "== 8.5/9 Agent 提交与归属脚本测试 =="
+sh scripts/test-read-active-workitem.sh >/dev/null || fail "read-active-workitem 测试失败"
+sh scripts/test-agent-commit.sh >/dev/null || fail "agent-commit 测试失败"
+sh scripts/test-check-attribution.sh >/dev/null || fail "check-commit-attribution 测试失败"
+echo "   三套脚本测试通过"
+
 echo "== 9/9 关键产物存在性与非空校验 =="
 # -s：文件存在且大小 > 0（空文件不再能蒙混过关）
 for f in src-tauri/src/yunxiao.rs src-tauri/src/commands/mod.rs src-tauri/src/credentials.rs src-tauri/src/poller.rs \

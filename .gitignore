@@ -61,3 +61,6 @@ src-tauri/gen/
 .codegraph/*.db-wal
 # heroui-agents-md
 .heroui-docs/
+
+# 变更归属本地状态（active workitem / 本地仓库缓存）
+.nervd/

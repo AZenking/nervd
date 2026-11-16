@@ -3,12 +3,14 @@
 mod commands;
 mod credentials;
 mod db;
+mod attribution;
 mod jenkins;
+mod local_repo;
 mod poller;
 mod timeutil;
 pub mod yunxiao;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
@@ -18,6 +20,10 @@ pub struct AppStateInner {
     pub jenkins_trigger_baselines: Mutex<HashMap<String, Vec<i64>>>,
     /// 阶段3 SQLite 数据层：nervd.db 连接（设置/分支轨道/绑定的事实源）
     pub db: Mutex<rusqlite::Connection>,
+    /// 变更归属：正在同步的仓库 ID，防重入
+    pub sync_inflight: Mutex<HashSet<i64>>,
+    /// 变更归属：本地仓库 watcher 句柄（drop 即停止监听）
+    pub local_watchers: Mutex<HashMap<i64, notify::RecommendedWatcher>>,
 }
 pub type AppState = Arc<AppStateInner>;
 
@@ -210,6 +216,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .on_menu_event(|app, event| {
             use tauri::Emitter;
             match event.id().as_ref() {
@@ -266,8 +273,11 @@ pub fn run() {
                 settings: Mutex::new(settings),
                 jenkins_trigger_baselines: Mutex::new(HashMap::new()),
                 db: Mutex::new(db_conn),
+                sync_inflight: Mutex::new(HashSet::new()),
+                local_watchers: Mutex::new(HashMap::new()),
             });
             app.manage(inner.clone());
+            local_repo::restore_watchers(app.handle(), &inner);
             poller::spawn(app.handle().clone(), inner);
             Ok(())
         })
@@ -329,6 +339,32 @@ pub fn run() {
             commands::get_repo_ci_logs,
             commands::get_repo_ci_log_chunk,
             commands::get_repo_ci_stages,
+            commands::sync_attribution,
+            commands::get_attribution_status,
+            commands::list_workitem_changes,
+            commands::list_unattributed_changes,
+            commands::assign_change_workitem,
+            commands::resolve_workitem_identifiers,
+            commands::list_activity_candidates,
+            commands::mark_activity,
+            commands::get_activity_policy,
+            commands::save_activity_policy,
+            commands::list_local_repo_bindings,
+            commands::pick_repo_directory,
+            commands::inspect_local_repo,
+            commands::read_local_repo_code,
+            commands::save_local_repo_binding,
+            commands::delete_local_repo_binding,
+            commands::sync_local_repo,
+            commands::get_active_workitem,
+            commands::list_active_workitems,
+            commands::set_active_workitem,
+            commands::install_commit_msg_hook,
+            commands::uninstall_commit_msg_hook,
+            commands::get_branch_track_default,
+            commands::set_branch_track_default,
+            commands::get_branch_track_topology,
+            commands::save_branch_track_topology,
             commands::get_ai_settings,
             commands::save_ai_settings,
             commands::save_ai_api_key,
