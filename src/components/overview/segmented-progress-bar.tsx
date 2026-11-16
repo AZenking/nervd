@@ -21,17 +21,18 @@ export function LinearSegmentedProgressBar({
   if (total <= 0) {
     return (
       <div
-        className={cn('h-1.5 w-full rounded-full bg-muted/40', className)}
+        className={cn('h-1.5 w-full rounded-full bg-surface-secondary', className)}
         aria-label="暂无工作项进度"
       />
     );
   }
 
   const segments: SegmentItem[] = [
-    { key: 'completed', label: '已完成', count: completed, colorClass: 'bg-primary' },
+    // 已完成段用成功语义色（sig-ok），不再挪用品牌动作色 primary（审计 §2.4 P1-46）
+    { key: 'completed', label: '已完成', count: completed, colorClass: 'bg-sig-ok' },
     { key: 'inProgress', label: '进行中', count: inProgress, colorClass: 'bg-sig-run' },
     { key: 'blocked', label: '阻塞/失败', count: blocked, colorClass: 'bg-sig-fail' },
-    { key: 'todo', label: '待办', count: todo, colorClass: 'bg-muted-foreground/35' },
+    { key: 'todo', label: '待办', count: todo, colorClass: 'bg-sig-idle/35' },
   ].filter((s) => s.count > 0);
 
   return (
@@ -42,7 +43,7 @@ export function LinearSegmentedProgressBar({
       aria-valuemax={100}
       aria-label={`迭代完成度 ${breakdown.percent}%`}
       className={cn(
-        'group flex h-[5px] w-full overflow-hidden rounded-full bg-muted/30 gap-[1px]',
+        'group flex h-[5px] w-full overflow-hidden rounded-full bg-surface-secondary gap-[1px]',
         className,
       )}
     >
@@ -59,7 +60,7 @@ export function LinearSegmentedProgressBar({
                   {...props}
                   style={{ width: `${pct}%` }}
                   className={cn(
-                    'block h-full transition-all duration-300 hover:brightness-110 focus-visible:outline-hidden',
+                    'block h-full transition-all duration-300 hover:brightness-110',
                     isFirst && 'rounded-l-full',
                     isLast && 'rounded-r-full',
                     s.colorClass,
@@ -71,7 +72,7 @@ export function LinearSegmentedProgressBar({
               <span className="font-medium text-foreground">{s.label}</span>
               <span className="text-muted-foreground">：</span>
               <span className="font-mono tabular-nums text-foreground">{s.count}</span>
-              <span className="text-muted-foreground"> 项 ({Math.round(pct)}%)</span>
+              <span className="text-muted-foreground"> 项 (</span><span className="font-mono tabular-nums text-foreground">{Math.round(pct)}%</span><span className="text-muted-foreground">)</span>
             </Tooltip.Content>
           </Tooltip>
         );

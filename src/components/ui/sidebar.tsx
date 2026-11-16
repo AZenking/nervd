@@ -85,8 +85,12 @@ function SidebarProvider({
         _setOpen(openState)
       }
 
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      // Only uncontrolled usage owns persistence. Shell runs this provider in
+      // controlled mode and manages `sidebar_state` itself, so the auto-collapse
+      // (container < 1180px) and temporary expansion never write back here.
+      if (!setOpenProp) {
+        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      }
     },
     [setOpenProp, open]
   )
@@ -190,7 +194,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -278,7 +282,7 @@ function SidebarTrigger({
       {...props}
     >
       <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">折叠/展开侧栏</span>
     </Button>
   )
 }
@@ -290,10 +294,9 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Toggle Sidebar"
-      tabIndex={-1}
+      aria-label="折叠/展开侧栏"
+      tabIndex={0}
       onClick={toggleSidebar}
-      title="Toggle Sidebar"
       className={cn(
         "absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
@@ -483,7 +486,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 
 const sidebarMenuButtonVariants = tv({
   base:
-    "peer/menu-button group/menu-button relative flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-xl px-3 py-2 text-left text-[13.5px] font-medium text-muted-foreground ring-sidebar-ring outline-hidden transition-all duration-150 group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0! group-data-[collapsible=icon]:[&>span]:hidden! group-data-[collapsible=icon]:[&>span[role=img]]:inline-flex! group-data-[collapsible=icon]:[&>kbd]:hidden! group-data-[collapsible=icon]:[&>div]:hidden! hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-open:hover:bg-sidebar-accent data-open:hover:text-foreground data-active:bg-sidebar-accent data-active:font-semibold data-active:text-foreground dark:data-active:bg-sidebar-accent dark:data-active:text-foreground [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:text-muted-foreground/80 group-hover/menu-button:[&_svg]:text-foreground data-active:[&_svg]:text-foreground [&>span:last-child]:truncate",
+    "peer/menu-button group/menu-button relative flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-xl px-3 py-2 text-left text-[13.5px] font-medium text-muted-foreground ring-sidebar-ring outline-hidden transition-[background-color,color,transform] duration-150 group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0! group-data-[collapsible=icon]:[&>span]:hidden! group-data-[collapsible=icon]:[&>span[role=img]]:inline-flex! group-data-[collapsible=icon]:[&>kbd]:hidden! group-data-[collapsible=icon]:[&>div]:hidden! hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-open:hover:bg-sidebar-accent data-open:hover:text-foreground data-active:bg-sidebar-accent data-active:font-semibold data-active:text-foreground [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:text-muted-foreground/80 group-hover/menu-button:[&_svg]:text-foreground data-active:[&_svg]:text-foreground [&>span:last-child]:truncate",
   variants: {
       variant: {
         default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
@@ -516,11 +519,16 @@ function SidebarMenuButton({
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar()
+  // Icon-only collapsed rows hide their text label; reuse the string tooltip as the
+  // accessible name so C9 (icon-only controls need a name) holds while collapsed.
+  // Expanded rows keep their rich content (label + badge) as the accessible name.
+  const tooltipLabel = state === 'collapsed' && typeof tooltip === 'string' ? tooltip : undefined
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps(
       {
         className: cn(sidebarMenuButtonVariants({ variant, size }), className),
+        ...(tooltipLabel ? { "aria-label": tooltipLabel } : {}),
       },
       props
     ),

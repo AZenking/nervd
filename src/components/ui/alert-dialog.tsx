@@ -93,6 +93,16 @@ function AlertDialogOverlay({
   return <HeroUIAlertDialog.Backdrop className={className} {...props} />
 }
 
+/**
+ * 描述元素 id 注册（同 dialog.tsx）：role="alertdialog" 虽由 RAC 自动接线，
+ * 但容器显式接线可让「调用方自定义 aria-describedby / 内部 <p> 描述」两种形态一致，
+ * 且不依赖 HeroUI `Description`（会引入额外 .description 样式，改变视觉）。
+ */
+const AlertDialogDescriptionContext = React.createContext<{
+  id: string
+  register: (present: boolean) => void
+} | null>(null)
+
 interface AlertDialogContentProps extends Omit<React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog.Dialog>, "children"> {
   size?: React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog.Container>["size"]
   placement?: React.ComponentPropsWithoutRef<typeof HeroUIAlertDialog.Container>["placement"]
@@ -106,15 +116,26 @@ function AlertDialogContent({
   children,
   ...props
 }: AlertDialogContentProps) {
+  const descriptionId = React.useId()
+  const [hasDescription, setHasDescription] = React.useState(false)
+  const descriptionContext = React.useMemo(
+    () => ({ id: descriptionId, register: (present: boolean) => setHasDescription(present) }),
+    [descriptionId]
+  )
+
   return (
     <HeroUIAlertDialog.Backdrop>
       <HeroUIAlertDialog.Container placement={placement} size={size}>
         <HeroUIAlertDialog.Dialog
           role="alertdialog"
+          // 调用方显式传入的 aria-describedby 优先；否则仅在确实渲染了描述时接线
+          aria-describedby={props["aria-describedby"] ?? (hasDescription ? descriptionId : undefined)}
           className={cn("relative flex flex-col", className)}
           {...props}
         >
-          {typeof children === "function" ? (children as any) : children}
+          <AlertDialogDescriptionContext.Provider value={descriptionContext}>
+            {typeof children === "function" ? (children as any) : children}
+          </AlertDialogDescriptionContext.Provider>
         </HeroUIAlertDialog.Dialog>
       </HeroUIAlertDialog.Container>
     </HeroUIAlertDialog.Backdrop>
@@ -159,10 +180,22 @@ function AlertDialogTitle({
 
 function AlertDialogDescription({
   className,
+  id,
   ...props
 }: React.ComponentProps<"p">) {
+  const descriptionContext = React.useContext(AlertDialogDescriptionContext)
+  const generatedId = React.useId()
+  const descriptionId = id ?? descriptionContext?.id ?? generatedId
+
+  React.useLayoutEffect(() => {
+    if (!descriptionContext) return
+    descriptionContext.register(true)
+    return () => descriptionContext.register(false)
+  }, [descriptionContext])
+
   return (
     <p
+      id={descriptionId}
       data-slot="alert-dialog-description"
       className={cn("text-[13px] text-muted-foreground", className)}
       {...props}

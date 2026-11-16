@@ -41,6 +41,9 @@ export interface CollapsibleProps
   render?: React.ReactElement | ((props: any) => React.ReactNode)
 }
 
+// HeroUI Disclosure 已在 Root/Trigger/Content 上输出 `data-expanded="true"`（disclosure.js），
+// 这里不再手写 shadcn 风格的 data-state/data-open，避免两套状态约定并存（audit P2 一致性）；
+// 需要按展开态写样式时用 `data-[expanded]` 或 HeroUI 的 data-expanded 选择器。
 function Collapsible({
   open,
   defaultOpen,
@@ -76,8 +79,6 @@ function Collapsible({
     <CollapsibleContext.Provider value={{ isOpen: currentOpen, setIsOpen: handleExpandedChange }}>
       <HeroDisclosure
         data-slot="collapsible"
-        data-state={currentOpen ? "open" : "closed"}
-        data-open={currentOpen ? "" : undefined}
         isExpanded={currentOpen}
         onExpandedChange={handleExpandedChange}
         isDisabled={effectiveDisabled}
@@ -104,13 +105,9 @@ function CollapsibleTrigger({
   nativeButton: _nativeButton,
   ...props
 }: CollapsibleTriggerProps) {
-  const { isOpen } = React.useContext(CollapsibleContext)
-
   return (
     <HeroDisclosure.Trigger
       data-slot="collapsible-trigger"
-      data-state={isOpen ? "open" : "closed"}
-      data-open={isOpen ? "" : undefined}
       render={normalizeRender(render)}
       className={className}
       {...props}
@@ -131,13 +128,9 @@ function CollapsibleContent({
   children,
   ...props
 }: CollapsibleContentProps) {
-  const { isOpen } = React.useContext(CollapsibleContext)
-
   return (
     <HeroDisclosure.Content
       data-slot="collapsible-content"
-      data-state={isOpen ? "open" : "closed"}
-      data-open={isOpen ? "" : undefined}
       render={normalizeRender(render)}
       className={className}
       {...props}

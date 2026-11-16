@@ -2,7 +2,7 @@ import * as api from '../lib/api';
 import type { TracePipelineRun } from '../lib/api';
 import { matchesWorkitem } from '../lib/link';
 import { richTextToPlain } from '../lib/richtext';
-import { workitemRepoIds } from '../lib/workitem-repos';
+import { workitemScanRepoIds } from '../lib/workitem-repos';
 import type { BranchInfo, Category, CommitSummary, MrSummary, Settings, TraceResult } from '../types';
 
 interface RepoTrace {
@@ -261,7 +261,7 @@ export async function loadWorkitemTrace(
   settings: Pick<Settings, 'watchedRepos' | 'linkPattern' | 'workitemRepos' | 'repoCiBindings'>,
   parentWorkitemId?: string,
 ): Promise<TraceResult> {
-  const repoIds = workitemRepoIds(category, workitemId, settings, parentWorkitemId);
+  const repoIds = workitemScanRepoIds(category, workitemId, settings, parentWorkitemId);
   const repositories = await Promise.all(
     repoIds.map((repoId) =>
       loadRepoTrace(repoId, identifier, settings.linkPattern),

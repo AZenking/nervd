@@ -11,6 +11,7 @@ import { statusMeta } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Kbd } from '@/components/ui/kbd';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface CycleHeaderBannerProps {
   iteration?: IterationSummary | null;
@@ -52,9 +53,12 @@ export function CycleHeaderBanner({
           {iterations.length > 1 ? (
             <Dropdown>
               <Dropdown.Trigger
-                className="flex items-center gap-1.5 text-sm sm:text-base font-semibold tracking-tight text-foreground transition-colors hover:text-primary focus-visible:outline-hidden"
+                className="flex items-center gap-1.5 rounded-sm text-sm sm:text-base font-semibold tracking-tight text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="truncate max-w-[280px]" title={iteration?.name || '当前迭代'}>{iteration?.name || '当前迭代'}</span>
+                <OverflowTooltip
+                  text={iteration?.name || '当前迭代'}
+                  className="max-w-[280px]"
+                />
                 <span className="text-[10px] text-muted-foreground">▼</span>
               </Dropdown.Trigger>
               <Dropdown.Popover className="min-w-52 max-h-80">
@@ -72,16 +76,21 @@ export function CycleHeaderBanner({
                         textValue={it.name}
                         className={cn(
                           'flex items-center gap-2 justify-between cursor-pointer px-2.5 py-1.5',
-                          isSelected && 'font-medium bg-accent/60',
+                          // 激活态配方：实色 accent 底 + accent-foreground 前景（禁止半透明 accent + 默认深色前景）
+                          isSelected && 'font-medium bg-accent text-accent-foreground',
                         )}
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <StatusIcon status={it.state} className="size-3.5 shrink-0" />
-                          <Label className="truncate" title={it.name}>{it.name}</Label>
+                          <Label
+                            className={cn('min-w-0 truncate', isSelected && 'text-accent-foreground')}
+                          >
+                            <OverflowTooltip text={it.name} className="min-w-0" />
+                          </Label>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0 ml-2">
                           {isSelected ? (
-                            <span className="flex items-center gap-1 text-[11px] text-primary font-medium">
+                            <span className="flex items-center gap-1 text-[11px] font-medium text-accent-foreground">
                               <span>当前</span>
                               <CheckIcon className="size-3" />
                             </span>
@@ -113,7 +122,9 @@ export function CycleHeaderBanner({
                 ? 'success'
                 : statusMeta(iteration?.state).tone === 'fail'
                   ? 'danger'
-                  : 'default'
+                  : statusMeta(iteration?.state).tone === 'run'
+                    ? 'warning'
+                    : 'default'
             }
           >
             {iteration?.state || '进行中'}
@@ -130,6 +141,7 @@ export function CycleHeaderBanner({
             size="sm"
             variant="soft"
             color={remaining.tone === 'fail' ? 'danger' : remaining.tone === 'run' ? 'warning' : 'default'}
+            className="font-mono tabular-nums"
           >
             {remaining.label}
           </Chip>
@@ -140,7 +152,7 @@ export function CycleHeaderBanner({
           variant="ghost"
           size="sm"
           onPress={() => onOpenIterationWorkbench?.(iteration?.name ?? '')}
-          className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60"
+          className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:bg-surface-secondary hover:text-foreground"
         >
           <span>进入迭代工作台</span>
           <Kbd variant="light" className="hidden! sm:inline-flex! h-auto! rounded-sm! px-1! py-0! font-mono! text-[10px]!">
@@ -153,7 +165,15 @@ export function CycleHeaderBanner({
       <Card.Footer className="flex w-full flex-row flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
         <div className="flex items-center gap-1">
           <span className="font-medium text-foreground">
-            {dataComplete ? `共 ${visibleItemCount} 项` : `已加载 ${visibleItemCount} 项`}
+            {dataComplete ? (
+              <>
+                共 <span className="font-mono tabular-nums">{visibleItemCount}</span> 项
+              </>
+            ) : (
+              <>
+                已加载 <span className="font-mono tabular-nums">{visibleItemCount}</span> 项
+              </>
+            )}
           </span>
           <span>当前类别工作项</span>
         </div>

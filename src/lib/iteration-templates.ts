@@ -143,7 +143,15 @@ export function useIterationBranchTemplates(iterationId?: string) {
     [iterationId],
   );
 
-  return { templates, saveTemplates: save };
+  const refresh = useCallback(async () => {
+    if (!iterationId) {
+      setTemplates([]);
+      return;
+    }
+    setTemplates(await getIterationTemplates(iterationId));
+  }, [iterationId]);
+
+  return { templates, saveTemplates: save, refresh };
 }
 
 /**

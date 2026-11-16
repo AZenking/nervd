@@ -92,6 +92,17 @@ function DialogOverlay({
   return <HeroUIModal.Backdrop className={className} {...props} />
 }
 
+/**
+ * 描述元素 id 注册：RAC `useDialog` 只在 role="alertdialog" 时把 `slot="description"`
+ * 自动回填到 aria-describedby（见 modal.mdx / sheet.mdx 的 `aria-describedby` 契约），
+ * 普通 dialog 需容器自身接线；HeroUI `Description` 虽支持 slot="description" 但会额外
+ * 引入 `.description` 样式且对 role="dialog" 不生效，故统一用 useId 生成稳定 id。
+ */
+const DialogDescriptionContext = React.createContext<{
+  id: string
+  register: (present: boolean) => void
+} | null>(null)
+
 interface DialogContentProps extends Omit<React.ComponentPropsWithoutRef<typeof HeroUIModal.Dialog>, "children"> {
   size?: React.ComponentPropsWithoutRef<typeof HeroUIModal.Container>["size"]
   placement?: React.ComponentPropsWithoutRef<typeof HeroUIModal.Container>["placement"]
@@ -109,19 +120,30 @@ function DialogContent({
   showCloseButton = true,
   ...props
 }: DialogContentProps) {
+  const descriptionId = React.useId()
+  const [hasDescription, setHasDescription] = React.useState(false)
+  const descriptionContext = React.useMemo(
+    () => ({ id: descriptionId, register: (present: boolean) => setHasDescription(present) }),
+    [descriptionId]
+  )
+
   return (
     <HeroUIModal.Backdrop>
       <HeroUIModal.Container placement={placement} size={size} scroll={scroll}>
         <HeroUIModal.Dialog
+          // 调用方显式传入的 aria-describedby 优先；否则仅在确实渲染了描述时接线
+          aria-describedby={props["aria-describedby"] ?? (hasDescription ? descriptionId : undefined)}
           className={cn("relative flex flex-col", className)}
           {...props}
         >
-          {showCloseButton && (
-            <HeroUIModal.CloseTrigger
-              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
-            />
-          )}
-          {typeof children === "function" ? (children as any) : children}
+          <DialogDescriptionContext.Provider value={descriptionContext}>
+            {showCloseButton && (
+              <HeroUIModal.CloseTrigger
+                className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
+              />
+            )}
+            {typeof children === "function" ? (children as any) : children}
+          </DialogDescriptionContext.Provider>
         </HeroUIModal.Dialog>
       </HeroUIModal.Container>
     </HeroUIModal.Backdrop>
@@ -186,10 +208,23 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof HeroUI
 
 function DialogDescription({
   className,
+  id,
   ...props
 }: React.ComponentProps<"p">) {
+  const descriptionContext = React.useContext(DialogDescriptionContext)
+  const generatedId = React.useId()
+  const descriptionId = id ?? descriptionContext?.id ?? generatedId
+
+  // 在 paint 前完成注册，确保读屏在弹窗获得焦点时已能解析 aria-describedby
+  React.useLayoutEffect(() => {
+    if (!descriptionContext) return
+    descriptionContext.register(true)
+    return () => descriptionContext.register(false)
+  }, [descriptionContext])
+
   return (
     <p
+      id={descriptionId}
       data-slot="dialog-description"
       className={cn("text-[13px] text-muted-foreground", className)}
       {...props}

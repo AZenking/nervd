@@ -46,7 +46,7 @@ function FilterMenu({ label, kind, options }: {
           'focus-visible:ring-2 focus-visible:ring-ring/60',
           selected.length
             ? 'bg-primary/10 text-primary hover:bg-primary/15'
-            : 'text-foreground/80 hover:bg-muted/60 hover:text-foreground',
+            : 'text-foreground/80 hover:bg-surface-secondary hover:text-foreground',
         )}
       >
         <span className="max-w-24 truncate">{label}</span>

@@ -47,11 +47,12 @@ export interface TrackTopologyStates {
   development?: TrackTopologyNodeState;
 }
 
-/** 模式展开变量：{iteration} / {track}（等价 {template}）/ {identifier} */
+/** 模式展开变量：{iteration} / {track} / {identifier} / {iterationEnd} */
 export interface TrackTopologyVariables {
   iteration: string;
   track?: string;
   identifier: string;
+  iterationEnd?: string;
 }
 
 export interface TrackTopologyDiagramProps {
@@ -102,7 +103,7 @@ export const TRACK_TOPOLOGY_LABELS = {
 
 /** 节点状态 → 胶囊视觉（光晕/描边）；预览态（无状态）由调用处使用中性 hairline */
 export const TRACK_NODE_STATE_CLASS: Record<TrackTopologyNodeState, string> = {
-  ready: 'border-success/60 bg-success-soft/20 text-foreground ring-1 ring-success/30 shadow-xs',
+  ready: 'border-success/60 bg-success-soft/20 text-foreground ring-1 ring-success/30',
   missing: 'border-border/80 border-dashed bg-surface-secondary/40 text-muted-foreground opacity-80',
   loading: 'border-border bg-surface ring-1 ring-primary/25 animate-pulse',
 };
@@ -144,7 +145,7 @@ function TopologyFlowNode({ data }: NodeProps<TrackNodeT>) {
       className={cn(
         'group relative flex min-w-0 flex-col gap-1 rounded-md border px-2.5 py-1.5 transition-all duration-150',
         data.nodeWidth ? '' : 'w-[152px]',
-        data.state ? TRACK_NODE_STATE_CLASS[data.state] : 'border-border bg-surface text-foreground shadow-xs',
+        data.state ? TRACK_NODE_STATE_CLASS[data.state] : 'border-border bg-surface text-foreground',
       )}
     >
       <Handle id="tl" type="target" position={Position.Left} style={HIDDEN_HANDLE} isConnectable={false} />
@@ -172,7 +173,7 @@ function TopologyFlowNode({ data }: NodeProps<TrackNodeT>) {
             data.nodeKey === 'baseline' && 'bg-warning/80',
             data.nodeKey === 'development' && 'bg-accent/80',
             isReady && 'bg-success',
-            isMissing && 'bg-muted-foreground/40',
+            isMissing && 'bg-sig-idle',
           )}
           aria-hidden="true"
         />
@@ -187,8 +188,9 @@ function TopologyFlowNode({ data }: NodeProps<TrackNodeT>) {
 
 // ---------------------------------------------------------------- 画布连线
 
-const EDGE_MUTED = 'var(--sig-idle, #8a8f98)';
-const EDGE_WARNING = 'var(--sig-run, #d9730d)';
+// 直接引用主题语义 token：缺失时应暴露为无效描边，而不是静默降级到硬编码 hex
+const EDGE_MUTED = 'var(--sig-idle)';
+const EDGE_WARNING = 'var(--sig-run)';
 
 interface TopologyEdgeData extends Record<string, unknown> {
   label: string;
@@ -242,7 +244,7 @@ function TopologyFlowEdge({
         >
           <span
             className={cn(
-              'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none tracking-tight shadow-xs backdrop-blur-xs select-none',
+              'inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium leading-none tracking-tight backdrop-blur-xs select-none',
               warning
                 ? 'border-warning/40 bg-surface/95 text-warning ring-1 ring-warning/20'
                 : 'border-border/90 bg-surface/95 text-muted-foreground',
@@ -358,6 +360,7 @@ export function buildTrackTopologyGraph({
     track,
     template: track,
     identifier: variables.identifier,
+    iterationEnd: variables.iterationEnd,
   };
   const sourceName = sourceBranch.trim();
   const baselineName = expandBranchPattern(baselinePattern, expandValues);
@@ -464,11 +467,10 @@ export function TrackTopologyDiagram({
         data-testid="track-topology"
         data-form={graph.direct ? 'direct' : 'three-node'}
         className={cn(
-          'relative flex flex-col gap-2 rounded-lg border border-border bg-surface-secondary/35 p-3.5 shadow-xs',
-          allowModal && !isModalView && 'cursor-pointer transition-colors hover:border-primary/40 hover:bg-surface-secondary/50',
+          // 静态容器不加 hover 反馈（Part 1：不要让静态内容看起来可交互）；放大入口只由按钮承载
+          'relative flex flex-col gap-2 rounded-lg border border-border bg-surface-secondary/35 p-3.5',
           className,
         )}
-        onClick={allowModal && !isModalView ? handleOpenModal : undefined}
       >
         <div className="flex items-center justify-between gap-2 px-0.5">
           <div className="flex items-center gap-1.5 text-xs font-medium text-foreground/85">
@@ -488,7 +490,6 @@ export function TrackTopologyDiagram({
                 size="xs"
                 className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                 onPress={handleOpenModal}
-                title="在弹窗中放大查看拓扑图"
                 aria-label="在弹窗中放大查看交付轨道拓扑"
               >
                 <Maximize2 className="size-3" aria-hidden="true" />

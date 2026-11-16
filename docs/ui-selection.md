@@ -1,4 +1,13 @@
-# nervd UI 选型调研（2026-09）
+# nervd UI 选型调研（2026-09）— **SUPERSEDED，勿作为实现依据**
+
+> ⚠️ **本文已被取代（2026-11-13）**。项目最终选择 **HeroUI v3（`@heroui/react` + `@heroui/styles`，React Aria 系）**，并以
+> [`DESIGN.md`](../DESIGN.md) 与 `src/styles/theme.css` 为唯一设计事实源；本文「不建议引入 HeroUI」的结论**不再有效**。
+> 保留本文仅作为选型过程留档，**不得**据此判定现有实现违规。冲突时以 `DESIGN.md` 文首的裁决顺序为准：
+> 已安装 `@heroui` 的 theme CSS → `src/styles/theme.css` → DESIGN 文字描述。
+
+---
+
+## 原始调研（2026-09，仅归档）
 
 > 结论先行：**推荐「`@base-ui/react` headless 原语 + 保留现有 theme.css」**（方案 A）。
 > 若后续 UI 复杂度明显上探（命令面板、大数据表、多步表单），再演进到 **shadcn/ui + Tailwind v4**（方案 B）。

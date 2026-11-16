@@ -59,7 +59,7 @@ export function RichEditor({
         },
         codeBlock: {
           HTMLAttributes: {
-            class: 'rounded-md bg-muted/60 p-3 my-2 font-mono text-xs border border-border overflow-x-auto text-foreground',
+            class: 'rounded-md bg-surface-secondary p-3 my-2 font-mono text-xs border border-border overflow-x-auto text-foreground',
           },
         },
       }),
@@ -74,7 +74,7 @@ export function RichEditor({
     editorProps: {
       attributes: {
         class: cn(
-          'outline-none focus:outline-none text-sm leading-relaxed text-foreground/90 selection:bg-primary/20',
+          'outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded-sm text-sm leading-relaxed text-foreground/90 selection:bg-primary/20',
           editable ? 'min-h-[4rem]' : 'min-h-0',
           '[&_p]:mb-2 [&_p:last-child]:mb-0',
           '[&_h1]:text-lg [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-foreground',
@@ -84,7 +84,7 @@ export function RichEditor({
           '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_ol]:space-y-1',
           '[&_li]:leading-normal',
           '[&_blockquote]:border-l-2 [&_blockquote]:border-primary/50 [&_blockquote]:pl-3 [&_blockquote]:my-2 [&_blockquote]:text-muted-foreground [&_blockquote]:italic',
-          '[&_code:not(pre_code)]:font-mono [&_code:not(pre_code)]:text-xs [&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:border [&_code:not(pre_code)]:border-border/60',
+          '[&_code:not(pre_code)]:font-mono [&_code:not(pre_code)]:text-xs [&_code:not(pre_code)]:bg-surface-secondary [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:border [&_code:not(pre_code)]:border-border/60',
           '[&_hr]:my-4 [&_hr]:border-t [&_hr]:border-border/70',
           '[&_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)] [&_.is-editor-empty:first-child]:before:text-muted-foreground/60 [&_.is-editor-empty:first-child]:before:float-left [&_.is-editor-empty:first-child]:before:pointer-events-none [&_.is-editor-empty:first-child]:before:h-0',
           editorClassName,
@@ -145,6 +145,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleBold().run()}
             className={cn(editor.isActive('bold') && 'bg-accent text-accent-foreground')}
             title="加粗 (⌘+B)"
+            aria-label="加粗"
           >
             <BoldIcon />
           </Button>
@@ -155,6 +156,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleItalic().run()}
             className={cn(editor.isActive('italic') && 'bg-accent text-accent-foreground')}
             title="斜体 (⌘+I)"
+            aria-label="斜体"
           >
             <ItalicIcon />
           </Button>
@@ -165,6 +167,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleStrike().run()}
             className={cn(editor.isActive('strike') && 'bg-accent text-accent-foreground')}
             title="删除线"
+            aria-label="删除线"
           >
             <StrikethroughIcon />
           </Button>
@@ -175,6 +178,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleCode().run()}
             className={cn(editor.isActive('code') && 'bg-accent text-accent-foreground')}
             title="行内代码"
+            aria-label="行内代码"
           >
             <CodeIcon />
           </Button>
@@ -188,6 +192,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
             className={cn(editor.isActive('heading', { level: 1 }) && 'bg-accent text-accent-foreground')}
             title="一级标题 (# + 空格)"
+            aria-label="一级标题"
           >
             <Heading1Icon />
           </Button>
@@ -198,6 +203,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
             className={cn(editor.isActive('heading', { level: 2 }) && 'bg-accent text-accent-foreground')}
             title="二级标题 (## + 空格)"
+            aria-label="二级标题"
           >
             <Heading2Icon />
           </Button>
@@ -208,6 +214,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
             className={cn(editor.isActive('heading', { level: 3 }) && 'bg-accent text-accent-foreground')}
             title="三级标题 (### + 空格)"
+            aria-label="三级标题"
           >
             <Heading3Icon />
           </Button>
@@ -221,6 +228,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleBulletList().run()}
             className={cn(editor.isActive('bulletList') && 'bg-accent text-accent-foreground')}
             title="无序列表 (- + 空格)"
+            aria-label="无序列表"
           >
             <ListIcon />
           </Button>
@@ -231,6 +239,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleOrderedList().run()}
             className={cn(editor.isActive('orderedList') && 'bg-accent text-accent-foreground')}
             title="有序列表 (1. + 空格)"
+            aria-label="有序列表"
           >
             <ListOrderedIcon />
           </Button>
@@ -241,6 +250,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().toggleBlockquote().run()}
             className={cn(editor.isActive('blockquote') && 'bg-accent text-accent-foreground')}
             title="引用块 (> + 空格)"
+            aria-label="引用块"
           >
             <QuoteIcon />
           </Button>
@@ -254,6 +264,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().undo()}
             title="撤销 (⌘+Z)"
+            aria-label="撤销"
           >
             <UndoIcon />
           </Button>
@@ -264,6 +275,7 @@ export function RichEditor({
             onPress={() => editor.chain().focus().redo().run()}
             disabled={!editor.can().redo()}
             title="重做 (⌘+⇧+Z)"
+            aria-label="重做"
           >
             <RedoIcon />
           </Button>

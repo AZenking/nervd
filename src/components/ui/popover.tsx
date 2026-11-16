@@ -107,6 +107,13 @@ function PopoverContent({
       )}
       {...(props as any)}
     >
+      {/*
+        焦点可见性复核（DESIGN §Interaction / C7）：
+        RAC 的 Popover 一旦检测到嵌套 role="dialog"（本包装层恒渲染 Popover.Dialog），就不再给
+        popover 容器 tabIndex、也跳过 open 时的容器聚焦；Popover.Dialog 自身同样无 tabIndex。
+        即键盘焦点永远落在 trigger 或浮层内的可聚焦控件上，容器 focus-visible 环是死代码 ——
+        故此处不再重复绘制容器环，焦点指示由 HeroUI / React Aria 组件自身的 2px accent 环承担。
+      */}
       <PopoverHero.Dialog className="outline-none">
         {children}
       </PopoverHero.Dialog>

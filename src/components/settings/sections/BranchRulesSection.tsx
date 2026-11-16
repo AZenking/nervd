@@ -23,6 +23,15 @@ export function BranchRulesSection() {
     }));
   };
 
+  const handleRefreshTemplates = async () => {
+    await useApp.getState().loadSettings();
+    const persisted = useApp.getState().settings?.branchRuleTemplates ?? [];
+    useSettingsDraft.setState((st) => ({
+      draft: st.draft ? { ...st.draft, branchRuleTemplates: persisted } : st.draft,
+      baseline: st.baseline ? { ...st.baseline, branchRuleTemplates: persisted } : st.baseline,
+    }));
+  };
+
   return (
     <BranchTemplatesManager
       scope="global"
@@ -31,6 +40,7 @@ export function BranchRulesSection() {
       inSettingsCard
       templates={templates}
       onSaveTemplates={handleSaveTemplates}
+      onRefreshTemplates={handleRefreshTemplates}
     />
   );
 }

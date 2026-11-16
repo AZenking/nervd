@@ -108,6 +108,10 @@ type DropdownMenuContentProps = React.HTMLAttributes<HTMLDivElement> & {
   alignOffset?: number
   placement?: any
   /**
+   * 菜单的可访问名（aria-label）。默认「菜单」，调用方可覆盖以区分同页多个菜单。
+   */
+  "aria-label"?: string
+  /**
    * 菜单头部/加载/空态插槽。RAC 的集合构建 portal（react-aria 假 Document）不支持裸 JSX
    * 作为 Menu 直接子级：非 Item 子级的文本节点会命中假 document 未实现的 createTextNode
    * （触发渲染崩溃），即便容错也会被吞进惰性 template 而不可见。头部类内容必须经由本
@@ -126,6 +130,7 @@ function DropdownMenuContent({
   placement: placementProp,
   header,
   children,
+  "aria-label": ariaLabel,
   ...props
 }: DropdownMenuContentProps) {
   const placement = placementProp ?? resolveDropdownPlacement(side, align)
@@ -147,7 +152,7 @@ function DropdownMenuContent({
       <ScrollArea size={24} className="max-h-[inherit] overflow-x-hidden p-1">
         <DropdownHero.Menu
           data-slot="dropdown-menu"
-          aria-label="Menu"
+          aria-label={ariaLabel ?? "菜单"}
           className="outline-none"
         >
           {children}
@@ -251,7 +256,7 @@ function DropdownMenuItem({
       isDisabled={disabled ?? props.isDisabled}
       onAction={handleAction}
       className={cn(
-        "group/dropdown-menu-item relative flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:data-highlighted:bg-destructive/10 data-[variant=destructive]:data-highlighted:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:data-highlighted:bg-destructive/20 dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:text-muted-foreground [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
+        "group/dropdown-menu-item relative flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:data-highlighted:bg-destructive/10 data-[variant=destructive]:data-highlighted:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:text-muted-foreground [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
         inset && "pl-8",
         className
       )}
@@ -318,6 +323,11 @@ function DropdownMenuSubContent({
   )
 }
 
+// audit（P2-08 同类）：CheckboxItem / RadioItem 期望语义为 role="menuitemcheckbox"/"menuitemradio"
+// + aria-checked，但 RAC 的 useMenuItem 固定输出 role="menuitem" 且会丢弃传入的 aria-checked
+// （mergeProps 后者优先；已用 vitest 实测 role=menuitem、aria-checked=null）。正确解法是菜单级
+// selectionMode="multiple"/"single" + selectedKeys（见 HeroUI with-multiple-selection demo），
+// 属调用方选择语义迁移，本文件不做硬改，保留 data-checked 视觉并记入 deferred。
 interface DropdownMenuCheckboxItemProps extends Omit<React.ComponentPropsWithoutRef<typeof DropdownHero.Item>, "children"> {
   children?: React.ReactNode
   checked?: boolean
@@ -348,7 +358,7 @@ function DropdownMenuCheckboxItem({
         onCheckedChange?.(!checked)
       }}
       className={cn(
-        "relative flex h-8 cursor-pointer items-center gap-2 rounded-md py-0 pr-8 pl-2 text-[13px] outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground focus:**:text-accent-foreground data-highlighted:**:text-accent-foreground data-inset:pl-8 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex h-8 cursor-pointer items-center gap-2 rounded-md py-0 pr-8 pl-2 text-[13px] outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground focus:**:text-accent-foreground data-highlighted:**:text-accent-foreground data-inset:pl-8 data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         inset && "pl-8",
         className
       )}
@@ -400,7 +410,7 @@ function DropdownMenuRadioItem({
       data-inset={inset}
       data-checked={checked}
       className={cn(
-        "relative flex h-8 cursor-pointer items-center gap-2 rounded-md py-0 pr-8 pl-2 text-[13px] outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground focus:**:text-accent-foreground data-highlighted:**:text-accent-foreground data-inset:pl-8 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex h-8 cursor-pointer items-center gap-2 rounded-md py-0 pr-8 pl-2 text-[13px] outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground focus:**:text-accent-foreground data-highlighted:**:text-accent-foreground data-inset:pl-8 data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         inset && "pl-8",
         className
       )}
@@ -438,7 +448,7 @@ function DropdownMenuShortcut({
     <span
       data-slot="dropdown-menu-shortcut"
       className={cn(
-        "ml-auto text-xs text-muted-foreground",
+        "ml-auto font-mono text-xs text-muted-foreground",
         className
       )}
       {...props}

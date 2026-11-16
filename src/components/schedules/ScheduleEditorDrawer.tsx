@@ -20,7 +20,7 @@ import {
 import { Alert, Chip, RadioGroup, Radio, TagGroup, Tag, TimeField } from '@heroui/react';
 import type { TimeValue } from 'react-aria-components';
 import * as api from '@/lib/api';
-import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,7 +55,22 @@ export interface ScheduleEditorDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialTask?: ScheduledTask | null;
+  /** 模板草稿：仅预填表单（不落盘），保存后才创建任务；与 initialTask 互斥 */
+  initialDraft?: ScheduleDraft | null;
 }
+
+/** 空态模板卡生成的草稿（只需任务的可编辑字段） */
+export type ScheduleDraft = Pick<
+  ScheduledTask,
+  | 'name'
+  | 'description'
+  | 'enabled'
+  | 'cron'
+  | 'cronLabel'
+  | 'action'
+  | 'notifyOnSuccess'
+  | 'notifyOnFailure'
+>;
 
 /** 调度频率分段模式 */
 type FreqMode = 'preset' | 'interval' | 'daily' | 'cron';
@@ -149,6 +164,7 @@ export function ScheduleEditorDrawer({
   open,
   onOpenChange,
   initialTask,
+  initialDraft,
 }: ScheduleEditorDrawerProps) {
   const addTask = useScheduleStore((s) => s.addTask);
   const updateTask = useScheduleStore((s) => s.updateTask);
@@ -245,6 +261,26 @@ export function ScheduleEditorDrawer({
   const [notifyOnSuccess, setNotifyOnSuccess] = useState(true);
   const [notifyOnFailure, setNotifyOnFailure] = useState(true);
 
+  const isEditing = Boolean(initialTask);
+  /** 把草稿补全成 ScheduledTask 形态，复用与编辑态完全一致的字段回填逻辑 */
+  const draftTask = useMemo<ScheduledTask | null>(() => {
+    if (initialTask || !initialDraft) return null;
+    return {
+      id: '',
+      name: initialDraft.name,
+      description: initialDraft.description,
+      enabled: initialDraft.enabled ?? true,
+      cron: initialDraft.cron,
+      cronLabel: initialDraft.cronLabel,
+      action: initialDraft.action,
+      notifyOnSuccess: initialDraft.notifyOnSuccess ?? true,
+      notifyOnFailure: initialDraft.notifyOnFailure ?? true,
+      createdAt: '',
+      updatedAt: '',
+      runCount: 0,
+    };
+  }, [initialDraft, initialTask]);
+
   // Load initial data when editing or opening.
   // 依赖只保留「打开 / 切换目标任务」：后台 loadRepos / CI 绑定保存会替换 repositories / settings 引用，
   // 若把它们放进依赖，用户正在填写的表单会被后台刷新重置。
@@ -254,17 +290,18 @@ export function ScheduleEditorDrawer({
     const appState = useApp.getState();
     const repositoriesForDefaults = appState.repositories;
     const settingsForDefaults = appState.settings;
+    const sourceTask = initialTask ?? draftTask;
 
-    if (initialTask) {
+    if (sourceTask) {
       // 旧版本持久化的任务可能缺少新字段：所有读取一律回退默认值，防止编辑态渲染崩溃
-      setName(initialTask.name ?? '未命名任务');
-      setDescription(initialTask.description ?? '');
-      setEnabled(initialTask.enabled ?? true);
-      setCron(initialTask.cron || '0 2 * * *');
-      setNotifyOnSuccess(initialTask.notifyOnSuccess ?? true);
-      setNotifyOnFailure(initialTask.notifyOnFailure ?? true);
+      setName(sourceTask.name ?? '未命名任务');
+      setDescription(sourceTask.description ?? '');
+      setEnabled(sourceTask.enabled ?? true);
+      setCron(sourceTask.cron || '0 2 * * *');
+      setNotifyOnSuccess(sourceTask.notifyOnSuccess ?? true);
+      setNotifyOnFailure(sourceTask.notifyOnFailure ?? true);
 
-      const editCron = initialTask.cron || '0 2 * * *';
+      const editCron = sourceTask.cron || '0 2 * * *';
       const matchedPreset = CRON_PRESETS.find((p) => p.value === editCron);
       setPreset(matchedPreset ? matchedPreset.value : 'custom');
       if (matchedPreset) {
@@ -297,7 +334,7 @@ export function ScheduleEditorDrawer({
         }
       }
 
-      const act = initialTask.action ?? { type: 'branch_merge' as const };
+      const act = sourceTask.action ?? { type: 'branch_merge' as const };
       setActionType(act.type ?? 'branch_merge');
       if (act.type === 'branch_merge') {
         setRepoId(act.repoId ?? 0);
@@ -342,7 +379,7 @@ export function ScheduleEditorDrawer({
       setPipelineId(0);
       setPipelineName('');
     }
-  }, [open, initialTask?.id]);
+  }, [open, initialTask?.id, draftTask]);
 
   // Cron validation & preview
   const cronValidation = useMemo(() => validateCron(cron), [cron]);
@@ -486,7 +523,7 @@ export function ScheduleEditorDrawer({
       action = { type: 'scan_branches' };
     }
 
-    if (initialTask) {
+    if (isEditing && initialTask) {
       updateTask(initialTask.id, {
         name: name.trim(),
         description: description.trim() || undefined,
@@ -517,19 +554,19 @@ export function ScheduleEditorDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">
-      <DrawerContent className="w-full sm:w-[min(44rem,92vw)] sm:max-w-none">
-        <div className="flex h-full min-h-0 flex-1 flex-col bg-background">
+      <DrawerContent className="w-full sm:w-[min(36rem,92vw)] sm:max-w-none">
+        <div className="flex h-full min-h-0 flex-1 flex-col">
           {/* 抽屉头部：标题 + 说明 + 关闭（与 ScheduleLogDrawer 同构） */}
           <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-6">
             <div className="flex min-w-0 items-center gap-2.5">
               <CalendarClockIcon className="size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
-                <h2
+                <DrawerTitle
                   className="truncate text-sm font-semibold tracking-tight"
-                  title={initialTask ? `编辑定时任务 · ${initialTask.name}` : '新建定时任务'}
+                  title={isEditing && initialTask ? `编辑定时任务 · ${initialTask.name}` : '新建定时任务'}
                 >
-                  {initialTask ? `编辑定时任务 · ${initialTask.name}` : '新建定时任务'}
-                </h2>
+                  {isEditing && initialTask ? `编辑定时任务 · ${initialTask.name}` : '新建定时任务'}
+                </DrawerTitle>
                 <p
                   className="truncate text-[11px] text-muted-foreground"
                   title="配置自动化定时调度策略，支持代码分支安全同步、构建自动化与多源数据巡检"
@@ -571,10 +608,11 @@ export function ScheduleEditorDrawer({
                 </Card.Header>
                 <Card.Content className="flex flex-col gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs text-muted-foreground">
+                    <Label htmlFor="schedule-name" className="text-xs text-muted-foreground">
                       任务名称 <span className="text-destructive">*</span>
                     </Label>
                     <Input
+                      id="schedule-name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       onKeyDown={(e) => {
@@ -591,8 +629,9 @@ export function ScheduleEditorDrawer({
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs text-muted-foreground">任务描述</Label>
+                    <Label htmlFor="schedule-description" className="text-xs text-muted-foreground">任务描述</Label>
                     <Textarea
+                      id="schedule-description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       onKeyDown={(e) => {
@@ -657,8 +696,10 @@ export function ScheduleEditorDrawer({
                         </span>
                       </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label className="text-xs text-muted-foreground">目标代码仓库</Label>
+                      <Label htmlFor="schedule-repo" className="text-xs text-muted-foreground">目标代码仓库</Label>
                       <SearchableSelect
+                        id="schedule-repo"
+                        ariaLabel="目标代码仓库"
                         value={repoId || null}
                         onValueChange={(val) => setRepoId(val ? Number(val) : 0)}
                         items={repositories.map((repo) => ({
@@ -673,7 +714,7 @@ export function ScheduleEditorDrawer({
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="flex min-w-0 flex-col gap-1.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs text-muted-foreground">源分支 (Source)</Label>
+                          <Label htmlFor="schedule-source-branch" className="text-xs text-muted-foreground">源分支 (Source)</Label>
                           {branchesLoading && (
                             <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
                               <Loader2Icon className="size-2.5 animate-spin" />
@@ -682,6 +723,8 @@ export function ScheduleEditorDrawer({
                           )}
                         </div>
                         <SearchableSelect
+                          id="schedule-source-branch"
+                          ariaLabel="源分支 (Source)"
                           value={sourceBranch || null}
                           onValueChange={(val) => setSourceBranch(val ? String(val) : '')}
                           items={availableBranches.map((b) => ({ label: b, value: b }))}
@@ -692,7 +735,7 @@ export function ScheduleEditorDrawer({
                       </div>
                       <div className="flex min-w-0 flex-col gap-1.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs text-muted-foreground">目标分支 (Target)</Label>
+                          <Label htmlFor="schedule-target-branch" className="text-xs text-muted-foreground">目标分支 (Target)</Label>
                           {branchesLoading && (
                             <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
                               <Loader2Icon className="size-2.5 animate-spin" />
@@ -701,6 +744,8 @@ export function ScheduleEditorDrawer({
                           )}
                         </div>
                         <SearchableSelect
+                          id="schedule-target-branch"
+                          ariaLabel="目标分支 (Target)"
                           value={targetBranch || null}
                           onValueChange={(val) => setTargetBranch(val ? String(val) : '')}
                           items={availableBranches.map((b) => ({ label: b, value: b }))}
@@ -754,7 +799,7 @@ export function ScheduleEditorDrawer({
                       </RadioGroup>
 
                       {strategy === 'aggressive' && (
-                        <div className="flex flex-col gap-2 rounded-md border border-border/70 bg-muted/20 p-3">
+                        <div className="flex flex-col gap-2 rounded-md border border-border/70 bg-surface-secondary p-3">
                           <div className="flex flex-wrap items-center justify-between gap-1">
                             <Label className="text-xs text-muted-foreground">冲突自动裁决偏好</Label>
                             <span className="text-[11px] text-muted-foreground">
@@ -781,7 +826,7 @@ export function ScheduleEditorDrawer({
                               </Radio.Content>
                               <span data-slot="description" className="block">
                                 代码冲突时，自动以源分支（如{' '}
-                                <span className="break-all font-mono text-foreground" title={sourceBranch || 'dev'}>
+                                <span className="inline-block max-w-full overflow-x-auto whitespace-nowrap align-bottom font-mono text-foreground" title={sourceBranch || 'dev'}>
                                   {sourceBranch || 'dev'}
                                 </span>
                                 ）的新改为准覆盖目标分支，适合新功能冲刺迭代。
@@ -800,7 +845,7 @@ export function ScheduleEditorDrawer({
                               </Radio.Content>
                               <span data-slot="description" className="block">
                                 代码冲突时，保留目标分支（如{' '}
-                                <span className="break-all font-mono text-foreground" title={targetBranch || 'master'}>
+                                <span className="inline-block max-w-full overflow-x-auto whitespace-nowrap align-bottom font-mono text-foreground" title={targetBranch || 'master'}>
                                   {targetBranch || 'master'}
                                 </span>
                                 ）原本的代码，丢弃冲突改动，确保生产基线稳定。
@@ -857,8 +902,9 @@ export function ScheduleEditorDrawer({
                       </Select>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label className="text-xs text-muted-foreground">Job 全名 / 路径 (FullName)</Label>
+                      <Label htmlFor="schedule-jenkins-job" className="text-xs text-muted-foreground">Job 全名 / 路径 (FullName)</Label>
                       <Input
+                        id="schedule-jenkins-job"
                         value={jenkinsJobName}
                         onChange={(e) => setJenkinsJobName(e.target.value)}
                         onKeyDown={(e) => {
@@ -887,8 +933,9 @@ export function ScheduleEditorDrawer({
                       </span>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label className="text-xs text-muted-foreground">流水线 ID (Pipeline ID)</Label>
+                      <Label htmlFor="schedule-pipeline-id" className="text-xs text-muted-foreground">流水线 ID (Pipeline ID)</Label>
                       <Input
+                        id="schedule-pipeline-id"
                         type="number"
                         value={pipelineId || ''}
                         onChange={(e) => setPipelineId(Number(e.target.value))}
@@ -907,8 +954,9 @@ export function ScheduleEditorDrawer({
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label className="text-xs text-muted-foreground">流水线名称备注 (选填)</Label>
+                      <Label htmlFor="schedule-pipeline-name" className="text-xs text-muted-foreground">流水线名称备注 (选填)</Label>
                       <Input
+                        id="schedule-pipeline-name"
                         value={pipelineName}
                         onChange={(e) => setPipelineName(e.target.value)}
                         onKeyDown={(e) => {
@@ -1173,6 +1221,10 @@ export function ScheduleEditorDrawer({
                           </span>
                         </div>
                         <Input
+                          id="schedule-cron"
+                          aria-label="Cron 表达式"
+                          aria-invalid={cronValidation.valid ? undefined : true}
+                          aria-describedby={cronValidation.valid ? undefined : 'schedule-cron-error'}
                           value={cron}
                           onChange={(e) => {
                             setCron(e.target.value);
@@ -1192,7 +1244,11 @@ export function ScheduleEditorDrawer({
                           className={cn('font-mono', !cronValidation.valid && 'border-destructive')}
                         />
                         {!cronValidation.valid && (
-                          <p className="flex items-center gap-1 text-[11px] text-destructive">
+                          <p
+                            id="schedule-cron-error"
+                            role="alert"
+                            className="flex items-center gap-1 text-[11px] text-destructive"
+                          >
                             <AlertTriangleIcon className="size-3 shrink-0" />
                             <span>{cronValidation.error}</span>
                           </p>
@@ -1261,21 +1317,21 @@ export function ScheduleEditorDrawer({
                       <p className="text-[13px] font-medium text-foreground">启用此任务</p>
                       <p className="text-[11px] text-muted-foreground">关闭后调度器将跳过此任务的触发</p>
                     </div>
-                    <Switch checked={enabled} onCheckedChange={setEnabled} />
+                    <Switch checked={enabled} onCheckedChange={setEnabled} aria-label="启用此任务" />
                   </div>
                   <div className="flex items-center justify-between gap-4 py-2 first:pt-0">
                     <div className="min-w-0">
                       <p className="text-[13px] font-medium text-foreground">成功发送通知</p>
                       <p className="text-[11px] text-muted-foreground">任务执行成功时发送桌面通知</p>
                     </div>
-                    <Switch checked={notifyOnSuccess} onCheckedChange={setNotifyOnSuccess} />
+                    <Switch checked={notifyOnSuccess} onCheckedChange={setNotifyOnSuccess} aria-label="成功发送通知" />
                   </div>
                   <div className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0">
                     <div className="min-w-0">
                       <p className="text-[13px] font-medium text-foreground">失败告警通知</p>
                       <p className="text-[11px] text-muted-foreground">任务报错或冲突终止时立即告警</p>
                     </div>
-                    <Switch checked={notifyOnFailure} onCheckedChange={setNotifyOnFailure} />
+                    <Switch checked={notifyOnFailure} onCheckedChange={setNotifyOnFailure} aria-label="失败告警通知" />
                   </div>
                 </Card.Content>
               </Card>
@@ -1283,13 +1339,13 @@ export function ScheduleEditorDrawer({
           </ScrollArea>
 
           {/* 抽屉底部操作栏 */}
-          <div className="flex h-14 shrink-0 items-center justify-end gap-2 border-t border-border bg-background px-6">
+          <div className="flex h-14 shrink-0 items-center justify-end gap-2 border-t border-border px-6">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               取消
             </Button>
             <Button onClick={handleSave}>
               <CheckIcon className="size-3.5" />
-              {initialTask ? '保存修改' : '创建任务'}
+              {isEditing ? '保存修改' : '创建任务'}
             </Button>
           </div>
         </div>

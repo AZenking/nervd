@@ -1,10 +1,15 @@
 import { CheckIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { cn } from '@/lib/utils';
 import { StatusIcon } from '@/components/status-icon';
 import { statusMeta, type StatusTone } from '../StatusBadge';
 import { Chip } from '@/components/ui/chip';
 import { Spinner } from '@/components/ui/spinner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { toast } from '@/components/ui/toast';
+import { useApp } from '@/store/app';
+import { useUi } from '@/store/ui';
+import { READONLY_BTN_CLASS } from '../WriteOpButton';
 import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 import {
   DropdownMenu,
@@ -46,6 +51,8 @@ export function WorkitemStatusDropdown({
   onStatusChange,
 }: WorkitemStatusDropdownProps) {
   const [open, setOpen] = useState(false);
+  const allowWrite = useApp((s) => s.settings?.allowWriteOps ?? false);
+  const openSettings = useUi((s) => s.openSettings);
   const { statuses, loadingStatuses, fetchStatuses, changeStatus } = useWorkitemWorkflowStatuses({
     workitemId,
     currentStatusId: statusId,
@@ -61,6 +68,88 @@ export function WorkitemStatusDropdown({
     if (success) onStatusChange?.(target.name);
   };
 
+  const meta = statusMeta(status);
+  const colorMap: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
+    ok: 'success',
+    run: 'warning',
+    fail: 'danger',
+    idle: 'default',
+  };
+  const chipColor = colorMap[meta.tone] ?? 'default';
+
+  const notifyReadonly = () => {
+    toast.add({
+      title: '当前处于只读模式',
+      description: '原地流转状态是写操作。可在「设置 → 安全」中开启写权限后执行。',
+      type: 'warning',
+      actionProps: {
+        children: '前往设置',
+        onClick: () => openSettings('security'),
+      },
+    });
+  };
+
+  // 只读门控（AGENTS §5.1）：禁止原生 disabled（会吞 hover/focus 导致原因不可见）。
+  // 触发器保留 aria-disabled + 灰阶样式 + Tooltip，点击给 Toast 引导，不展开菜单、不发写请求。
+  if (!allowWrite) {
+    const readonlyReason = '写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）';
+    const handleReadonlyClick = (e: MouseEvent) => {
+      e.stopPropagation();
+      notifyReadonly();
+    };
+    const readonlyTrigger = variant === 'icon' ? (
+      <button
+        type="button"
+        data-testid="row-status-trigger"
+        data-status={status || ''}
+        aria-disabled="true"
+        aria-label={`状态：${status || '未指定'}（只读，点击查看原因）`}
+        onClick={handleReadonlyClick}
+        className={cn(
+          'flex size-6 shrink-0 items-center justify-center rounded-sm border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+          READONLY_BTN_CLASS,
+          className,
+        )}
+      >
+        <StatusIcon status={status} className="size-3.5 shrink-0" />
+      </button>
+    ) : variant === 'badge' ? (
+      <button
+        type="button"
+        aria-disabled="true"
+        aria-label={`状态：${status || '未知状态'}（只读，点击查看原因）`}
+        onClick={handleReadonlyClick}
+        className="cursor-not-allowed rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <Chip size="sm" color={chipColor} variant="soft" className={cn('grayscale opacity-80', className)}>
+          <StatusIcon status={status} className="size-3 shrink-0" />
+          <Chip.Label>{status || '未知状态'}</Chip.Label>
+        </Chip>
+      </button>
+    ) : (
+      <button
+        type="button"
+        aria-disabled="true"
+        aria-label={`状态：${status || '未知状态'}（只读，点击查看原因）`}
+        onClick={handleReadonlyClick}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-xs font-medium text-muted-foreground cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+          className,
+        )}
+      >
+        <StatusIcon status={status} className="size-3.5 shrink-0" />
+        <span>{status || '未知状态'}</span>
+      </button>
+    );
+
+    return (
+      <Tooltip>
+        <TooltipTrigger render={readonlyTrigger} />
+        <TooltipContent>{readonlyReason}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
   const renderTrigger = () => {
     if (variant === 'icon') {
       return (
@@ -69,7 +158,7 @@ export function WorkitemStatusDropdown({
           data-testid="row-status-trigger"
           data-status={status || ''}
           className={cn(
-            'flex size-6 shrink-0 items-center justify-center rounded-sm transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer',
+            'flex size-6 shrink-0 items-center justify-center rounded-sm transition-colors hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer',
             className,
           )}
           title={`状态：${status || '未指定'}（点击原地流转）`}
@@ -80,15 +169,6 @@ export function WorkitemStatusDropdown({
     }
 
     if (variant === 'badge') {
-      const meta = statusMeta(status);
-      const colorMap: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
-        ok: 'success',
-        run: 'warning',
-        fail: 'danger',
-        idle: 'default',
-      };
-      const color = colorMap[meta.tone] ?? 'default';
-
       return (
         <DropdownMenuTrigger
           onClick={(e) => e.stopPropagation()}
@@ -96,7 +176,7 @@ export function WorkitemStatusDropdown({
           render={
             <Chip
               size="sm"
-              color={color}
+              color={chipColor}
               variant="soft"
               className={className}
               title="点击原地流转状态"
@@ -113,7 +193,7 @@ export function WorkitemStatusDropdown({
       <DropdownMenuTrigger
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer rounded-sm hover:bg-muted/80 text-foreground px-1.5 py-0.5 text-xs font-medium',
+          'inline-flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer rounded-sm hover:bg-surface-secondary text-foreground px-1.5 py-0.5 text-xs font-medium',
           className,
         )}
         title="点击原地流转状态"
@@ -133,7 +213,7 @@ export function WorkitemStatusDropdown({
         onClick={(e) => e.stopPropagation()}
         header={
           <>
-            <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider">
               流转状态
             </div>
             {loadingStatuses && (

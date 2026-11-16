@@ -4,8 +4,10 @@ import { Button, Card, Chip, Input, Table } from '@heroui/react';
 import type { WorkitemRow } from '@/lib/api';
 import { StatusIcon } from '@/components/status-icon';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
+import { EmptyHint } from '@/components/empty-hint';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { RefreshButton } from './refresh-button';
 
 export interface WorkitemsDataTableProps {
   categoryLabel: string;
@@ -15,6 +17,8 @@ export interface WorkitemsDataTableProps {
   selectedWorkitemId?: string | null;
   onOpenDetail: (item: WorkitemRow) => void;
   onOpenWorkbench?: (id: string, identifier: string, subject: string) => void;
+  /** 空态下一步动作：重新拉取当前类别 */
+  onRefresh?: () => void;
   className?: string;
 }
 
@@ -26,6 +30,7 @@ export function WorkitemsDataTable({
   selectedWorkitemId,
   onOpenDetail,
   onOpenWorkbench,
+  onRefresh,
   className,
 }: WorkitemsDataTableProps) {
   const [search, setSearch] = useState('');
@@ -49,14 +54,19 @@ export function WorkitemsDataTable({
             <Card.Title className="text-sm font-semibold tracking-tight text-foreground">
               工作项速览 · {categoryLabel}
             </Card.Title>
-            <Chip size="sm" variant="soft" color="default" className="text-xs">
-              {complete ? `最近更新 · 共 ${items.length} 条` : `最近更新 · 已加载 ${items.length} 条`}
+            <Chip size="sm" variant="soft" color="default" className="text-xs font-mono tabular-nums">
+              {complete ? (
+                <>最近更新 · 共 {items.length} 条</>
+              ) : (
+                <>最近更新 · 已加载 {items.length} 条</>
+              )}
             </Chip>
           </div>
 
           <div className="relative w-full sm:w-64">
             <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
+              aria-label="搜索工作项"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => {
@@ -104,9 +114,25 @@ export function WorkitemsDataTable({
             ))}
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="py-12 text-center text-xs text-muted-foreground">
-            {search ? '未找到匹配的工作项' : '暂无工作项'}
-          </div>
+          <EmptyHint
+            icon={SearchIcon}
+            title={search ? '未找到匹配的工作项' : '暂无工作项'}
+            description={
+              search
+                ? `没有与「${search.trim()}」匹配的编号、标题或状态，可清除搜索查看全部条目。`
+                : '当前类别在所选迭代下还没有可展示的最近更新。'
+            }
+            action={
+              search ? (
+                <Button size="sm" variant="secondary" onPress={() => setSearch('')}>
+                  清除搜索
+                </Button>
+              ) : onRefresh ? (
+                <RefreshButton label="刷新" onPress={onRefresh} />
+              ) : undefined
+            }
+            className="rounded-none border-0 bg-transparent py-10"
+          />
         ) : (
           <Table variant="secondary" className="w-full">
             <Table.ScrollContainer className="max-h-96 overflow-y-auto overscroll-contain">
@@ -137,32 +163,42 @@ export function WorkitemsDataTable({
                         key={item.workitemId || item.identifier}
                         id={item.workitemId || item.identifier}
                         className={cn(
-                          'border-b border-border/40 transition-colors hover:bg-muted/30 cursor-pointer',
-                          isSelected && 'bg-accent/50 font-medium',
+                          'border-b border-border/40 transition-colors cursor-pointer',
+                          // 激活态配方统一：实色 accent 底 + accent-foreground 前景（DESIGN §3.3.1）
+                          isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-surface-secondary',
                         )}
                         onAction={() => onOpenDetail(item)}
                       >
                         <Table.Cell className="px-4 py-2.5">
-                          <span className="font-mono text-xs font-semibold text-foreground" title={item.identifier}>
+                          <span
+                            className={cn('font-mono text-xs font-semibold', isSelected ? 'text-accent-foreground' : 'text-foreground')}
+                          >
                             {item.identifier}
                           </span>
                         </Table.Cell>
 
-                        <Table.Cell className="px-3 py-2.5 font-medium text-foreground">
+                        <Table.Cell className="px-3 py-2.5 font-medium">
                           <OverflowTooltip
                             text={item.subject}
-                            className="max-w-md truncate text-xs text-foreground"
+                            className={cn(
+                              'max-w-md truncate text-xs',
+                              isSelected ? 'text-accent-foreground' : 'text-foreground',
+                            )}
                           />
                         </Table.Cell>
 
                         <Table.Cell className="px-3 py-2.5">
                           <div className="flex items-center gap-1.5">
                             <StatusIcon status={item.status} className="size-3.5 shrink-0" />
-                            <span className="text-xs text-muted-foreground" title={item.status}>{item.status}</span>
+                            <span
+                              className={cn('text-xs', isSelected ? 'text-accent-foreground/85' : 'text-muted-foreground')}
+                            >
+                              {item.status}
+                            </span>
                           </div>
                         </Table.Cell>
 
-                        <Table.Cell className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground">
+                        <Table.Cell className={cn('px-3 py-2.5 font-mono text-[11px]', isSelected ? 'text-accent-foreground/85' : 'text-muted-foreground')}>
                           {item.updatedAt?.slice(0, 10) ?? '—'}
                         </Table.Cell>
 
@@ -172,7 +208,10 @@ export function WorkitemsDataTable({
                               variant="ghost"
                               size="sm"
                               onPress={() => onOpenDetail(item)}
-                              className="h-7 gap-1 px-2 text-[11px]"
+                              className={cn(
+                                'h-7 gap-1 px-2 text-[11px]',
+                                isSelected && 'text-accent-foreground hover:bg-accent-foreground/15 hover:text-accent-foreground',
+                              )}
                             >
                               <FileTextIcon className="size-3" />
                               <span>详情</span>
@@ -183,7 +222,10 @@ export function WorkitemsDataTable({
                                 size="sm"
                                 isIconOnly
                                 onPress={() => onOpenWorkbench(item.workitemId, item.identifier ?? '', item.subject ?? '')}
-                                className="size-7"
+                                className={cn(
+                                  'size-7',
+                                  isSelected && 'text-accent-foreground hover:bg-accent-foreground/15 hover:text-accent-foreground',
+                                )}
                                 aria-label="在全屏工作台打开"
                               >
                                 <ExternalLinkIcon className="size-3" />

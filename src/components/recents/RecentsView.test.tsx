@@ -96,12 +96,12 @@ describe('RecentsView test', () => {
       });
 
       // Also test clicking the external workbench open button
-      const openWorkbenchBtn = host.querySelector('button[title="在工作台中全屏打开"]') as HTMLElement;
-      if (openWorkbenchBtn) {
-        await act(async () => {
-          openWorkbenchBtn.click();
-        });
-      }
+      // 原生 title 已按 DESIGN G 条款移除，改为按可访问名查询（避免用例静默跳过）
+      const openWorkbenchBtn = host.querySelector('button[aria-label="在工作台中全屏打开"]') as HTMLElement;
+      expect(openWorkbenchBtn).not.toBeNull();
+      await act(async () => {
+        openWorkbenchBtn.click();
+      });
     } finally {
       await act(async () => {
         root.unmount();

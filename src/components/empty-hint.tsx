@@ -27,13 +27,13 @@ export function EmptyHint({
 }) {
   return (
     <Empty className={cn(
-      'border-border bg-muted-bg',
+      'border-border bg-canvas-soft',
       compact && 'flex-none flex-row justify-start gap-3 px-3 py-2 text-left',
       className,
     )}>
       <EmptyHeader className={compact ? 'items-start gap-0' : undefined}>
         <EmptyMedia className={compact ? 'mb-0' : undefined}>
-          <Icon />
+          <Icon aria-hidden="true" />
         </EmptyMedia>
         {title && <EmptyTitle>{title}</EmptyTitle>}
         {description && <EmptyDescription>{description}</EmptyDescription>}

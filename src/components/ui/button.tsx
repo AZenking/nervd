@@ -40,6 +40,21 @@ const buttonVariants = tv(
   { twMerge: false }
 )
 
+/**
+ * DESIGN.md Part 1 · Components（Buttons）语义变体映射：
+ * - `primary`    主操作（唯一强调动作；一个上下文只允许一个 primary）→ HeroUI primary
+ * - `secondary`  备选动作 → HeroUI secondary
+ * - `tertiary`   低强调 / 消解性动作 → HeroUI tertiary
+ * - `outline`    描边低强调 → HeroUI outline
+ * - `ghost`      无底色低强调（含文字链 `link`，视觉上只保留文字）→ HeroUI ghost
+ * - `danger`     破坏性动作 → HeroUI danger（`destructive` 为历史别名，同义）
+ * - `danger-soft` 较轻的破坏性动作 → HeroUI danger-soft
+ *
+ * 兼容别名：`default` 等价于 `primary`（历史调用点大量使用 `variant="default"`），
+ * 未识别的取值同样回落到 `primary`。语义以变体名为准，不按颜色自造新档位
+ * （DESIGN：reach for an existing variant instead of restyling a button）。
+ * "一个上下文只一个 primary" 属调用点约定，原语层不做运行时拦截。
+ */
 function mapHeroUIVariant(
   variant?: string | null
 ): "primary" | "secondary" | "tertiary" | "outline" | "ghost" | "danger" | "danger-soft" {

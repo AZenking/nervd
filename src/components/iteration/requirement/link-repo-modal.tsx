@@ -4,7 +4,6 @@ import {
   GitBranchIcon,
   CheckIcon,
   Loader2Icon,
-  PlusIcon,
   InfoIcon,
 } from 'lucide-react';
 import type { RepoSummary, RepoCiBinding } from '@/types';
@@ -16,6 +15,7 @@ import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { RepoCiBindingFields } from './repo-ci-binding-fields';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { WriteOpButton } from '@/components/WriteOpButton';
 import { Card } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -30,7 +30,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SectionHeader } from '@/components/section-header';
 import { TrackTopologyDiagram } from '@/components/branch-rules/track-topology-diagram';
 
 export interface LinkRepoModalProps {
@@ -112,7 +112,6 @@ export function LinkRepoModal({
   const [selectedRepoPath, setSelectedRepoPath] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [selectedCiBinding, setSelectedCiBinding] = useState<RepoCiBinding | null>(null);
-  const [linkingRepoId, setLinkingRepoId] = useState<number | null>(null);
 
   const selectedRepo = useMemo(
     () => repositories.find((r) => (r.pathWithNamespace || r.name) === selectedRepoPath),
@@ -129,7 +128,6 @@ export function LinkRepoModal({
       setSelectedRepoPath('');
       setSelectedTemplateId('');
       setSelectedCiBinding(null);
-      setLinkingRepoId(null);
     }
   }, [open]);
 
@@ -178,12 +176,7 @@ export function LinkRepoModal({
   };
 
   const handleQuickLink = async (repoId: number) => {
-    setLinkingRepoId(repoId);
-    try {
-      await onQuickLinkRepo(repoId);
-    } finally {
-      setLinkingRepoId(null);
-    }
+    await onQuickLinkRepo(repoId);
   };
 
   return (
@@ -201,43 +194,46 @@ export function LinkRepoModal({
 
         <ScrollArea className="flex-1 min-h-0 pr-1 flex flex-col gap-6">
           {/* AI 智能推荐区域 */}
-          <Card className="border-primary/20 bg-primary/5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <SparklesIcon className="size-4 text-primary shrink-0" />
-                <span className="font-semibold text-xs text-foreground">AI 智能匹配推荐</span>
-                <span className="text-[11px] text-muted-foreground hidden sm:inline">
-                  (基于需求标题、描述及代码信号分析)
+          <section className="flex flex-col gap-3 rounded-lg bg-primary/5 p-4">
+            <SectionHeader
+              level="h3"
+              title={(
+                <span className="inline-flex items-center gap-1.5">
+                  <SparklesIcon className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                  <span>AI 智能匹配推荐</span>
                 </span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {recommendedRepos.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onPress={onClearRecommendations}
-                    className="h-6 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
-                  >
-                    清空推荐
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="xs"
-                  disabled={recommendingRepos}
-                  onPress={() => void onRecommendRepos()}
-                  className="h-7 text-xs border-primary/30 bg-background hover:bg-primary/10 text-primary gap-1.5 cursor-pointer"
-                >
-                  {recommendingRepos ? (
-                    <Loader2Icon className="size-3.5 animate-spin" />
-                  ) : (
-                    <SparklesIcon className="size-3.5" />
+              )}
+              hint="基于需求标题、描述及代码信号分析"
+              action={(
+                <>
+                  {recommendedRepos.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onPress={onClearRecommendations}
+                      className="h-6 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      清空推荐
+                    </Button>
                   )}
-                  <span>{recommendingRepos ? 'AI 分析推荐中…' : '智能分析相关仓库'}</span>
-                </Button>
-              </div>
-            </div>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    disabled={recommendingRepos}
+                    onPress={() => void onRecommendRepos()}
+                    className="h-7 text-xs border-primary/30 bg-background hover:bg-primary/10 text-primary gap-1.5 cursor-pointer"
+                  >
+                    {recommendingRepos ? (
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                    ) : (
+                      <SparklesIcon className="size-3.5" />
+                    )}
+                    <span>{recommendingRepos ? 'AI 分析推荐中…' : '智能分析相关仓库'}</span>
+                  </Button>
+                </>
+              )}
+            />
 
             {/* 推荐卡片列表 */}
             {recommendedRepos.length > 0 ? (
@@ -249,13 +245,12 @@ export function LinkRepoModal({
                     || (rec.repoName.includes('/') ? rec.repoName.split('/').pop() : rec.repoName)
                     || '未知仓库';
                   const repoPath = targetRepo?.pathWithNamespace || rec.repoName;
-                  const isCurrentLinking = linkingRepoId === rec.repoId;
 
                   return (
                     <Card
                       key={rec.repoId}
                       className={cn(
-                        'justify-between p-3 transition-colors',
+                        'justify-between p-3 shadow-none transition-colors',
                         isAlreadyLinked
                           ? 'border-sig-ok/30 bg-sig-ok/5'
                           : 'border-primary/25 hover:border-primary/50',
@@ -267,7 +262,6 @@ export function LinkRepoModal({
                             <GitBranchIcon className="size-3.5 shrink-0 text-primary" />
                             <OverflowTooltip
                               text={repoName}
-                              title={repoName}
                               className="min-w-0 truncate font-semibold text-xs text-foreground"
                             />
                           </div>
@@ -279,21 +273,10 @@ export function LinkRepoModal({
                         </div>
 
                         {repoPath && repoPath !== repoName && (
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={(
-                                <span
-                                  className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground cursor-help"
-                                  title={repoPath}
-                                />
-                              )}
-                            >
-                              {repoPath}
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-md break-all font-mono text-[11px]">
-                              {repoPath}
-                            </TooltipContent>
-                          </Tooltip>
+                          <OverflowTooltip
+                            text={repoPath}
+                            className="mt-0.5 max-w-full font-mono text-[10px] text-muted-foreground"
+                          />
                         )}
 
                         {rec.reason && (
@@ -310,19 +293,16 @@ export function LinkRepoModal({
                             已关联
                           </span>
                         ) : (
-                          <Button
-                            size="xs"
-                            disabled={savingRepos || isCurrentLinking}
-                            onPress={() => void handleQuickLink(rec.repoId)}
-                            className="h-6.5 px-3 text-xs gap-1"
-                          >
-                            {isCurrentLinking ? (
-                              <Loader2Icon className="size-3 animate-spin" />
-                            ) : (
-                              <PlusIcon className="size-3" />
-                            )}
-                            <span>关联此仓库</span>
-                          </Button>
+                          <WriteOpButton
+                            label="关联此仓库"
+                            title={`关联仓库 ${repoPath}`}
+                            variant="default"
+                            confirm="inline"
+                            confirmLabel="再次点击确认关联"
+                            disabled={savingRepos}
+                            disabledReason={savingRepos ? '正在关联仓库，请稍候' : undefined}
+                            onAction={() => handleQuickLink(rec.repoId)}
+                          />
                         )}
                       </div>
                     </Card>
@@ -340,16 +320,16 @@ export function LinkRepoModal({
                 <span>点击“智能分析相关仓库”，AI 将自动根据需求文本与历史提交，推荐匹配的代码仓库。</span>
               </div>
             )}
-          </Card>
+          </section>
 
           {/* 手动检索与选择关联区域 */}
           <div className="flex flex-col gap-4">
-            <div className="text-xs font-semibold text-foreground flex items-center gap-2">
-              <span>手动添加代码仓库</span>
-              <span className="font-mono text-[11px] text-muted-foreground font-normal">
-                (可选仓库: {availableRepos.length})
-              </span>
-            </div>
+            <SectionHeader
+              level="h3"
+              title="手动添加代码仓库"
+              count={availableRepos.length}
+              hint="可选仓库"
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field className="min-w-0">
@@ -435,21 +415,22 @@ export function LinkRepoModal({
           >
             取消
           </Button>
-          <Button
-            type="button"
+          <WriteOpButton
+            label="确认关联"
+            title="确认关联代码仓库"
             variant="default"
-            size="sm"
-            onPress={handleManualLink}
+            confirm="inline"
+            confirmLabel="再次点击确认关联"
             disabled={!selectedRepoPath || savingRepos}
-            className="gap-1.5"
-          >
-            {savingRepos ? (
-              <Loader2Icon className="size-3.5 animate-spin" />
-            ) : (
-              <PlusIcon className="size-3.5" />
-            )}
-            <span>确认关联</span>
-          </Button>
+            disabledReason={
+              !selectedRepoPath
+                ? '请先选择云效代码仓库'
+                : savingRepos
+                  ? '正在关联仓库，请稍候'
+                  : undefined
+            }
+            onAction={handleManualLink}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

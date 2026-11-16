@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Dropdown, Surface, Select, ListBox } from '@heroui/react';
 import {
   BugIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, ShieldCheckIcon, SparklesIcon, UserIcon,
@@ -6,8 +6,10 @@ import {
 import * as api from '@/lib/api';
 import { getAiSettings, aiBreakdownRequirement } from '@/lib/ai-api';
 import { postChildCreationActivity } from '@/lib/child-activity';
-import type { AiSettingsView } from '@/types/ai';
+import type { AiSettingsView, BreakdownContext } from '@/types/ai';
+import { extractBreakdownKeywords } from '@/lib/breakdown-keywords';
 import { AiBreakdownDialog } from './ai-breakdown-dialog';
+import { BreakdownRepoPicker } from './breakdown-repo-picker';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { WorkitemChild, WorkitemTypeOption } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -28,6 +30,7 @@ import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SectionHeader } from '@/components/section-header';
 import { StatusIcon } from '@/components/status-icon';
 import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
+import { READONLY_BTN_CLASS, WriteOpGatedTrigger } from '@/components/WriteOpButton';
 import { SearchableAssigneePopover, type AssigneeOption } from './assignee-popover';
 
 const SEVERITY_OPTIONS = [
@@ -88,17 +91,20 @@ export function InlineStatusDropdown({
       <Dropdown
         isOpen={open}
         onOpenChange={(v) => {
+          // 状态更新中：保留可聚焦与 hover 说明，但不允许再次展开菜单
+          if (updatingStatus) return;
           setOpen(v);
           if (v) void fetchStatuses();
         }}
       >
         <Dropdown.Trigger
           type="button"
+          aria-disabled={updatingStatus || undefined}
           className={cn(
-            'group/status h-6 gap-1.5 px-1.5 text-xs font-medium inline-flex items-center rounded-sm transition-colors hover:bg-muted/60',
-            updatingStatus && 'pointer-events-none opacity-60',
+            'group/status h-6 gap-1.5 px-1.5 text-xs font-medium inline-flex items-center rounded-sm transition-colors hover:bg-surface-secondary',
+            updatingStatus && READONLY_BTN_CLASS,
           )}
-          aria-label="点击快速更改状态"
+          aria-label={updatingStatus ? '正在更新状态…' : '点击快速更改状态'}
         >
           {updatingStatus ? (
             <Spinner className="size-3.5" />
@@ -186,6 +192,13 @@ export interface ChildrenCardProps {
   parentDescription?: string;
   parentAssigneeId?: string;
   parentAssigneeName?: string;
+  /** 需求显式关联的仓库（方案 A）；为空时拆解前弹出上下文仓库选择 */
+  explicitRepoIds?: number[];
+  /** 采集所选仓库的改动范围 + 现有代码节选（由需求详情提供） */
+  collectBreakdownContext?: (
+    repoIds: number[],
+    keywords: string[],
+  ) => Promise<BreakdownContext>;
   candidateAssignees?: AssigneeOption[];
   selectedChildId?: string | null;
   onSelect: (child: WorkitemChild) => void;
@@ -209,6 +222,8 @@ export function ChildrenCard({
   parentDescription,
   parentAssigneeId,
   parentAssigneeName,
+  explicitRepoIds = [],
+  collectBreakdownContext,
   candidateAssignees,
   selectedChildId,
   onSelect,
@@ -221,7 +236,13 @@ export function ChildrenCard({
   const addOptimisticChild = useApp((s) => s.addOptimisticChild);
   const reloadComments = useApp((s) => s.reloadComments);
   const openSettings = useUi((s) => s.openSettings);
+  const repositories = useApp((s) => s.repositories) ?? [];
   const allowWriteOps = settings?.allowWriteOps ?? false;
+
+  const breakdownKeywords = useMemo(
+    () => extractBreakdownKeywords(parentSubject || title, parentDescription || ''),
+    [parentDescription, parentSubject, title],
+  );
 
   const isBug = category === 'Bug';
   const completedCount = items.filter((t) =>
@@ -243,6 +264,91 @@ export function ChildrenCard({
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiDirectLoading, setAiDirectLoading] = useState(false);
   const [aiSettingsCache, setAiSettingsCache] = useState<AiSettingsView | null>(null);
+  // AI 拆解上下文：本次使用的仓库与选择器状态
+  const [contextRepoIds, setContextRepoIds] = useState<number[]>([]);
+  const [repoPickerOpen, setRepoPickerOpen] = useState(false);
+  const pendingAiRef = useRef<AiSettingsView | null>(null);
+  const pendingTypesRef = useRef<WorkitemTypeOption[]>([]);
+
+  const proceedBreakdown = async (repoIds: number[]) => {
+    const currentAi = pendingAiRef.current ?? (await getAiSettings());
+    pendingAiRef.current = currentAi;
+    const availableTypes = pendingTypesRef.current;
+    const context = collectBreakdownContext
+      ? await collectBreakdownContext(repoIds, breakdownKeywords)
+      : { scope: [], code: [] };
+    setContextRepoIds(repoIds);
+
+    // 模式 A：弹窗二次确认
+    if (currentAi.breakdownMode === 'review') {
+      setAiDialogOpen(true);
+      return;
+    }
+
+    // 模式 B：一键直达生成
+    setAiDirectLoading(true);
+    try {
+      const taskType = availableTypes.find((t) => /任务|Task/i.test(t.name)) || availableTypes[0];
+      const targetTypeId = taskType?.id ?? '';
+
+      const generated = await aiBreakdownRequirement(
+        parentSubject || title,
+        parentDescription || '',
+        context.scope,
+        context.code,
+      );
+
+      if (generated.length === 0) {
+        toast.add({ title: 'AI 未能生成有效子任务条目', type: 'warning' });
+        return;
+      }
+
+      const createdChildren: WorkitemChild[] = [];
+      for (const item of generated) {
+        const created = await api.createWorkitemChild(parentWorkitemId, {
+          subject: item.subject.trim(),
+          workitemTypeId: targetTypeId,
+          assignedTo: parentAssigneeId,
+          category: 'Task',
+        });
+        const completeChild: WorkitemChild = {
+          ...created,
+          category: created.category || 'Task',
+          assignedTo: created.assignedTo || parentAssigneeName || '',
+          status: created.status || '待办',
+        };
+        createdChildren.push(completeChild);
+      }
+
+      addOptimisticChild(parentWorkitemId, createdChildren);
+      void loadChildren(parentWorkitemId);
+      // AI 批量拆解：需求动态汇总一条（全部任务概要与状态），避免逐条刷屏
+      void postChildCreationActivity(parentWorkitemId, createdChildren, 'Task')
+        .then((posted) => {
+          if (posted) void reloadComments(parentWorkitemId);
+        });
+      toast.add({
+        title: 'AI 一键拆解完成',
+        description: `已自动为 ${parentIdentifier || '当前需求'} 批量创建 ${generated.length} 个子任务`,
+        type: 'success',
+      });
+    } catch (err) {
+      errorLog('ai-direct-breakdown', err);
+      toast.add({
+        title: 'AI 一键拆解失败',
+        description: humanizeError(err),
+        type: 'error',
+      });
+    } finally {
+      setAiDirectLoading(false);
+    }
+  };
+
+  const handleRepoPickerConfirm = (repoIds: number[]) => {
+    setRepoPickerOpen(false);
+    if (repoIds.length === 0) return;
+    void proceedBreakdown(repoIds);
+  };
 
   const handleAiBreakdown = async () => {
     if (!allowWriteOps) {
@@ -289,81 +395,17 @@ export function ChildrenCard({
         // ignore
       }
     }
+    pendingAiRef.current = currentAi;
+    pendingTypesRef.current = availableTypes;
 
-    // 模式 A：弹窗二次确认
-    if (currentAi.breakdownMode === 'review') {
-      setAiDialogOpen(true);
+    // 需求有显式关联仓库：直接作为拆解上下文
+    if (explicitRepoIds.length > 0) {
+      await proceedBreakdown(explicitRepoIds);
       return;
     }
 
-    // 模式 B：一键直达生成
-    setAiDirectLoading(true);
-    try {
-      const taskType = availableTypes.find((t) => /任务|Task/i.test(t.name)) || availableTypes[0];
-      const targetTypeId = taskType?.id ?? '';
-
-      const tags = currentAi.defaultBreakdownTags.length > 0
-        ? currentAi.defaultBreakdownTags
-        : ['前端', '后端', '自测'];
-
-      const generated = await aiBreakdownRequirement(
-        parentSubject || title,
-        parentDescription || '',
-        tags,
-      );
-
-      if (generated.length === 0) {
-        toast.add({ title: 'AI 未能生成有效子任务条目', type: 'warning' });
-        return;
-      }
-
-      const createdChildren: WorkitemChild[] = [];
-      for (const item of generated) {
-        const created = await api.createWorkitemChild(parentWorkitemId, {
-          subject: `【${item.tag}】${item.subject.trim()}`,
-          workitemTypeId: targetTypeId,
-          assignedTo: parentAssigneeId,
-          category: 'Task',
-        });
-        // 工时登记失败不阻断直创流程（与弹窗模式一致，此处静默）
-        if (item.estimatedHours && created.workitemId) {
-          try {
-            await api.setWorkitemEstimatedEffort(created.workitemId, item.estimatedHours);
-          } catch {
-            // ignore
-          }
-        }
-        const completeChild: WorkitemChild = {
-          ...created,
-          category: created.category || 'Task',
-          assignedTo: created.assignedTo || parentAssigneeName || '',
-          status: created.status || '待办',
-        };
-        createdChildren.push(completeChild);
-      }
-
-      addOptimisticChild(parentWorkitemId, createdChildren);
-      void loadChildren(parentWorkitemId);
-      // AI 批量拆解：需求动态汇总一条（全部任务概要与状态），避免逐条刷屏
-      void postChildCreationActivity(parentWorkitemId, createdChildren, 'Task')
-        .then((posted) => {
-          if (posted) void reloadComments(parentWorkitemId);
-        });
-      toast.add({
-        title: 'AI 一键拆解完成',
-        description: `已自动为 ${parentIdentifier || '当前需求'} 批量创建 ${generated.length} 个子任务`,
-        type: 'success',
-      });
-    } catch (err) {
-      errorLog('ai-direct-breakdown', err);
-      toast.add({
-        title: 'AI 一键拆解失败',
-        description: humanizeError(err),
-        type: 'error',
-      });
-    } finally {
-      setAiDirectLoading(false);
-    }
+    // 没有显式关联：弹出仓库选择（只影响本次拆解，不改关联）
+    setRepoPickerOpen(true);
   };
 
   const startAdding = async () => {
@@ -459,7 +501,7 @@ export function ChildrenCard({
   // 统计概览胶囊
   const countBadge = items.length > 0 ? (
     <div className="flex items-center gap-1.5">
-      <span className="font-mono text-xs text-muted-foreground">{items.length}</span>
+      <span className="font-mono text-xs tabular-nums text-muted-foreground">{items.length}</span>
       {isBug ? (
         openDefectsCount > 0 ? (
           <Badge
@@ -483,7 +525,7 @@ export function ChildrenCard({
             'px-1.5 py-0 text-[11px] font-normal',
             completedCount === items.length
               ? 'border-success/30 bg-success/10 text-success'
-              : 'border-border/60 bg-muted/50 text-muted-foreground',
+              : 'border-border/60 bg-surface-secondary/50 text-muted-foreground',
           )}
         >
           {completedCount === items.length
@@ -738,26 +780,42 @@ export function ChildrenCard({
         action={(
           <div className="flex items-center gap-1.5">
             {!isBug && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={aiDirectLoading}
-                onPress={() => void handleAiBreakdown()}
-                className="text-primary hover:text-primary hover:bg-primary/10"
-                title="根据需求描述一键智能拆解前端、后端与自测子任务"
-              >
-                {aiDirectLoading ? (
-                  <Spinner className="size-3.5 mr-1" />
-                ) : (
-                  <SparklesIcon className="size-3.5 mr-1 text-primary" />
-                )}
-                {aiDirectLoading ? 'AI 拆解生成中…' : 'AI 智能拆解'}
-              </Button>
+              allowWriteOps ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={aiDirectLoading}
+                  onPress={() => void handleAiBreakdown()}
+                  className="text-primary hover:text-primary hover:bg-primary/10"
+                  title="根据需求描述一键智能拆解前端、后端与自测子任务"
+                >
+                  {aiDirectLoading ? (
+                    <Spinner className="size-3.5 mr-1" />
+                  ) : (
+                    <SparklesIcon className="size-3.5 mr-1 text-primary" />
+                  )}
+                  {aiDirectLoading ? 'AI 拆解生成中…' : 'AI 智能拆解'}
+                </Button>
+              ) : (
+                <WriteOpGatedTrigger
+                  label="AI 智能拆解"
+                  icon={<SparklesIcon className="size-3.5" />}
+                  variant="ghost"
+                />
+              )
             )}
-            <Button variant="ghost" size="sm" onPress={startAdding}>
-              <PlusIcon data-icon="inline-start" />
-              新建{title}
-            </Button>
+            {allowWriteOps ? (
+              <Button variant="ghost" size="sm" onPress={startAdding}>
+                <PlusIcon data-icon="inline-start" />
+                新建{title}
+              </Button>
+            ) : (
+              <WriteOpGatedTrigger
+                label={`新建${title}`}
+                icon={<PlusIcon />}
+                variant="ghost"
+              />
+            )}
           </div>
         )}
       />
@@ -770,44 +828,42 @@ export function ChildrenCard({
             return (
               <div
                 key={task.workitemId}
-                role="button"
-                tabIndex={0}
                 data-testid="child-row"
                 data-identifier={task.identifier ?? ''}
                 title={`${task.identifier} ${task.subject || ''}`.trim()}
                 className={cn(
-                  'group/row flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                  isSelected && 'bg-muted/80 ring-1 ring-primary/40',
+                  'group/row flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-secondary',
+                  isSelected && 'bg-surface-secondary/80 ring-1 ring-primary/40',
                 )}
-                onClick={() => onSelect(task)}
-                onKeyDown={(e) => {
-                  if (e.defaultPrevented || e.nativeEvent.isComposing) return;
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    onSelect(task);
-                  }
-                }}
               >
                 {/* 行首：快捷状态切换下拉 */}
                 <InlineStatusDropdown task={task} parentWorkitemId={parentWorkitemId} />
 
-                {/* 编号：Task 浅蓝/默认，Bug 浅红标识 */}
-                <div className="flex w-24 shrink-0 items-center gap-1">
-                  {isBug && <BugIcon className="size-3 shrink-0 text-destructive/70" />}
-                  <span className="truncate font-mono text-xs text-muted-foreground" title={task.identifier}>
-                    {task.identifier}
-                  </span>
-                </div>
+                {/* 标题区：行内唯一可点击进入详情的控件（不再用整行 role="button" 包裹内嵌控件） */}
+                <button
+                  type="button"
+                  data-testid="child-row-open"
+                  onClick={() => onSelect(task)}
+                  aria-label={`查看 ${task.identifier ?? ''} ${task.subject ?? ''}`.trim()}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {/* 编号：Task 浅蓝/默认，Bug 浅红标识 */}
+                  <div className="flex w-24 shrink-0 items-center gap-1">
+                    {isBug && <BugIcon className="size-3 shrink-0 text-destructive/70" />}
+                    <span className="truncate font-mono text-xs text-muted-foreground" title={task.identifier}>
+                      {task.identifier}
+                    </span>
+                  </div>
 
-                {/* 标题：已完成项微弱化 */}
-                <OverflowTooltip
-                  text={task.subject || task.identifier}
-                  title={task.subject || task.identifier}
-                  className={cn(
-                    'min-w-0 flex-1 truncate text-sm font-medium',
-                    isCompleted ? 'text-muted-foreground/75' : 'text-foreground/90',
-                  )}
-                />
+                  {/* 标题：已完成项微弱化 */}
+                  <OverflowTooltip
+                    text={task.subject || task.identifier}
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-sm font-medium',
+                      isCompleted ? 'text-muted-foreground/75' : 'text-foreground/90',
+                    )}
+                  />
+                </button>
 
                 {/* 处理人下拉切换 */}
                 <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -829,7 +885,6 @@ export function ChildrenCard({
                           variant="ghost"
                           size="icon-xs"
                           className="size-6 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/row:opacity-100"
-                          title="在详情抽屉中查看与编辑"
                           aria-label="在详情抽屉中查看与编辑"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -875,7 +930,7 @@ export function ChildrenCard({
         <Tooltip>
           <TooltipTrigger
             render={
-              <ScrollArea size={24} className="max-h-20 break-all rounded bg-muted/50 px-3 py-2 font-mono text-xs leading-4 text-muted-foreground" />
+              <ScrollArea size={24} className="max-h-20 break-words rounded bg-surface-secondary/50 px-3 py-2 font-mono text-xs leading-4 text-muted-foreground" />
             }
           >
             接口返回：{debug}
@@ -908,13 +963,22 @@ export function ChildrenCard({
           parentAssigneeId={parentAssigneeId}
           parentAssigneeName={parentAssigneeName}
           candidateAssignees={candidateAssignees}
-          defaultTags={aiSettingsCache?.defaultBreakdownTags}
+          contextRepoIds={contextRepoIds}
+          contextKeywords={breakdownKeywords}
+          collectBreakdownContext={collectBreakdownContext}
           workitemTypes={types}
           onCreated={async () => {
             await loadChildren(parentWorkitemId);
           }}
         />
       )}
+
+      <BreakdownRepoPicker
+        open={repoPickerOpen}
+        onOpenChange={setRepoPickerOpen}
+        repositories={repositories}
+        onConfirm={handleRepoPickerConfirm}
+      />
     </div>
   );
 }

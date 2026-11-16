@@ -1,6 +1,6 @@
 import * as api from '../../lib/api';
 import { errorLog } from '../../lib/error-format';
-import { workitemRepoIds } from '../../lib/workitem-repos';
+import { workitemScanRepoIds } from '../../lib/workitem-repos';
 import type { Category } from '../../types';
 import type { AppRuntime } from './runtime';
 import {
@@ -395,7 +395,7 @@ export function createWorkitemsSlice(runtime: AppRuntime): AppSliceCreator<Worki
         const child = current.children.find((item) => item.workitemId === workitemId);
         const category = (selected?.category || child?.category || current.category) as Category;
         const parentIdOfSelection = category === 'Req' ? undefined : runtime.childParentIndex.get(workitemId);
-        if (isCurrent() && settings && workitemRepoIds(category, workitemId, settings, parentIdOfSelection).length > 0) {
+        if (isCurrent() && settings && workitemScanRepoIds(category, workitemId, settings, parentIdOfSelection).length > 0) {
           void get().loadTrace();
         }
       },

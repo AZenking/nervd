@@ -52,7 +52,7 @@ export function BranchStateDiagramModal({
           <Suspense
             fallback={(
               <div
-                className="flex h-[520px] w-full flex-col items-center justify-center gap-4 rounded-lg border border-border/40 bg-muted/10 p-6"
+                className="flex h-[520px] w-full flex-col items-center justify-center gap-4 rounded-lg border border-border/40 bg-surface-secondary/40 p-6"
                 aria-hidden
               >
                 <Skeleton className="h-9 w-36 rounded-md" />

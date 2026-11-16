@@ -11,6 +11,7 @@ import { StatusIcon } from '@/components/status-icon';
 import { EmptyHint } from '@/components/empty-hint';
 import { WorkitemPeekDrawer } from '@/components/workitem-peek-drawer';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { PageHeader } from '@/components/page-header';
 import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -86,10 +87,14 @@ export function RecentsView() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [items, activeCursor]);
 
+  // DESIGN §F.3：工作区 < 760px 时页头切 compact（宽度由 Shell 统一测量）
+  const compact = useWorkspaceCompact();
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         sticky
+        density={compact ? 'compact' : 'regular'}
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="最近查看"
         titleBadge={
@@ -120,6 +125,11 @@ export function RecentsView() {
           icon={ClockIcon}
           title="暂无最近查看记录"
           description="当您在某个需求详情中持续检视停留超过 30 秒，系统将自动收录于此，方便随时快速回访。"
+          action={
+            <Button size="sm" variant="secondary" onPress={() => useUi.getState().setView('iteration')}>
+              前往迭代列表
+            </Button>
+          }
           className="rounded-xl border border-dashed py-16"
         />
       ) : (
@@ -142,7 +152,7 @@ export function RecentsView() {
                       key={item.workitemId}
                       id={item.workitemId}
                       onAction={() => handleOpenWorkitem(item)}
-                      className={cn('group', isCursorActive && 'bg-muted-bg')}
+                      className={cn('group', isCursorActive && 'bg-surface-secondary')}
                     >
                       <Table.Cell>
                         <div className="flex min-w-0 items-center gap-2.5">
@@ -164,7 +174,8 @@ export function RecentsView() {
                               {CATEGORY_LABELS[item.category as Category] || item.category}
                             </Chip>
                           )}
-                          <Chip size="sm" variant="soft" color="warning" className="font-mono">
+                          {/* 停留阈值是中性说明，不得挪用 warning 状态色（审计 §2.4 P1-46） */}
+                          <Chip size="sm" variant="soft" color="default" className="font-mono tabular-nums">
                             <ClockIcon className="size-2.5" />
                             30s+
                           </Chip>
@@ -183,9 +194,12 @@ export function RecentsView() {
                       </Table.Cell>
 
                       <Table.Cell className="text-end">
-                        <span className="font-mono tabular-nums text-muted-foreground">
+                        <time
+                          dateTime={Number.isFinite(item.viewedAt) ? new Date(item.viewedAt).toISOString() : undefined}
+                          className="text-muted-foreground"
+                        >
                           {formatRelativeTime(item.viewedAt)}
-                        </span>
+                        </time>
                       </Table.Cell>
 
                       <Table.Cell>
@@ -196,7 +210,6 @@ export function RecentsView() {
                                 <Button
                                   variant="ghost"
                                   size="icon-xs"
-                                  title="从最近列表中移除"
                                   aria-label="从最近列表中移除"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -216,7 +229,6 @@ export function RecentsView() {
                                 <Button
                                   variant="ghost"
                                   size="icon-xs"
-                                  title="在工作台中全屏打开"
                                   aria-label="在工作台中全屏打开"
                                   onClick={(e) => {
                                     e.stopPropagation();

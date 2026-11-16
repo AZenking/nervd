@@ -129,10 +129,11 @@ describe('SearchableSelect with HeroUI Autocomplete', () => {
     // 弹窗内的 ListBox.Item 应包含带有完整路径与 title 属性的文本节点
     const item = document.querySelector<HTMLElement>('[role="option"]');
     expect(item).not.toBeNull();
-    const labelSpan = item?.querySelector<HTMLElement>('span[title]');
+    // DESIGN §G1：候选项全文提示统一走 OverflowTooltip，不再用原生 title（只对鼠标可见）
+    const labelSpan = item?.querySelector<HTMLElement>('span.truncate');
     expect(labelSpan).not.toBeNull();
-    expect(labelSpan?.getAttribute('title')).toBe(longRepoPath);
-    expect(labelSpan?.textContent).toBe(longRepoPath);
+    expect(labelSpan?.getAttribute('title')).toBeNull();
+    expect(item?.textContent).toContain(longRepoPath);
 
     await act(async () => {
       root.unmount();

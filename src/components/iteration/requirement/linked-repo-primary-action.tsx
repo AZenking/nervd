@@ -6,10 +6,11 @@ import {
   WorkflowIcon,
 } from 'lucide-react';
 import type { MrSummary, RepoCiBinding } from '@/types';
+import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
 import { BuildWorkbenchTrigger } from '@/components/build-workbench';
 import type { BuildWorkbenchTarget } from '@/store/ui';
-import { WriteOpButton } from '@/components/WriteOpButton';
+import { WriteOpButton, WriteOpGatedTrigger } from '@/components/WriteOpButton';
 import type { LinkedRepoDeliveryDecision } from './linked-repo-delivery';
 
 export interface LinkedRepoPrimaryActionProps {
@@ -55,6 +56,7 @@ export function LinkedRepoPrimaryAction({
   onConfigureRule,
   onOpenDetails,
 }: LinkedRepoPrimaryActionProps) {
+  const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
   switch (action) {
     case 'configure-rule':
       // 零模板引导：不再暗示逐仓库必选，引导一次性配置全局默认交付轨道（Track/局点），所有仓库自动继承
@@ -99,24 +101,42 @@ export function LinkedRepoPrimaryAction({
       );
     case 'create-mr':
       return (
-        <Button type="button" size="sm" variant="default" onPress={onCreateMr}>
-          <PlusIcon data-icon="inline-start" />
-          创建 MR
-        </Button>
+        <>
+          <WriteOpGatedTrigger
+            label="创建 MR"
+            icon={<PlusIcon data-icon="inline-start" />}
+            variant="default"
+          />
+          {allowWriteOps && (
+            <Button type="button" size="sm" variant="default" onPress={onCreateMr}>
+              <PlusIcon data-icon="inline-start" />
+              创建 MR
+            </Button>
+          )}
+        </>
       );
     case 'build':
       if (!ciBinding) {
         return (
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            onPress={onOpenCiModal}
-            title="代码已合入，请关联 CI 流水线并准备发起构建"
-          >
-            <WorkflowIcon data-icon="inline-start" />
-            关联 CI 并构建
-          </Button>
+          <>
+            <WriteOpGatedTrigger
+              label="关联 CI 并构建"
+              icon={<WorkflowIcon data-icon="inline-start" />}
+              variant="default"
+            />
+            {allowWriteOps && (
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                onPress={onOpenCiModal}
+                title="代码已合入，请关联 CI 流水线并准备发起构建"
+              >
+                <WorkflowIcon data-icon="inline-start" />
+                关联 CI 并构建
+              </Button>
+            )}
+          </>
         );
       }
       return (

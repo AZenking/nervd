@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { expandBranchPattern, getMrStatusInfo, resolveChildMrBranches, resolveRepoBranchRule } from './types';
+import {
+  expandBranchPattern,
+  getMrStatusInfo,
+  resolveChildBranchTopology,
+  resolveChildMrBranches,
+  resolveRepoBranchRule,
+} from './types';
 import type { BranchRuleTemplate, SettingsView } from '@/types';
+import type { BranchTrackTopology } from '@/types/branch-topology';
 
 describe('getMrStatusInfo', () => {
   it('正确解析待合入状态（opened / open / to_be_merged / reopened）', () => {
@@ -58,6 +65,18 @@ describe('expandBranchPattern', () => {
       identifier: 'REQ-101',
     });
     expect(res).toBe('iteration/Sprint-2026/Track-A/feature/REQ-101');
+  });
+
+  it('迭代结束日可展开 release / hotfix 时间模板', () => {
+    const values = {
+      iteration: 'Benz-20261016',
+      template: 'release',
+      identifier: 'REQ-101',
+      iterationEnd: '2026-10-29',
+    };
+    expect(expandBranchPattern('release/{iterationEnd}', values)).toBe('release/20261029');
+    expect(expandBranchPattern('hotfix/{yyyy}-{MM}-{dd}', values)).toBe('hotfix/2026-10-29');
+    expect(expandBranchPattern('release/{date}/{identifier}', values)).toBe('release/20261029/REQ-101');
   });
 
   it('{track} 与 {template} 展开等价，显式 track 覆盖值优先生效', () => {
@@ -260,5 +279,119 @@ describe('resolveChildMrBranches（缺陷单号分支 → 需求单号分支）'
     });
     expect(res.sourceBranch).toBe('feature/BUG-202');
     expect(res.targetBranch).toBe('feature/REQ-101');
+  });
+});
+
+describe('resolveChildBranchTopology（track 级子分支拓扑）', () => {
+  const template: BranchRuleTemplate = {
+    id: 'site-track',
+    name: '局点专版',
+    sourceBranch: 'master',
+    baselineBranchPattern: 'iteration/{iteration}/{track}',
+    workitemBranchPattern: 'feature/{identifier}',
+  };
+  const baseParams = {
+    template,
+    iterationName: 'Sprint 2026',
+    parentIdentifier: 'REQ-101',
+    childIdentifier: 'BUG-303',
+    parentBranch: 'feature/REQ-101',
+    baselineBranch: 'iteration/Sprint-2026/局点专版',
+    parentBranchExists: true,
+  };
+  const topology = (overrides: Partial<BranchTrackTopology>): BranchTrackTopology => ({
+    trackId: 'site-track',
+    childPattern: null,
+    childBase: 'requirement',
+    childMrTarget: 'parent',
+    ...overrides,
+  });
+
+  it('legacy：无拓扑或 childPattern=null 时沿用需求分支模板展开子项编号', () => {
+    for (const input of [undefined, null, topology({ childPattern: null })]) {
+      const res = resolveChildBranchTopology({ ...baseParams, topology: input });
+      expect(res.sourceBranch).toBe('feature/BUG-303');
+      expect(res.baseBranch).toBe('feature/REQ-101');
+      expect(res.targetBranch).toBe('feature/REQ-101');
+      expect(res.legacy).toBe(true);
+      expect(res.warning).toBeUndefined();
+    }
+  });
+
+  it('none：childPattern 为空串时不建子分支，子项共用需求分支', () => {
+    const res = resolveChildBranchTopology({
+      ...baseParams,
+      topology: topology({ childPattern: '' }),
+    });
+    expect(res.sourceBranch).toBeUndefined();
+    expect(res.baseBranch).toBe('feature/REQ-101');
+    expect(res.targetBranch).toBe('feature/REQ-101');
+    expect(res.legacy).toBe(false);
+  });
+
+  it('custom：按 childBase / childMrTarget 选择迭代基准作为基点与 MR 目标', () => {
+    const res = resolveChildBranchTopology({
+      ...baseParams,
+      topology: topology({
+        childPattern: 'bugfix/{parentIdentifier}/{identifier}',
+        childBase: 'baseline',
+        childMrTarget: 'baseline',
+      }),
+    });
+    expect(res.sourceBranch).toBe('bugfix/REQ-101/BUG-303');
+    expect(res.baseBranch).toBe('iteration/Sprint-2026/局点专版');
+    expect(res.targetBranch).toBe('iteration/Sprint-2026/局点专版');
+    expect(res.legacy).toBe(false);
+  });
+
+  it('custom：需求基点 + 父需求 MR 目标（默认组合）', () => {
+    const res = resolveChildBranchTopology({
+      ...baseParams,
+      topology: topology({
+        childPattern: 'feature/{parentIdentifier}/{identifier}',
+        childBase: 'requirement',
+        childMrTarget: 'parent',
+      }),
+    });
+    expect(res.sourceBranch).toBe('feature/REQ-101/BUG-303');
+    expect(res.baseBranch).toBe('feature/REQ-101');
+    expect(res.targetBranch).toBe('feature/REQ-101');
+    expect(res.warning).toBeUndefined();
+  });
+
+  it('custom：父需求分支缺失时回退迭代基准并给出 warning', () => {
+    const res = resolveChildBranchTopology({
+      ...baseParams,
+      parentBranchExists: false,
+      topology: topology({
+        childPattern: 'bugfix/{identifier}',
+        childBase: 'requirement',
+        childMrTarget: 'parent',
+      }),
+    });
+    expect(res.sourceBranch).toBe('bugfix/BUG-303');
+    expect(res.baseBranch).toBe('iteration/Sprint-2026/局点专版');
+    expect(res.targetBranch).toBe('iteration/Sprint-2026/局点专版');
+    expect(res.warning).toContain('回退');
+    expect(res.warning).toContain('iteration/Sprint-2026/局点专版');
+  });
+
+  it('{parentIdentifier} 占位符只在传入时展开，现有调用不受影响', () => {
+    expect(
+      expandBranchPattern('feature/{parentIdentifier}/{identifier}', {
+        iteration: 'Sprint 2026',
+        template: '局点专版',
+        identifier: 'BUG-303',
+        parentIdentifier: 'REQ-101',
+      }),
+    ).toBe('feature/REQ-101/BUG-303');
+
+    expect(
+      expandBranchPattern('feature/{identifier}', {
+        iteration: 'Sprint 2026',
+        template: '局点专版',
+        identifier: 'REQ-101',
+      }),
+    ).toBe('feature/REQ-101');
   });
 });

@@ -1,6 +1,6 @@
 /* ============================================================
    nervd · Linear (light) theme
-   Source of truth: design.md
+   Source of truth: DESIGN.md（第二部分覆盖层；本文件为 token 唯一事实源）
    Tailwind CSS v4 (CSS-first) + HeroUI v3 (React Aria)
    ============================================================ */
 @import "tailwindcss";
@@ -28,7 +28,9 @@
 @import '@fontsource/inter/600.css';
 @import '@fontsource/inter/700.css';
 
-@custom-variant dark (&:is(.dark *));
+/* 明暗双通道（DESIGN §2.4）：`.dark` 类与 `data-theme="dark"` 均可驱动 dark: 变体，
+   与下方 :root / .dark 变量选择器保持一致，避免只设 data-theme 时 dark: 工具类失效。 */
+@custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 
 /* ---------- 交互状态变体（内联，替代原第三方包的 @import，去 npm 依赖） ----------
    HeroUI/React Aria 组件以 data-* 属性表达交互状态。以下变体同时匹配
@@ -114,6 +116,8 @@
   --sticker-sky: #57a4f5;
   --sticker-purple: #c0bcf7;
   --sticker-purple-deep: #4f46b5;
+  /* ANSI 品红：日志高亮用，明暗各一档，避免组件层手写 dark: 双主题 */
+  --ansi-magenta: #4f46b5;
   --sticker-pink: #d6409f;
   --sticker-orange: #d9730d;
   --sticker-orange-deep: #8a4a10;
@@ -169,6 +173,10 @@
   --muted-foreground: #6b7075;
   --accent: #5e6ad2;
   --accent-foreground: #ffffff;
+  /* 派生色统一消费上游映射，禁止组件层手写 color-mix 复算（DESIGN 第一部分 Colors 段）：
+     bg-accent-hover / bg-accent-soft / text-accent-soft-foreground /
+     border-border-secondary / border-separator-secondary 均由 @heroui/styles
+     的 @theme inline 从 --accent / --border / --separator 派生，随主题自动解析。 */
   --destructive: #e5484d;
   --destructive-foreground: #ffffff;
   --border: #e8e9eb;
@@ -203,6 +211,10 @@
   --surface-tertiary-foreground: #26282d;
   --overlay: #ffffff;
   --overlay-foreground: #26282d;
+  /* HeroUI 角色 token 覆盖核对：--overlay / --default / --field-background / --muted /
+     --field-border 由本文件定义；--backdrop（黑 50% / 深 60%）与 --separator
+     沿用 @heroui/styles 默认值，对应 bg-backdrop / border-separator 工具类
+     已由上游 @theme inline 生成，无需在组件层补映射或另写 tooltip/dropdown 色。 */
   /* §A 浮层阴影统一：HeroUI 浮层组件（.popover/.dropdown/.tooltip 等）默认
      box-shadow: var(--overlay-shadow)，此处覆盖为 nervd level-2 档
      （值同下方 @theme inline 的 --shadow-level-2），浮层阴影唯一档位。 */
@@ -241,6 +253,7 @@
   --hairline: rgba(255, 255, 255, 0.08);
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
+  --ansi-magenta: #c0bcf7;
   --ink: #f7f8f8;
   --ink-secondary: #8a8f98;
   --ink-muted: #62666d;
@@ -401,6 +414,8 @@
   /* 浮层阴影档位（barely-there 三层近透明）→ shadow-level-2 */
   --shadow-level-2: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
 
+  /* DESIGN §2.2 固定值刻度（覆盖上游 calc(var(--radius) * n) 公式）：
+     xs / sm = 4px、md = 6px、lg = 8px、xl = 12px、2xl–4xl = 16 / 24 / 32px */
   --radius-xs: 0.25rem;
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;
@@ -457,6 +472,22 @@
   }
 }
 
+/* ---------- Tailwind 默认阴影档清零（DESIGN §2.6） ----------
+   浮层唯一档位为 --shadow-level-2（上方 @theme inline）；页内卡片一律 hairline 无阴影。
+   将 Tailwind 默认阴影档（2xs–2xl 及裸 shadow）统一归零：
+   组件层即便误用 shadow-xs / shadow-lg 等默认档，也不会再产生页内投影，
+   浮层仍通过 --overlay-shadow / shadow-overlay / shadow-level-2 出影。 */
+@theme {
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 0 #0000;
+  --shadow-xl: 0 0 #0000;
+  --shadow-2xl: 0 0 #0000;
+  --shadow: 0 0 #0000;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -468,8 +499,9 @@
     height: 100%;
   }
   body {
-    background: var(--background);
-    color: var(--foreground);
+    /* DESIGN Setup：应用根一律使用语义画布色（bg-background text-foreground），
+       不在 index.html / main.tsx / App.tsx 写死底色。 */
+    @apply bg-background text-foreground;
     font-family: var(--font-sans);
     /* Linear 正文密度：14px / 1.55 */
     font-size: 14px;
@@ -516,6 +548,9 @@
   background: var(--background);
 }
 
+/* eyebrow：DESIGN §2.3 规定 12px / 600，句首大写而非全大写。
+   组件层不得再叠加 uppercase / text-transform: uppercase（第一部分 "Avoid all-caps"），
+   层级与强调只用字重和颜色表达。 */
 .eyebrow {
   color: var(--muted-foreground);
   font-size: 0.75rem;
@@ -649,5 +684,25 @@
   .toggle-button-group--vertical .toggle-button:last-child {
     border-end-start-radius: var(--radius-md);
     border-end-end-radius: var(--radius-md);
+  }
+}
+
+/* ---------- 选项卡与内联徽标圆角纠正（DESIGN.md §2.2：选项卡 6px、内联小徽标 4px，拒绝胶囊） ----------
+   上游 @heroui/styles 的 .tabs__tab / .tabs__indicator 默认 border-radius:1.5rem（24px），
+   .chip 默认 border-radius:1rem（16px），在紧凑桌面密度下等同胶囊。
+   注意保留 .tabs--secondary 的直角形态：其选择器权重更高（3 个类），此处不会覆盖。 */
+@layer components {
+  .tabs__list-container,
+  .tabs__list {
+    border-radius: var(--radius-md);
+  }
+
+  .tabs__tab,
+  .tabs__indicator {
+    border-radius: var(--radius-md);
+  }
+
+  .chip {
+    border-radius: var(--radius-sm);
   }
 }

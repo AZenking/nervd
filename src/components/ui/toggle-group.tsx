@@ -56,9 +56,10 @@ function ToggleGroup({
       size={herouiSize}
       isDetached={spacing > 0}
       isDisabled={isDisabled ?? disabled}
-      style={{ "--gap": spacing } as React.CSSProperties}
+      // CSS 变量值必须带单位：--gap 供下面的 gap-(--gap) 使用（Tailwind v4 = gap-[var(--gap)]）
+      style={{ "--gap": `${spacing}px` } as React.CSSProperties}
       className={cn(
-        "group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] rounded-lg data-[size=sm]:rounded-[min(var(--radius-md),10px)] data-vertical:flex-col data-vertical:items-stretch",
+        "group/toggle-group flex w-fit flex-row items-center gap-(--gap) rounded-lg data-[size=sm]:rounded-md data-vertical:flex-col data-vertical:items-stretch",
         className
       )}
       {...(props as any)}

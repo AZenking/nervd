@@ -22,6 +22,9 @@ export default defineConfig({
         if (isApiImport && importer && importer.includes('/src/')) {
           return path.resolve(previewRoot, 'api-mock.ts');
         }
+        if (source.endsWith('lib/attribution-api') && importer && importer.includes('/src/')) {
+          return path.resolve(previewRoot, 'attribution-api-mock.ts');
+        }
         return null;
       },
     },

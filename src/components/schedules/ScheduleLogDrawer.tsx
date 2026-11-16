@@ -3,25 +3,25 @@ import { Button, Chip, Disclosure, Surface, Tooltip } from '@heroui/react';
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
-  CheckCircle2Icon,
   ClockIcon,
   GitCommitIcon,
   GitMergeIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
   Trash2Icon,
-  XCircleIcon,
   XIcon,
 } from 'lucide-react';
-import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CopyButton } from '@/components/ui/copy-button';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { EmptyHint } from '@/components/empty-hint';
 import { useScheduleStore } from '@/store/schedule';
 import { formatDateTime } from '@/lib/format';
 import type { ScheduleExecutionLog } from '@/types/schedule';
 import { ActionTypeTag } from './SchedulesView';
 import { cn } from '@/lib/utils';
+import { StatusIcon } from '@/components/status-icon';
 
 export interface ScheduleLogDrawerProps {
   taskId: string | null;
@@ -54,19 +54,19 @@ export function ScheduleLogDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">
-      <DrawerContent className="w-full sm:w-[min(54rem,92vw)] sm:max-w-none">
-        <div className="flex h-full min-h-0 flex-1 flex-col bg-background">
+      <DrawerContent className="w-full sm:w-[min(40rem,92vw)] sm:max-w-none">
+        <div className="flex h-full min-h-0 flex-1 flex-col">
           {/* 抽屉头部 */}
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/80 px-6">
             <div className="flex items-center gap-3">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground shrink-0">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-surface-secondary text-muted-foreground shrink-0">
                 <ClockIcon className="size-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                  <DrawerTitle className="text-sm font-semibold tracking-tight text-foreground">
                     {currentTask ? `${currentTask.name} · 执行日志` : '全部定时任务日志'}
-                  </h2>
+                  </DrawerTitle>
                   <Chip
                     size="sm"
                     variant="soft"
@@ -86,15 +86,23 @@ export function ScheduleLogDrawer({
 
             <div className="flex items-center gap-2">
               {filteredLogs.length > 0 && (
-                <Button
+                /* 清空历史日志不可撤销：走统一 AlertDialog 二次确认，避免单击即抹掉执行历史 */
+                <ConfirmButton
+                  label="清空日志"
+                  title="清空执行日志"
+                  description={
+                    currentTask
+                      ? `将清空「${currentTask.name}」的全部执行历史，且不可恢复。`
+                      : '将清空所有定时任务的执行历史，且不可恢复。'
+                  }
+                  confirmLabel="确认清空"
                   variant="ghost"
                   size="sm"
-                  className="h-8 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  onPress={() => clearLogs(taskId ?? undefined)}
+                  onConfirm={() => clearLogs(taskId ?? undefined)}
                 >
                   <Trash2Icon className="mr-1.5 size-3.5" />
                   清空日志
-                </Button>
+                </ConfirmButton>
               )}
               <Tooltip>
                 <Tooltip.Trigger>
@@ -162,11 +170,8 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
       {/* 头部状态与标签 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          {isSuccess ? (
-            <CheckCircle2Icon className="size-4 text-success shrink-0" />
-          ) : (
-            <XCircleIcon className="size-4 text-destructive shrink-0" />
-          )}
+          {/* DESIGN §3.4：状态图形统一由 StatusIcon 渲染 */}
+          <StatusIcon status={isSuccess ? 'success' : 'failed'} className="size-4 shrink-0" />
           <span className="font-semibold text-foreground text-[13px] tracking-tight">
             {log.taskName}
           </span>
@@ -181,7 +186,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
           <ActionTypeTag type={log.actionType} />
         </div>
 
-        <div className="flex items-center gap-2.5 font-mono text-[11px] text-muted-foreground shrink-0">
+        <div className="flex items-center gap-2.5 font-mono text-[11px] tabular-nums text-muted-foreground shrink-0">
           {durationText && (
             <span className="flex items-center gap-1">
               <span>耗时</span>
@@ -193,7 +198,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
       </div>
 
       {/* 结果概要信息 */}
-      <div className="text-foreground/90 leading-relaxed font-mono text-[12px] break-all bg-muted/20 rounded-md px-2.5 py-1.5 border border-border/50">
+      <div className="text-foreground/90 leading-relaxed font-mono text-[12px] break-words bg-surface-secondary rounded-md px-2.5 py-1.5 border border-border/50">
         {log.details || log.error || (isSuccess ? '执行成功，无额外输出' : '执行失败')}
       </div>
 
@@ -244,7 +249,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
                 </Chip>
               ) : (
                 <Chip size="sm" variant="soft" color="success" className="gap-1 h-5.5 text-[11px] font-medium">
-                  <CheckCircle2Icon className="size-3" />
+                  <StatusIcon status="success" className="size-3" decorative />
                   <Chip.Label>无代码冲突</Chip.Label>
                 </Chip>
               )}
@@ -289,7 +294,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
                         </code>
                         <span className="truncate text-foreground/90">{c.title}</span>
                         {c.workitems?.map((wi) => (
-                          <Chip key={wi} size="sm" variant="soft" color="accent" className="h-4 px-1 text-[9px] font-mono shrink-0">
+                          <Chip key={wi} size="sm" variant="soft" color="accent" className="h-4 px-1 text-[10px] font-mono shrink-0">
                             {wi}
                           </Chip>
                         ))}
@@ -300,7 +305,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
                     </div>
                   ))}
                   {log.mergeResult.commits.length > 5 && (
-                    <div className="py-1 text-center text-[10px] text-muted-foreground bg-muted/20 font-mono">
+                    <div className="py-1 text-center text-[10px] text-muted-foreground bg-surface-secondary font-mono">
                       …还有 {log.mergeResult.commits.length - 5} 个变更点
                     </div>
                   )}
@@ -337,7 +342,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
                   variant="tertiary"
                   className="flex items-center justify-between border-b border-border/50 px-3 py-1.5 text-[10px] text-muted-foreground font-mono"
                 >
-                  <span className="font-semibold tracking-wider">RAW PAYLOAD</span>
+                  <span className="font-semibold">原始数据</span>
                   <CopyButton
                     text={
                       typeof log.details === 'object'
@@ -348,7 +353,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
                   />
                 </Surface>
                 <ScrollArea size={24} className="max-h-48">
-                  <pre className="p-3 text-[11px] font-mono leading-relaxed text-foreground/90 whitespace-pre-wrap break-all select-text">
+                  <pre className="p-3 text-[11px] font-mono leading-relaxed text-foreground/90 whitespace-pre-wrap break-words select-text">
                     {typeof log.details === 'object'
                       ? JSON.stringify(log.details, null, 2)
                       : String(log.details)}

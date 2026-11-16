@@ -72,7 +72,7 @@ export interface PageHeaderProps {
   /** 覆写 h1 的类（如详情页 24px/medium 标题） */
   titleClassName?: string;
   className?: string;
-  /** 内容居中或内嵌容器类名（如 'mx-auto w-full max-w-7xl'） */
+  /** 内容居中或内嵌容器类名（如 'mx-auto w-full max-w-5xl'） */
   contentClassName?: string;
 }
 
@@ -170,8 +170,9 @@ export function PageHeader({
   const isPlainText = (value: React.ReactNode): value is string | number =>
     typeof value === 'string' || typeof value === 'number';
 
-  // —— breadcrumb 模式（legacy）：独立详情页 / 面包屑导航调用方（RequirementDetails 等），
-  //    结构保持与历史版本一致，仅追加 navigation / toolbar / secondaryActions 槽位支持 ——
+  // —— breadcrumb 模式：与标准模式同构（DESIGN §F.1 单主行）
+  //    主行 = navigation（返回/面包屑）→ title（可截断）→ 弹性空隙 → actions + secondary；
+  //    title 走 OverflowTooltip（真截断才提示），不再单独占第二行。
   if (breadcrumb) {
     return (
       <header
@@ -181,32 +182,38 @@ export function PageHeader({
         className={rootClassName}
       >
         <div className={cn('flex w-full min-w-0 flex-col', contentClassName)}>
-          <div className="flex min-h-8 min-w-0 shrink-0 items-center justify-between gap-4" data-tauri-drag-region>
-            <div className="flex min-w-0 items-center gap-2" data-no-drag>
-              {navigation != null && (
-                <div className="flex shrink-0 items-center gap-2" data-no-drag>{navigation}</div>
+          <div
+            className={cn('flex min-w-0 shrink-0 flex-nowrap items-center gap-2.5', compact ? 'h-8' : 'h-9')}
+            data-tauri-drag-region
+          >
+            {navigation != null && (
+              <div className="flex shrink-0 items-center gap-2" data-no-drag>{navigation}</div>
+            )}
+            <div className="flex min-w-0 shrink-0 items-center gap-2" data-no-drag>{breadcrumb}</div>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              {isPlainText(title) ? (
+                <OverflowTooltip
+                  as="h1"
+                  text={String(title)}
+                  className={cn('min-w-0 truncate select-none cursor-default', titleClassName)}
+                />
+              ) : (
+                <h1 className={cn('min-w-0 truncate select-none cursor-default', titleClassName)}>{title}</h1>
               )}
-              {breadcrumb}
+              {titleBadge != null && <div className="shrink-0" data-no-drag>{titleBadge}</div>}
             </div>
-            {(actions != null || hasSecondary) && (
-              <div className="flex shrink-0 flex-nowrap items-center gap-2" data-no-drag>
-                {actions}
-                {hasSecondary && <PageHeaderSecondaryActions items={secondaryActions ?? []} />}
-              </div>
+            {actions != null && (
+              <div className="flex shrink-0 flex-nowrap items-center gap-2" data-no-drag>{actions}</div>
             )}
+            {hasSecondary && <PageHeaderSecondaryActions items={secondaryActions ?? []} />}
           </div>
-          <div className="flex min-h-9 min-w-0 shrink-0 flex-wrap items-center gap-2" data-tauri-drag-region>
-            {/* B2：不再覆写字号，页面标题统一走 theme.css base h1（26px/700/−0.625px） */}
-            <h1 className={cn('select-none cursor-default', titleClassName)}>{title}</h1>
-            <div data-no-drag>{titleBadge}</div>
-            {description && (
-              <span className="min-w-0 truncate text-xs text-muted-foreground select-none cursor-default">
-                {description}
-              </span>
-            )}
-          </div>
+          {description != null && (
+            <p className="min-w-0 truncate text-sm text-muted-foreground select-none cursor-default" data-tauri-drag-region>
+              {description}
+            </p>
+          )}
           {toolbarRow}
-          {meta && <div className="border-t pt-3" data-no-drag>{meta}</div>}
+          {meta != null && <div className="border-t pt-3" data-no-drag>{meta}</div>}
         </div>
       </header>
     );
@@ -245,7 +252,7 @@ export function PageHeader({
             {titleBadge != null && <div className="shrink-0" data-no-drag>{titleBadge}</div>}
           </div>
           {scope != null && (
-            <div className="flex min-w-0 max-w-[40%] items-center gap-1.5" data-no-drag>
+            <div className="flex min-w-0 max-w-[40%] items-center gap-1.5 overflow-hidden" data-no-drag>
               <span
                 aria-hidden
                 className="select-none text-xs text-muted-foreground/50 cursor-default"

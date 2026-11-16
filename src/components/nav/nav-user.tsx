@@ -40,7 +40,7 @@ export function NavUser() {
               新版本
             </span>
           ) : (
-            <span className="ml-auto font-mono text-[10px] text-muted-foreground/60 group-data-[collapsible=icon]:hidden leading-none">
+            <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground/60 group-data-[collapsible=icon]:hidden leading-none">
               v{APP_VERSION}
             </span>
           )}

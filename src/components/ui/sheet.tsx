@@ -147,6 +147,16 @@ function SheetOverlay({
   )
 }
 
+/**
+ * 描述元素 id 注册（同 dialog.tsx）：RAC `useDialog` 不会为 role="dialog" 的 Sheet
+ * 自动接线 aria-describedby（sheet.mdx 只声明了该 prop 的存在），故由容器用 useId
+ * 生成稳定 id 并在渲染到描述时回填。
+ */
+const SheetDescriptionContext = React.createContext<{
+  id: string
+  register: (present: boolean) => void
+} | null>(null)
+
 interface SheetContentProps extends Omit<React.ComponentPropsWithoutRef<typeof SheetHero.Dialog>, "children"> {
   side?: SheetSide
   showCloseButton?: boolean
@@ -162,6 +172,12 @@ function SheetContent({
 }: SheetContentProps) {
   const { side: ctxSide } = useSheet()
   const side = sideProp ?? ctxSide
+  const descriptionId = React.useId()
+  const [hasDescription, setHasDescription] = React.useState(false)
+  const descriptionContext = React.useMemo(
+    () => ({ id: descriptionId, register: (present: boolean) => setHasDescription(present) }),
+    [descriptionId]
+  )
 
   return (
     <SheetHero.Backdrop
@@ -172,8 +188,13 @@ function SheetContent({
         <SheetHero.Dialog
           data-slot="sheet-content"
           data-side={side}
+          // 调用方显式传入的 aria-describedby 优先；否则仅在确实渲染了描述时接线
+          aria-describedby={props["aria-describedby"] ?? (hasDescription ? descriptionId : undefined)}
           className={cn(
-            "fixed z-50 flex flex-col gap-4 border-border bg-popover bg-clip-padding text-[13px] text-popover-foreground shadow-level-2 transition duration-200 ease-in-out outline-none",
+            // 可聚焦 Dialog 容器：outline-none 保留，焦点环替代之。环必须走 inset ——
+            // 外扩环会被 .sheet__content 的 overflow-clip 裁掉（[data-has-descendants] 带
+            // transform，fixed 的 Dialog 同受裁剪），inset 环才能真实可见（DESIGN §Interaction / C7）
+            "fixed z-50 flex flex-col gap-4 border-border bg-popover bg-clip-padding text-[13px] text-popover-foreground shadow-level-2 transition duration-200 ease-in-out outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40",
             side === "bottom" && "inset-x-0 bottom-0 h-auto border-t rounded-t-xl",
             side === "top" && "inset-x-0 top-0 h-auto border-b rounded-b-xl",
             side === "left" && "inset-y-0 left-0 h-full w-3/4 border-r rounded-r-xl sm:max-w-sm",
@@ -182,17 +203,19 @@ function SheetContent({
           )}
           {...props}
         >
-          {typeof children === "function" ? (children as any) : children}
-          {showCloseButton && (
-            <SheetHero.CloseTrigger
-              data-slot="sheet-close"
-              aria-label="Close"
-              className="absolute top-3 right-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:opacity-100 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              <XIcon className="size-4" />
-              <span className="sr-only">Close</span>
-            </SheetHero.CloseTrigger>
-          )}
+          <SheetDescriptionContext.Provider value={descriptionContext}>
+            {typeof children === "function" ? (children as any) : children}
+            {showCloseButton && (
+              <SheetHero.CloseTrigger
+                data-slot="sheet-close"
+                aria-label="Close"
+                className="absolute top-3 right-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:opacity-100 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                <XIcon className="size-4" />
+                <span className="sr-only">Close</span>
+              </SheetHero.CloseTrigger>
+            )}
+          </SheetDescriptionContext.Provider>
         </SheetHero.Dialog>
       </SheetHero.Content>
     </SheetHero.Backdrop>
@@ -234,10 +257,23 @@ function SheetTitle({ className, ...props }: React.ComponentProps<typeof SheetHe
 
 function SheetDescription({
   className,
+  id,
   ...props
 }: React.ComponentProps<"p">) {
+  const descriptionContext = React.useContext(SheetDescriptionContext)
+  const generatedId = React.useId()
+  const descriptionId = id ?? descriptionContext?.id ?? generatedId
+
+  // 在 paint 前完成注册，确保读屏在 Sheet 获得焦点时已能解析 aria-describedby
+  React.useLayoutEffect(() => {
+    if (!descriptionContext) return
+    descriptionContext.register(true)
+    return () => descriptionContext.register(false)
+  }, [descriptionContext])
+
   return (
     <p
+      id={descriptionId}
       data-slot="sheet-description"
       className={cn("text-[13px] text-muted-foreground", className)}
       {...props}

@@ -133,7 +133,10 @@ export function BuildProgressBar({
             <span className="text-foreground font-medium">{elapsedText}</span>
             {hasEstimate && <span>/ 约 {estimatedText}</span>}
             {isOvertime && (
-              <span className="font-semibold text-warning">{overtimeText}</span>
+              <span className="font-semibold text-warning">
+                <span className="sr-only">超出预估 </span>
+                {overtimeText}
+              </span>
             )}
           </span>
           <span>{hasEstimate ? `${percent}%` : '首次运行中'}</span>
@@ -179,7 +182,7 @@ export function BuildProgressBar({
               剩余约 <span className="text-foreground/90 font-medium">{remainingText}</span>
             </span>
           )}
-          <span className="font-semibold text-warning">
+          <span className="font-semibold text-foreground">
             {hasEstimate ? `${percent}%` : '首次运行预估中'}
           </span>
         </div>

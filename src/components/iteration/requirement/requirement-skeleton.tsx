@@ -1,158 +1,127 @@
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Card } from '@/components/ui/card';
 import { STICKY_PAGE_HEADER_CLASS } from '@/components/page-header';
 
-/** 需求/工作项详情骨架屏（对齐 Linear 详情页布局） */
+/**
+ * 需求/工作项详情骨架屏（对齐 Linear 详情页布局）：
+ * - 与真实 DOM 同构：裸文本描述（无 Card 外框）+ SectionHeader + Tabs 行 + 单面板；
+ * - 全屏额外渲染右侧 plain Descriptions 属性栏（裸行，无 Card）；
+ * - 行高与真实正文一致（14px 文本 / 22px 行距），加载完成时不产生跳动。
+ */
 export function RequirementDetailsSkeleton({ embedded }: { embedded?: boolean }) {
   return (
-    <div className="flex flex-col gap-6" aria-hidden>
+    <div className={cn('flex min-w-0 flex-col', embedded ? 'gap-0' : 'gap-6')} aria-hidden>
       {embedded ? (
-        <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border/70 bg-popover/95 px-5 pt-7 pb-3 backdrop-blur-sm">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <Skeleton className="size-4 rounded-full shrink-0" />
-            <Skeleton className="h-5 w-20 rounded shrink-0" />
-            <Skeleton className="h-5 w-48 rounded" />
+        <div className="sticky top-0 z-20 flex shrink-0 flex-col gap-2 border-b border-border/70 bg-popover/95 px-5 pt-7 pb-3 backdrop-blur-sm">
+          {/* 主行：返回 / 编号 / 标题 / 操作 */}
+          <div className="flex h-8 min-w-0 items-center gap-2.5">
+            <Skeleton className="h-6 w-16 shrink-0 rounded-md" />
+            <span className="h-3.5 w-px shrink-0 bg-border/70" />
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Skeleton className="size-4 shrink-0 rounded-full" />
+              <Skeleton className="h-5 w-20 shrink-0 rounded-sm" />
+              <Skeleton className="h-5 w-40 rounded" />
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {Array.from({ length: 5 }, (_, index) => (
+                <Skeleton key={index} className="size-6 rounded-md" />
+              ))}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Skeleton className="size-6 rounded" />
-            <Skeleton className="size-6 rounded" />
+          {/* 元数据条：状态 / 处理人 / 类型 / 父需求 / 仓库数 */}
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <span className="mx-0.5 h-4 w-px shrink-0 bg-border/60" />
+            <Skeleton className="h-6 w-16 rounded-sm" />
+            <Skeleton className="h-6 w-24 rounded-sm" />
+            <Skeleton className="h-6 w-20 rounded-sm" />
           </div>
         </div>
       ) : (
         <header data-tauri-drag-region className={cn(STICKY_PAGE_HEADER_CLASS, 'select-none')}>
-          <div className="flex min-h-9 items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-4 w-14 rounded" />
-              <span className="text-muted-foreground/30">/</span>
-              <Skeleton className="h-4 w-24 rounded" />
-            </div>
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-7 w-16 rounded" />
+          {/* 与真实 PageHeader（DESIGN §F.1 单主行）同构：面包屑｜标题+徽标｜弹性空隙｜操作 */}
+          <div className="flex min-h-9 items-center gap-2.5">
+            <Skeleton className="h-4 w-14 shrink-0 rounded" />
+            <span className="text-muted-foreground/30">/</span>
+            <Skeleton className="h-4 w-24 shrink-0 rounded" />
+            <Skeleton className="size-5 shrink-0 rounded-full" />
+            <Skeleton className="h-7 w-2/3 min-w-0 rounded" />
+            <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <Skeleton className="h-7 w-24 rounded-md" />
+              <Skeleton className="h-7 w-20 rounded-md" />
             </div>
           </div>
         </header>
       )}
 
       <div className={cn(
-        'flex flex-col gap-8',
-        embedded ? 'px-5 pb-8 pt-2' : 'mx-auto w-full max-w-7xl py-1',
+        'mx-auto flex w-full flex-col gap-8 pb-12',
+        embedded
+          ? 'max-w-full px-5 pt-5'
+          : 'max-w-5xl px-5 py-2 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start xl:gap-10 2xl:grid-cols-[minmax(0,1fr)_20rem]',
       )}>
-        {!embedded && (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2.5">
-              <Skeleton className="size-5 rounded-full shrink-0" />
-              <Skeleton className="h-7 w-2/3 rounded-lg" />
+        {/* 左主列：与真实详情页一致的裸画布 */}
+        <div className="flex min-w-0 flex-col gap-8">
+          <div className="flex w-full flex-col gap-4">
+            {/* Tabs 行（描述 / 关联仓库 / 变更 / 子工作项 / 活动动态） */}
+            <div className="flex w-full min-w-0 items-center gap-2">
+              <Skeleton className="h-8 w-14 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-14 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
             </div>
-          </div>
-        )}
 
-        <div className={cn('grid grid-cols-1 gap-8', !embedded && 'xl:grid-cols-[minmax(0,1fr)_18rem]')}>
-          {/* 左侧主内容区 */}
-          <div className="min-w-0 flex flex-col gap-8">
-            {/* 描述 */}
+            {/* 描述面板：SectionHeader（h2 + hairline）+ 裸文本行 */}
             <section className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-end justify-between gap-3 border-b border-border pb-2">
                 <Skeleton className="h-4 w-12 rounded" />
-                <Skeleton className="h-3.5 w-32 rounded" />
+                <Skeleton className="h-6 w-12 rounded-md" />
               </div>
-              <Card>
+              <div className="flex flex-col gap-2">
                 <Skeleton className="h-3.5 w-full rounded" />
                 <Skeleton className="h-3.5 w-5/6 rounded" />
                 <Skeleton className="h-3.5 w-3/5 rounded" />
-              </Card>
-            </section>
-
-            {/* 云效仓库交付链路 */}
-            <section className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-32 rounded" />
-                <Skeleton className="h-7 w-20 rounded-md" />
-              </div>
-              <Card>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="size-4 rounded" />
-                    <Skeleton className="h-4 w-36 rounded" />
-                  </div>
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </div>
-                <div className="flex flex-col gap-2 pt-3 border-t border-border/30">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-3.5 w-16 rounded" />
-                    <Skeleton className="h-5 w-44 rounded" />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-3.5 w-16 rounded" />
-                    <Skeleton className="h-5 w-56 rounded" />
-                  </div>
-                </div>
-              </Card>
-            </section>
-
-            {/* 子任务 */}
-            <section className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-16 rounded" />
-                <Skeleton className="h-6 w-20 rounded" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                {[0, 1].map((i) => (
-                  <div key={i} className="flex h-9 items-center gap-3 rounded-md border border-border/40 bg-card/20 px-3">
-                    <Skeleton className="size-3.5 rounded-full shrink-0" />
-                    <Skeleton className="h-3.5 w-16 shrink-0" />
-                    <Skeleton className="h-3.5 flex-1 rounded" style={{ width: `${45 + i * 15}%` }} />
-                    <Skeleton className="size-4 rounded-full shrink-0 ml-auto" />
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* 缺陷 */}
-            <section className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-12 rounded" />
-                <Skeleton className="h-6 w-20 rounded" />
-              </div>
-              <div className="flex h-9 items-center gap-3 rounded-md border border-border/40 bg-card/20 px-3">
-                <Skeleton className="size-3.5 rounded-full shrink-0" />
-                <Skeleton className="h-3.5 w-16 shrink-0" />
-                <Skeleton className="h-3.5 w-1/2 rounded" />
-                <Skeleton className="size-4 rounded-full shrink-0 ml-auto" />
-              </div>
-            </section>
-
-            {/* 动态 */}
-            <section className="flex flex-col gap-3">
-              <Skeleton className="h-4 w-16 rounded" />
-              <div className="flex items-start gap-3 pl-3">
-                <Skeleton className="size-6 rounded-full shrink-0" />
-                <div className="flex flex-1 flex-col gap-2">
-                  <Skeleton className="h-3.5 w-24 rounded" />
-                  <Skeleton className="h-4 w-2/3 rounded" />
-                </div>
               </div>
             </section>
           </div>
+        </div>
 
-          {/* 右侧属性栏（仅全屏） */}
-          {!embedded && (
-            <aside className="flex flex-col gap-4 xl:sticky xl:top-20 xl:w-auto">
-              <Skeleton className="h-3.5 w-10 rounded" />
-              <Card>
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center justify-between gap-3 py-1">
-                    <div className="flex items-center gap-2">
-                      <Skeleton className="size-3.5 rounded" />
-                      <Skeleton className="h-3.5 w-14 rounded" />
-                    </div>
-                    <Skeleton className="h-4 w-20 rounded" />
+        {/* 右侧属性栏（仅全屏）：h3 区块标题 + plain 裸行 */}
+        {!embedded && (
+          <aside className="flex w-full flex-col gap-6 xl:sticky xl:top-20 xl:w-auto">
+            <div className="flex flex-col">
+              <div className="px-2 pb-1.5">
+                <Skeleton className="h-3.5 w-10 rounded" />
+              </div>
+              <div className="flex flex-col">
+                {Array.from({ length: 6 }, (_, index) => (
+                  <div key={index} className="flex items-center gap-2 px-2 py-1.5">
+                    <Skeleton className="size-3.5 shrink-0 rounded" />
+                    <Skeleton className="h-3.5 w-14 shrink-0 rounded" />
+                    <Skeleton className="ml-auto h-3.5 w-20 rounded" />
                   </div>
                 ))}
-              </Card>
-            </aside>
-          )}
-        </div>
+              </div>
+            </div>
+            <div className="flex flex-col">
+              <div className="px-2 pb-1.5">
+                <Skeleton className="h-3.5 w-16 rounded" />
+              </div>
+              <div className="flex flex-col">
+                {Array.from({ length: 2 }, (_, index) => (
+                  <div key={index} className="flex items-center gap-2 px-2 py-1.5">
+                    <Skeleton className="size-3.5 shrink-0 rounded" />
+                    <Skeleton className="h-3.5 w-14 shrink-0 rounded" />
+                    <Skeleton className="ml-auto h-3.5 w-20 rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   );

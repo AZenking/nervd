@@ -117,7 +117,7 @@ export function IterationRepoCard({
               'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors',
               isRunning
                 ? 'border-warning/30 bg-warning/10 text-warning'
-                : 'border-border/60 bg-muted/30 group-hover:text-foreground',
+                : 'border-border/60 bg-surface-secondary group-hover:text-foreground',
             )}>
               <FolderGit2Icon className="size-4" />
             </div>
@@ -140,7 +140,7 @@ export function IterationRepoCard({
                         size="sm"
                         variant="soft"
                         color="default"
-                        className="font-mono text-[11px] max-w-56 cursor-default gap-1.5 inline-flex items-center border border-border/60 bg-muted/40 px-2 py-0.5"
+                        className="font-mono text-[11px] max-w-56 cursor-default gap-1.5 inline-flex items-center border border-border/60 bg-surface-secondary px-2 py-0.5"
                       >
                         <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
                         <span className="truncate">{suggestedBranch}</span>
@@ -151,7 +151,7 @@ export function IterationRepoCard({
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                涉及本迭代 <span className="font-medium text-foreground font-mono">{workitems.length}</span> 项工作项
+                涉及本迭代 <span className="font-mono tabular-nums font-medium text-foreground">{workitems.length}</span> 项工作项
               </p>
             </div>
           </div>
@@ -297,7 +297,7 @@ export function IterationRepoCard({
                 </span>
               )}
               {latestRun.durationMs != null && (
-                <span className="text-[11px] tabular-nums">耗时 {formatDuration(latestRun.durationMs)}</span>
+                <span className="text-[11px] font-mono tabular-nums">耗时 {formatDuration(latestRun.durationMs)}</span>
               )}
               {latestRun.trigger && (
                 <span className="text-[11px]">由 {latestRun.trigger} 触发</span>
@@ -320,7 +320,7 @@ export function IterationRepoCard({
           <div className="mt-3.5 flex flex-col gap-2 pt-2 border-t border-border/30">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span className="text-[11px] font-medium text-muted-foreground/80">
-                本迭代涉及工作项（{workitems.length}）
+                本迭代涉及工作项（<span className="font-mono tabular-nums">{workitems.length}</span>）
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -417,8 +417,13 @@ export function IterationRepoTab({
       const defaultTpl = fusedTemplates[0];
       if (defaultTpl) {
         suggestedBranch = expandBranchPattern(
-          defaultTpl.baselineBranchPattern || 'iteration/{iteration}/{template}',
-          { iteration: iterationKey, template: defaultTpl.name, identifier: '' },
+          defaultTpl.baselineBranchPattern || 'iteration/{iteration}/{track}',
+          {
+            iteration: iterationKey,
+            template: defaultTpl.name,
+            identifier: '',
+            iterationEnd: iterations.find((iteration) => iteration.name === iterationKey)?.endDate,
+          },
         );
       }
     }
@@ -486,7 +491,7 @@ export function IterationRepoTab({
               {anyRunningCount > 0 && (
                 <Chip size="sm" color="warning" variant="soft">
                   <Loader2Icon className="size-3 animate-spin" />
-                  {anyRunningCount} 个 Job 正在构建中
+                  <span className="font-mono tabular-nums">{anyRunningCount}</span> 个 Job 正在构建中
                 </Chip>
               )}
             </div>
@@ -562,7 +567,9 @@ export function IterationRepoTab({
       {totalRepoPages > 1 && (
         <div className="flex items-center justify-between px-2 pt-2 text-xs text-muted-foreground">
           <span className="text-[11px] text-muted-foreground">
-            共 {scopedRepos.length} 个涉及仓库（第 {(currentRepoPage - 1) * REPO_PAGE_SIZE + 1} - {Math.min(currentRepoPage * REPO_PAGE_SIZE, scopedRepos.length)}）
+            共 <span className="font-mono tabular-nums">{scopedRepos.length}</span> 个涉及仓库（第{' '}
+            <span className="font-mono tabular-nums">{(currentRepoPage - 1) * REPO_PAGE_SIZE + 1}</span> -{' '}
+            <span className="font-mono tabular-nums">{Math.min(currentRepoPage * REPO_PAGE_SIZE, scopedRepos.length)}</span>）
           </span>
           <KeyboardPagination
             pageIndex={currentRepoPage}

@@ -198,7 +198,7 @@ describe('PageHeader 旧 props 向后兼容', () => {
     expect(header.textContent).toContain('聚合全局迭代与 CI 状态');
   });
 
-  it('keeps breadcrumb mode structure (non-truncating h1, meta divider)', async () => {
+  it('keeps breadcrumb mode on one main row (truncating h1, meta divider)', async () => {
     const header = await render({
       breadcrumb: <nav>迭代 / REQ-101</nav>,
       title: '需求标题',
@@ -210,10 +210,11 @@ describe('PageHeader 旧 props 向后兼容', () => {
     });
 
     const h1 = header.querySelector('h1')!;
-    expect(h1.className).toContain('text-2xl');
-    expect(h1.className).not.toContain('truncate');
-    expect(header.textContent).toContain('迭代 / REQ-101');
-    expect(header.textContent).toContain('在云效中打开');
+    // DESIGN §F.1：标题与面包屑同一主行，空间不足先截断标题
+    expect(h1.className).toContain('truncate');
+    const mainRow = h1.parentElement?.parentElement;
+    expect(mainRow?.textContent).toContain('迭代 / REQ-101');
+    expect(mainRow?.textContent).toContain('在云效中打开');
     expect(header.textContent).toContain('meta 行');
     expect(header.querySelector('.border-t')).not.toBeNull();
   });

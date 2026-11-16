@@ -90,7 +90,7 @@ function ParameterField({
   return (
     <Field className="gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <FieldLabel htmlFor={`param-${parameter.name}`} className="font-mono text-xs font-medium" title={parameter.name}>
+        <FieldLabel htmlFor={`param-${parameter.name}`} className="font-mono text-xs font-medium">
           {parameter.name}
         </FieldLabel>
         <div className="flex items-center gap-1.5">
@@ -138,7 +138,7 @@ function ParameterField({
                     variant="outline"
                     size="sm"
                     className="h-8 shrink-0 gap-1 px-2.5 text-xs"
-                    title="从已有分支列表中选择并填充"
+                    aria-label="从已有分支列表中选择并填充"
                   />
                 }
               >
@@ -167,13 +167,12 @@ function ParameterField({
                   <DropdownMenuItem
                     key={b}
                     onClick={() => onChange(b)}
-                    title={b}
                     className="font-mono text-xs cursor-pointer flex items-center justify-between gap-2"
                   >
-                    <OverflowTooltip text={b} title={b} className="min-w-0 truncate" />
+                    <OverflowTooltip text={b} className="min-w-0 truncate" />
                     <div className="flex items-center gap-1 shrink-0 font-sans">
                       {b === defaultBranch && (
-                        <span className="text-[10px] text-success font-medium bg-success/10 px-1 py-0.5 rounded">
+                        <span className="text-[10px] text-success font-medium bg-success/10 px-1 py-0.5 rounded-sm">
                           推荐
                         </span>
                       )}
@@ -462,13 +461,13 @@ export function JenkinsBuildParameters({
         let badge: React.ReactNode = undefined;
         if (item.isSaved) {
           badge = (
-            <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary border border-primary/20 font-sans">
+            <span className="inline-flex items-center gap-1 rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary border border-primary/20 font-sans">
               已绑定
             </span>
           );
         } else if (item.isRecommended) {
           badge = (
-            <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success border border-success/20 font-sans">
+            <span className="inline-flex items-center gap-1 rounded-sm bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success border border-success/20 font-sans">
               <SparklesIcon className="size-2.5" />
               推荐
             </span>
@@ -598,11 +597,11 @@ export function JenkinsBuildParameters({
 
             {jobFullName && !parametersLoading && parameters.length > 0 && (
               <>
-                <Card>
+                <Card className="border border-border/60 shadow-none">
                   <Card.Header className="flex flex-row items-center justify-between pb-2">
                     <div className="flex items-center gap-2">
                       <Card.Title className="text-xs font-semibold text-foreground">
-                        Job 构建参数 ({parameters.length})
+                        Job 构建参数 (<span className="font-mono tabular-nums">{parameters.length}</span>)
                       </Card.Title>
                       {branchesLoading && (
                         <span className="text-[11px] text-muted-foreground animate-pulse">
@@ -703,11 +702,11 @@ export function JenkinsBuildParameters({
               <div className="flex flex-col gap-3 py-1" aria-hidden>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
-                    <Skeleton className="h-3.5 w-16 rounded" />
+                    <Skeleton className="h-3.5 w-16 rounded-sm" />
                     <Skeleton className="h-8 w-full rounded-md" />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Skeleton className="h-3.5 w-16 rounded" />
+                    <Skeleton className="h-3.5 w-16 rounded-sm" />
                     <Skeleton className="h-8 w-full rounded-md" />
                   </div>
                 </div>

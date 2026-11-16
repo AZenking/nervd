@@ -12,13 +12,12 @@ import {
   Button,
   Checkbox,
   Chip,
-  FieldError,
-  Input,
   ListBox,
   Select,
   Tabs,
-  Tooltip,
 } from '@heroui/react';
+import { Input } from '@/components/ui/input';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { SearchableSelect } from '../searchable-select';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SettingsGroup } from './settings-group';
@@ -59,6 +58,10 @@ export function JenkinsInstancesCard() {
       {connections.map((connection) => {
         const saved = settings?.jenkinsConnections.find((item) => item.id === connection.id);
         const error = fieldErrors[`jenkins-${connection.id}`];
+        const errorId = `jenkins-${connection.id}-error`;
+        const boundRepoCount = Object.values(draft?.repoCiBindings ?? {}).filter(
+          (binding) => binding.provider === 'jenkins' && binding.connectionId === connection.id,
+        ).length;
         const draftToken = jenkinsTokens[connection.id]?.trim();
         const hasSavedToken = Boolean(saved?.hasToken);
         const isTesting = ciResults[connection.id] === '连接测试中…';
@@ -73,6 +76,8 @@ export function JenkinsInstancesCard() {
                 aria-label="Jenkins 实例名称"
                 value={connection.name}
                 placeholder="例如：研发 Jenkins"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? errorId : undefined}
                 onChange={(e) => updateJenkins(connection.id, { name: e.target.value })}
                 onKeyDown={(e) => {
                   e.stopPropagation();
@@ -84,6 +89,8 @@ export function JenkinsInstancesCard() {
                 aria-label="Jenkins 地址"
                 value={connection.baseUrl}
                 placeholder="https://jenkins.example.com"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? errorId : undefined}
                 onChange={(e) => updateJenkins(connection.id, { baseUrl: e.target.value })}
                 onKeyDown={(e) => {
                   e.stopPropagation();
@@ -95,6 +102,8 @@ export function JenkinsInstancesCard() {
                 aria-label="Jenkins 用户名"
                 value={connection.username}
                 placeholder="用户名"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? errorId : undefined}
                 onChange={(e) => updateJenkins(connection.id, { username: e.target.value })}
                 onKeyDown={(e) => {
                   e.stopPropagation();
@@ -116,7 +125,9 @@ export function JenkinsInstancesCard() {
               />
               {error && (
                 <div className="md:col-span-2">
-                  <FieldError>{error}</FieldError>
+                  <p id={errorId} role="alert" className="text-destructive text-xs">
+                    {error}
+                  </p>
                 </div>
               )}
               <div className="flex flex-wrap items-center gap-2 md:col-span-2">
@@ -129,22 +140,23 @@ export function JenkinsInstancesCard() {
                 >
                   测试连接
                 </Button>
-                <Tooltip delay={0}>
-                  <Tooltip.Trigger>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onPress={() => removeJenkins(connection.id)}
-                    >
-                      <Trash2Icon data-icon="inline-start" />
-                      删除
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content offset={4} placement="top">
-                    删除实例，并解除使用它的仓库 CI 绑定
-                  </Tooltip.Content>
-                </Tooltip>
+                <ConfirmButton
+                  label="删除"
+                  title={`删除 Jenkins 实例「${connection.name || connection.baseUrl || connection.id}」？`}
+                  description={
+                    boundRepoCount > 0
+                      ? `该实例正被 ${boundRepoCount} 个仓库 CI 绑定使用，删除将连带解除这 ${boundRepoCount} 个仓库的绑定，并移除已保存的 API Token；操作不可恢复。`
+                      : '删除后将同时移除已保存的 API Token；操作不可恢复。'
+                  }
+                  confirmLabel="删除实例"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isTesting}
+                  onConfirm={() => removeJenkins(connection.id)}
+                >
+                  <Trash2Icon className="size-3.5" />
+                  <span>删除</span>
+                </ConfirmButton>
                 {hasSavedToken ? (
                   <Chip size="sm" variant="soft" color="success" className="text-xs">
                     Token 已保存
@@ -222,7 +234,9 @@ export function RepoCiBindingsCard() {
       description="每个仓库绑定一个默认 CI（云效 Flow 流水线或 Jenkins Job）；构建记录属于该仓库 Job"
       action={(
         <>
-          <Chip size="sm" variant="secondary">{Object.keys(bindings).length} 个绑定</Chip>
+          <Chip size="sm" variant="secondary">
+            <span className="font-mono tabular-nums">{Object.keys(bindings).length}</span> 个绑定
+          </Chip>
           <Button type="button" variant="secondary" size="sm" onPress={() => void loadPipelines()}>
             <RefreshCwIcon data-icon="inline-start" />
             刷新流水线
@@ -266,11 +280,11 @@ export function RepoCiBindingsCard() {
             <Tabs.ListContainer className="w-fit overflow-x-auto">
               <Tabs.List aria-label="仓库过滤">
                 <Tabs.Tab id="bound">
-                  已绑定 {boundCount}
+                  已绑定 <span className="font-mono tabular-nums">{boundCount}</span>
                   <Tabs.Indicator />
                 </Tabs.Tab>
                 <Tabs.Tab id="all">
-                  全部 {scoped.length}
+                  全部 <span className="font-mono tabular-nums">{scoped.length}</span>
                   <Tabs.Indicator />
                 </Tabs.Tab>
               </Tabs.List>
@@ -291,6 +305,7 @@ export function RepoCiBindingsCard() {
           && savedProfile.baseUrl === draftProfile.baseUrl
           && savedProfile.username === draftProfile.username);
         const error = fieldErrors[`repo-${repo.id}`];
+        const errorId = `repo-${repo.id}-error`;
         return (
           <div key={repo.id} className="flex flex-col gap-2.5 border-b border-border/50 px-4 py-3.5 last:border-b-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -327,26 +342,33 @@ export function RepoCiBindingsCard() {
               </Select>
             </div>
             {binding?.provider === 'flow' && (
-              <SearchableSelect
-                className="text-xs"
-                ariaLabel={`${label} 云效流水线`}
-                value={binding.pipelineId ? String(binding.pipelineId) : '__unset'}
-                onValueChange={(v) => {
-                  const pipeline = pipelines.find((item) => String(item.pipelineId) === v);
-                  setRepoBinding(repo.id, { provider: 'flow', pipelineId: pipeline?.pipelineId ?? 0, pipelineName: pipeline?.pipelineName ?? '' });
-                }}
-                items={[
-                  { label: '选择云效流水线', value: '__unset' },
-                  ...pipelines.map((pipeline) => ({
-                    label: pipeline.pipelineName,
-                    value: String(pipeline.pipelineId),
-                  })),
-                ]}
-              />
+              <div role="group" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined}>
+                <SearchableSelect
+                  className="text-xs"
+                  ariaLabel={`${label} 云效流水线`}
+                  value={binding.pipelineId ? String(binding.pipelineId) : '__unset'}
+                  onValueChange={(v) => {
+                    const pipeline = pipelines.find((item) => String(item.pipelineId) === v);
+                    setRepoBinding(repo.id, { provider: 'flow', pipelineId: pipeline?.pipelineId ?? 0, pipelineName: pipeline?.pipelineName ?? '' });
+                  }}
+                  items={[
+                    { label: '选择云效流水线', value: '__unset' },
+                    ...pipelines.map((pipeline) => ({
+                      label: pipeline.pipelineName,
+                      value: String(pipeline.pipelineId),
+                    })),
+                  ]}
+                />
+              </div>
             )}
             {binding?.provider === 'jenkins' && (
               <>
-                <div className="grid gap-2 md:grid-cols-[minmax(10rem,0.7fr)_minmax(12rem,1fr)]">
+                <div
+                  role="group"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? errorId : undefined}
+                  className="grid gap-2 md:grid-cols-[minmax(10rem,0.7fr)_minmax(12rem,1fr)]"
+                >
                   <SearchableSelect
                     className="text-xs"
                     ariaLabel={`${label} Jenkins 实例`}
@@ -364,6 +386,8 @@ export function RepoCiBindingsCard() {
                     aria-label={`${label} Jenkins Job 全路径`}
                     value={binding.jobFullName}
                     placeholder="folder/job-name"
+                    aria-invalid={Boolean(error)}
+                    aria-describedby={error ? errorId : undefined}
                     onChange={(e) => setRepoBinding(repo.id, { ...binding, jobFullName: e.target.value }, false)}
                     onKeyDown={(e) => {
                       e.stopPropagation();
@@ -390,7 +414,11 @@ export function RepoCiBindingsCard() {
                 </div>
               </>
             )}
-            {error && <FieldError>{error}</FieldError>}
+            {error && (
+              <p id={errorId} role="alert" className="text-destructive text-xs">
+                {error}
+              </p>
+            )}
           </div>
         );
       })}

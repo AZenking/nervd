@@ -14,8 +14,10 @@ import {
   SunIcon,
   TerminalIcon,
 } from 'lucide-react';
-import { Button, Card, Chip, ToggleButton, ToggleButtonGroup } from '@heroui/react';
+import { Button, Chip, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { Kbd } from '@/components/ui/kbd';
+import { CopyButton } from '@/components/ui/copy-button';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
@@ -84,7 +86,7 @@ export function AboutSection() {
         </div>
 
         {hasUpdate && updateInfo && (
-          <Card className="mx-4 mt-4 flex flex-row items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
+          <div className="mx-4 mt-4 flex flex-row items-center justify-between gap-3 rounded-md border border-border bg-primary/5 p-3 text-xs">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1.5 font-medium text-foreground">
                 <SparklesIcon className="size-3.5 text-primary" />
@@ -106,7 +108,7 @@ export function AboutSection() {
               <DownloadIcon className="size-3.5" />
               <span>下载更新</span>
             </Button>
-          </Card>
+          </div>
         )}
 
         <SettingsRow
@@ -268,11 +270,21 @@ export function AboutSection() {
           label="绑定的云效空间"
           description="当前工作台聚合拉取工作项与流水线的默认云效空间。"
           control={(
-            <span className="font-mono text-xs text-muted-foreground">
-              {settings?.organizationId
-                ? `${settings.defaultSpaceIdentifier || '全项目'} (${settings.organizationId.slice(0, 6)}…)`
-                : '尚未配置'}
-            </span>
+            settings?.organizationId ? (
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                  {settings.defaultSpaceIdentifier || '全项目'}
+                </span>
+                <span aria-hidden="true" className="text-muted-foreground/60">·</span>
+                <OverflowTooltip
+                  text={settings.organizationId}
+                  className="max-w-40 font-mono text-xs tabular-nums text-muted-foreground"
+                />
+                <CopyButton text={settings.organizationId} label="复制组织 ID" />
+              </div>
+            ) : (
+              <span className="font-mono text-xs text-muted-foreground">尚未配置</span>
+            )
           )}
         />
       </SettingsGroup>

@@ -96,11 +96,11 @@ export function AboutDialog() {
             />
 
             {/* App Icon */}
-            <div className="relative mb-3 flex size-16 items-center justify-center rounded-2xl bg-sidebar-primary ring-1 ring-border/80">
+            <div className="relative mb-3 flex size-16 items-center justify-center rounded-xl bg-sidebar-primary ring-1 ring-border/80">
               <img
                 src="/nervd-logo.png"
                 alt="nervd logo"
-                className="size-full rounded-2xl object-cover"
+                className="size-full rounded-xl object-cover"
               />
             </div>
 
@@ -195,7 +195,7 @@ export function AboutDialog() {
                         <Loader2Icon className="size-3 animate-spin text-primary" />
                         <span>{progress?.message || (isInstalling ? '正在安装更新…' : '正在下载…')}</span>
                       </span>
-                      <span className="font-mono text-xs font-medium text-foreground">
+                      <span className="font-mono text-xs font-medium text-foreground tabular-nums">
                         {progress?.percent.toFixed(0) ?? 0}%
                       </span>
                     </div>
@@ -207,7 +207,7 @@ export function AboutDialog() {
                       />
                     </div>
 
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                    <div className="flex items-center justify-between font-mono text-[10px] tabular-nums text-muted-foreground">
                       <span>
                         {progress?.transferredBytes ? formatBytes(progress.transferredBytes) : '0 B'}
                         {progress?.totalBytes ? ` / ${formatBytes(progress.totalBytes)}` : ''}

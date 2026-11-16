@@ -17,7 +17,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -29,7 +28,9 @@ const INLINE_CONFIRM_TIMEOUT_MS = 4000;
 /** 只读门控态的灰阶样式（与 ui/button.tsx 禁用态视觉一致，但保留 hover/focus）。
  *  hover 一并压成灰阶，避免 variant=default 的 hover:bg-primary/90 让只读按钮悬停闪回品牌蓝。 */
 const READONLY_BTN_CLASS =
-  'bg-default text-muted-foreground border-border/60 shadow-none hover:bg-default hover:text-muted-foreground cursor-not-allowed opacity-80';
+  // HeroUI 对 aria-disabled 按钮默认设了 pointer-events:none（会吞掉点击与 hover，
+  // 导致"只读点击提示前往设置"这条路径失效）；这里用 !important 强制恢复指针事件。
+  'pointer-events-auto! bg-default text-muted-foreground border-border/60 shadow-none hover:bg-default hover:text-muted-foreground cursor-not-allowed opacity-80';
 
 export { READONLY_BTN_CLASS };
 
@@ -92,8 +93,6 @@ export function WriteOpButton({
   variant = 'default',
   confirm = 'dialog',
   confirmLabel = '确认执行',
-  /** 菜单项形态（Linear 式 ⋯ 下拉）：渲染 DropdownMenuItem，保留门控/确认弹窗 */
-  asMenuItem = false,
 }: {
   label: string;
   onAction: () => Promise<void>;
@@ -104,7 +103,6 @@ export function WriteOpButton({
   /** 确认形态：dialog = AlertDialog 二次确认；inline = 两段式按钮 */
   confirm?: 'dialog' | 'inline';
   confirmLabel?: string;
-  asMenuItem?: boolean;
 }) {
   const allow = useApp((s) => s.settings?.allowWriteOps ?? false);
   const openSettings = useUi((s) => s.openSettings);
@@ -198,8 +196,15 @@ export function WriteOpButton({
             <Button
               size="sm"
               variant={armed ? 'destructive' : variant}
-              disabled={busy || disabled}
-              onPress={handleInlineClick}
+              // 设计审计 A4：禁止用原生 disabled（RAC 会输出 disabled 属性并置 tabIndex=-1，
+              // 导致 hover/focus 与 disabledReason Tooltip 全部失效）。改为 aria-disabled + 灰阶 +
+              // onPress 内 early-return，保留可聚焦与悬停解释。
+              aria-disabled={busy || disabled || undefined}
+              className={cn((busy || disabled) && READONLY_BTN_CLASS)}
+              onPress={() => {
+                if (busy || disabled) return;
+                handleInlineClick();
+              }}
             >
               {busy ? (<><Spinner data-icon="inline-start" />{label}…</>) : armed ? confirmLabel : label}
             </Button>
@@ -230,34 +235,6 @@ export function WriteOpButton({
     </AlertDialog>
   );
 
-  // ---- 菜单项形态（Linear 式 ⋯ 下拉）：只读项保持可点（触发 Toast 提示），带原因副行 ----
-  if (asMenuItem) {
-    const showReason = blocked || (disabled && Boolean(disabledReason));
-    return (
-      <>
-        <DropdownMenuItem
-          disabled={busy || (!blocked && disabled)}
-          className={cn('h-auto flex-col items-stretch gap-0.5 py-2', blocked && 'text-muted-foreground')}
-          onPress={() => {
-            if (blocked) {
-              notifyReadonly();
-              return;
-            }
-            setOpen(true);
-          }}
-        >
-          <span>{busy ? (<><Spinner data-icon="inline-start" />{label}…</>) : label}</span>
-          {showReason && (
-            <span className="text-xs font-normal text-muted-foreground">
-              {blocked ? '写操作已关闭（当前只读模式）' : disabledReason}
-            </span>
-          )}
-        </DropdownMenuItem>
-        {confirmDialog}
-      </>
-    );
-  }
-
   if (blocked) {
     return readonlyTrigger;
   }
@@ -266,7 +243,17 @@ export function WriteOpButton({
       <Tooltip>
         <TooltipTrigger
           render={
-            <Button size="sm" variant={variant} disabled={busy || disabled} onPress={() => setOpen(true)}>
+            <Button
+              size="sm"
+              variant={variant}
+              // R1：禁止原生 disabled（RAC 会输出 disabled 并置 tabIndex=-1，disabledReason Tooltip 永不出现）
+              aria-disabled={busy || disabled || undefined}
+              className={cn((busy || disabled) && READONLY_BTN_CLASS)}
+              onPress={() => {
+                if (busy || disabled) return;
+                setOpen(true);
+              }}
+            >
               {busy ? (<Spinner data-icon="inline-start" />) : label}
             </Button>
           }

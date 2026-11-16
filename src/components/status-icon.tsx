@@ -68,16 +68,21 @@ const TONE_ICON: Record<StatusTone, (props: { className?: string }) => React.Rea
 export function StatusIcon({
   status,
   className,
+  decorative = false,
 }: {
   status?: string | null;
   className?: string;
+  /** 装饰性图标：与紧邻文字同义时置 true，从无障碍树移除，避免读屏重复播报 */
+  decorative?: boolean;
 }) {
   const tone = statusMeta(status).tone;
   const Icon = TONE_ICON[tone];
+  const label = statusMeta(status).label;
   return (
     <span
-      role="img"
-      aria-label={statusMeta(status).label}
+      aria-hidden={decorative || undefined}
+      role={decorative ? undefined : 'img'}
+      aria-label={decorative ? undefined : label}
       className={cn('inline-flex shrink-0 items-center justify-center', className ?? 'size-3.5')}
     >
       <Icon className="size-full" />

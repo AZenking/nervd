@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
-  CheckIcon, ChevronDownIcon, Loader2Icon, PlusIcon, RefreshCwIcon, SparklesIcon, Trash2Icon, UserIcon,
+  ChevronDownIcon, Loader2Icon, PlusIcon, RefreshCwIcon, SparklesIcon, Trash2Icon, UserIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { aiBreakdownRequirement } from '@/lib/ai-api';
 import { postChildCreationActivity } from '@/lib/child-activity';
 import type { WorkitemChild, WorkitemTypeOption } from '@/lib/api';
 import { useApp } from '@/store/app';
-import type { AiBreakdownItem } from '@/types/ai';
+import type { AiBreakdownItem, BreakdownContext } from '@/types/ai';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
-import { AiBreakdownTags, TAG_COLORS } from './ai-breakdown-tags';
+import { WriteOpButton } from '@/components/WriteOpButton';
 
 export interface AssigneeCandidate {
   id: string;
@@ -42,7 +42,15 @@ export interface AiBreakdownDialogProps {
   parentAssigneeId?: string;
   parentAssigneeName?: string;
   candidateAssignees?: AssigneeCandidate[];
-  defaultTags?: string[];
+  /** 本次拆解使用的上下文仓库 */
+  contextRepoIds: number[];
+  /** 从需求标题/描述提取的代码检索关键词 */
+  contextKeywords: string[];
+  /** 采集所选仓库的改动范围 + 现有代码节选 */
+  collectBreakdownContext?: (
+    repoIds: number[],
+    keywords: string[],
+  ) => Promise<BreakdownContext>;
   workitemTypes: WorkitemTypeOption[];
   onCreated: () => Promise<void>;
 }
@@ -57,11 +65,12 @@ export function AiBreakdownDialog({
   parentAssigneeId,
   parentAssigneeName,
   candidateAssignees = [],
-  defaultTags = ['前端', '后端', '自测'],
+  contextRepoIds,
+  contextKeywords,
+  collectBreakdownContext,
   workitemTypes,
   onCreated,
 }: AiBreakdownDialogProps) {
-  const [selectedTags, setSelectedTags] = useState<string[]>(defaultTags);
   const [items, setItems] = useState<AiBreakdownItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -74,14 +83,18 @@ export function AiBreakdownDialog({
     name: parentAssigneeName || '负责人',
   };
 
-  const handleGenerate = async (tagsToUse: string[]) => {
+  const handleGenerate = async () => {
     setLoading(true);
     setProgress(null);
     try {
+      const context = collectBreakdownContext
+        ? await collectBreakdownContext(contextRepoIds, contextKeywords)
+        : { scope: [], code: [] };
       const generated = await aiBreakdownRequirement(
         parentSubject,
         parentDescription || '',
-        tagsToUse,
+        context.scope,
+        context.code,
       );
       // 为拆解结果默认赋予父需求负责人作为初始指派人
       setItems(
@@ -104,12 +117,13 @@ export function AiBreakdownDialog({
 
   useEffect(() => {
     if (open) {
-      setSelectedTags(defaultTags);
-      void handleGenerate(defaultTags);
+      void handleGenerate();
     } else {
       setItems([]);
       setProgress(null);
     }
+    // 打开时按当前上下文仓库生成；关闭时清空
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const toggleSelectAll = () => {
@@ -142,13 +156,6 @@ export function AiBreakdownDialog({
     toast.add({ title: `已将勾选项指派给：${aName}`, type: 'info' });
   };
 
-  const updateHours = (id: string, raw: string) => {
-    const hours = Number(raw);
-    setItems((prev) => prev.map((i) => (i.id === id
-      ? { ...i, estimatedHours: raw.trim() === '' || !Number.isFinite(hours) || hours <= 0 ? undefined : hours }
-      : i)));
-  };
-
   const deleteItem = (id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
@@ -157,7 +164,6 @@ export function AiBreakdownDialog({
     const newItem: AiBreakdownItem = {
       id: `manual-${Date.now()}`,
       subject: '',
-      tag: selectedTags[0] || '子任务',
       selected: true,
       assigneeId: fallbackAssignee.id,
       assigneeName: fallbackAssignee.name,
@@ -179,26 +185,17 @@ export function AiBreakdownDialog({
     const typeId = taskType?.id ?? '';
 
     let successCount = 0;
-    let effortFailCount = 0;
     const createdChildren: WorkitemChild[] = [];
     try {
       for (let i = 0; i < toCreate.length; i++) {
         const item = toCreate[i];
         setProgress({ current: i + 1, total: toCreate.length });
         const created = await api.createWorkitemChild(parentWorkitemId, {
-          subject: `【${item.tag}】${item.subject.trim()}`,
+          subject: item.subject.trim(),
           workitemTypeId: typeId,
           assignedTo: item.assigneeId || parentAssigneeId,
           category: 'Task',
         });
-        // 工时走云效独立接口：失败不回滚已创建的子任务，只计数提示
-        if (item.estimatedHours && created.workitemId) {
-          try {
-            await api.setWorkitemEstimatedEffort(created.workitemId, item.estimatedHours);
-          } catch {
-            effortFailCount++;
-          }
-        }
         const completeChild: WorkitemChild = {
           ...created,
           category: created.category || 'Task',
@@ -219,7 +216,7 @@ export function AiBreakdownDialog({
       await onCreated();
       toast.add({
         title: '批量创建完成',
-        description: `已成功为 ${parentIdentifier} 创建 ${successCount} 个子任务${effortFailCount > 0 ? `（${effortFailCount} 条预计工时登记失败，可在云效补登）` : ''}`,
+        description: `已成功为 ${parentIdentifier} 创建 ${successCount} 个子任务`,
         type: 'success',
       });
       onOpenChange(false);
@@ -246,7 +243,7 @@ export function AiBreakdownDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col p-5 overflow-hidden">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-5 overflow-hidden">
         <DialogHeader className="shrink-0 pb-1">
           <div className="flex items-center gap-2">
             <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -258,24 +255,23 @@ export function AiBreakdownDialog({
           </div>
           <DialogDescription className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
             <span className="font-mono font-medium text-foreground">{parentIdentifier}</span>
-            <OverflowTooltip text={parentSubject} title={parentSubject} className="min-w-0 truncate" />
+            <OverflowTooltip text={parentSubject} className="min-w-0 truncate" />
           </DialogDescription>
         </DialogHeader>
 
-        {/* 维度 Tags 与重新生成控制条 */}
+        {/* 上下文与重新生成控制条 */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-y border-border/60 py-2.5 shrink-0 -mx-5 px-5">
-          <AiBreakdownTags
-            selectedTags={selectedTags}
-            onChange={(tags) => {
-              setSelectedTags(tags);
-              void handleGenerate(tags);
-            }}
-          />
+          <span className="text-xs text-muted-foreground">
+            上下文仓库：
+            {contextRepoIds.length > 0
+              ? `${contextRepoIds.length} 个（改动范围 + 现有代码节选）`
+              : '未选择（仅按需求描述拆解）'}
+          </span>
           <Button
             size="xs"
             variant="ghost"
             disabled={loading || creating}
-            onPress={() => void handleGenerate(selectedTags)}
+            onPress={() => void handleGenerate()}
             className="h-7 text-xs"
           >
             <RefreshCwIcon className={cn('size-3.5 mr-1', loading && 'animate-spin')} />
@@ -293,25 +289,19 @@ export function AiBreakdownDialog({
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
               <p className="text-xs">未能拆解出任务条目</p>
-              <Button size="xs" variant="outline" onPress={() => void handleGenerate(selectedTags)}>
+              <Button size="xs" variant="outline" onPress={() => void handleGenerate()}>
                 点击重试
               </Button>
             </div>
           ) : (
-            <Card className="flex flex-col divide-y divide-border/40 rounded-lg border border-border/50 bg-background/50 overflow-hidden">
+            <Card className="flex flex-col divide-y divide-border/40 rounded-lg border border-border/50 bg-background/50 shadow-none overflow-hidden">
               {items.map((item) => {
-                const color = TAG_COLORS[item.tag] || {
-                  bg: 'bg-muted/50',
-                  text: 'text-foreground',
-                  border: 'border-border',
-                };
-
                 return (
                   <div
                     key={item.id}
                     className={cn(
-                      'flex items-center gap-2.5 p-2.5 transition-colors hover:bg-muted/40',
-                      !item.selected && 'opacity-60 bg-muted/20',
+                      'flex items-center gap-2.5 p-2.5 transition-colors hover:bg-surface-secondary',
+                      !item.selected && 'opacity-60 bg-surface-secondary/40',
                     )}
                   >
                     <Checkbox
@@ -319,18 +309,6 @@ export function AiBreakdownDialog({
                       onCheckedChange={() => toggleItem(item.id)}
                       disabled={creating}
                     />
-
-                    {/* Tag 徽标 */}
-                    <span
-                      className={cn(
-                        'shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold border',
-                        color.bg,
-                        color.text,
-                        color.border,
-                      )}
-                    >
-                      {item.tag}
-                    </span>
 
                     {/* 可行内编辑的标题 Input */}
                     <Input
@@ -351,32 +329,6 @@ export function AiBreakdownDialog({
                       className="h-7 text-xs flex-1 bg-background"
                     />
 
-                    {/* AI 评估的预计工时，可手改 */}
-                    <div className="flex items-center gap-1 shrink-0" title="预计工时（小时）">
-                      <Input
-                        type="number"
-                        min={0.5}
-                        max={9999}
-                        step={0.5}
-                        value={item.estimatedHours ?? ''}
-                        onChange={(e) => updateHours(item.id, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key !== 'Escape' && e.key !== 'Tab') {
-                            e.stopPropagation();
-                          }
-                        }}
-                        onKeyUp={(e) => {
-                          if (e.key !== 'Escape' && e.key !== 'Tab') {
-                            e.stopPropagation();
-                          }
-                        }}
-                        placeholder="—"
-                        disabled={creating}
-                        className="h-7 w-14 text-xs font-mono tabular-nums bg-background px-1.5 text-center"
-                      />
-                      <span className="text-[11px] text-muted-foreground">h</span>
-                    </div>
-
                     {/* 选择到人：每行指派人下拉 */}
                     <DropdownMenu>
                       <DropdownMenuTrigger
@@ -387,13 +339,12 @@ export function AiBreakdownDialog({
                             size="xs"
                             disabled={creating}
                             className="h-7 flex items-center gap-1 shrink-0 px-2 text-xs font-normal max-w-28"
-                            title="选择该子任务的处理人"
                             aria-label="选择该子任务的处理人"
                           />
                         }
                       >
                         <UserIcon className="size-3 shrink-0" />
-                        <OverflowTooltip text={item.assigneeName || '指定人'} title={item.assigneeName || '指定人'} className="min-w-0 truncate" />
+                        <OverflowTooltip text={item.assigneeName || '指定人'} className="min-w-0 truncate" />
                         <ChevronDownIcon className="size-2.5 opacity-60 shrink-0" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
@@ -416,12 +367,11 @@ export function AiBreakdownDialog({
                               <DropdownMenuItem
                                 key={c.id || c.name}
                                 onSelect={() => updateAssignee(item.id, c.id, c.name)}
-                                title={c.name}
                                 className={cn('text-xs cursor-pointer flex items-center justify-between', isSelected && 'font-medium text-primary')}
                               >
-                                <OverflowTooltip text={c.name} title={c.name} className="min-w-0 truncate" />
+                                <OverflowTooltip text={c.name} className="min-w-0 truncate" />
                                 {c.role && (
-                                  <span className="text-[10px] text-muted-foreground/70 ml-2 shrink-0" title={c.role}>{c.role}</span>
+                                  <span className="text-[10px] text-muted-foreground/70 ml-2 shrink-0">{c.role}</span>
                                 )}
                               </DropdownMenuItem>
                             );
@@ -439,8 +389,7 @@ export function AiBreakdownDialog({
                             size="icon-xs"
                             disabled={creating}
                             onPress={() => deleteItem(item.id)}
-                            className="text-muted-foreground hover:text-destructive size-6 rounded"
-                            title="删除此项"
+                            className="text-muted-foreground hover:text-destructive size-6 rounded-md"
                             aria-label="删除此项"
                           >
                             <Trash2Icon className="size-3.5" />
@@ -488,11 +437,10 @@ export function AiBreakdownDialog({
                         <DropdownMenuItem
                           key={c.id || c.name}
                           onSelect={() => handleBatchAssign(c.id, c.name)}
-                          title={c.name}
                           className="text-xs cursor-pointer flex items-center justify-between"
                         >
-                          <span className="truncate" title={c.name}>{c.name}</span>
-                          {c.role && <span className="text-[10px] text-muted-foreground/70 ml-2" title={c.role}>({c.role})</span>}
+                          <OverflowTooltip text={c.name} className="min-w-0 truncate" />
+                          {c.role && <span className="text-[10px] text-muted-foreground/70 ml-2">({c.role})</span>}
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
@@ -536,23 +484,24 @@ export function AiBreakdownDialog({
               >
                 取消
               </Button>
-              <Button
-                size="sm"
+              <WriteOpButton
+                label="批量创建至云效"
+                title="批量创建子任务至云效"
+                variant="default"
+                confirm="inline"
+                confirmLabel="再次点击确认创建"
                 disabled={creating || loading || selectedCount === 0}
-                onPress={() => void handleConfirmBatchCreate()}
-              >
-                {creating ? (
-                  <>
-                    <Loader2Icon className="size-3.5 animate-spin mr-1.5" />
-                    创建中…
-                  </>
-                ) : (
-                  <>
-                    <CheckIcon className="size-3.5 mr-1.5" />
-                    批量创建至云效
-                  </>
-                )}
-              </Button>
+                disabledReason={
+                  creating
+                    ? '正在创建子任务…'
+                    : loading
+                      ? '正在生成拆解建议…'
+                      : selectedCount === 0
+                        ? '请先勾选至少一条子任务'
+                        : undefined
+                }
+                onAction={handleConfirmBatchCreate}
+              />
             </div>
           </div>
         </DialogFooter>

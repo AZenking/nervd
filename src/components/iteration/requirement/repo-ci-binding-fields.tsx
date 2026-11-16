@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
+import { SectionHeader } from '@/components/section-header';
 import { getCachedJenkinsJobs, hasCachedJobs } from '@/lib/jenkins-cache';
 import { humanizeError } from '@/lib/error-format';
 
@@ -165,18 +166,21 @@ export function RepoCiBindingFields({
 
   return (
     <Surface variant="secondary" className="flex flex-col gap-3 rounded-lg border border-border/60 p-3.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <WorkflowIcon className="size-4 text-primary shrink-0" />
-          <span className="text-xs font-semibold text-foreground">关联 CI 流水线 (可选)</span>
-        </div>
-        {isMatchedRecommendation && (
+      <SectionHeader
+        level="h3"
+        title={(
+          <span className="inline-flex items-center gap-1.5">
+            <WorkflowIcon className="size-4 shrink-0 text-primary" aria-hidden="true" />
+            <span>关联 CI 流水线 (可选)</span>
+          </span>
+        )}
+        action={isMatchedRecommendation ? (
           <Chip size="sm" color="accent" variant="soft" className="gap-1 text-[11px] font-medium">
             <SparklesIcon className="size-3" />
             <span>智能匹配</span>
           </Chip>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field className="min-w-0">
@@ -216,7 +220,6 @@ export function RepoCiBindingFields({
                         onPress={() => void handleRefresh()}
                         disabled={refreshing || loadingPipelines || disabled}
                         className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
-                        title="刷新云效流水线列表"
                         aria-label="刷新云效流水线列表"
                       >
                         <RefreshCwIcon className={cn('size-3', (refreshing || loadingPipelines) && 'animate-spin')} />
@@ -336,7 +339,6 @@ export function RepoCiBindingFields({
                         onPress={() => setJenkinsJobsRefresh((c) => c + 1)}
                         disabled={loadingJenkinsJobs || disabled || !selectedConnectionId}
                         className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
-                        title="刷新 Jenkins Job 列表"
                         aria-label="刷新 Jenkins Job 列表"
                       >
                         <RefreshCwIcon className={cn('size-3', loadingJenkinsJobs && 'animate-spin')} />

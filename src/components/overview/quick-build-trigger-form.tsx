@@ -8,7 +8,6 @@ import {
   Label,
   ListBox,
   Select,
-  Tooltip,
 } from '@heroui/react';
 import {
   AlertTriangleIcon,
@@ -24,7 +23,6 @@ import {
 import { cn } from '@/lib/utils';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
-import { useUi } from '@/store/ui';
 import { useQuickBuild, type QuickBuildTarget } from '@/store/quick-build';
 import {
   getCachedJenkinsJobParameters,
@@ -34,6 +32,10 @@ import {
 import { isBranchParameterName, isEnvironmentParameterName } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary } from '@/types';
 import { fetchJobEstimate } from '@/lib/build-estimate';
+import { WriteOpGatedTrigger } from '@/components/WriteOpButton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
+import { RefreshButton } from './refresh-button';
 
 export interface QuickBuildTriggerFormProps {
   configuredTargets: QuickBuildTarget[];
@@ -48,7 +50,6 @@ export function QuickBuildTriggerForm({
 }: QuickBuildTriggerFormProps) {
   const pipelines = useApp((s) => s.pipelines);
   const allowWriteOps = useApp((s) => s.settings?.allowWriteOps ?? false);
-  const openSettings = useUi((s) => s.openSettings);
   const history = useQuickBuild((s) => s.history);
   const isTriggering = useQuickBuild((s) => s.isTriggering);
   const triggerQuickBuild = useQuickBuild((s) => s.triggerQuickBuild);
@@ -235,10 +236,14 @@ export function QuickBuildTriggerForm({
 
   const [confirmArmed, setConfirmArmed] = useState(false);
   const armTimer = useRef<number | null>(null);
+  // 「最近执行」行内重跑：与主触发一致的两段式确认（4s 无操作复位），避免单击即触发远端构建
+  const [rerunArmedKey, setRerunArmedKey] = useState<string | null>(null);
+  const rerunTimer = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       if (armTimer.current) window.clearTimeout(armTimer.current);
+      if (rerunTimer.current) window.clearTimeout(rerunTimer.current);
     };
   }, []);
 
@@ -268,10 +273,25 @@ export function QuickBuildTriggerForm({
     }
   };
 
+  /** 「最近执行」行内重跑：第一次点击进入待确认态，第二次点击才真正触发（4s 超时复位）。 */
+  const handleRecentRerun = async (record: QuickBuildTarget) => {
+    const key = record.targetKey || record.id;
+    if (isTriggering(key)) return;
+    if (rerunArmedKey !== key) {
+      setRerunArmedKey(key);
+      if (rerunTimer.current) window.clearTimeout(rerunTimer.current);
+      rerunTimer.current = window.setTimeout(() => setRerunArmedKey(null), 4000);
+      return;
+    }
+    if (rerunTimer.current) window.clearTimeout(rerunTimer.current);
+    setRerunArmedKey(null);
+    await triggerQuickBuild(record, record.parameters);
+  };
+
   return (
     <Card.Content id="quick-build-form" className="flex flex-col gap-3.5 border-t border-border/60 px-4 py-3.5">
       {/* 目标项目与自由选择 Job 入口 */}
-      <div className="grid gap-3 rounded-lg border border-border/60 bg-muted/15 p-3 md:grid-cols-2">
+      <div className="grid gap-3 rounded-lg border border-border/60 bg-surface-secondary/50 p-3 md:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Label className="text-[11px] font-medium text-muted-foreground">构建目标</Label>
           <Select
@@ -290,7 +310,7 @@ export function QuickBuildTriggerForm({
               <ListBox aria-label="目标代码仓库列表">
                 {configuredTargets.map((t) => (
                   <ListBox.Item key={t.id} id={t.id} textValue={t.repoName}>
-                    <span className="truncate block" title={t.repoName}>{t.repoName}</span>
+                    <OverflowTooltip text={t.repoName} className="block" />
                   </ListBox.Item>
                 ))}
               </ListBox>
@@ -326,24 +346,21 @@ export function QuickBuildTriggerForm({
                       const val = j.fullName || ('name' in j ? (j as JenkinsJobSummary).name : '');
                       return (
                         <ListBox.Item key={val} id={val} textValue={val}>
-                          <span className="truncate block" title={val}>{val}</span>
+                          <OverflowTooltip text={val} className="block" />
                         </ListBox.Item>
                       );
                     })}
                   </ListBox>
                 </Select.Popover>
               </Select>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                isIconOnly
-                className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+              <RefreshButton
+                iconOnly
+                label="刷新"
+                ariaLabel="刷新 Jenkins Job 列表"
+                loading={loadingJobs}
                 onPress={() => setJobsRefreshCount((c) => c + 1)}
-                aria-label="刷新 Jenkins Job 列表"
-              >
-                <RefreshCwIcon className={cn('size-3.5', loadingJobs && 'animate-spin')} />
-              </Button>
+                className="shrink-0"
+              />
             </div>
           </div>
         )}
@@ -368,7 +385,7 @@ export function QuickBuildTriggerForm({
                 <ListBox aria-label="云效 Flow 流水线列表">
                   {pipelines.map((p) => (
                     <ListBox.Item key={p.pipelineName} id={p.pipelineName} textValue={p.pipelineName}>
-                      <span className="truncate block" title={p.pipelineName}>{p.pipelineName}</span>
+                      <OverflowTooltip text={p.pipelineName} className="block" />
                     </ListBox.Item>
                   ))}
                 </ListBox>
@@ -409,30 +426,68 @@ export function QuickBuildTriggerForm({
                     {record.type === 'flow' ? (
                       <WorkflowIcon className="size-3 shrink-0 text-primary" />
                     ) : (
-                      <TerminalIcon className="size-3 shrink-0 text-warning" />
+                      <TerminalIcon className="size-3 shrink-0 text-muted-foreground" />
                     )}
-                    <span className="max-w-[110px] truncate" title={record.repoName}>{record.repoName}</span>
-                    {record.jobFullName && <span className="max-w-[90px] truncate text-[10px] text-muted-foreground" title={record.jobFullName}>{record.jobFullName}</span>}
-                    {branchText && <span className="max-w-[80px] truncate font-mono text-[10px] text-muted-foreground" title={branchText}>{branchText}</span>}
+                    <OverflowTooltip text={record.repoName} className="max-w-[110px]" />
+                    {record.jobFullName && (
+                      <OverflowTooltip
+                        text={record.jobFullName}
+                        className="max-w-[90px] text-[10px] text-muted-foreground"
+                      />
+                    )}
+                    {branchText && (
+                      <OverflowTooltip
+                        text={branchText}
+                        className="max-w-[80px] font-mono text-[10px] text-muted-foreground"
+                      />
+                    )}
                   </Button>
-                  <Tooltip>
-                    <Button
-                      type="button"
+                  {allowWriteOps ? (
+                    <Tooltip delay={0}>
+                      <TooltipTrigger
+                        render={(
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            isIconOnly
+                            aria-disabled={isTriggering(record.targetKey || record.id) || undefined}
+                            onPress={() => void handleRecentRerun(record)}
+                            className={cn(
+                              'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors',
+                              rerunArmedKey === (record.targetKey || record.id)
+                                ? 'bg-warning/15 text-warning'
+                                : 'text-muted-foreground hover:bg-surface-secondary hover:text-foreground',
+                              isTriggering(record.targetKey || record.id) && 'animate-spin',
+                            )}
+                            aria-label={
+                              rerunArmedKey === (record.targetKey || record.id)
+                                ? `再次点击确认重跑 ${record.repoName} 构建`
+                                : `重跑 ${record.repoName} 构建`
+                            }
+                          >
+                            {rerunArmedKey === (record.targetKey || record.id) ? (
+                              <AlertTriangleIcon className="size-2.5" />
+                            ) : (
+                              <PlayIcon className="size-2.5 fill-current" />
+                            )}
+                          </Button>
+                        )}
+                      />
+                      <TooltipContent>
+                        {rerunArmedKey === (record.targetKey || record.id)
+                          ? '再次点击确认重跑（4s 内有效）'
+                          : '点击后需二次确认，再按上次参数重跑'}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    /* 只读门控：aria-disabled + 灰阶 + Tooltip 说明，点击引导前往设置 */
+                    <WriteOpGatedTrigger
+                      label="重跑"
+                      icon={<PlayIcon className="size-2.5 fill-current" />}
                       variant="ghost"
-                      size="sm"
-                      isIconOnly
-                      isDisabled={isTriggering(record.targetKey || record.id)}
-                      onPress={() => void triggerQuickBuild(record)}
-                      className={cn(
-                        'flex size-6 shrink-0 items-center justify-center rounded-md text-success transition-colors hover:bg-success/10',
-                        isTriggering(record.targetKey || record.id) && 'animate-spin',
-                      )}
-                      aria-label={`重跑 ${record.repoName} 构建`}
-                    >
-                      <PlayIcon className="size-2.5 fill-current" />
-                    </Button>
-                    <Tooltip.Content>按上次参数立即重跑</Tooltip.Content>
-                  </Tooltip>
+                    />
+                  )}
                 </div>
               );
             })}
@@ -442,7 +497,7 @@ export function QuickBuildTriggerForm({
 
       {/* 就地自定义参数配置行 */}
       {currentTarget && (
-        <div className="grid grid-cols-1 gap-3 rounded-lg border border-border/60 bg-muted/10 p-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 rounded-lg border border-border/60 bg-surface-secondary/50 p-3 sm:grid-cols-2">
           {/* 构建分支参数 */}
           <div className={cn("flex flex-col gap-1", !envParam && "sm:col-span-2")}>
             <div className="flex items-center justify-between gap-2">
@@ -501,7 +556,7 @@ export function QuickBuildTriggerForm({
                     <ListBox aria-label="远端分支选项">
                       {branchOptions.map((b) => (
                         <ListBox.Item key={b} id={b} textValue={b} className="font-mono text-xs">
-                          <span className="truncate block" title={b}>{b}</span>
+                          <OverflowTooltip text={b} className="block" />
                         </ListBox.Item>
                       ))}
                     </ListBox>
@@ -533,7 +588,7 @@ export function QuickBuildTriggerForm({
                   <ListBox aria-label="部署环境选项">
                     {envParam.choices.map((c) => (
                       <ListBox.Item key={c} id={c} textValue={c}>
-                        <span className="truncate block" title={c}>{c}</span>
+                        <OverflowTooltip text={c} className="block" />
                       </ListBox.Item>
                     ))}
                   </ListBox>
@@ -551,16 +606,18 @@ export function QuickBuildTriggerForm({
             <Accordion.Heading>
               <Accordion.Trigger className="group flex w-fit cursor-pointer items-center gap-1.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground">
                 <SlidersHorizontalIcon className="size-3" />
-                <span>更多参数配置 ({otherParams.length} 个参数)</span>
+                <span>更多参数配置 (<span className="font-mono tabular-nums">{otherParams.length}</span> 个参数)</span>
                 <Accordion.Indicator className="size-3" />
               </Accordion.Trigger>
             </Accordion.Heading>
             <Accordion.Panel>
               <Accordion.Body className="p-0 pt-2">
-                <div className="grid grid-cols-1 gap-2.5 rounded-lg border border-border/60 bg-muted/10 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2.5 rounded-lg border border-border/60 bg-surface-secondary/50 p-3 sm:grid-cols-2 lg:grid-cols-3">
                   {otherParams.map((p) => (
                     <div key={p.name} className="flex flex-col gap-1">
-                      <Label className="truncate font-mono text-[10px] text-muted-foreground" title={p.name}>{p.name}</Label>
+                      <Label className="min-w-0 font-mono text-[10px] text-muted-foreground">
+                        <OverflowTooltip text={p.name} className="min-w-0" />
+                      </Label>
                       {p.choices && p.choices.length > 0 ? (
                         <Select
                           aria-label={p.name}
@@ -576,7 +633,7 @@ export function QuickBuildTriggerForm({
                             <ListBox aria-label={p.name}>
                               {p.choices.map((c) => (
                                 <ListBox.Item key={c} id={c} textValue={c}>
-                                  <span className="truncate block" title={c}>{c}</span>
+                                  <OverflowTooltip text={c} className="block" />
                                 </ListBox.Item>
                               ))}
                             </ListBox>
@@ -609,9 +666,15 @@ export function QuickBuildTriggerForm({
         <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs">
             <span className="font-semibold text-foreground">即将触发：</span>
-            <span className="font-medium text-foreground truncate max-w-[160px]" title={currentTarget.repoName}>{currentTarget.repoName}</span>
+            <OverflowTooltip
+              text={currentTarget.repoName}
+              className="max-w-[160px] font-medium text-foreground"
+            />
             <span className="text-muted-foreground">·</span>
-            <span className="font-mono text-muted-foreground truncate max-w-[160px]" title={currentTarget.pipelineName}>{currentTarget.pipelineName}</span>
+            <OverflowTooltip
+              text={currentTarget.pipelineName}
+              className="max-w-[160px] font-mono text-muted-foreground"
+            />
             {branchParamName && (
               <>
                 <span className="text-border">|</span>
@@ -633,33 +696,12 @@ export function QuickBuildTriggerForm({
 
           <div className="flex shrink-0 items-center justify-end">
             {!allowWriteOps ? (
-              <Tooltip>
-                <Tooltip.Trigger
-                  aria-disabled="true"
-                  className="cursor-not-allowed opacity-60"
-                >
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-8 w-full gap-1.5 px-4 text-xs font-medium sm:w-auto"
-                    onPress={() => void handleTriggerClick()}
-                  >
-                    <PlayIcon className="size-3 fill-current" />
-                    <span>立即触发构建</span>
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content className="max-w-xs text-xs">
-                  当前处于只读保护模式，无法触发构建。可在
-                  <button
-                    type="button"
-                    onClick={() => openSettings('security')}
-                    className="ml-1 underline text-primary cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                  >
-                    设置 → 安全策略
-                  </button>
-                  开启写权限。
-                </Tooltip.Content>
-              </Tooltip>
+              /* 只读门控：aria-disabled 落在 Button 本身（不写在 Tooltip 触发器上），并带灰阶与说明 */
+              <WriteOpGatedTrigger
+                label="立即触发构建"
+                icon={<PlayIcon className="size-3 fill-current" />}
+                variant="primary"
+              />
             ) : (
               <Button
                 type="button"

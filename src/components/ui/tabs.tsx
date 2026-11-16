@@ -47,24 +47,26 @@ function TabsRoot({
 export interface TabsListProps
   extends React.ComponentPropsWithRef<typeof HeroTabs.List> {
   containerClassName?: string
+  /**
+   * 历史遗留的尺寸入参（audit P2-08）：HeroUI v3 的 Tabs 根只接受
+   * variant（primary/secondary）与 align，没有 size 维度，故该值既不透传也不改变渲染。
+   * 全仓 10+ 调用方仍在使用 `size="sm"`，删除声明会波及本文件之外的类型检查，
+   * 因此保留为兼容占位；待调用方统一迁移后再移除。
+   */
   size?: "default" | "sm" | "xs" | "lg"
-  variant?: "default" | "segmented" | "line" | "ghost"
 }
 
 function TabsList({
   className,
   containerClassName,
-  size,
-  variant,
+  size: _size,
   children,
   ...props
 }: TabsListProps) {
-  const isGhost = variant === "ghost"
   return (
     <HeroTabs.ListContainer
       className={cn(
         "w-fit",
-        isGhost && "bg-transparent p-0 rounded-none shadow-none",
         containerClassName
       )}
     >

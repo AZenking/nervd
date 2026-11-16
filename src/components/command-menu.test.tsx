@@ -159,13 +159,16 @@ describe('CommandMenu', () => {
     expect(useUi.getState().commandOpen).toBe(true);
   });
 
-  it('provides title attributes on truncated entry labels and hints', async () => {
+  it('renders long entry labels without unconditional native title (DESIGN §G1)', async () => {
     await act(async () => {
       root?.render(<CommandMenu />);
     });
 
-    // Recent item label
-    const recentLabel = document.querySelector('[title*="测试最近浏览工作项超长标题"]');
-    expect(recentLabel).not.toBeNull();
+    // 全文提示统一走 OverflowTooltip（仅真实截断时出现），不得再用原生 title（只对鼠标可见）
+    const labelled = Array.from(document.querySelectorAll<HTMLElement>('[title]')).filter((el) =>
+      (el.getAttribute('title') ?? '').includes('测试最近浏览工作项超长标题'),
+    );
+    expect(labelled).toHaveLength(0);
+    expect(document.body.textContent).toContain('测试最近浏览工作项超长标题');
   });
 });

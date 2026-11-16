@@ -10,7 +10,7 @@ const TONE_BAR_COLORS = {
   run: 'bg-sig-run/85',
   fail: 'bg-sig-fail/85',
   ok: 'bg-sig-ok/85',
-  idle: 'bg-muted-foreground/45',
+  idle: 'bg-sig-idle/45',
 } as const;
 
 export interface WorkitemStatusChartProps {
@@ -29,8 +29,17 @@ export function WorkitemStatusChart({
   className,
 }: WorkitemStatusChartProps) {
   const titleId = useId();
+  const summaryId = useId();
   const data = useMemo(() => toStatusChartData(items, complete), [items, complete]);
   const maxCount = useMemo(() => Math.max(1, ...data.map((d) => d.count)), [data]);
+  // 可访问名 + sr-only 数据摘要：图形容器 role="img"，读屏播报各组状态与计数，不依赖色块宽度
+  const summary = useMemo(
+    () =>
+      data
+        .map((row) => `${row.label} ${row.count} 项${row.percent != null ? `（${row.percent}%）` : ''}`)
+        .join('；'),
+    [data],
+  );
 
   return (
     <Card className={cn('min-w-0 flex-1', className)}>
@@ -43,7 +52,7 @@ export function WorkitemStatusChart({
             {complete ? '当前迭代与类别 · 完整列表' : '当前迭代与类别 · 已加载范围'}
           </p>
         </div>
-        <span className="shrink-0 font-mono text-xs text-muted-foreground">
+        <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
           {complete ? `共 ${items.length} 项` : `已加载 ${items.length} 项`}
         </span>
       </Card.Header>
@@ -63,35 +72,41 @@ export function WorkitemStatusChart({
         ) : data.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted-foreground">暂无工作项</div>
         ) : (
-          <ul aria-label="状态分布文本统计" className="flex flex-col gap-2.5 pt-1">
-            {data.map((row) => {
-              const widthPct = Math.max(4, Math.round((row.count / maxCount) * 100));
-              return (
-                <li key={row.label} className="flex items-center gap-3 text-xs">
-                  <StatusIcon status={row.label} className="size-3.5 shrink-0" />
-                  <span className="w-20 shrink-0 truncate text-foreground">{row.label}</span>
+          <div role="img" aria-labelledby={titleId} aria-describedby={summaryId} className="pt-1">
+            <ul aria-label="状态分布文本统计" className="flex flex-col gap-2.5">
+              {data.map((row) => {
+                const widthPct = Math.max(4, Math.round((row.count / maxCount) * 100));
+                return (
+                  <li key={row.label} className="flex items-center gap-3 text-xs">
+                    <StatusIcon status={row.label} className="size-3.5 shrink-0" />
+                    <span className="w-20 shrink-0 truncate text-foreground">{row.label}</span>
 
-                  <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted/40">
-                    <div
-                      className={cn('h-full rounded-full transition-all duration-300', TONE_BAR_COLORS[row.tone])}
-                      style={{ width: `${widthPct}%` }}
-                    />
-                  </div>
+                    <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-secondary">
+                      <div
+                        className={cn('h-full rounded-full transition-all duration-300', TONE_BAR_COLORS[row.tone])}
+                        style={{ width: `${widthPct}%` }}
+                      />
+                    </div>
 
-                  <div className="flex items-center justify-end gap-1.5 shrink-0">
-                    <span className="w-6 text-right font-mono tabular-nums text-foreground font-medium">
-                      {row.count}
-                    </span>
-                    {row.percent != null && (
-                      <span className="w-9 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
-                        {row.percent}%
+                    <div className="flex items-center justify-end gap-1.5 shrink-0">
+                      <span className="w-6 text-right font-mono tabular-nums text-foreground font-medium">
+                        {row.count}
                       </span>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                      {row.percent != null && (
+                        <span className="w-9 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+                          {row.percent}%
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <p id={summaryId} className="sr-only">
+              状态分布：{summary || '暂无工作项'}。数据范围：
+              {complete ? '当前迭代与类别完整列表' : '当前已加载范围，不含未加载数据'}。
+            </p>
+          </div>
         )}
       </Card.Content>
     </Card>

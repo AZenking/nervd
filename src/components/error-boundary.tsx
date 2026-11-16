@@ -57,12 +57,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <p className="text-sm font-semibold text-foreground">
             {this.props.label ? `${this.props.label}渲染出错` : '界面渲染出错'}
           </p>
-          <p className="max-w-md break-all font-mono text-xs text-muted-foreground">
+          <p className="max-w-md break-words font-mono text-xs text-muted-foreground">
             {error.message || String(error)}
           </p>
         </div>
         {componentStack && (
-          <pre className="max-h-60 max-w-2xl overflow-auto rounded bg-muted/60 p-2 text-left font-mono text-[11px] text-foreground/80">
+          <pre className="max-h-60 max-w-2xl overflow-auto rounded bg-surface-secondary p-2 text-left font-mono text-[11px] text-foreground/80">
             {componentStack}
           </pre>
         )}

@@ -14,7 +14,6 @@ import { type FileDiffItem, getDiffAnchorId } from './diff-utils';
 import { DiffFileTree } from './diff-file-tree';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -134,7 +133,7 @@ export function CodeDiffViewer({
 
   if (!diffs || diffs.length === 0) {
     return (
-      <div className="rounded-lg border border-border/40 bg-muted/20 p-4 text-center text-xs text-muted-foreground">
+      <div className="rounded-lg border border-border/40 bg-surface-secondary/40 p-4 text-center text-xs text-muted-foreground">
         暂无代码差异变动
       </div>
     );
@@ -202,7 +201,7 @@ export function CodeDiffViewer({
       {/* 右侧 Diff 检视区 */}
       <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden bg-background/40">
         {/* 工具栏：切换侧栏 + 全部展开/折叠 */}
-        <div className="h-9 px-3 border-b border-border/40 bg-muted/20 flex items-center justify-between shrink-0 text-xs">
+        <div className="h-9 px-3 border-b border-border/40 bg-surface-secondary/40 flex items-center justify-between shrink-0 text-xs">
           <div className="flex items-center gap-1.5">
             <Button
               type="button"
@@ -210,7 +209,7 @@ export function CodeDiffViewer({
               size="icon"
               className="size-6 text-muted-foreground hover:text-foreground"
               onPress={() => setIsSidebarOpen((v) => !v)}
-              title={isSidebarOpen ? '收起文件列表' : '展开文件列表'}
+              aria-label={isSidebarOpen ? '收起文件列表' : '展开文件列表'}
             >
               {isSidebarOpen ? (
                 <PanelLeftCloseIcon className="size-3.5" />
@@ -221,7 +220,6 @@ export function CodeDiffViewer({
 
             <OverflowTooltip
               text={activeFilePath || `${diffs.length} 个文件变动`}
-              title={activeFilePath || `${diffs.length} 个文件变动`}
               className="max-w-[280px] truncate font-mono text-[11px] text-muted-foreground"
             />
           </div>
@@ -236,7 +234,6 @@ export function CodeDiffViewer({
                     size="xs"
                     className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
                     onPress={expandAllDiffs}
-                    title="展开全部代码差异"
                     aria-label="展开全部代码差异"
                   >
                     <UnfoldVerticalIcon className="size-3" />
@@ -255,7 +252,6 @@ export function CodeDiffViewer({
                     size="xs"
                     className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
                     onPress={collapseAllDiffs}
-                    title="折叠全部代码差异"
                     aria-label="折叠全部代码差异"
                   >
                     <FoldVerticalIcon className="size-3" />
@@ -326,22 +322,27 @@ function DiffItemCard({
   const anchorId = getDiffAnchorId(filePath);
 
   return (
-    <Card
+    <div
       id={anchorId}
       className={cn(
-        'overflow-hidden p-0 text-xs scroll-mt-2 transition-all duration-300',
-        isHighlighted && 'ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/[0.04]',
+        'flex flex-col overflow-hidden rounded-lg border border-border/60 bg-card/40 text-xs scroll-mt-2 transition-colors duration-300',
+        isHighlighted && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
       )}
     >
       <Collapsible open={!isCollapsed} onOpenChange={onToggle}>
-        {/* 文件头部 */}
-        <CollapsibleTrigger
+        {/* 文件头部：触发器与复制按钮为兄弟节点，避免 button 套 button（非法 DOM + 焦点错乱） */}
+        <div
           className={cn(
-            'flex w-full items-center justify-between gap-2 border-b border-border/40 bg-muted/40 px-2.5 py-1.5 cursor-pointer select-none hover:bg-muted/60 transition-colors text-left',
+            'flex w-full items-center justify-between gap-2 border-b border-border/40 bg-surface-secondary/40 py-1.5 pl-2.5 pr-1.5 transition-colors hover:bg-surface-secondary',
             isHighlighted && 'bg-primary/10 hover:bg-primary/15',
           )}
         >
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <CollapsibleTrigger
+            className={cn(
+              'flex min-w-0 flex-1 cursor-pointer select-none items-center gap-1.5 rounded-sm text-left',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            )}
+          >
             <span className="p-0.5 text-muted-foreground">
               {isCollapsed ? (
                 <ChevronRightIcon className="size-3.5" />
@@ -362,22 +363,20 @@ function DiffItemCard({
 
             <OverflowTooltip
               text={filePath}
-              title={filePath}
               className="min-w-0 truncate font-mono font-medium text-foreground text-[11px]"
             />
 
             {file.renamedFile && file.oldPath !== file.newPath && (
               <OverflowTooltip
                 text={`重命名自 ${file.oldPath}`}
-                title={`重命名自 ${file.oldPath}`}
                 className="min-w-0 truncate text-[10px] text-muted-foreground font-mono"
               />
             )}
-          </div>
+          </CollapsibleTrigger>
 
-          {/* 变动统计与操作 */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center gap-1 font-mono text-[10px]">
+          {/* 变动统计与操作（复制按钮位于触发器之外） */}
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-center gap-1 font-mono text-[10px] tabular-nums">
               {file.additions > 0 && (
                 <span className="text-success font-semibold">
                   +{file.additions}
@@ -390,11 +389,9 @@ function DiffItemCard({
               )}
             </div>
 
-            <div onClick={(e) => e.stopPropagation()}>
-              <CopyButton text={filePath} label="复制路径" />
-            </div>
+            <CopyButton text={filePath} label="复制路径" />
           </div>
-        </CollapsibleTrigger>
+        </div>
 
         {/* 文件 Diff 正文 */}
         <CollapsibleContent>
@@ -417,7 +414,7 @@ function DiffItemCard({
                 return (
                   <div
                     key={idx}
-                    className="bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground font-medium select-none"
+                    className="min-w-max whitespace-pre bg-surface-secondary px-2 py-0.5 text-[10px] text-muted-foreground font-medium select-none"
                   >
                     {line.text}
                   </div>
@@ -431,7 +428,7 @@ function DiffItemCard({
                 <div
                   key={idx}
                   className={cn(
-                    'flex items-stretch hover:bg-muted/30 transition-colors',
+                    'flex min-w-max items-stretch hover:bg-surface-secondary/60 transition-colors',
                     isAdd &&
                       'bg-success/10 text-foreground/85',
                     isDel &&
@@ -458,7 +455,7 @@ function DiffItemCard({
                     {isAdd ? '+' : isDel ? '-' : ' '}
                   </span>
                   {/* 代码文本 */}
-                  <span className="flex-1 whitespace-pre-wrap break-all py-0.5 pr-2">
+                  <span className="flex-1 whitespace-pre py-0.5 pr-2">
                     {line.text || ' '}
                   </span>
                 </div>
@@ -468,6 +465,6 @@ function DiffItemCard({
           </ScrollArea>
         </CollapsibleContent>
       </Collapsible>
-    </Card>
+    </div>
   );
 }

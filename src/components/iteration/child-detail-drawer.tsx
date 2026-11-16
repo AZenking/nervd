@@ -46,7 +46,12 @@ import { useClipboard } from '@/hooks/use-clipboard';
 import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 import { StatusIcon } from '../status-icon';
 import { OverflowTooltip } from '../overflow-tooltip';
+import { SectionHeader } from '../section-header';
 import { RichDescription } from './rich-description';
+import { ChangeTimeline } from './requirement/change-timeline';
+import { toast } from '@/components/ui/toast';
+import { useUi } from '@/store/ui';
+import { StartProcessingButton } from './start-processing';
 
 export interface ChildDetailDrawerProps {
   child: WorkitemChild | null;
@@ -83,6 +88,8 @@ export function ChildDetailDrawer({
   const settings = useApp((s) => s.settings);
   const itemsInStore = useApp((s) => s.items);
   const currentUser = useApp((s) => s.currentUser);
+  const allowWrite = settings?.allowWriteOps ?? false;
+  const openSettings = useUi((s) => s.openSettings);
 
   const [rawDetail, setRawDetail] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -229,7 +236,40 @@ export function ChildDetailDrawer({
   const statusTone = statusMeta(statusName).tone;
   const statusColor = statusTone === 'ok' ? 'success' : statusTone === 'fail' ? 'danger' : statusTone === 'run' ? 'warning' : 'default';
 
-  const statusDropdown = (
+  const notifyReadonlyStatus = () => {
+    toast.add({
+      title: '当前处于只读模式',
+      description: '子项状态流转是写操作。可在「设置 → 安全」中开启写权限后执行。',
+      type: 'warning',
+      actionProps: {
+        children: '前往设置',
+        onClick: () => openSettings('security'),
+      },
+    });
+  };
+
+  const statusDropdown = !allowWrite ? (
+    // 只读门控（AGENTS §5.1）：保留 Tooltip 与可聚焦，不用原生 disabled / pointer-events-none
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-disabled="true"
+            aria-label={`状态：${statusName || '未指定'}（只读，点击查看原因）`}
+            onClick={notifyReadonlyStatus}
+            className="cursor-not-allowed rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <Chip size="sm" color={statusColor} variant="soft" className="opacity-80">
+              <StatusIcon status={statusName} className="size-3.5 shrink-0" />
+              <Chip.Label>{statusName || '未指定'}</Chip.Label>
+            </Chip>
+          </button>
+        }
+      />
+      <TooltipContent>写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）</TooltipContent>
+    </Tooltip>
+  ) : (
     <DropdownMenu
       open={statusOpen}
       onOpenChange={(v) => {
@@ -383,7 +423,7 @@ export function ChildDetailDrawer({
 
   return (
     <Drawer open={open} onOpenChange={(o) => { if (!o) onClose(); }} swipeDirection="right">
-      <DrawerContent className="w-full sm:w-[560px] sm:max-w-none">
+      <DrawerContent className="w-full sm:w-[36rem] sm:max-w-none">
         {/* 顶部页头与快捷工具栏 */}
         <DrawerHeader className="border-b border-border/70 pb-3">
           <div className="flex items-center justify-between gap-2">
@@ -401,7 +441,7 @@ export function ChildDetailDrawer({
               {child?.identifier && (
                 <button
                   type="button"
-                  className="inline-flex cursor-pointer rounded-sm shrink-0 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="inline-flex cursor-pointer rounded-sm shrink-0 transition-colors hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={copyIdentifier}
                   title="点击复制编号"
                 >
@@ -460,7 +500,6 @@ export function ChildDetailDrawer({
                       size="icon-xs"
                       onPress={onClose}
                       aria-label="关闭抽屉 (Esc)"
-                      title="关闭抽屉 (Esc)"
                     >
                       <XIcon className="size-3.5" />
                     </Button>
@@ -486,11 +525,9 @@ export function ChildDetailDrawer({
 
         {/* 抽屉滚动内容主体 */}
         <ScrollArea className="flex min-h-0 flex-1 flex-col gap-6 px-5 py-5">
-          {/* 属性列表：对齐 Linear 裸行规范 */}
+          {/* 属性列表：对齐 Linear 裸行规范（区块标题统一走 SectionHeader，DESIGN 第三部分 B） */}
           <section className="flex flex-col gap-2">
-            <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              属性
-            </p>
+            <SectionHeader level="h3" title="属性" />
             <Surface variant="secondary" className="rounded-lg border border-border/50 p-2">
               <Descriptions variant="plain" items={attributeItems} />
             </Surface>
@@ -498,9 +535,7 @@ export function ChildDetailDrawer({
 
           {/* 描述正文 */}
           <section className="flex flex-col gap-2.5">
-            <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              描述
-            </p>
+            <SectionHeader level="h3" title="描述" />
             {loading ? (
               <div className="flex flex-col gap-2 p-2">
                 <Skeleton className="h-4 w-3/4" />
@@ -519,6 +554,17 @@ export function ChildDetailDrawer({
               </Surface>
             )}
           </section>
+
+          {/* 代码变更时间线（只读聚合：commit / MR / build） */}
+          {open && child && (
+            <section className="flex flex-col gap-2.5" data-testid="child-code-changes">
+              <ChangeTimeline
+                workitemId={child.workitemId}
+                identifier={child.identifier}
+                compact
+              />
+            </section>
+          )}
         </ScrollArea>
 
         {/* 底部操作条 */}
@@ -527,6 +573,13 @@ export function ChildDetailDrawer({
             Esc 或点击外部关闭
           </span>
           <div className="flex items-center gap-2">
+            {child && (
+              <StartProcessingButton
+                workitemId={child.workitemId}
+                category={child.category === 'Bug' ? 'Bug' : 'Task'}
+                parentWorkitemId={parentWorkitem?.workitemId}
+              />
+            )}
             <Button variant="ghost" size="sm" onPress={onClose}>
               关闭
             </Button>
@@ -543,6 +596,7 @@ export function ChildDetailDrawer({
             )}
           </div>
         </div>
+
       </DrawerContent>
     </Drawer>
   );

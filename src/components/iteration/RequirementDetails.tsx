@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeftIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, DatabaseIcon,
-  ExternalLinkIcon, FolderIcon, GitBranchIcon, GitForkIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MoreHorizontalIcon,
-  MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, SparklesIcon, UserIcon, XIcon,
+  ArrowLeftIcon, CheckIcon, ChevronRightIcon, CopyIcon, DatabaseIcon,
+  ExternalLinkIcon, GitBranchIcon, GitForkIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MoreHorizontalIcon,
+  MousePointerClickIcon, PencilIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, SparklesIcon, XIcon,
 } from 'lucide-react';
 import { findRemoteBranch } from '@/lib/iteration-branches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { aiRecommendRepositories } from '@/lib/ai-api';
+import type { BreakdownContext, BreakdownRepoCode, BreakdownRepoScope } from '@/types/ai';
+import * as attributionApi from '@/lib/attribution-api';
+import { comparisonDiffs } from './BranchDivergenceCheck';
+import { parseFileDiffs } from './requirement/diff-utils';
 import type { AiRepoRecommendation } from '@/types/ai';
 import type { WorkitemChild } from '@/lib/api';
 import * as api from '@/lib/api';
@@ -28,6 +32,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { PageHeader, STICKY_PAGE_HEADER_CLASS } from '../page-header';
 import { AppBreadcrumb } from '../nav/app-breadcrumb';
 import { EmptyHint } from '../empty-hint';
@@ -38,6 +43,7 @@ import { richTextToPlain } from '@/lib/richtext';
 import { ChildDetailDrawer } from './child-detail-drawer';
 import { SectionHeader } from '../section-header';
 import { StatusIcon } from '../status-icon';
+import { WriteOpGatedTrigger } from '../WriteOpButton';
 import {
   resolveChildMrBranches,
   resolveRepoBranchRule,
@@ -53,18 +59,36 @@ import { LinkRepoModal } from './requirement/link-repo-modal';
 import { BranchStateDiagramModal } from './requirement/branch-state-diagram-modal';
 import { DetailAssigneePopover, DetailStatusPopover, RequirementProperties } from './requirement/requirement-properties';
 import { RequirementActivity } from './requirement/requirement-activity';
+import { workitemRepoOverride } from '@/lib/workitem-repos';
+import { StartProcessingButton } from './start-processing';
+import { ChangeTimeline } from './requirement/change-timeline';
 
 export { RequirementDetailsSkeleton };
 export type { RequirementDetailsProps };
-export type DetailTabKey = 'description' | 'repos' | 'children' | 'activity';
+export type DetailTabKey = 'description' | 'repos' | 'changes' | 'children' | 'activity';
 
 /**
  * 单栏窄窗口扩展 props（IterationView 在 < SINGLE_COLUMN_WORKSPACE_WIDTH 时传入）：
  * 提供顶部「返回列表」入口，点击后由父组件收起详情态并恢复全宽列表现场。
  * 独立扩展接口而不改 requirement/types.ts，保持原契约文件不动。
  */
+/** 云效返回的类别可能是 'Bug' / uuid / 空：只接受三种合法语义值，其余交给下一级兜底。 */
+function normalizeCategoryValue(value?: string | null): Category | null {
+  const normalized = (value ?? '').trim().toLowerCase();
+  if (normalized === 'req') return 'Req';
+  if (normalized === 'bug') return 'Bug';
+  if (normalized === 'task') return 'Task';
+  return null;
+}
+
 export interface RequirementDetailsBackToListProps {
   onBackToList?: () => void;
+}
+
+/** 子项「在工作台打开」扩展：嵌入态由 Peek 抽屉注入，接收目标子项。
+ *  基座契约 `onOpenWorkbench?: () => void` 未参数化，这里仅做局部收窄，不改冻结契约文件。 */
+export interface RequirementDetailsChildWorkbenchProps {
+  onOpenWorkbench?: (child?: WorkitemChild) => void;
 }
 
 /** 两段式仓库推荐：默认云效仓库池至少给出这么多条高置信结果即收手，不再扩到其他仓库 */
@@ -79,7 +103,7 @@ export function RequirementDetails({
   onSelectChild,
   onSelectParent,
   onBackToList,
-}: RequirementDetailsProps & RequirementDetailsBackToListProps = {}) {
+}: RequirementDetailsProps & RequirementDetailsBackToListProps & RequirementDetailsChildWorkbenchProps = {}) {
   // 只订阅详情工作台真正消费的字段：避免日志/CI 轮询等高频 set 触发整个详情树重渲。
   const {
     selectedId, detail, comments, children, childrenError, childrenDebug, childrenTruncated, loadingDetail, items, settings, repositories,
@@ -163,6 +187,8 @@ export function RequirementDetails({
   };
 
   const openWorkitem = useUi((s) => s.openWorkitem);
+  // DESIGN §F.3：全屏详情页头同样随工作区 <760px 收 compact
+  const compactHeader = useWorkspaceCompact();
   const chain = useUi((s) => s.chain);
   const currentCrumb = chain[chain.length - 1];
   const parentCrumb = chain.length > 1 ? chain[0] : null;
@@ -222,14 +248,17 @@ export function RequirementDetails({
     || cur?.subject
     || '';
 
-  const category = (typeof wi.category === 'string' && wi.category)
-    || childFromStore?.category
-    || cur?.category
-    || (parent ? 'Task' : 'Req');
+  const category = normalizeCategoryValue(typeof wi.category === 'string' ? wi.category : '')
+    ?? normalizeCategoryValue(typeof wi.categoryId === 'string' ? wi.categoryId : '')
+    ?? normalizeCategoryValue(childFromStore?.category)
+    ?? normalizeCategoryValue(cur?.category)
+    ?? (parent ? 'Task' : 'Req');
 
   const isRequirement = category === 'Req';
-  const subtasks = isRequirement ? children.filter((c) => c.category !== 'Bug') : [];
-  const defects = isRequirement ? children.filter((c) => c.category === 'Bug') : [];
+  // 类别大小写归一：后端已按检索类别回填，这里再兜一层脏数据（空/UUID 不会误入缺陷）
+  const isBugChild = (c: WorkitemChild) => (c.category ?? '').trim().toLowerCase() === 'bug';
+  const subtasks = isRequirement ? children.filter((c) => !isBugChild(c)) : [];
+  const defects = isRequirement ? children.filter(isBugChild) : [];
 
   const [activeTab, setActiveTab] = useState<DetailTabKey>('description');
 
@@ -350,15 +379,26 @@ export function RequirementDetails({
     || cur?.updatedAt
     || '';
 
-  // 关联仓库上下文：需求走自身覆盖链；任务/缺陷继承父需求的解析链（父覆盖 → 默认云效仓库），
-  // 继承为解析时行为，不向 settings 落盘子项键。
+  // 关联仓库上下文（方案 A）：展示与编辑只认「显式关联」；
+  // 追溯/分支配置仍用扫描范围（显式关联优先，缺省回退默认云效仓库）。
+  // 任务/缺陷继承父需求的显式关联，且不向 settings 落盘子项键。
   const repoContextId = isRequirement ? selectedId : parent?.workitemId;
-  const hasRepoOverride = repoContextId != null && Object.prototype.hasOwnProperty.call(settings?.workitemRepos ?? {}, repoContextId);
-  const effectiveRepoIds = useMemo(
-    () => (hasRepoOverride
-      ? settings?.workitemRepos[repoContextId!] ?? []
-      : settings?.watchedRepos ?? []),
-    [hasRepoOverride, repoContextId, settings],
+  const repoOverride = useMemo(
+    () => (settings && repoContextId
+      ? workitemRepoOverride(
+        category as Category,
+        selectedId ?? '',
+        settings,
+        isRequirement ? undefined : parent?.workitemId,
+      )
+      : null),
+    [category, isRequirement, parent?.workitemId, repoContextId, selectedId, settings],
+  );
+  const hasRepoOverride = repoOverride !== null;
+  const explicitRepoIds = useMemo(() => repoOverride ?? [], [repoOverride]);
+  const scanRepoIds = useMemo(
+    () => repoOverride ?? settings?.watchedRepos ?? [],
+    [repoOverride, settings?.watchedRepos],
   );
   const [savingRepos, setSavingRepos] = useState(false);
   const [isLinkRepoModalOpen, setIsLinkRepoModalOpen] = useState(false);
@@ -382,6 +422,7 @@ export function RequirementDetails({
     setRecommendedRepos([]);
     setIsLinkRepoModalOpen(false);
     setRepoFilter('all');
+    setShowDefaultPool(false);
   }, [selectedId]);
 
   const copyIdentifier = () => {
@@ -408,23 +449,26 @@ export function RequirementDetails({
       || parentRow?.sprintName
       || (typeof sprint.name === 'string' ? sprint.name : '')
     : (cur?.sprintName || parentRow?.sprintName || (typeof sprint.name === 'string' ? sprint.name : ''));
+  const iterationEndDate = iterationId
+    ? iterations.find((iteration) => iteration.id === iterationId)?.endDate ?? ''
+    : '';
   const fusedTemplates = useFusedBranchTemplates(iterationId);
   // 分支规则上下文：需求取自身；任务/缺陷以父需求为模板查找键（显式覆盖与方案 A 自动继承均生效），
   // {identifier} 用子项自身编号展开 → rule.workitemBranch 即子项开发分支。
   const branchRuleContextId = isRequirement ? selectedId : parent?.workitemId;
   const repoBranchRules: Record<number, ResolvedRepoBranchRule> = useMemo(
     () => (iterationId && branchRuleContextId
-      ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
-        const rule = resolveRepoBranchRule(settings, branchRuleContextId, repoId, iterationName, identifier, fusedTemplates);
+      ? Object.fromEntries(explicitRepoIds.flatMap((repoId) => {
+        const rule = resolveRepoBranchRule(settings, branchRuleContextId, repoId, iterationName, identifier, fusedTemplates, iterationEndDate);
         return rule ? [[repoId, rule]] : [];
       }))
       : {}),
-    [branchRuleContextId, effectiveRepoIds, fusedTemplates, identifier, iterationId, iterationName, settings],
+    [branchRuleContextId, explicitRepoIds, fusedTemplates, identifier, iterationEndDate, iterationId, iterationName, settings],
   );
   // 缺陷页 MR 分支（「缺陷单号分支 → 需求单号分支」）：目标分支按父需求交付轨道以需求编号展开
   const bugMrTargetByRepo: Record<number, string> = useMemo(
     () => (!isRequirement && category === 'Bug' && parent && identifier
-      ? Object.fromEntries(effectiveRepoIds.flatMap((repoId) => {
+      ? Object.fromEntries(explicitRepoIds.flatMap((repoId) => {
         const { targetBranch } = resolveChildMrBranches(settings, {
           parentWorkitemId: parent.workitemId,
           parentIdentifier: parent.identifier,
@@ -432,15 +476,16 @@ export function RequirementDetails({
           iterationName,
           repoId,
           customTemplates: fusedTemplates,
+          iterationEndDate,
         });
         return [[repoId, targetBranch]];
       }))
       : {}),
-    [category, effectiveRepoIds, fusedTemplates, identifier, isRequirement, iterationName, parent, settings],
+    [category, explicitRepoIds, fusedTemplates, identifier, isRequirement, iterationEndDate, iterationName, parent, settings],
   );
   const baselineLookups = useMemo(
     () => (iterationId
-      ? effectiveRepoIds.flatMap((repoId) => {
+      ? explicitRepoIds.flatMap((repoId) => {
         const rule = repoBranchRules[repoId];
         if (!rule?.baselineBranch.trim()) return [];
         // 直连主干（Trunk-Based）：不发起独立基准查询，探测模板源分支存在性并归并复用为基准状态
@@ -450,7 +495,7 @@ export function RequirementDetails({
         return [{ repoId, branch }];
       })
       : []),
-    [effectiveRepoIds, iterationId, repoBranchRules],
+    [explicitRepoIds, iterationId, repoBranchRules],
   );
   const baselineLookupKey = useMemo(() => JSON.stringify(baselineLookups), [baselineLookups]);
   const [baselineChecks, setBaselineChecks] = useState<Record<number, IterationBaselineCheck>>({});
@@ -489,15 +534,17 @@ export function RequirementDetails({
       ? '未关联迭代'
       : !configuredBaselineCount
         ? '未配置轨道'
-        : configuredBaselineCount === effectiveRepoIds.length && effectiveRepoIds.length === 1
-          ? repoBranchRules[effectiveRepoIds[0]].templateName
+        : configuredBaselineCount === explicitRepoIds.length && explicitRepoIds.length === 1
+          ? repoBranchRules[explicitRepoIds[0]].templateName
           : configuredBaselineCount + ' 个仓库已应用交付轨道';
 
   const linkedRepos = useMemo(
-    () => repositories.filter((r) => effectiveRepoIds.includes(r.id)),
-    [effectiveRepoIds, repositories],
+    () => repositories.filter((r) => explicitRepoIds.includes(r.id)),
+    [explicitRepoIds, repositories],
   );
   const [repoFilter, setRepoFilter] = useState<'all' | 'pending_merge' | 'active' | 'merged'>('all');
+  // 空态下折叠展示默认扫描池，避免把「默认池」误当成显式关联
+  const [showDefaultPool, setShowDefaultPool] = useState(false);
   const branchesByRepoId = useMemo(
     () => new Map(
       (trace?.repositories ?? []).map((repository) =>
@@ -513,6 +560,115 @@ export function RequirementDetails({
       ),
     ),
     [trace],
+  );
+
+  // AI 拆解上下文：改动范围（compare diffs）+ 现有代码节选（文件树 & 关键词命中文件）。
+  // 分支尚未创建时仍读取基准分支代码，帮助模型理解模块结构。
+  const collectBreakdownContext = useCallback(
+    async (repoIds: number[], keywords: string[]): Promise<BreakdownContext> => {
+      const unique = [...new Set(repoIds)].slice(0, 5);
+      const scope = await Promise.all(
+        unique.map(async (repoId) => {
+          const repo = repositories.find((item) => item.id === repoId);
+          const repoName = repo?.pathWithNamespace || repo?.name || `#${repoId}`;
+          const rule = iterationId && branchRuleContextId && settings
+            ? resolveRepoBranchRule(
+              settings,
+              branchRuleContextId,
+              repoId,
+              iterationName,
+              identifier,
+              fusedTemplates,
+              iterationEndDate,
+            )
+            : null;
+          const workitemBranch = rule?.workitemBranch?.trim() || '';
+          const baselineBranch = rule?.baselineBranch?.trim() || rule?.sourceBranch?.trim() || '';
+          if (!workitemBranch) {
+            return { repoName, branchCreated: false } satisfies BreakdownRepoScope;
+          }
+          if (!baselineBranch) {
+            return {
+              repoName,
+              workitemBranch,
+              branchCreated: true,
+              note: '缺少基准分支，未读取变更文件',
+            } satisfies BreakdownRepoScope;
+          }
+          try {
+            const raw = await api.compareBranches(repoId, baselineBranch, workitemBranch);
+            const files = parseFileDiffs(comparisonDiffs(raw))
+              .map((file) => ({
+                path: file.newPath || file.oldPath,
+                additions: file.additions,
+                deletions: file.deletions,
+              }))
+              .filter((file) => Boolean(file.path))
+              .sort((left, right) => (right.additions + right.deletions) - (left.additions + left.deletions))
+              .slice(0, 30);
+            return {
+              repoName,
+              workitemBranch,
+              baselineBranch,
+              branchCreated: true,
+              files,
+            } satisfies BreakdownRepoScope;
+          } catch {
+            // trace 未必覆盖用户临时选中的仓库，因此不以本地分支缓存为准：
+            // compare 失败通常代表开发分支尚未创建（也涵盖无权/网络失败）。
+            return {
+              repoName,
+              workitemBranch,
+              baselineBranch,
+              branchCreated: false,
+              note: '开发分支尚未创建或无法读取',
+            } satisfies BreakdownRepoScope;
+          }
+        }),
+      );
+
+      const code = await Promise.all(
+        scope.map(async (entry, index) => {
+          const repoId = unique[index];
+          const changedPaths = entry.files?.map((file) => file.path) ?? [];
+          // 有改动读改动文件；没有改动读基准分支上关键词命中的现有代码
+          const refName = entry.branchCreated
+            ? entry.workitemBranch
+            : entry.baselineBranch || entry.workitemBranch;
+          try {
+            const context = await attributionApi.readLocalRepoCode({
+              repoId,
+              refName,
+              paths: changedPaths.slice(0, 4),
+              keywords: changedPaths.length > 0 ? undefined : keywords,
+            });
+            return {
+              repoName: entry.repoName,
+              gitRef: context.gitRef,
+              tree: context.tree,
+              files: context.files,
+            } satisfies BreakdownRepoCode;
+          } catch {
+            return {
+              repoName: entry.repoName,
+              note: '本地未绑定该仓库或代码读取失败',
+            } satisfies BreakdownRepoCode;
+          }
+        }),
+      );
+
+      return { scope, code };
+    },
+    [
+      branchRuleContextId,
+      fusedTemplates,
+      identifier,
+      iterationEndDate,
+      iterationId,
+      iterationName,
+      repositories,
+      settings,
+    ],
   );
 
   // 待合入：存在开放中的 MR（包含待合入、审查中等活跃 MR）
@@ -636,11 +792,11 @@ export function RequirementDetails({
   ): Promise<boolean> => {
     if (!selectedId || !repoPath) return false;
     const repo = repositories.find((r) => (r.pathWithNamespace || r.name) === repoPath);
-    if (!repo || effectiveRepoIds.includes(repo.id)) return false;
+    if (!repo || explicitRepoIds.includes(repo.id)) return false;
     setSavingRepos(true);
     let repoLinked = false;
     try {
-      await saveWorkitemRepos(selectedId, [...effectiveRepoIds, repo.id]);
+      await saveWorkitemRepos(selectedId, repoOverride ? [...explicitRepoIds, repo.id] : [repo.id]);
       repoLinked = true;
       if (iterationId && templateId) {
         await saveWorkitemRepoBranchTemplate(selectedId, repo.id, templateId);
@@ -673,7 +829,7 @@ export function RequirementDetails({
     try {
       const watched = settings?.watchedRepos ?? [];
       const watchedSet = new Set(watched);
-      const unlinked = repositories.filter((r) => !effectiveRepoIds.includes(r.id));
+      const unlinked = repositories.filter((r) => !explicitRepoIds.includes(r.id));
       const descriptionText = richTextToPlain(wi.description ?? wi.content);
       const selectedRow = items.find((item) => item.workitemId === selectedId);
       // 共现只统计真正同迭代（sprint）的工作项；store.items 是全量已加载列表
@@ -750,13 +906,13 @@ export function RequirementDetails({
   };
 
   const handleQuickLinkRepo = async (repoId: number) => {
-    if (!selectedId || effectiveRepoIds.includes(repoId)) return;
+    if (!selectedId || explicitRepoIds.includes(repoId)) return;
     const repo = repositories.find((r) => r.id === repoId);
     if (!repo) return;
     setSavingRepos(true);
     let repoLinked = false;
     try {
-      await saveWorkitemRepos(selectedId, [...effectiveRepoIds, repo.id]);
+      await saveWorkitemRepos(selectedId, repoOverride ? [...explicitRepoIds, repo.id] : [repo.id]);
       repoLinked = true;
       const tId = fusedTemplates[0]?.id;
       if (iterationId && tId) {
@@ -802,7 +958,7 @@ export function RequirementDetails({
   const unlinkRepo = (repoId: number) => {
     if (!selectedId) return;
     setSavingRepos(true);
-    const nextRepoIds = effectiveRepoIds.filter((id) => id !== repoId);
+    const nextRepoIds = explicitRepoIds.filter((id) => id !== repoId);
     void saveWorkitemRepos(selectedId, nextRepoIds)
       .then(() => setToast({ text: '已取消关联云效仓库', kind: 'ok' }))
       .catch((e) => {
@@ -872,7 +1028,7 @@ export function RequirementDetails({
               {identifier && (
                 <button
                   type="button"
-                  className="inline-flex cursor-pointer rounded-sm shrink-0 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="inline-flex cursor-pointer rounded-sm shrink-0 transition-colors hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={copyIdentifier}
                   title="点击复制编号"
                 >
@@ -896,6 +1052,15 @@ export function RequirementDetails({
           actions={(
             /* 常驻操作：分支图谱 / 刷新 / 云效直出 / 全屏 / 关闭（原生 HeroUI 图标按钮） */
             <div className="flex shrink-0 items-center gap-1">
+              {/* 子项的开始处理优先放在「挂载于需求」横幅里（带文字、可发现）；
+                  父需求未解析时退回页头图标入口，避免完全没有入口。 */}
+              {!isRequirement && selectedId && !parent && (
+                <StartProcessingButton
+                  workitemId={selectedId}
+                  category={category === 'Bug' ? 'Bug' : 'Task'}
+                  iconOnly
+                />
+              )}
               {isRequirement && (
                 <HeroButton
                   type="button"
@@ -983,94 +1148,22 @@ export function RequirementDetails({
                 <Chip.Label>{category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category}</Chip.Label>
               </Chip>
 
-              {/* 项目空间 Chip */}
-              {spaceName && (
-                <Chip
-                  size="sm"
-                  variant="soft"
-                  className="gap-1.5 max-w-48 text-foreground/85 select-none"
-                  title={`项目空间：${spaceName}`}
-                >
-                  <FolderIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <Chip.Label className="truncate">
-                    <OverflowTooltip text={spaceName} className="truncate" />
-                  </Chip.Label>
-                </Chip>
-              )}
-
-              {/* 所属迭代 Chip */}
-              <Chip
-                size="sm"
-                variant="soft"
-                className="gap-1.5 max-w-56 text-foreground/85 select-none"
-                title={`所属迭代：${iterationName || '未关联迭代'}`}
-              >
-                <CalendarIcon className="size-3.5 text-muted-foreground shrink-0" />
-                <Chip.Label className="truncate">
-                  <OverflowTooltip
-                    text={iterationName || '未关联迭代'}
-                    className="truncate"
-                  />
-                </Chip.Label>
-              </Chip>
-
               {/* 关联仓库 Chip */}
               <button
                 type="button"
-                className="inline-flex cursor-pointer rounded-sm transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="inline-flex cursor-pointer rounded-sm transition-colors hover:bg-surface-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 onClick={() => {
                   setActiveTab('repos');
                   const el = document.getElementById('linked-repos-section');
                   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
-                title={`已关联 ${effectiveRepoIds.length} 个代码仓库，点击切换至关联仓库标签页`}
+                title={`已关联 ${explicitRepoIds.length} 个代码仓库，点击切换至关联仓库标签页`}
               >
                 <Chip size="sm" variant="soft" className="gap-1.5 text-foreground/85">
                   <DatabaseIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <Chip.Label>{effectiveRepoIds.length} 个仓库</Chip.Label>
+                  <Chip.Label>{explicitRepoIds.length} 个仓库</Chip.Label>
                 </Chip>
               </button>
-
-              {/* 交付轨道 Chip */}
-              {iterationBranchValue && iterationBranchValue !== '—' && (
-                <Chip
-                  size="sm"
-                  variant="soft"
-                  className="gap-1.5 max-w-56 text-foreground/85 select-none font-mono"
-                  title={`交付轨道（Track/局点）：${iterationBranchValue}`}
-                >
-                  <GitBranchIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <Chip.Label className="truncate">
-                    <OverflowTooltip text={iterationBranchValue} className="truncate" />
-                  </Chip.Label>
-                </Chip>
-              )}
-
-              {/* 更新时间 Chip */}
-              {updatedAt && (
-                <Chip
-                  size="sm"
-                  variant="soft"
-                  className="gap-1.5 text-muted-foreground select-none font-mono"
-                  title={`最后更新时间：${String(updatedAt).replace('T', ' ')}`}
-                >
-                  <ClockIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <Chip.Label>{String(updatedAt).slice(0, 16).replace('T', ' ')}</Chip.Label>
-                </Chip>
-              )}
-
-              {/* 创建人 Chip（若与处理人不同） */}
-              {creatorName && creatorName !== assignedToName && (
-                <Chip
-                  size="sm"
-                  variant="soft"
-                  className="gap-1.5 text-muted-foreground select-none"
-                  title={`创建人：${creatorName}`}
-                >
-                  <UserIcon className="size-3.5 text-muted-foreground shrink-0" />
-                  <Chip.Label>创建: {creatorName}</Chip.Label>
-                </Chip>
-              )}
 
               {/* 父需求 Chip */}
               {parent && (
@@ -1097,19 +1190,20 @@ export function RequirementDetails({
       ) : (
         <PageHeader
           breadcrumb={<AppBreadcrumb />}
+          density={compactHeader ? 'compact' : 'regular'}
           title={(
             <span className="flex min-w-0 items-center gap-2.5">
               <StatusIcon status={statusName} className="size-4 shrink-0" />
               <OverflowTooltip
                 text={subject}
-                className="min-w-0 truncate text-xl sm:text-2xl font-semibold tracking-tight text-foreground"
+                className="min-w-0 truncate text-foreground"
               />
             </span>
           )}
           titleBadge={identifier ? (
             <button
               type="button"
-              className="inline-flex cursor-pointer rounded-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="inline-flex cursor-pointer rounded-sm transition-colors hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               onClick={copyIdentifier}
               title="点击复制编号"
             >
@@ -1123,9 +1217,16 @@ export function RequirementDetails({
               </Chip>
             </button>
           ) : undefined}
-          titleClassName="text-2xl font-semibold tracking-tight"
           actions={(
             <div className="flex items-center gap-2">
+              {!isRequirement && selectedId && (
+                <StartProcessingButton
+                  workitemId={selectedId}
+                  category={category === 'Bug' ? 'Bug' : 'Task'}
+                  parentWorkitemId={parent?.workitemId}
+                  size="sm"
+                />
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -1158,7 +1259,7 @@ export function RequirementDetails({
         'mx-auto flex w-full flex-col gap-8 pb-12',
         embedded
           ? 'max-w-full px-5 pt-5 pb-12'
-          : 'max-w-7xl xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start xl:gap-10 px-5 py-2',
+          : 'max-w-5xl xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start xl:gap-10 px-5 py-2',
       )}>
         {/* 左主列：无卡片白框，纯粹呼吸感的 Linear 画布 */}
         <div className="flex min-w-0 flex-col gap-8">
@@ -1184,20 +1285,30 @@ export function RequirementDetails({
                   <OverflowTooltip text={parent.subject} className="truncate max-w-xs" />
                 </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="xs"
-                className="h-6 text-[11px] text-muted-foreground hover:text-foreground shrink-0"
-                onClick={() => {
-                  if (embedded && onSelectParent) {
-                    onSelectParent(parent.workitemId);
-                  } else {
-                    openWorkitem(parent.workitemId, parent);
-                  }
-                }}
-              >
-                查看父需求 ›
-              </Button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {embedded && !isRequirement && selectedId && (
+                  <StartProcessingButton
+                    workitemId={selectedId}
+                    category={category === 'Bug' ? 'Bug' : 'Task'}
+                    parentWorkitemId={parent.workitemId}
+                    size="xs"
+                  />
+                )}
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="h-6 text-[11px] text-muted-foreground hover:text-foreground shrink-0"
+                  onClick={() => {
+                    if (embedded && onSelectParent) {
+                      onSelectParent(parent.workitemId);
+                    } else {
+                      openWorkitem(parent.workitemId, parent);
+                    }
+                  }}
+                >
+                  查看父需求 ›
+                </Button>
+              </div>
             </Surface>
           )}
 
@@ -1218,12 +1329,16 @@ export function RequirementDetails({
                   <Tabs.Tab id="repos">
                     <span className="flex items-center gap-1.5">
                       <span>关联仓库</span>
-                      {effectiveRepoIds.length > 0 && (
-                        <span className="rounded-sm border border-border/40 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
-                          {effectiveRepoIds.length}
+                      {explicitRepoIds.length > 0 && (
+                        <span className="rounded-sm border border-border/40 bg-surface-secondary/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
+                          {explicitRepoIds.length}
                         </span>
                       )}
                     </span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                  <Tabs.Tab id="changes">
+                    <span>变更</span>
                     <Tabs.Indicator />
                   </Tabs.Tab>
                   {isRequirement && (
@@ -1231,7 +1346,7 @@ export function RequirementDetails({
                       <span className="flex items-center gap-1.5">
                         <span>子工作项</span>
                         {subtasks.length + defects.length > 0 && (
-                          <span className="rounded-sm border border-border/40 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
+                          <span className="rounded-sm border border-border/40 bg-surface-secondary/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
                             {subtasks.length + defects.length}
                           </span>
                         )}
@@ -1243,7 +1358,7 @@ export function RequirementDetails({
                     <span className="flex items-center gap-1.5">
                       <span>活动动态</span>
                       {comments.length > 0 && (
-                        <span className="rounded-sm border border-border/40 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
+                        <span className="rounded-sm border border-border/40 bg-surface-secondary/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
                           {comments.length}
                         </span>
                       )}
@@ -1255,23 +1370,32 @@ export function RequirementDetails({
             </div>
 
             {/* 标签页 1：需求描述 */}
-            <Tabs.Panel id="description" className="p-0 outline-none">
+            <Tabs.Panel id="description" className="p-0 outline-none focus-visible:ring-1 focus-visible:ring-ring">
               <section className="flex flex-col gap-3">
                 <SectionHeader
                   title="描述"
                   action={
-                    selectedId && allowWrite && !isEditingDesc ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => setIsEditingDesc(true)}
-                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-                        title="编辑描述"
-                      >
-                        <PencilIcon className="size-3 mr-1" />
-                        编辑
-                      </Button>
+                    selectedId && !isEditingDesc ? (
+                      allowWrite ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => setIsEditingDesc(true)}
+                          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                          title="编辑描述"
+                        >
+                          <PencilIcon className="size-3 mr-1" />
+                          编辑
+                        </Button>
+                      ) : (
+                        // 只读态不隐藏入口：灰阶 + Tooltip + Toast 引导前往设置
+                        <WriteOpGatedTrigger
+                          label="编辑描述"
+                          icon={<PencilIcon className="size-3" />}
+                          variant="ghost"
+                        />
+                      )
                     ) : null
                   }
                 />
@@ -1287,12 +1411,12 @@ export function RequirementDetails({
             </Tabs.Panel>
 
             {/* 标签页 2：关联云效仓库与代码操作 */}
-            <Tabs.Panel id="repos" className="p-0 outline-none">
+            <Tabs.Panel id="repos" className="p-0 outline-none focus-visible:ring-1 focus-visible:ring-ring">
               <section id="linked-repos-section" className="flex flex-col gap-3">
             {/* 标题简化为「关联仓库 · n」；常驻 刷新全部 / 关联仓库(+Modal)，更多操作收入菜单 */}
             <SectionHeader
               title="关联仓库"
-              count={`· ${effectiveRepoIds.length}`}
+              count={`· ${explicitRepoIds.length}`}
               action={(
                 <div className="flex items-center gap-1.5">
                   {/* 子项关联仓库继承父需求：增删/推荐/轨道配置在需求页管理，子项只读继承 */}
@@ -1395,7 +1519,7 @@ export function RequirementDetails({
               open={isLinkRepoModalOpen}
               onOpenChange={setIsLinkRepoModalOpen}
               repositories={repositories}
-              effectiveRepoIds={effectiveRepoIds}
+              effectiveRepoIds={explicitRepoIds}
               fusedTemplates={fusedTemplates}
               iterationId={iterationId}
               isRequirement={isRequirement}
@@ -1464,6 +1588,8 @@ export function RequirementDetails({
                         repo={repo}
                         identifier={identifier}
                         subject={subject}
+                        workitemId={selectedId ?? undefined}
+                        parentWorkitemId={parent?.workitemId}
                         iterationId={iterationId}
                         placeholderIteration={placeholderIteration}
                         branchRule={rule}
@@ -1485,7 +1611,7 @@ export function RequirementDetails({
                         refreshSignal={codeAreaRefreshSignal}
                         onRetryBaseline={() => setBaselineRetry((value) => value + 1)}
                         onTemplateChange={(templateId) => void saveRepoTemplate(repo.id, templateId)}
-                        onUnlinkRepo={isRequirement && effectiveRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}
+                        onUnlinkRepo={isRequirement && explicitRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}
                         operationBaseBranchOverride={!isRequirement && category === 'Bug' ? bugMrTargetByRepo[repo.id] : undefined}
                         bugMrContext={!isRequirement && category === 'Bug' && parent && selectedId ? {
                           bugWorkitemId: selectedId,
@@ -1496,19 +1622,35 @@ export function RequirementDetails({
                     );
                   })}
                   {filteredLinkedRepos.length === 0 && (
-                    <Surface variant="secondary" className="rounded-lg border border-dashed border-border/70 py-8 text-center text-xs text-muted-foreground">
-                      当前筛选条件下暂无关联仓库
+                    <Surface variant="secondary" className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/70 px-4 py-8 text-center text-xs text-muted-foreground">
+                      <span>当前筛选条件下暂无关联仓库</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="text-xs"
+                        onClick={() => setRepoFilter('all')}
+                      >
+                        清除筛选
+                      </Button>
                     </Surface>
                   )}
                 </div>
               </div>
             ) : (
+              <>
               <EmptyHint
                 icon={InboxIcon}
-                title="未关联云效仓库"
-                description={isRequirement
-                  ? '可在上方「关联仓库」选择后添加，或点击下方让 AI 智能分析推荐'
-                  : `关联仓库继承自父需求${parent ? `（${parent.identifier}）` : ''}，请在父需求详情页配置后在此查看`}
+                title={hasRepoOverride ? '关联仓库为空' : '未显式关联云效仓库'}
+                description={
+                  isRequirement
+                    ? (hasRepoOverride
+                      ? '该需求显式关联为空，追溯不会扫描仓库；可从上方「关联仓库」重新选择，或在「更多」中恢复默认仓库。'
+                      : `尚未显式关联仓库；追溯默认扫描 ${scanRepoIds.length} 个云效仓库（团队默认池）。关联后只追溯你挑选的仓库。`)
+                    : (hasRepoOverride
+                      ? `父需求${parent ? `（${parent.identifier}）` : ''}显式关联为空，子项不再追溯任何仓库；请在父需求详情页重新配置。`
+                      : `关联仓库继承自父需求${parent ? `（${parent.identifier}）` : ''}：父需求未显式关联时沿用其默认扫描池，请在父需求详情页配置。`)
+                }
                 className="rounded-xl border border-dashed py-8"
                 action={isRequirement ? (
                   <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
@@ -1538,6 +1680,39 @@ export function RequirementDetails({
                   </div>
                 ) : undefined}
               />
+              {isRequirement && !hasRepoOverride && scanRepoIds.length > 0 && (
+                <div className="flex flex-col gap-2 rounded-lg border border-border/60 px-3 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowDefaultPool((value) => !value)}
+                    className="flex cursor-pointer items-center gap-1.5 self-start text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-expanded={showDefaultPool}
+                  >
+                    <ChevronRightIcon
+                      className={cn('size-3.5 transition-transform', showDefaultPool && 'rotate-90')}
+                    />
+                    <span>查看默认扫描仓库（{scanRepoIds.length}）</span>
+                  </button>
+                  {showDefaultPool && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {repositories
+                        .filter((repo) => scanRepoIds.includes(repo.id))
+                        .map((repo) => (
+                          <Chip
+                            key={repo.id}
+                            size="sm"
+                            variant="secondary"
+                            className="font-mono text-[10px]"
+                            title={repo.pathWithNamespace || repo.name}
+                          >
+                            {repo.pathWithNamespace || repo.name}
+                          </Chip>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              </>
             )}
 
             {/* AI 推荐结果展示卡片区（直接在关联仓库正下方呈现） */}
@@ -1614,12 +1789,24 @@ export function RequirementDetails({
           </section>
         </Tabs.Panel>
 
-        {/* 标签页 3：子工作项与缺陷 */}
+        {/* 标签页 3：代码变更（提交 / MR / 构建，按工作项归属） */}
+        <Tabs.Panel id="changes" className="p-0 outline-none focus-visible:ring-1 focus-visible:ring-ring">
+          {selectedId ? (
+            <ChangeTimeline workitemId={selectedId} identifier={identifier} />
+          ) : null}
+        </Tabs.Panel>
+
+        {/* 标签页 4：子工作项与缺陷 */}
         {isRequirement && (
-          <Tabs.Panel id="children" className="p-0 outline-none">
+          <Tabs.Panel id="children" className="p-0 outline-none focus-visible:ring-1 focus-visible:ring-ring">
             {(() => {
               const openChild = (child: WorkitemChild) => {
                 setActiveChildId(child.workitemId);
+                // 嵌入态（Peek 抽屉）就地钻取到子项，避免抽屉套抽屉；独立工作台保留子项抽屉。
+                if (embedded && onSelectChild) {
+                  onSelectChild(child);
+                  return;
+                }
                 setDrawerChild(child);
               };
 
@@ -1641,6 +1828,8 @@ export function RequirementDetails({
                     parentIdentifier={identifier}
                     parentSubject={subject}
                     parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
+                    explicitRepoIds={explicitRepoIds}
+                    collectBreakdownContext={collectBreakdownContext}
                     parentAssigneeId={parentAssigneeId}
                     parentAssigneeName={assignedToName}
                     candidateAssignees={candidateAssignees}
@@ -1658,6 +1847,8 @@ export function RequirementDetails({
                     parentIdentifier={identifier}
                     parentSubject={subject}
                     parentDescription={richTextToPlain(wi.description ?? wi.content) || undefined}
+                    explicitRepoIds={explicitRepoIds}
+                    collectBreakdownContext={collectBreakdownContext}
                     parentAssigneeId={parentAssigneeId}
                     parentAssigneeName={assignedToName}
                     candidateAssignees={candidateAssignees}
@@ -1671,7 +1862,7 @@ export function RequirementDetails({
         )}
 
         {/* 标签页 4：Activity / 评论讨论（1:1 对齐 Linear Activity 时间轴与 AI 赋能） */}
-        <Tabs.Panel id="activity" className="p-0 outline-none">
+        <Tabs.Panel id="activity" className="p-0 outline-none focus-visible:ring-1 focus-visible:ring-ring">
           <RequirementActivity
             comments={comments}
             workitemId={selectedId ?? undefined}
@@ -1695,11 +1886,12 @@ export function RequirementDetails({
             assignedToName={assignedToName}
             candidateAssignees={candidateAssignees}
             category={category}
+            creatorName={creatorName}
             parent={parent}
             spaceName={spaceName}
             iterationName={iterationName}
             updatedAt={updatedAt}
-            effectiveRepoCount={effectiveRepoIds.length}
+            effectiveRepoCount={explicitRepoIds.length}
             iterationBranchValue={iterationBranchValue}
             embedded={embedded}
             onSelectParent={onSelectParent}
@@ -1707,7 +1899,8 @@ export function RequirementDetails({
         )}
       </div>
 
-      {/* 子工作项/缺陷详情侧滑抽屉（Linear Peek 面板） */}
+      {/* 子工作项/缺陷详情侧滑抽屉（Linear Peek 面板）：
+          嵌入态下子任务行优先走 onSelectChild 就地钻取，本抽屉仅作为无钻取回调时的兜底 */}
       <ChildDetailDrawer
         child={latestDrawerChild}
         parentWorkitem={selectedId && identifier ? { workitemId: selectedId, identifier, subject } : null}
@@ -1716,15 +1909,25 @@ export function RequirementDetails({
         onOpenInWorkbench={(child) => {
           setDrawerChild(null);
           if (!selectedId) return;
-          if (embedded && onSelectChild) {
-            onSelectChild(child);
-          } else {
-            openWorkitem(
-              child.workitemId,
-              { workitemId: child.workitemId, identifier: child.identifier, subject: child.subject },
-              { workitemId: selectedId, identifier, subject },
-            );
+          if (embedded && onOpenWorkbench) {
+            // 嵌入态：「在工作台打开」= 全屏工作台，而非钻取。
+            // Peek 抽屉注入的无参回调只绑定「当前需求」，无法定位子项；此时以子项为目标直接送入工作台。
+            if (onOpenWorkbench.length > 0) {
+              onOpenWorkbench(child);
+            } else {
+              openWorkitem(
+                child.workitemId,
+                { workitemId: child.workitemId, identifier: child.identifier, subject: child.subject },
+                { workitemId: selectedId, identifier, subject },
+              );
+            }
+            return;
           }
+          openWorkitem(
+            child.workitemId,
+            { workitemId: child.workitemId, identifier: child.identifier, subject: child.subject },
+            { workitemId: selectedId, identifier, subject },
+          );
         }}
       />
     </div>

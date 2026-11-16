@@ -184,29 +184,22 @@ export function BranchDivergenceCheck({
         )}
 
         {check.status === 'error' && (
-          <Tooltip>
-            <TooltipTrigger render={<span className="inline-flex items-center gap-1 text-destructive truncate cursor-help" />}>
-              <AlertCircleIcon className="size-3 shrink-0" />比较失败
-            </TooltipTrigger>
-            <TooltipContent>{check.message}</TooltipContent>
-          </Tooltip>
+          // 错误文案常驻并换行完整呈现（DESIGN G：错误原因优先换行，不能只靠悬停读全；也不再挂原生 title 重复提示）
+          <span className="inline-flex min-w-0 items-start gap-1 text-destructive">
+            <AlertCircleIcon className="mt-0.5 size-3 shrink-0" />
+            <span className="min-w-0 whitespace-normal break-words">比较失败：{check.message}</span>
+          </span>
         )}
 
         {ready && (
           <div className="flex flex-wrap items-center gap-1.5">
             {aligned ? (
-              <span
-                className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-[11px] font-medium text-success"
-                title="已同步迭代分支"
-              >
+              <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-[11px] font-medium text-success">
                 <CheckIcon className="size-3" />已同步迭代分支
               </span>
             ) : (
-              <span
-                className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning"
-                title={`有落差 (开发独有 ${check.developmentOnly} · 迭代独有 ${check.baselineOnly})`}
-              >
-                有落差 (开发独有 {check.developmentOnly} · 迭代独有 {check.baselineOnly})
+              <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning">
+                有落差 (开发独有 <span className="font-mono tabular-nums">{check.developmentOnly}</span> · 迭代独有 <span className="font-mono tabular-nums">{check.baselineOnly}</span>)
               </span>
             )}
 
@@ -220,10 +213,9 @@ export function BranchDivergenceCheck({
                       size="xs"
                       className="h-5 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1"
                       onClick={() => setDiffDrawerOpen(true)}
-                      title="在本地抽屉中查看两分支代码差异"
                     >
                       <FileCodeIcon className="size-3 text-primary" />
-                      <span>差异 ({diffs.length})</span>
+                      <span>差异 (<span className="font-mono tabular-nums">{diffs.length}</span>)</span>
                     </Button>
                   )}
                 />
@@ -244,10 +236,13 @@ export function BranchDivergenceCheck({
                 type="button"
                 variant="ghost"
                 size="icon-xs"
-                disabled={check.status === 'loading'}
-                onClick={refetch}
-                className="size-6 text-muted-foreground hover:text-foreground disabled:opacity-40"
-                title={`重新检查 ${developmentBranch} 与 ${baseline} 的落差`}
+                aria-disabled={check.status === 'loading' || undefined}
+                aria-label={`重新检查 ${developmentBranch} 与 ${baseline} 的落差`}
+                onClick={() => {
+                  if (check.status === 'loading') return;
+                  refetch();
+                }}
+                className="size-6 text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               >
                 <RefreshCwIcon className={cn('size-3', check.status === 'loading' && 'animate-spin text-primary')} />
               </Button>

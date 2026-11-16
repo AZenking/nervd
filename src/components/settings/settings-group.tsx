@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Alert } from '@heroui/react';
 import { Card } from '@/components/ui/card';
+import { SectionHeader } from '@/components/section-header';
 
 /**
  * Linear 设置页原语（全面迁移至 HeroUI Card 复合组件，借足 Card 全部插槽与属性）：
@@ -8,9 +9,9 @@ import { Card } from '@/components/ui/card';
  *   · Card.Root —— 整组容器（variant 默认 bg-surface + 显式 shadow-none：nervd 2.6 页内卡片
  *     一律 hairline 无阴影；p-0 gap-0 + overflow-hidden
  *     裁切行悬停底色于圆角内）；
- *   · Card.Header —— 组标题（Card.Title 默认 h3 字阶）+ 组说明（HeroUI Alert default 态紧凑呈现，
- *     Indicator + Description 结构，收敛 text-xs）+ 标题行右侧动作（action），
- *     上缘 hairline 与行区分隔；
+ *   · Card.Header —— 组标题统一走 SectionHeader（DESIGN 第三部分 B：区块标题禁止内联复刻）
+ *     + 组说明（HeroUI Alert default 态紧凑呈现，Indicator + Description 结构，收敛 text-xs）
+ *     + 标题行右侧动作（action），上缘 hairline 与行区分隔；
  *   · Card.Content —— 行容器（gap-0，行自带 px-4 内距与 border-b 分隔）；
  *   · Card.Footer —— 组级底部操作槽（footer，可选，右对齐 + 上缘 hairline）；
  * - SettingsRow：竖排（label + 描述在上、控件整宽在下）用于文本输入类；
@@ -37,23 +38,20 @@ export function SettingsGroup({
   return (
     <Card className="gap-0 overflow-hidden p-0 shadow-none">
       {hasHeader && (
-        <Card.Header className="flex-row items-start justify-between gap-4 border-b border-border/50 px-4 py-3.5">
-          <div className="flex min-w-0 flex-col gap-1">
-            <Card.Title>{title}</Card.Title>
-            {description && (
-              // 组说明统一以 HeroUI Alert（default）承载：Indicator 图标 + Description，
-              // 紧凑密度（text-xs / 小内距 / rounded-md）避免在 Card 头部喧宾夺主。
-              <Alert status="default" className="gap-2.5 rounded-md px-2.5 py-2 shadow-none">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Description className="text-xs leading-5 text-muted-foreground">
-                    {description}
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-          </div>
-          {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+        <Card.Header className="flex-col items-stretch gap-2 px-4 py-3.5">
+          <SectionHeader title={title} action={action} />
+          {description && (
+            // 组说明统一以 HeroUI Alert（default）承载：Indicator 图标 + Description，
+            // 紧凑密度（text-xs / 小内距 / rounded-md）避免在 Card 头部喧宾夺主。
+            <Alert status="default" className="gap-2.5 rounded-md px-2.5 py-2 shadow-none">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description className="text-xs leading-5 text-muted-foreground">
+                  {description}
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
         </Card.Header>
       )}
 
@@ -90,6 +88,7 @@ export function SettingsRow({
   controlWidth?: string;
   align?: 'start' | 'center';
 }) {
+  const errorId = htmlFor ? `${htmlFor}-error` : undefined;
   const header = (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
       <label
@@ -101,7 +100,11 @@ export function SettingsRow({
       {description && (
         <p className="text-xs leading-5 text-muted-foreground">{description}</p>
       )}
-      {error}
+      {error && (
+        <div id={errorId} role="alert" className="text-xs text-destructive">
+          {error}
+        </div>
+      )}
     </div>
   );
 
@@ -128,7 +131,7 @@ export function SettingsRow({
   );
 }
 
-/** 行内校验错误（FieldError 的同款语义色，供 SettingsRow.error 使用） */
+/** 行内校验错误文本（role="alert" 与 aria-describedby 由 SettingsRow 统一承载） */
 export function SettingsRowError({ children }: { children: ReactNode }) {
-  return <p className="text-xs text-destructive">{children}</p>;
+  return <span className="text-xs text-destructive">{children}</span>;
 }

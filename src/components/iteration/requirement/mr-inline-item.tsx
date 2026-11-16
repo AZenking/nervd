@@ -20,12 +20,11 @@ import { parseFileDiffs, type FileDiffItem } from './diff-utils';
 import { CodeDiffViewer } from './code-diff-viewer';
 import { CodeDiffDrawer } from './code-diff-drawer';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Spinner } from '@/components/ui/spinner';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/components/ui/toast';
-import { WriteOpButton } from '@/components/WriteOpButton';
+import { WriteOpButton, WriteOpGatedTrigger } from '@/components/WriteOpButton';
 import { useApp } from '@/store/app';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
@@ -58,6 +57,7 @@ export function MrInlineItem({
   onCreateMr,
 }: MrInlineItemProps) {
   const organizationId = useApp((s) => s.settings?.organizationId);
+  const allowWriteOps = useApp((s) => s.settings?.allowWriteOps ?? false);
   const [commits, setCommits] = useState<CommitSummaryItem[]>([]);
   const [diffs, setDiffs] = useState<FileDiffItem[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
@@ -171,9 +171,9 @@ export function MrInlineItem({
   };
 
   return (
-    <Card
+    <div
       id={`mr-item-${mr.localId}`}
-      className="flex flex-col rounded-md border border-border/40 bg-background/50 transition-colors hover:border-border/70 overflow-hidden"
+      className="flex min-w-0 flex-col border-b border-border/40 transition-colors last:border-b-0"
     >
       {/* 紧凑列表标题行：支持点击/键盘展开折叠 */}
       <div
@@ -181,21 +181,21 @@ export function MrInlineItem({
         tabIndex={0}
         onClick={onToggle}
         onKeyDown={handleKeyDown}
-        className="flex cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-xs select-none hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        aria-expanded={isExpanded}
+        className="flex cursor-pointer items-center justify-between gap-2 rounded-sm px-2.5 py-2 text-xs select-none transition-colors hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="font-mono font-bold text-primary shrink-0" title={`MR !${mr.localId}`}>
+          <span className="font-mono font-bold text-primary shrink-0">
             !{mr.localId}
           </span>
           <OverflowTooltip
             text={mr.title}
-            title={mr.title}
             className="min-w-0 truncate font-medium text-foreground hover:text-primary transition-colors"
           />
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className={cn('inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border', statusInfo.badgeClass)}>
+          <span className={cn('inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] font-medium border', statusInfo.badgeClass)}>
             {statusInfo.tone === 'emerald' && <CheckIcon className="size-3" />}
             {statusInfo.tone === 'amber' && <GitPullRequestIcon className="size-3" />}
             {statusInfo.label}
@@ -211,20 +211,20 @@ export function MrInlineItem({
 
       {/* 就地展开的闭环检视面板 */}
       {isExpanded && (
-        <Surface variant="secondary" className="flex flex-col gap-2.5 border-t border-border/40 px-3 py-2.5 text-xs">
+        <Surface variant="default" className="flex flex-col gap-2.5 border-t border-border/40 px-3 py-2.5 text-xs">
           {/* 分支流向与基本元数据 */}
-          <Surface variant="tertiary" className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/30 px-2 py-1.5 text-[11px] font-mono">
+          <Surface variant="tertiary" className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border/30 px-2 py-1.5 text-[11px] font-mono">
             <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
               <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
               <OverflowTooltip
                 text={mr.sourceBranch}
-                title={`源分支: ${mr.sourceBranch}`}
+                tooltip={`源分支: ${mr.sourceBranch}`}
                 className="min-w-0 truncate text-foreground font-semibold"
               />
               <ArrowRightIcon className="size-3 text-muted-foreground shrink-0" />
               <OverflowTooltip
                 text={mr.targetBranch}
-                title={`目标分支: ${mr.targetBranch}`}
+                tooltip={`目标分支: ${mr.targetBranch}`}
                 className="min-w-0 truncate text-primary font-semibold"
               />
             </div>
@@ -267,7 +267,7 @@ export function MrInlineItem({
                 <span>对比分支最新变动中…</span>
               </div>
             ) : diffError ? (
-              <div className="flex items-center justify-between rounded bg-destructive/10 p-2 text-[11px] text-destructive">
+              <div className="flex items-center justify-between rounded-sm bg-destructive/10 p-2 text-[11px] text-destructive">
                 <span>差异加载失败：{diffError}</span>
                 <Button
                   type="button"
@@ -280,7 +280,7 @@ export function MrInlineItem({
                 </Button>
               </div>
             ) : commits.length === 0 ? (
-              <div className="rounded bg-muted/20 p-2 text-center text-[11px] text-muted-foreground">
+              <div className="rounded-sm bg-surface-secondary/40 p-2 text-center text-[11px] text-muted-foreground">
                 {isOpen ? (
                   '两分支内容已同步，无待合入提交'
                 ) : (
@@ -300,24 +300,24 @@ export function MrInlineItem({
                 )}
               </div>
             ) : (
-              <ScrollArea size={24} className="flex flex-col divide-y divide-border/30 rounded border border-border/30 bg-background/50 max-h-36">
+              <ScrollArea size={24} className="flex flex-col divide-y divide-border/30 rounded-sm border border-border/30 bg-background/50 max-h-36">
                 {commits.slice(0, 5).map((c, i) => (
                   <div key={c.id || i} className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <code className="font-mono text-muted-foreground shrink-0" title={c.id || c.shortId}>
                         {c.shortId}
                       </code>
-                      <OverflowTooltip text={c.title} title={c.title} className="min-w-0 truncate text-foreground" />
+                      <OverflowTooltip text={c.title} className="min-w-0 truncate text-foreground" />
                     </div>
                     {c.authorName && (
-                      <span className="text-[10px] text-muted-foreground shrink-0" title={`提交人: ${c.authorName}`}>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
                         {c.authorName}
                       </span>
                     )}
                   </div>
                 ))}
                 {commits.length > 5 && (
-                  <div className="py-1 text-center text-[10px] text-muted-foreground bg-muted/10">
+                  <div className="py-1 text-center text-[10px] text-muted-foreground bg-surface-secondary/40">
                     …还有 {commits.length - 5} 个提交
                   </div>
                 )}
@@ -332,7 +332,7 @@ export function MrInlineItem({
                 <div className="flex items-center gap-1.5 font-medium text-foreground">
                   <FileDiffIcon className="size-3 text-primary" />
                   <span>当前分支差异文件 ({diffs.length})</span>
-                  <span className="font-mono text-[10px]">
+                  <span className="font-mono text-[10px] tabular-nums">
                     {totalAdditions > 0 && (
                       <span className="text-success font-semibold">+{totalAdditions} </span>
                     )}
@@ -419,15 +419,18 @@ export function MrInlineItem({
                   <span className="text-[11px] text-warning font-medium">
                     分支有 {commits.length} 条新提交未合入
                   </span>
-                  <Button
-                    type="button"
-                    variant="default"
-                    size="xs"
-                    className="h-6 px-2 text-xs"
-                    onPress={onCreateMr}
-                  >
-                    创建新 MR
-                  </Button>
+                  <WriteOpGatedTrigger label="创建新 MR" variant="default" />
+                  {allowWriteOps && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="xs"
+                      className="h-6 px-2 text-xs"
+                      onPress={onCreateMr}
+                    >
+                      创建新 MR
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -451,26 +454,31 @@ export function MrInlineItem({
               label="确认合入"
               title={`将 ${mr.sourceBranch} 合入 ${mr.targetBranch}`}
               variant="default"
-              confirm="dialog"
-              confirmLabel="确认合入"
+              confirm="inline"
+              confirmLabel="再次点击确认合入"
               onAction={handleMerge}
             />
           ) : !isOpen && isMerged && commits.length > 0 && onCreateMr ? (
-            <Button
-              type="button"
-              variant="default"
-              size="xs"
-              className="h-7 px-2.5 text-xs"
-              onPress={() => {
-                setDiffDrawerOpen(false);
-                onCreateMr();
-              }}
-            >
-              创建新 MR
-            </Button>
+            <>
+              <WriteOpGatedTrigger label="创建新 MR" variant="default" />
+              {allowWriteOps && (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="xs"
+                  className="h-7 px-2.5 text-xs"
+                  onPress={() => {
+                    setDiffDrawerOpen(false);
+                    onCreateMr();
+                  }}
+                >
+                  创建新 MR
+                </Button>
+              )}
+            </>
           ) : null
         }
       />
-    </Card>
+    </div>
   );
 }

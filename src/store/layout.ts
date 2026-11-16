@@ -18,6 +18,10 @@ interface LayoutStore {
   sidebarWidth: number;
   setSidebarWidth: (px: number) => void;
   resetSidebarWidth: () => void;
+  /** 工作区（扣除侧栏后的内容区）实际像素宽度；由 Shell 测量写入，未测量前为 0。
+   *  DESIGN §F.3 的 760px 阈值必须基于该值，不能用视图自身内容盒宽度（会少掉容器横向 padding）。 */
+  workspaceWidth: number;
+  setWorkspaceWidth: (px: number) => void;
 }
 
 const LAYOUT_STORAGE_KEY = 'nervd-layout';
@@ -107,9 +111,16 @@ export const useLayout = create<LayoutStore>((set, get) => {
     // reset 是离散低频操作：立即落盘并取消挂起的 debounce，避免窗口关闭前丢失。
     writeLayoutNow();
   };
+  const setWorkspaceWidth = (px: number): void => {
+    const next = Number.isFinite(px) && px > 0 ? Math.round(px) : 0;
+    if (next === get().workspaceWidth) return;
+    set({ workspaceWidth: next });
+  };
   return {
     sidebarWidth: readStoredSidebarWidth(),
     setSidebarWidth,
     resetSidebarWidth,
+    workspaceWidth: 0,
+    setWorkspaceWidth,
   };
 });

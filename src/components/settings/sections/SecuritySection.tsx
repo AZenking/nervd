@@ -1,10 +1,28 @@
+import { useState } from 'react';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { Alert, Chip } from '@heroui/react';
 import { Switch } from '@/components/ui/switch';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 
 export function SecuritySection() {
   const draft = useSettingsDraft();
+  const [confirmEnable, setConfirmEnable] = useState(false);
+
+  const enabled = draft.draft?.allowWriteOps ?? false;
+
+  const applyWriteOps = (value: boolean) => {
+    draft.update({ allowWriteOps: value }, true);
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -17,7 +35,7 @@ export function SecuritySection() {
           label={(
             <span className="flex items-center gap-2">
               <span>允许写操作</span>
-              {draft.draft?.allowWriteOps ? (
+              {enabled ? (
                 <Chip size="sm" color="danger" variant="soft">
                   写操作已开启
                 </Chip>
@@ -33,21 +51,25 @@ export function SecuritySection() {
               id="allow-write-ops"
               aria-label="允许写操作"
               size="md"
-              isSelected={draft.draft?.allowWriteOps ?? false}
-              onChange={(v) => draft.update({ allowWriteOps: v }, true)}
+              isSelected={enabled}
+              onChange={(v) => {
+                // 关闭是收窄权限，直接生效；开启会扩大权限到真实资源，必须复述影响范围后确认。
+                if (v) setConfirmEnable(true);
+                else applyWriteOps(false);
+              }}
             />
           )}
         />
 
         {/* 模式状态提示栏（HeroUI Alert 标准槽位：Indicator + Title/Description） */}
-        <Alert status={draft.draft?.allowWriteOps ? 'danger' : 'success'}>
+        <Alert status={enabled ? 'danger' : 'success'}>
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>
-              {draft.draft?.allowWriteOps ? '注意：写操作已对真实资源生效' : '当前处于只读保护状态'}
+              {enabled ? '注意：写操作已对真实资源生效' : '当前处于只读保护状态'}
             </Alert.Title>
             <Alert.Description>
-              {draft.draft?.allowWriteOps
+              {enabled
                 ? '客户端内的所有创建分支、合并代码或触发构建操作都将直接同步至云效线上。请确保当前使用的个人访问令牌（PAT）拥有相应仓库及流水线的写权限。'
                 : '所有具有破坏性或变更线上数据的操作均已被锁定。你可以安全浏览需求、关联代码与流水线运行日志，不用担心误触或修改云效线上真实资源。'}
             </Alert.Description>
@@ -80,6 +102,30 @@ export function SecuritySection() {
           )}
         />
       </SettingsGroup>
+
+      <AlertDialog open={confirmEnable} onOpenChange={setConfirmEnable}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>开启写操作权限？</AlertDialogTitle>
+            <AlertDialogDescription>
+              开启后，以下操作将对云效真实资源直接生效：创建 / 合并代码分支与 MR、触发与重试流水线构建、回写工作项状态与评论。
+              前端会解除灰阶门控，仅保留 Rust Core 的 allowWriteOps 二次校验。请确认当前个人访问令牌（PAT）具备对应仓库与流水线的写权限。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>保持只读</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onPress={() => {
+                applyWriteOps(true);
+                setConfirmEnable(false);
+              }}
+            >
+              确认开启写操作
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

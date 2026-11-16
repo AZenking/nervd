@@ -283,6 +283,18 @@ export async function listIterationTracks(iterationId: string): Promise<BranchRu
   await gate('list_iteration_tracks', [iterationId]);
   return (iterationTracks.get(iterationId) ?? []).map((template) => ({ ...template }));
 }
+export async function getBranchTrackDefault(
+  scope: 'global' | 'iteration',
+  iterationId?: string,
+): Promise<string | null> {
+  if (scope === 'global') return settings.branchRuleTemplates[0]?.id ?? null;
+  return iterationTracks.get(iterationId ?? '')?.[0]?.id ?? null;
+}
+
+export async function setBranchTrackDefault(trackId: string): Promise<boolean> {
+  return Boolean(trackId);
+}
+
 export async function importIterationTracks(map: Record<string, BranchRuleTemplate[]>): Promise<boolean> {
   await gate('import_iteration_tracks', [map]);
   // 幂等：首次导入后直接跳过（对齐后端 localStorageImported=1 守卫）

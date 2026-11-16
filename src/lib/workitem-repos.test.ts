@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { workitemRepoIds } from './workitem-repos';
+import {
+  workitemExplicitRepoIds,
+  workitemRepoOverride,
+  workitemScanRepoIds,
+} from './workitem-repos';
 import type { Settings } from '../types';
 
 const base: Pick<Settings, 'watchedRepos' | 'workitemRepos'> = {
@@ -7,35 +11,47 @@ const base: Pick<Settings, 'watchedRepos' | 'workitemRepos'> = {
   workitemRepos: {},
 };
 
-describe('workitemRepoIds（子项继承父需求关联仓库）', () => {
-  it('Req：需求级覆盖优先，缺省回退默认云效仓库', () => {
-    expect(workitemRepoIds('Req', 'req-1', { ...base, workitemRepos: { 'req-1': [7, 8] } })).toEqual([7, 8]);
-    expect(workitemRepoIds('Req', 'req-2', base)).toEqual([1, 2, 3]);
+describe('显式关联：只有配置过的键才算关联', () => {
+  it('Req：没有覆盖键时显式关联为空，不再回退默认池', () => {
+    expect(workitemRepoOverride('Req', 'req-2', base)).toBeNull();
+    expect(workitemExplicitRepoIds('Req', 'req-2', base)).toEqual([]);
   });
 
-  it('Task/Bug：有父需求覆盖键时继承父需求覆盖', () => {
+  it('Req：覆盖键优先，空数组表示显式清空', () => {
+    const settings = { ...base, workitemRepos: { 'req-1': [7, 8], 'req-2': [] } };
+    expect(workitemExplicitRepoIds('Req', 'req-1', settings)).toEqual([7, 8]);
+    expect(workitemRepoOverride('Req', 'req-2', settings)).toEqual([]);
+    expect(workitemExplicitRepoIds('Req', 'req-2', settings)).toEqual([]);
+  });
+
+  it('Task/Bug：继承父需求的显式关联；父需求未设置时为空', () => {
     const settings = { ...base, workitemRepos: { 'req-1': [7, 8] } };
-    expect(workitemRepoIds('Task', 'task-9', settings, 'req-1')).toEqual([7, 8]);
-    expect(workitemRepoIds('Bug', 'bug-9', settings, 'req-1')).toEqual([7, 8]);
+    expect(workitemExplicitRepoIds('Task', 'task-9', settings, 'req-1')).toEqual([7, 8]);
+    expect(workitemExplicitRepoIds('Bug', 'bug-9', settings, 'req-1')).toEqual([7, 8]);
+    expect(workitemExplicitRepoIds('Task', 'task-9', base, 'req-1')).toEqual([]);
   });
 
-  it('Task/Bug：父需求无覆盖键时回退默认云效仓库（与父需求解析链一致）', () => {
-    expect(workitemRepoIds('Task', 'task-9', base, 'req-1')).toEqual([1, 2, 3]);
-  });
-
-  it('Task/Bug：父级未知时回退默认云效仓库，行为不劣化（兼容旧签名）', () => {
-    expect(workitemRepoIds('Task', 'task-9', base)).toEqual([1, 2, 3]);
-    expect(workitemRepoIds('Bug', 'bug-9', base, undefined)).toEqual([1, 2, 3]);
-  });
-
-  it('Task/Bug：子项自身的覆盖键不生效（子项仓库始终由父需求管理）', () => {
+  it('Task/Bug：子项自身的键不生效（仓库始终由父需求管理）', () => {
     const settings = { ...base, workitemRepos: { 'task-9': [99] } };
-    expect(workitemRepoIds('Task', 'task-9', settings, 'req-1')).toEqual([1, 2, 3]);
+    expect(workitemExplicitRepoIds('Task', 'task-9', settings, 'req-1')).toEqual([]);
+  });
+});
+
+describe('扫描范围：显式关联优先，缺省回退默认云效仓库', () => {
+  it('Req：无覆盖时回退默认池', () => {
+    expect(workitemScanRepoIds('Req', 'req-2', base)).toEqual([1, 2, 3]);
   });
 
-  it('空数组覆盖默认值语义保留（父需求覆盖为空数组时子项同样为空）', () => {
-    const settings = { ...base, workitemRepos: { 'req-1': [] } };
-    expect(workitemRepoIds('Req', 'req-1', settings)).toEqual([]);
-    expect(workitemRepoIds('Bug', 'bug-9', settings, 'req-1')).toEqual([]);
+  it('Req：有覆盖时以覆盖为准（空数组 = 不扫描）', () => {
+    const settings = { ...base, workitemRepos: { 'req-1': [7, 8], 'req-2': [] } };
+    expect(workitemScanRepoIds('Req', 'req-1', settings)).toEqual([7, 8]);
+    expect(workitemScanRepoIds('Req', 'req-2', settings)).toEqual([]);
+  });
+
+  it('Task/Bug：父需求显式覆盖优先，否则回退默认池', () => {
+    const settings = { ...base, workitemRepos: { 'req-1': [7, 8] } };
+    expect(workitemScanRepoIds('Task', 'task-9', settings, 'req-1')).toEqual([7, 8]);
+    expect(workitemScanRepoIds('Task', 'task-9', base, 'req-1')).toEqual([1, 2, 3]);
+    expect(workitemScanRepoIds('Bug', 'bug-9', base, undefined)).toEqual([1, 2, 3]);
   });
 });

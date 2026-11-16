@@ -31,7 +31,7 @@ const ANSI_COLOR_MAP: Record<number, string> = {
   32: 'text-success',
   33: 'text-warning',
   34: 'text-chart-2',
-  35: 'text-(--sticker-purple-deep) dark:text-(--sticker-purple)',
+  35: 'text-(--ansi-magenta)',
   36: 'text-chart-4',
   37: 'text-foreground/80',
   90: 'text-muted-foreground',
@@ -39,7 +39,7 @@ const ANSI_COLOR_MAP: Record<number, string> = {
   92: 'text-success',
   93: 'text-warning',
   94: 'text-chart-2',
-  95: 'text-(--sticker-purple-deep) dark:text-(--sticker-purple)',
+  95: 'text-(--ansi-magenta)',
   96: 'text-chart-4',
   97: 'text-foreground',
 };

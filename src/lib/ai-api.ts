@@ -2,6 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   AiBreakdownItem,
   AiBugMergeContext,
+  BreakdownRepoCode,
+  BreakdownRepoScope,
   AiChatMessage,
   AiCommentSummary,
   AiMergeRequestDraft,
@@ -97,70 +99,162 @@ export async function aiChatCompletion(params: {
   });
 }
 
-/** 辅助解析大模型返回的 JSON 片段 */
-function parseJsonFromLlm<T>(raw: string, fallback: T): T {
-  try {
-    // 优先匹配 ```json ... ``` 或 ``` ... ``` 代码块
-    const codeBlockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    const textToParse = codeBlockMatch ? codeBlockMatch[1] : raw.trim();
-    return JSON.parse(textToParse) as T;
-  } catch {
-    // 尝试寻找首个 '[' 或 '{'
-    const startBracket = raw.indexOf('[');
-    const endBracket = raw.lastIndexOf(']');
-    if (startBracket !== -1 && endBracket > startBracket) {
-      try {
-        return JSON.parse(raw.slice(startBracket, endBracket + 1)) as T;
-      } catch {
-        // ignore
-      }
+/** 去除 JSON 里对象/数组末尾的逗号（LLM 常输出 `}, ]` 这类非法 JSON）。 */
+export function stripTrailingCommas(text: string): string {
+  let out = '';
+  let inString = false;
+  let escape = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      out += char;
+      if (escape) escape = false;
+      else if (char === '\\') escape = true;
+      else if (char === '"') inString = false;
+      continue;
     }
-    const startBrace = raw.indexOf('{');
-    const endBrace = raw.lastIndexOf('}');
-    if (startBrace !== -1 && endBrace > startBrace) {
-      try {
-        return JSON.parse(raw.slice(startBrace, endBrace + 1)) as T;
-      } catch {
-        // ignore
-      }
+    if (char === '"') {
+      inString = true;
+      out += char;
+      continue;
     }
-    return fallback;
+    if (char === ',') {
+      let lookahead = index + 1;
+      while (lookahead < text.length && /\s/.test(text[lookahead])) lookahead += 1;
+      if (text[lookahead] === ']' || text[lookahead] === '}') continue;
+    }
+    out += char;
   }
+  return out;
+}
+
+/** 辅助解析大模型返回的 JSON 片段（容忍代码块、尾逗号与前后废话）。 */
+export function parseJsonFromLlm<T>(raw: string, fallback: T): T {
+  const candidates: string[] = [];
+  const codeBlock = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlock) candidates.push(codeBlock[1]);
+  candidates.push(raw.trim());
+
+  const startBracket = raw.indexOf('[');
+  const endBracket = raw.lastIndexOf(']');
+  if (startBracket !== -1 && endBracket > startBracket) {
+    candidates.push(raw.slice(startBracket, endBracket + 1));
+  }
+  const startBrace = raw.indexOf('{');
+  const endBrace = raw.lastIndexOf('}');
+  if (startBrace !== -1 && endBrace > startBrace) {
+    candidates.push(raw.slice(startBrace, endBrace + 1));
+  }
+
+  for (const candidate of candidates) {
+    for (const variant of [candidate, stripTrailingCommas(candidate)]) {
+      try {
+        return JSON.parse(variant) as T;
+      } catch {
+        // 尝试下一个候选
+      }
+    }
+  }
+  return fallback;
+}
+
+/** 从 LLM 返回中解析子任务数组：容忍 `{"items":[...]}`、尾逗号、尾部截断。 */
+export function parseBreakdownResponse(raw: string): Array<{ subject: string; order?: number }> {
+  const toItems = (value: unknown[]): Array<{ subject: string; order?: number }> =>
+    value
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .filter((item) => typeof item.subject === 'string' && item.subject.trim())
+      .map((item) => ({
+        subject: String(item.subject).trim(),
+        order: Number.isFinite(Number(item.order)) ? Number(item.order) : undefined,
+      }));
+
+  const parsed = parseJsonFromLlm<unknown>(raw, null);
+  if (Array.isArray(parsed)) return toItems(parsed);
+  if (parsed && typeof parsed === 'object') {
+    for (const key of ['items', 'subtasks', 'data', 'result']) {
+      const value = (parsed as Record<string, unknown>)[key];
+      if (Array.isArray(value)) return toItems(value);
+    }
+  }
+
+  // JSON 被截断 / 结构损坏时，逐个提取完整对象
+  const objects: Array<{ subject: string; order?: number }> = [];
+  for (const match of raw.matchAll(/\{[^{}]*\}/g)) {
+    try {
+      const value = JSON.parse(stripTrailingCommas(match[0])) as Record<string, unknown>;
+      if (typeof value.subject === 'string' && value.subject.trim()) {
+        objects.push({ subject: value.subject, order: Number(value.order) });
+      }
+    } catch {
+      // 跳过损坏片段
+    }
+  }
+  if (objects.length) return objects;
+
+  // 最后兜底：直接抽取所有 "subject": "..." 字符串（连结尾残缺的对象也能救回）
+  const subjects = [...raw.matchAll(/"subject"\s*:\s*"([^"]+)"/g)].map((match) => match[1]);
+  return subjects.map((subject, index) => ({ subject, order: index }));
 }
 
 /**
- * 需求智能拆解：按指定 Tag 维度（如前端、后端、自测）将需求拆解为具体可落地的子任务
+ * 需求智能拆解：读需求描述 + 关联仓库的改动范围，按「功能点」拆成可交付子任务。
+ *
+ * - 不按前端/后端/测试等工种分类，也不评估工时；
+ * - 仓库上下文来自调用方（RequirementDetails 采集），这里只负责格式化与拼 Prompt。
  */
 export async function aiBreakdownRequirement(
   subject: string,
   description: string,
-  tags: string[],
+  repoScope: BreakdownRepoScope[] = [],
+  repoCode: BreakdownRepoCode[] = [],
 ): Promise<AiBreakdownItem[]> {
-  const activeTags = tags.length > 0 ? tags : ['前端', '后端', '自测'];
-  const tagsStr = activeTags.join('、');
-
   const settings = await getAiSettings();
   const customRule = settings.customPrompts?.breakdown?.trim();
+  const scopeText = formatBreakdownRepoScope(repoScope);
+  const codeText = formatBreakdownRepoCode(repoCode);
 
-  const systemPrompt = `你是一个资深敏捷研发架构师与任务拆解专家。
-你的任务是将用户提供的需求拆解为具体的、可落地的子任务列表。
-要求：
-1. 只能在以下指定的维度标签中选择分类：【${tagsStr}】。
-2. 每个子任务标题必须清晰、动宾结构、表达明确的交付产物，尽量控制在 25 个汉字以内。
-3. 为每个子任务评估预计工时 estimatedHours（单位小时，按 0.5 粒度取整，范围 0.5~40），按单个熟练工程师的纯开发/测试耗时估算，不含评审与等待。
-4. 严格输出符合格式的 JSON 数组，严禁包含任何前缀闲聊或 Markdown 解释文字。
-5. JSON 结构规范：
+  const systemPrompt = `你是一名资深研发架构师，擅长把需求拆解为可独立交付、可独立验收的功能点。
+
+拆解前请先做两件事：
+1. 通读需求描述，提取业务目标、涉及角色、主流程、规则约束与验收标准；描述缺失时才根据标题做合理推断。
+2. 阅读「关联仓库与修改范围」。它列出了本需求涉及的仓库、开发分支及已改动的文件/模块；
+   子任务应落在这些模块内，不要凭空引入不存在的页面、接口或服务。
+3. 阅读「现有代码参考」。它包含仓库文件树与相关文件节选，用于确认既有目录、模块与调用方式；
+   子任务应复用现有结构（页面、组件、API 层），需要新增文件时也要符合项目现有组织方式。
+
+拆解要求：
+1. 从「功能点」角度拆分，而不是按前端、后端、测试等工种拆分；
+2. 每个子任务对应用户可感知的业务功能或能力，能独立开发、独立验收；
+3. 标题使用动宾结构，明确交付产物，控制在 25 个汉字以内；
+4. 按业务主流程拆分；权限、并发、失败回滚、空数据等异常与边界，只有确实需要单独功能产出时才成项；
+5. 子任务之间尽量低耦合；存在先后依赖时用 order 标注顺序，从 0 开始；
+6. 每个子任务粒度控制在半个到三个工作日可完成的范围，不要拆得过碎；
+7. 输出 3~8 条；不要编造具体的接口名、字段名或文件路径；
+8. 只输出 JSON 数组，不要 Markdown 代码块，不要任何解释文字。
+
+JSON 结构：
 [
-  { "tag": "前端", "subject": "实现退款申请弹窗与表单校验逻辑", "estimatedHours": 4 },
-  { "tag": "后端", "subject": "提供退款申请校验与状态流转 RPC 接口", "estimatedHours": 3 },
-  { "tag": "自测", "subject": "验证并发退款场景下幂等性与资金状态回写", "estimatedHours": 1.5 }
+  { "order": 0, "subject": "实现退款申请的提交与表单校验" },
+  { "order": 1, "subject": "支持退款申请的审核与状态流转" }
 ]${customRule ? `\n\n团队自定义规则与工程规范：\n${customRule}` : ''}`;
 
-  const userPrompt = `需求标题：${subject}
-需求详细描述与上下文：
-${description ? description.slice(0, 1500) : '（暂无详细描述，请根据标题进行标准研发任务拆解）'}
+  const descriptionText = description
+    ? description.slice(0, 1500)
+    : '（暂无详细描述，请根据标题做标准功能拆解）';
 
-请针对上述【${tagsStr}】维度，输出 3~6 个高质量子任务 JSON 列表：`;
+  const userPrompt = `需求标题：${subject}
+
+需求描述：
+${descriptionText}
+
+关联仓库与修改范围：
+${scopeText}
+
+现有代码参考（只读节选，可能被截断）：
+${codeText || '（未读取到现有代码，请仅依据需求描述与关联仓库信息拆解。）'}
+
+请从功能点角度拆解为 3~8 个可独立交付的子任务，按 order 排序输出 JSON 数组：`;
 
   const responseText = await aiChatCompletion({
     messages: [
@@ -170,37 +264,76 @@ ${description ? description.slice(0, 1500) : '（暂无详细描述，请根据�
     temperature: 0.2,
   });
 
-  interface RawItem {
-    tag?: string;
-    subject?: string;
-    estimatedHours?: number;
-  }
-
-  const rawList = parseJsonFromLlm<RawItem[]>(responseText, []);
-  if (!Array.isArray(rawList) || rawList.length === 0) {
-    // 降级兜底方案：按行解析
-    const lines = responseText.split('\n').filter((l) => l.trim().length > 0);
-    return lines.slice(0, 5).map((line, idx) => ({
+  const rawList = parseBreakdownResponse(responseText);
+  const items = rawList
+    .map((item, idx) => ({
       id: `ai-${Date.now()}-${idx}`,
-      subject: line.replace(/^[-*0-9.)\s]+/, '').trim(),
-      tag: activeTags[idx % activeTags.length] || '子任务',
+      subject: String(item.subject ?? '').trim(),
+      order: Number.isFinite(Number(item.order)) ? Number(item.order) : idx,
       selected: true,
-    }));
-  }
+    }))
+    .filter((item) => item.subject.length > 0);
 
-  return rawList.map((item, idx) => {
-    const hours = Number(item.estimatedHours);
-    return {
-      id: `ai-${Date.now()}-${idx}`,
-      subject: item.subject?.trim() || `子任务 ${idx + 1}`,
-      tag: item.tag?.trim() || activeTags[0],
-      selected: true,
-      // 0.5 粒度、上限 40h；非法值视为未评估，交给用户手填
-      estimatedHours: Number.isFinite(hours) && hours > 0
-        ? Math.min(40, Math.round(hours * 2) / 2)
-        : undefined,
-    };
-  });
+  if (items.length === 0) {
+    return [];
+  }
+  return items.sort((left, right) => left.order - right.order);
+}
+
+/** 把仓库改动范围格式化为 Prompt 片段（导出便于单测）。 */
+export function formatBreakdownRepoScope(scope: BreakdownRepoScope[]): string {
+  if (!scope.length) {
+    return '（当前需求未关联任何仓库，请仅依据需求描述拆解。）';
+  }
+  return scope
+    .map((entry) => {
+      const header = entry.workitemBranch
+        ? `- ${entry.repoName}（开发分支 ${entry.workitemBranch}，基准 ${entry.baselineBranch || '未知'}）`
+        : `- ${entry.repoName}`;
+      const lines = [header];
+      if (!entry.branchCreated) {
+        lines.push('  尚未创建开发分支，暂无改动范围。');
+      } else if (entry.files?.length) {
+        lines.push(`  变更文件（${entry.files.length} 个）：`);
+        for (const file of entry.files) {
+          lines.push(`  - ${file.path} (+${file.additions} / -${file.deletions})`);
+        }
+      } else {
+        lines.push(`  没有检测到文件改动${entry.note ? `（${entry.note}）` : ''}。`);
+      }
+      return lines.join('\n');
+    })
+    .join('\n');
+}
+
+/** 把现有代码节选格式化为 Prompt 片段（总字符数封顶，避免撑爆上下文）。 */
+export function formatBreakdownRepoCode(repoCode: BreakdownRepoCode[]): string {
+  if (!repoCode.length) return '';
+  const parts: string[] = [];
+  let used = 0;
+  const LIMIT = 24_000;
+
+  for (const entry of repoCode) {
+    const lines: string[] = [];
+    lines.push(`- ${entry.repoName}${entry.gitRef ? `（ref: ${entry.gitRef}）` : ''}`);
+    if (entry.note) lines.push(`  （${entry.note}）`);
+    if (entry.tree?.length) {
+      lines.push(`  现有文件结构（节选）：${entry.tree.slice(0, 40).join('、')}`);
+    }
+    for (const file of entry.files ?? []) {
+      const excerpt = file.content.split('\n').slice(0, 120).join('\n');
+      lines.push(`  --- ${file.path}${file.truncated ? '（已截断）' : ''} ---`);
+      lines.push(excerpt);
+    }
+    const block = lines.join('\n');
+    if (used + block.length > LIMIT) {
+      parts.push(block.slice(0, Math.max(0, LIMIT - used)));
+      break;
+    }
+    parts.push(block);
+    used += block.length;
+  }
+  return parts.join('\n');
 }
 
 /**

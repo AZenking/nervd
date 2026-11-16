@@ -62,7 +62,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* 顶部个人卡片：对齐参考图中的 Kate Moore / Admin 头部风格 */}
         <div
           data-tauri-drag-region
-          className="flex items-center justify-between gap-2.5 rounded-2xl p-1 transition-colors group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:p-0"
+          className="relative flex items-center justify-between gap-2.5 rounded-xl p-1 transition-colors group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:p-0"
         >
           <button
             type="button"
@@ -80,18 +80,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 />
               ) : (
                 /* 渐变艺术头像，对齐图片中 Kate Moore 的紫蓝青柔和渐变 */
-                <div className="flex size-full items-center justify-center bg-gradient-to-tr from-(--brand-indigo)/25 via-(--sticker-sky)/30 to-(--sticker-green)/30 text-(--brand-indigo) font-semibold text-sm select-none dark:text-(--sticker-purple)">
+                <div className="flex size-full items-center justify-center bg-gradient-to-tr from-(--brand-indigo)/25 via-(--sticker-sky)/30 to-(--sticker-green)/30 text-(--brand-indigo) font-semibold text-sm select-none">
                   {displayName.charAt(0).toUpperCase()}
                 </div>
               )}
-              {/* 可写 / 只读小状态指示点落在头像右下角 */}
-              <span
-                className={cn(
-                  "absolute bottom-0 right-0 size-2.5 rounded-full ring-2 ring-sidebar",
-                  settings?.allowWriteOps ? "bg-success" : "bg-warning"
-                )}
-                title={settings?.allowWriteOps ? "读写模式已启用" : "只读安全模式"}
-              />
             </div>
 
             <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
@@ -103,6 +95,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </div>
             </div>
           </button>
+
+          {/* 只读安全模式徽标：展开态为可见文字徽标，折叠态收敛为头像右下角圆点；
+              点击直达「安全」设置分区（AGENTS.md §2.5），不再让只读原因不可见 */}
+          {!settings?.allowWriteOps && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    data-no-drag
+                    aria-label="只读安全模式"
+                    onClick={() => openSettings('security')}
+                    className={cn(
+                      'shrink-0 cursor-pointer rounded-sm border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning transition-colors hover:bg-warning/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+                      'group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:bottom-0 group-data-[collapsible=icon]:right-0 group-data-[collapsible=icon]:z-10 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:size-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0',
+                    )}
+                  />
+                }
+              >
+                <span className="group-data-[collapsible=icon]:hidden">只读</span>
+                <span
+                  aria-hidden="true"
+                  className="hidden size-2.5 rounded-full bg-warning ring-2 ring-sidebar group-data-[collapsible=icon]:block"
+                />
+              </TooltipTrigger>
+              <TooltipContent side="right">只读安全模式 · 点击前往安全设置</TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
         {/* 搜索与快速操作区：软胶囊输入框 */}
@@ -115,8 +135,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-xl bg-sidebar-accent/70 px-3 text-[12.5px] text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               >
                 <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-left">搜索或跳转…</span>
-                <Kbd className="shrink-0 h-5! px-1.5! font-mono! text-[10.5px]! leading-none!">
+                <span className="min-w-0 flex-1 truncate text-left">搜索、跳转或执行命令…</span>
+                <Kbd className="shrink-0 h-5! px-1.5! font-mono! text-[10px]! leading-none!">
                   ⌘K
                 </Kbd>
               </button>
@@ -129,14 +149,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <button
                       type="button"
                       onClick={() => useUi.getState().setCommandOpen(true)}
-                      aria-label="搜索或跳转 (⌘K)"
+                      aria-label="搜索、跳转或执行命令 (⌘K)"
                       className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-sidebar-accent/70 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                     />
                   }
                 >
                   <SearchIcon className="size-4" />
                 </TooltipTrigger>
-                <TooltipContent side="right">搜索或跳转 (⌘K)</TooltipContent>
+                <TooltipContent side="right">搜索、跳转或执行命令 (⌘K)</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger
@@ -161,81 +181,86 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {inSettings ? (
         // 设置模式：左侧栏即设置菜单，顶部为返回工作区，下方直列各个设置分区
         <SidebarContent className="gap-1 px-3 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="返回工作区" onClick={() => setView('iteration')}>
-                <ArrowLeftIcon />
-                <span className="group-data-[collapsible=icon]:hidden">返回工作区</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+          <nav aria-label="设置导航" className="flex w-full flex-col gap-1 group-data-[collapsible=icon]:items-center">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="返回工作区" onClick={() => setView('iteration')}>
+                  <ArrowLeftIcon />
+                  <span className="group-data-[collapsible=icon]:hidden">返回工作区</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
 
-          <SidebarSeparator className="my-1.5" />
+            <SidebarSeparator className="my-1.5" />
 
-          {/* 设置分区列表 */}
-          <SidebarMenu>
-            {SETTINGS_SECTIONS.map((section) => {
-              const errorCount = getSectionErrorCount(section.value, fieldErrors);
-              return (
-                <SidebarMenuItem key={section.value}>
-                  <SidebarMenuButton
-                    tooltip={section.label}
-                    isActive={settingsSection === section.value}
-                    onClick={() => setSettingsSection(section.value)}
-                  >
-                    <section.icon />
-                    <span className="flex-1 font-medium group-data-[collapsible=icon]:hidden">{section.label}</span>
-                    {errorCount > 0 && (
-                      <span
-                        className="size-2 rounded-full bg-destructive shrink-0"
-                        title={`${section.label}有待修正项`}
-                      />
-                    )}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
-          </SidebarMenu>
+            {/* 设置分区列表 */}
+            <SidebarMenu>
+              {SETTINGS_SECTIONS.map((section) => {
+                const errorCount = getSectionErrorCount(section.value, fieldErrors);
+                return (
+                  <SidebarMenuItem key={section.value}>
+                    <SidebarMenuButton
+                      tooltip={section.label}
+                      isActive={settingsSection === section.value}
+                      aria-current={settingsSection === section.value ? 'page' : undefined}
+                      onClick={() => setSettingsSection(section.value)}
+                    >
+                      <section.icon />
+                      <span className="flex-1 font-medium group-data-[collapsible=icon]:hidden">{section.label}</span>
+                      {errorCount > 0 && (
+                        <span
+                          className="size-2 rounded-full bg-destructive shrink-0"
+                          title={`${section.label}有待修正项`}
+                        />
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </nav>
         </SidebarContent>
       ) : (
         <SidebarContent className="gap-1.5 px-3 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center">
-          {/* 主导航：对齐图片菜单序列（Dashboard, Orders, Tracker [New], Analytics, etc.） */}
-          <NavMain
-            items={[
-              {
-                title: '总览',
-                icon: <LayoutDashboardIcon />,
-                view: 'overview',
-              },
-              {
-                title: '当前迭代',
-                icon: <CalendarDaysIcon />,
-                view: 'iteration',
-              },
-              {
-                title: '定时任务',
-                icon: <CalendarClockIcon />,
-                view: 'schedules',
-                badge: activeScheduleCount > 0 ? (
-                  <span className="ml-auto rounded-sm bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
-                    {activeScheduleCount}
-                  </span>
-                ) : null,
-              },
-              {
-                title: '最近查看',
-                icon: <ClockIcon />,
-                view: 'recents',
-                badge: recentCount > 0 ? (
-                  <span className="ml-auto rounded-sm bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10.5px] font-medium leading-none group-data-[collapsible=icon]:hidden">
-                    {recentCount}
-                  </span>
-                ) : null,
-              },
-            ]}
-          />
-          {/* 迭代分组：真实迭代列表（单选切换视图） */}
-          <NavProjects />
+          <nav aria-label="主导航" className="flex w-full flex-col gap-1.5 group-data-[collapsible=icon]:items-center">
+            {/* 主导航：对齐图片菜单序列（Dashboard, Orders, Tracker [New], Analytics, etc.） */}
+            <NavMain
+              items={[
+                {
+                  title: '总览',
+                  icon: <LayoutDashboardIcon />,
+                  view: 'overview',
+                },
+                {
+                  title: '当前迭代',
+                  icon: <CalendarDaysIcon />,
+                  view: 'iteration',
+                },
+                {
+                  title: '定时任务',
+                  icon: <CalendarClockIcon />,
+                  view: 'schedules',
+                  badge: activeScheduleCount > 0 ? (
+                    <span className="ml-auto rounded-sm bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10px] font-medium leading-none tabular-nums group-data-[collapsible=icon]:hidden">
+                      {activeScheduleCount}
+                    </span>
+                  ) : null,
+                },
+                {
+                  title: '最近查看',
+                  icon: <ClockIcon />,
+                  view: 'recents',
+                  badge: recentCount > 0 ? (
+                    <span className="ml-auto rounded-sm bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10px] font-medium leading-none tabular-nums group-data-[collapsible=icon]:hidden">
+                      {recentCount}
+                    </span>
+                  ) : null,
+                },
+              ]}
+            />
+            {/* 迭代分组：真实迭代列表（单选切换视图） */}
+            <NavProjects />
+          </nav>
         </SidebarContent>
       )}
 

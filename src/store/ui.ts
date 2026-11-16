@@ -100,7 +100,7 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
 }
 
 export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings' | 'schedules';
-export type SettingsSection = 'connection' | 'trace' | 'ci' | 'security' | 'ai' | 'about';
+export type SettingsSection = 'connection' | 'trace' | 'attribution' | 'ci' | 'security' | 'ai' | 'about';
 export type IterationViewTab = 'workitems' | 'repos' | 'branches';
 
 /** 迭代列表的可恢复交互上下文，由 IterationView 同步当前本地状态。 */
@@ -129,11 +129,16 @@ export type ThemeMode = 'system' | 'dark' | 'light';
 /** 实际渲染生效的主题：深色 / 浅色 */
 export type ResolvedTheme = 'dark' | 'light';
 
-/** 获取系统当前明暗偏好（默认回退深色以契合客户端基准视觉） */
+/**
+ * 获取系统当前明暗偏好（DESIGN §2.4）：
+ * - `prefers-color-scheme: dark` → dark；
+ * - `prefers-color-scheme: light` → light；
+ * - 系统未声明偏好（深浅皆否）或环境不支持 matchMedia → 回退深色（客户端基准视觉）。
+ */
 export function getSystemTheme(): ResolvedTheme {
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'dark';
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+  if (window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
   return 'dark';
 }
 
@@ -213,7 +218,7 @@ const isNullableId = (value: unknown): value is string | null =>
   value === null || isNonEmptyString(value);
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string');
-const SETTINGS_SECTIONS: SettingsSection[] = ['connection', 'trace', 'ci', 'security', 'ai', 'about'];
+const SETTINGS_SECTIONS: SettingsSection[] = ['connection', 'trace', 'attribution', 'ci', 'security', 'ai', 'about'];
 const WORKSPACE_VIEWS: WorkspaceView[] = [
   'iteration', 'requirement', 'integration', 'overview', 'recents', 'full-settings', 'schedules',
 ];

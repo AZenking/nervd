@@ -82,8 +82,10 @@ function resolveText(item: DescriptionsItem): string {
   return '';
 }
 
+// 24px 触达尺寸（DESIGN §Interaction：icon-only 需足够大且带可访问名）；
+// hover 底色用 surface-secondary —— --muted 是 supporting text 文字色，不作背景（DESIGN §2.1）
 const ACTION_BUTTON_CLASS =
-  'flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground';
+  'flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50';
 
 /** 行内编辑态（antd Typography editable 交互：Enter 保存 / Esc 取消），替换值区域展示 */
 function EditControl({
@@ -206,13 +208,14 @@ function DescriptionCell({
   ) : (
     <>
       {variant === 'card' && typeof item.children === 'string' ? (
+        // 长标识符（分支名/提交号）软换行而非 break-all 硬切（audit §2.5 / DESIGN §3.2）
         <Tooltip>
           <TooltipTrigger
             render={<span className={cn('min-w-0 flex-1 truncate text-sm text-foreground', contentClassName)} />}
           >
             {item.children}
           </TooltipTrigger>
-          <TooltipContent className="max-w-96 break-all">{item.children}</TooltipContent>
+          <TooltipContent className="max-w-96 break-words [overflow-wrap:anywhere]">{item.children}</TooltipContent>
         </Tooltip>
       ) : typeof item.children === 'string' || typeof item.children === 'number' ? (
         <span className={cn('min-w-0 flex-1 truncate text-sm text-foreground', contentClassName)}>
@@ -229,7 +232,7 @@ function DescriptionCell({
     return (
       <div
         className={cn(
-          'group min-w-0 rounded-lg border border-border bg-muted/30 px-3.5 py-3',
+          'group min-w-0 rounded-lg border border-border bg-surface-secondary px-3.5 py-3',
           item.span && SPAN_CLASS[item.span],
         )}
       >
@@ -241,8 +244,8 @@ function DescriptionCell({
 
   if (variant === 'plain') {
     return (
-      <div className="group -mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50">
-        <span className={cn('flex w-28 shrink-0 items-center gap-1.5 text-xs text-muted-foreground', labelClassName)}>
+      <div className="group -mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-surface-secondary">
+        <span className={cn('flex w-28 shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground', labelClassName)}>
           {item.label}
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1.5">{content}</div>
@@ -254,7 +257,7 @@ function DescriptionCell({
     <>
       <div
         className={cn(
-          'border-b border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground',
+          'border-b border-border bg-surface-secondary px-3 py-2 text-xs text-muted-foreground',
           last && 'border-b-0',
           labelClassName,
         )}

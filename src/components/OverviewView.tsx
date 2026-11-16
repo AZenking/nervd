@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, ProgressBar } from '@heroui/react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RefreshCwIcon } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useApp } from '../store/app';
 import { useUi, UNPLANNED_ITERATION, visibleIterations } from '../store/ui';
@@ -9,6 +8,7 @@ import type { Category } from '../types';
 import { CATEGORY_LABELS } from '../types';
 import { cn } from '@/lib/utils';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { PageHeader } from './page-header';
 import { StatusBadge, connectionStatus, statusMeta } from './StatusBadge';
 import { StatusIcon } from './status-icon';
@@ -23,6 +23,7 @@ import { WorkitemStatusChart } from './overview/workitem-status-chart';
 import { WorkitemUpdateActivityChart } from './overview/workitem-update-activity-chart';
 import { RepoCiSummary, FlowPipelineSummary } from './overview/delivery-status';
 import { WorkitemsDataTable } from './overview/workitems-data-table';
+import { RefreshButton } from './overview/refresh-button';
 
 const OVERVIEW_CATEGORIES: Category[] = ['Req', 'Bug', 'Task'];
 
@@ -177,10 +178,14 @@ export function OverviewView() {
     return count;
   }, [pipelines, repoCiByRepo, runsByPipeline]);
 
+  // DESIGN §F.3：工作区 < 760px 时页头切 compact（宽度由 Shell 统一测量）
+  const compact = useWorkspaceCompact();
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         sticky
+        density={compact ? 'compact' : 'regular'}
         contentClassName="w-full"
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="总览"
@@ -188,13 +193,13 @@ export function OverviewView() {
           // 状态项作为标题副信息（subtitle）：连接徽标 + 分页加载进度，随页头单行截断
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <StatusBadge status={connectionStatus(connection)} size="sm" />
-            <span className="font-mono text-[11px]">
+            <span className="font-mono text-[11px] tabular-nums">
               {activeCategoryState.complete
                 ? `已加载 ${activeCategoryState.loadedCount} 项`
                 : `已加载范围 ${activeCategoryState.loadedCount} 项`}
             </span>
             {!activeCategoryState.complete && activeCategoryState.status !== 'idle' && (
-              <span className="font-mono text-[11px] text-sig-run">· 分页未完成</span>
+              <span className="font-mono text-[11px] tabular-nums text-sig-run">· 分页未完成</span>
             )}
           </div>
         }
@@ -216,21 +221,18 @@ export function OverviewView() {
               </TabsList>
             </Tabs>
 
-            <Button
-              isIconOnly
-              variant="ghost"
-              size="sm"
-              aria-label="刷新总览数据"
+            <RefreshButton
+              iconOnly
+              label="刷新"
+              ariaLabel="刷新总览数据"
+              loading={iterationLoading || categoryLoading}
               onPress={refresh}
-              className="size-7"
-            >
-              <RefreshCwIcon className={cn('size-3.5', (iterationLoading || categoryLoading) && 'animate-spin')} />
-            </Button>
+            />
           </div>
         }
       />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 py-1">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 py-1">
         {(iterationLoading || categoryLoading) && (
           <ProgressBar
             isIndeterminate
@@ -241,7 +243,7 @@ export function OverviewView() {
           />
         )}
 
-        {overviewIterations.status === 'error' ? (
+        {overviewIterations.status === 'error' && (
           <Alert status="danger">
             <Alert.Indicator />
             <Alert.Content>
@@ -254,7 +256,9 @@ export function OverviewView() {
               </Alert.Description>
             </Alert.Content>
           </Alert>
-        ) : overviewIterations.status === 'success' && !currentIteration ? (
+        )}
+
+        {overviewIterations.status === 'success' && !currentIteration && (
           <Alert status="warning">
             <Alert.Indicator />
             <Alert.Content>
@@ -262,45 +266,14 @@ export function OverviewView() {
               <Alert.Description>真实迭代列表为空或当前没有进行中、未开始的迭代。</Alert.Description>
             </Alert.Content>
           </Alert>
-        ) : currentIteration ? (
-          <CycleHeaderBanner
-            iteration={currentIteration}
-            iterations={availableIterations}
-            itemCount={iterationItems.length}
-            dataComplete={activeCategoryState.complete}
-            onOpenIterationWorkbench={(name) => setIteration(name)}
-            onSelectIteration={(id) => {
-              setSelectedIterationId(id);
-              const selected = availableIterations.find((iteration) => iteration.id === id);
-              if (selected) setIterationKey(selected.name);
-            }}
-          />
-        ) : null}
-
-        <KpiCardsGrid
-          categoryLabel={CATEGORY_LABELS[activeCategory]}
-          itemCount={iterationItems.length}
-          dataComplete={activeCategoryState.complete}
-          remainingLabel={remaining.label}
-          remainingTone={remaining.tone}
-          activeBuildCount={activeBuildCount}
-          failedCount={attention.failedBuilds}
-          ciErrorCount={attention.ciErrors}
-          unboundCiCount={attention.unboundCi}
-          repoCount={watchedRepos.length}
-          pipelineCount={pipelines.length}
-          connectionState={connection}
-          loading={categoryLoading}
-        />
-
-        <QuickBuildConsole />
+        )}
 
         {/* 需要关注卡片：Header=标题+说明；Content=三项异常细分（CI 配置类问题可直达设置处理） */}
         <Card>
           <Card.Header className="gap-1">
             <Card.Title className="text-[13px] font-semibold tracking-tight text-foreground">需要关注</Card.Title>
             <Card.Description className="text-xs text-muted-foreground">
-              构建失败与 CI 配置异常的细分汇总，与上方「需要关注」KPI 联动
+              构建失败与 CI 配置异常的细分汇总，与下方「需要关注」KPI 联动
             </Card.Description>
           </Card.Header>
           <Card.Content className="grid gap-3 sm:grid-cols-3">
@@ -339,12 +312,13 @@ export function OverviewView() {
               )}
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <StatusIcon status={attention.unboundCi > 0 ? 'WAITING' : 'OTHER'} className="size-3.5" />
+              {/* 未配置不是「等待中」：用 idle/slate 语义，不挪用 amber 运行态色（审计 §2.4 P1-46） */}
+              <StatusIcon status="OTHER" className="size-3.5" />
               <span className="text-muted-foreground">未绑定 CI</span>
               <span
                 className={cn(
                   'ml-auto font-mono tabular-nums',
-                  attention.unboundCi > 0 ? 'font-semibold text-warning' : 'text-muted-foreground/70',
+                  attention.unboundCi > 0 ? 'font-semibold text-muted-foreground' : 'text-muted-foreground/70',
                 )}
               >
                 {attention.unboundCi}
@@ -363,6 +337,38 @@ export function OverviewView() {
           </Card.Content>
         </Card>
 
+        <KpiCardsGrid
+          categoryLabel={CATEGORY_LABELS[activeCategory]}
+          itemCount={iterationItems.length}
+          dataComplete={activeCategoryState.complete}
+          remainingLabel={remaining.label}
+          remainingTone={remaining.tone}
+          activeBuildCount={activeBuildCount}
+          failedCount={attention.failedBuilds}
+          ciErrorCount={attention.ciErrors}
+          unboundCiCount={attention.unboundCi}
+          repoCount={watchedRepos.length}
+          pipelineCount={pipelines.length}
+          loading={categoryLoading}
+        />
+
+        {currentIteration && overviewIterations.status === 'success' && (
+          <CycleHeaderBanner
+            iteration={currentIteration}
+            iterations={availableIterations}
+            itemCount={iterationItems.length}
+            dataComplete={activeCategoryState.complete}
+            onOpenIterationWorkbench={(name) => setIteration(name)}
+            onSelectIteration={(id) => {
+              setSelectedIterationId(id);
+              const selected = availableIterations.find((iteration) => iteration.id === id);
+              if (selected) setIterationKey(selected.name);
+            }}
+          />
+        )}
+
+        <QuickBuildConsole />
+
         {/* 交付状态：两张子卡内部 Header 已含标题与说明（重点仓库 CI / 组织级 Flow），不再外挂区块标题 */}
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]" aria-label="交付状态">
           <RepoCiSummary />
@@ -379,7 +385,9 @@ export function OverviewView() {
                   <Alert.Title>工作项只加载了部分页面</Alert.Title>
                   <Alert.Description className="flex flex-wrap items-center gap-2">
                     <span>
-                      已加载 {activeCategoryState.loadedCount} 项；图表不会推断未加载数据。
+                      已加载{' '}
+                      <span className="font-mono tabular-nums">{activeCategoryState.loadedCount}</span> 项；
+                      图表不会推断未加载数据。
                       {activeCategoryState.error ? ` ${activeCategoryState.error}` : ''}
                     </span>
                     <Button size="sm" variant="secondary" onPress={() => void loadOverviewCategory(activeCategory, { refresh: true })}>
@@ -425,6 +433,7 @@ export function OverviewView() {
               selectedWorkitemId={drawerWorkitemId}
               onOpenDetail={openDetail}
               onOpenWorkbench={(id, identifier, subject) => openInWorkbench(id, identifier, subject)}
+              onRefresh={() => void loadOverviewCategory(activeCategory, { refresh: true })}
             />
           </section>
         )}

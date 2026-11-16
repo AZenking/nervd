@@ -10,6 +10,7 @@ import { openExternal } from '@/lib/yunxiao-link';
 import { BuildProgressBar } from './build-progress-bar';
 import { findPrevSuccessDurationMs } from './quick-build-active-table';
 import { getEstimateKey, getCachedEstimate } from '@/lib/build-estimate';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 export interface ActiveBuildItem {
   id: string;
@@ -148,7 +149,7 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
             <span className="relative inline-flex size-2 rounded-full bg-sig-run" />
           </span>
           <span>活跃构建中</span>
-          <span className="font-mono text-sig-run font-semibold">({activeBuilds.length})</span>
+          <span className="font-mono text-sig-run font-semibold tabular-nums">({activeBuilds.length})</span>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <RadioIcon className="size-3 text-sig-run animate-pulse" />
@@ -158,9 +159,10 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
 
       <div className="flex flex-col gap-2.5 pt-1 max-h-60 overflow-y-auto overscroll-contain pr-1">
         {activeBuilds.map((item) => (
-          <Card
+          // 外层已是 Card：内层不再套 Card，改为 hairline 裸行（DESIGN §3.3.1 拒绝框中框）
+          <div
             key={item.id}
-            className="p-3 text-xs"
+            className="flex flex-col gap-2 border-b border-sig-run/15 px-0.5 py-2 text-xs last:border-b-0 last:pb-0.5"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -168,16 +170,24 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
                 <Chip
                   size="sm"
                   variant="soft"
-                  color={item.provider === 'Jenkins' ? 'warning' : 'accent'}
-                  className="uppercase tracking-wider text-[10px]"
+                  color={item.provider === 'Jenkins' ? 'default' : 'accent'}
+                  className="tracking-wider text-[10px]"
                 >
                   {item.provider}
                 </Chip>
 
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
-                  <span className="font-medium text-foreground truncate" title={item.title}>{item.title}</span>
+                  <OverflowTooltip
+                    text={item.title}
+                    className="min-w-0 font-medium text-foreground"
+                  />
                   {item.subTitle && (
-                    <span className="text-muted-foreground truncate text-[11px]" title={item.subTitle}>· {item.subTitle}</span>
+                    <OverflowTooltip
+                      text={item.subTitle}
+                      className="min-w-0 text-[11px] text-muted-foreground"
+                    >
+                      · {item.subTitle}
+                    </OverflowTooltip>
                   )}
                   <span className="font-mono font-medium text-foreground">#{item.runId}</span>
                 </div>
@@ -215,7 +225,7 @@ export function ActiveBuildsBar({ className }: { className?: string }) {
               estimatedDurationMs={item.estimatedDurationMs}
               compact
             />
-          </Card>
+          </div>
         ))}
       </div>
     </Card>

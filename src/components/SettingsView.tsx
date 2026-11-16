@@ -5,6 +5,7 @@ import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type SettingsSection } from '../store/ui';
 import { Alert, Button, Card } from '@heroui/react';
 import { SETTINGS_SECTIONS } from './settings/sections';
+import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { PageHeader } from './page-header';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,6 +15,7 @@ import { OrgRow, PatRow, SpaceRow } from './settings/sections/connection-fields'
 import {
   ConnectionSection,
   TraceSection,
+  AttributionSection,
   BranchRulesSection,
   CiSection,
   AiSection,
@@ -50,6 +52,8 @@ export function SettingsView({
   const resolvedTheme = useUi((state) => state.resolvedTheme);
   const toggleTheme = useUi((state) => state.toggleTheme);
   const [wizardStep, setWizardStep] = useState(0);
+  // DESIGN §F.3：工作区 < 760px 时页头切 compact（宽度由 Shell 统一测量）
+  const compact = useWorkspaceCompact();
 
   // 挂载时拉取最新已保存凭据状态（例如 Keychain 中的 Token 状态）
   useEffect(() => {
@@ -94,6 +98,7 @@ export function SettingsView({
         <BranchRulesSection />
       </div>
     ),
+    attribution: <AttributionSection />,
     ci: <CiSection />,
     ai: <AiSection />,
     security: <SecuritySection />,
@@ -111,6 +116,7 @@ export function SettingsView({
       <div className="flex flex-col gap-6">
         <PageHeader
           sticky
+          density={compact ? 'compact' : 'regular'}
           contentClassName="w-full"
           navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
           title={activeSection.label}
@@ -190,9 +196,14 @@ export function SettingsView({
             小窗口下内容超高时卡内自行滚动 */}
         <Card className="flex min-h-0 flex-1 flex-col rounded-lg border border-border/60 bg-transparent p-6">
           <ScrollArea className="m-auto flex max-h-full w-full max-w-3xl flex-col gap-6">
-            <div className="flex items-center gap-2">
-              <SparklesIcon className="size-4 text-primary" />
-              <span className="text-sm font-medium text-foreground">欢迎使用 nervd 桌面工作台</span>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <SparklesIcon className="size-5 text-primary" aria-hidden="true" />
+                <h1>欢迎使用 nervd 桌面工作台</h1>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                先完成云效访问令牌、组织 ID 与默认项目空间三步配置，随后即可进入工作台。
+              </p>
             </div>
 
             <Stepper

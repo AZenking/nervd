@@ -45,6 +45,8 @@ import { useLayout, SIDEBAR_PANE, NARROW_CONTAINER_WIDTH } from '@/store/layout'
 import { Card } from '@heroui/react';
 import { useGlobalCiScheduler } from '@/hooks/use-ci-polling';
 import { useScheduleRunner } from '@/hooks/use-schedule-runner';
+import { useAttributionSync } from '@/hooks/use-attribution-sync';
+import { useAttributionWriter } from '@/hooks/use-attribution-writer';
 import { useEventListener } from '@/hooks/use-event-listener';
 import { useApp } from '@/store/app';
 import { listen } from '@tauri-apps/api/event';
@@ -196,6 +198,10 @@ export function Shell() {
   // 挂载全局常驻定时任务调度执行器（10s 心跳自愈调度）
   useScheduleRunner();
 
+  // 变更归属：仓库增量同步 + 动态回写器（仅 Tauri 生效；全局只挂一次，避免重复定时器）
+  useAttributionSync();
+  useAttributionWriter();
+
   // 窗口激活焦点时自动重验陈旧数据（SWR 机制：超过 2 分钟未刷新的工作项和迭代数据静默补拉）
   useEventListener('focus', () => {
     if (document.querySelector(OPEN_DIALOG_SELECTOR)) return;
@@ -342,6 +348,13 @@ export function Shell() {
     return () => cancelAnimationFrame(frame);
   }, [restoreScroll, view, loadingDetail]);
 
+  // DESIGN §F.3：统一测量工作区（扣除侧栏后的内容区）宽度并写入 store，
+  // 页面级视图据此切换 PageHeader compact 密度；测量节点常驻，不受视图切换影响。
+  const [workspaceRef, workspaceWidth] = useElementWidth<HTMLElement>();
+  useEffect(() => {
+    if (workspaceWidth > 0) useLayout.getState().setWorkspaceWidth(workspaceWidth);
+  }, [workspaceWidth]);
+
   return (
     <SidebarProvider
       ref={containerRef}
@@ -350,6 +363,17 @@ export function Shell() {
       open={sidebarOpen}
       onOpenChange={handleSidebarOpenChange}
     >
+      {/* 跳转锚点：首个可聚焦元素，键盘用户可一次性越过侧栏直达主区。
+          外层 fixed 容器保证锚点在未聚焦时完全不参与 flex 布局，聚焦后浮层显示；
+          水平居中避开 macOS 红绿灯区域。 */}
+      <div className="fixed left-1/2 top-3 z-50 -translate-x-1/2">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:inline-flex focus:items-center focus:rounded-md focus:border focus:border-border focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-overlay focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          跳到主内容
+        </a>
+      </div>
       <AppSidebar />
       {/* 侧栏右缘保留透明拖拽命中区，不再渲染额外竖线，避免与两侧 Card 边框叠成中间线。
           键盘可调、双击恢复默认 256px；仅在展开态渲染，移动端走抽屉不渲染。 */}
@@ -367,14 +391,18 @@ export function Shell() {
         />
       )}
       {/* 两侧都使用 HeroUI surface：侧栏在 ui/sidebar.tsx 中承载导航，主区由单一 Card 承载滚动内容。 */}
-      <SidebarInset className="overflow-hidden bg-transparent shadow-none md:peer-data-[variant=inset]:rounded-none md:peer-data-[variant=inset]:ring-0">
+      <SidebarInset
+        id="main-content"
+        tabIndex={-1}
+        className="overflow-hidden bg-transparent shadow-none md:peer-data-[variant=inset]:rounded-none md:peer-data-[variant=inset]:ring-0"
+      >
         <Card
           data-workspace-surface
           variant="default"
           className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden rounded-xl border border-border/70 p-0 shadow-none"
         >
           <div className="flex h-full min-h-0">
-            <section data-workspace-content className="flex min-w-0 flex-1 flex-col h-full min-h-0 overflow-hidden">
+            <section ref={workspaceRef} data-workspace-content className="flex min-w-0 flex-1 flex-col h-full min-h-0 overflow-hidden">
               {view === 'iteration' ? (
                 <IterationView />
               ) : (

@@ -14,6 +14,7 @@ import { useBranchDivergence } from '../BranchDivergenceCheck';
 import { CreateMrDialog } from './create-mr-dialog';
 import { RepoCiModal } from './repo-ci-modal';
 import { Card } from '@/components/ui/card';
+import { SectionHeader } from '@/components/section-header';
 import { openBuildWorkbenchFromTrigger } from '@/components/build-workbench';
 import { cn } from '@/lib/utils';
 import type {
@@ -83,6 +84,10 @@ export interface LinkedRepoCardProps {
   repo: RepoSummary;
   identifier: string;
   subject: string;
+  /** 当前工作项 UUID：用于 MR 原生 workItemIds 关联。 */
+  workitemId?: string;
+  /** 父需求 UUID：缺陷 MR 时一并关联。 */
+  parentWorkitemId?: string;
   iterationId?: string;
   placeholderIteration: boolean;
   branchRule?: ResolvedRepoBranchRule;
@@ -110,9 +115,9 @@ export interface LinkedRepoCardProps {
 
 /** 需求关联仓库的紧凑摘要；分支与交付细节默认收拢。 */
 const REPO_PALETTES = [
-  'from-(--brand-indigo)/20 to-(--sticker-purple)/30 text-(--sticker-purple-deep) dark:text-(--sticker-purple) border-(--sticker-purple-deep)/20',
+  'from-(--brand-indigo)/20 to-(--sticker-purple)/30 text-(--sticker-purple-deep) border-(--sticker-purple-deep)/20',
   'from-(--sticker-sky)/20 to-(--sticker-sky)/35 text-(--sticker-sky) border-(--sticker-sky)/20',
-  'from-(--sticker-orange)/20 to-(--sticker-orange-deep)/30 text-(--sticker-orange-deep) dark:text-(--sticker-orange) border-(--sticker-orange)/20',
+  'from-(--sticker-orange)/20 to-(--sticker-orange-deep)/30 text-(--sticker-orange-deep) border-(--sticker-orange)/20',
   'from-(--sticker-green)/20 to-(--sticker-teal)/30 text-(--sticker-green) border-(--sticker-green)/20',
   'from-(--sticker-pink)/20 to-(--sticker-pink)/35 text-(--sticker-pink) border-(--sticker-pink)/20',
 ];
@@ -134,6 +139,8 @@ export function LinkedRepoCard({
   repo,
   identifier,
   subject,
+  workitemId,
+  parentWorkitemId,
   iterationId,
   placeholderIteration,
   branchRule,
@@ -393,7 +400,7 @@ export function LinkedRepoCard({
     <Card
       data-testid={`linked-repo-card-${repo.id}`}
       className={cn(
-        'group relative p-0 overflow-hidden transition-all duration-150',
+        'group relative overflow-hidden border border-border p-0 shadow-none transition-colors duration-150',
         detailsOpen && 'ring-1 ring-border/50',
       )}
     >
@@ -479,11 +486,10 @@ export function LinkedRepoCard({
         <CollapsibleContent className="transition-all">
           <Surface variant="secondary" className="flex flex-col gap-3 border-t border-border/50 px-4 py-3.5">
             {/* 展开面板顶栏（收合由表头展开按钮控制，HeroUI Separator 分隔） */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-foreground">
-                分支与交付详情 · {repo.name}
-              </span>
-            </div>
+            <SectionHeader
+              level="h3"
+              title={'分支与交付详情 · ' + repo.name}
+            />
             <Separator className="bg-border/40" />
 
             {/* 分支与规则网格 + 差异 + 其他匹配分支 */}
@@ -560,6 +566,8 @@ export function LinkedRepoCard({
         repoName={repo.pathWithNamespace || repo.name}
         identifier={identifier}
         subject={subject}
+        workitemId={workitemId}
+        parentWorkitemId={parentWorkitemId}
         sourceBranch={developerBranch}
         targetBranch={effectiveOperationBaseBranch}
         availableBranches={matchedBranches}

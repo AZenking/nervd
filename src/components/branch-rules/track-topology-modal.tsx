@@ -57,6 +57,7 @@ export function TrackTopologyModal({
     track,
     template: track,
     identifier: variables.identifier,
+    iterationEnd: variables.iterationEnd,
   };
   const sourceName = sourceBranch.trim();
   const baselineName = expandBranchPattern(baselinePattern, expandValues);
@@ -79,7 +80,7 @@ export function TrackTopologyModal({
                 交付轨道分支拓扑
               </DialogTitle>
               {templateName && (
-                <span className="rounded-md border border-border/70 bg-muted/30 px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                <span className="rounded-md border border-border/70 bg-surface-secondary px-2 py-0.5 font-mono text-xs text-muted-foreground">
                   {templateName}
                 </span>
               )}
@@ -108,7 +109,7 @@ export function TrackTopologyModal({
               节点间距自适应，长分支名无截断完整显示
             </span>
           </div>
-          <div className="rounded-lg border border-border/80 bg-surface-secondary/20 p-2 shadow-xs">
+          <div className="rounded-lg border border-border/80 bg-surface-secondary/20 p-2">
             <TrackTopologyDiagram
               sourceBranch={sourceBranch}
               baselinePattern={baselinePattern}
@@ -130,7 +131,7 @@ export function TrackTopologyModal({
           </span>
           <div className={`grid grid-cols-1 ${direct ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-3`}>
             {/* 源主干 */}
-            <div className="flex flex-col justify-between gap-2 rounded-lg border border-border/70 bg-surface/50 p-3 shadow-xs">
+            <div className="flex flex-col justify-between gap-2 rounded-lg border border-border/70 bg-surface/50 p-3">
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary">
@@ -140,7 +141,7 @@ export function TrackTopologyModal({
                   <CopyButton text={sourceName} label="复制源主干分支名" />
                 </div>
                 <div
-                  className="font-mono text-xs font-semibold text-foreground select-all break-all"
+                  className="overflow-x-auto whitespace-nowrap font-mono text-xs font-semibold text-foreground select-all"
                   title={sourceName}
                 >
                   {sourceName || '—'}
@@ -153,7 +154,7 @@ export function TrackTopologyModal({
 
             {/* 迭代基准分支 */}
             {!direct && (
-              <div className="flex flex-col justify-between gap-2 rounded-lg border border-border/70 bg-surface/50 p-3 shadow-xs">
+              <div className="flex flex-col justify-between gap-2 rounded-lg border border-border/70 bg-surface/50 p-3">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-warning">
@@ -163,7 +164,7 @@ export function TrackTopologyModal({
                     <CopyButton text={baselineName} label="复制迭代基准分支名" />
                   </div>
                   <div
-                    className="font-mono text-xs font-semibold text-foreground select-all break-all"
+                    className="overflow-x-auto whitespace-nowrap font-mono text-xs font-semibold text-foreground select-all"
                     title={baselineName}
                   >
                     {baselineName || '—'}
@@ -179,7 +180,7 @@ export function TrackTopologyModal({
             )}
 
             {/* 需求开发分支 */}
-            <div className="flex flex-col justify-between gap-2 rounded-lg border border-border/70 bg-surface/50 p-3 shadow-xs">
+            <div className="flex flex-col justify-between gap-2 rounded-lg border border-border/70 bg-surface/50 p-3">
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-accent-foreground">
@@ -189,7 +190,7 @@ export function TrackTopologyModal({
                   <CopyButton text={developmentName} label="复制需求开发分支名" />
                 </div>
                 <div
-                  className="font-mono text-xs font-semibold text-primary select-all break-all"
+                  className="overflow-x-auto whitespace-nowrap font-mono text-xs font-semibold text-primary select-all"
                   title={developmentName}
                 >
                   {developmentName || '—'}
@@ -206,7 +207,7 @@ export function TrackTopologyModal({
         </div>
 
         {/* 交付流转生命周期图例说明 */}
-        <div className="flex flex-col gap-2 rounded-lg border border-border/50 bg-muted/15 p-3">
+        <div className="flex flex-col gap-2 rounded-lg border border-border/50 bg-surface-secondary p-3">
           <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
             <Sparkles className="size-3 text-primary" />
             <span>生命周期流转说明</span>

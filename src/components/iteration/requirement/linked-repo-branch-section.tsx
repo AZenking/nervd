@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { CopyButton } from '@/components/ui/copy-button';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
+import { SectionHeader } from '@/components/section-header';
 import { BranchDivergenceCheck, useBranchDivergence } from '../BranchDivergenceCheck';
 import { IterationDevDivergence } from './iteration-dev-divergence';
 import type { IterationBaselineCheck } from './types';
@@ -36,7 +37,7 @@ export function LinkedRepoBranchStatus({
   if (developerBranchState === 'missing') {
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span className="size-2 rounded-full bg-muted-foreground/60 shrink-0" />
+        <span className="size-2 rounded-full bg-sig-idle shrink-0" />
         <span className="truncate">未创建需求分支</span>
       </div>
     );
@@ -58,10 +59,7 @@ export function LinkedRepoBranchStatus({
           <span className="size-2 rounded-full bg-success shrink-0" />
           <span className="truncate">超前 {devOnly} 提交</span>
           {baseOnly > 0 && (
-            <span
-              className="text-[11px] text-warning font-normal truncate"
-              title={`落后基准 ${baseOnly} 提交`}
-            >
+            <span className="text-[11px] text-warning font-normal truncate">
               / 需合入 {baseOnly}
             </span>
           )}
@@ -158,7 +156,7 @@ export function LinkedRepoBranchSection({
                 variant="soft"
                 className="h-5 max-w-36 gap-1 px-1.5 font-mono text-xs font-semibold sm:max-w-48"
               >
-                <OverflowTooltip text={developerBranch} title={developerBranch} className="max-w-32 truncate sm:max-w-44" />
+                <OverflowTooltip text={developerBranch} className="max-w-32 truncate sm:max-w-44" />
               </Chip>
               <CopyButton text={developerBranch} label="复制需求分支名" />
               {developerBranchState === 'exists' && (
@@ -199,11 +197,12 @@ export function LinkedRepoBranchSection({
                       color="accent"
                       className="h-5 max-w-36 cursor-help gap-1 px-1.5 font-mono text-xs sm:max-w-48"
                     >
-                      <span className="max-w-32 truncate sm:max-w-44" title={operationBaseBranch}>{operationBaseBranch}</span>
+                      <span className="max-w-32 truncate sm:max-w-44">{operationBaseBranch}</span>
                     </Chip>
                   }
                 />
-                <TooltipContent className="max-w-96 break-all font-mono text-xs">
+                {/* 分支名不折断：保持单行标识符可读（长名由 Tooltip 自身宽度承载） */}
+                <TooltipContent className="whitespace-nowrap font-mono text-xs">
                   {operationBaseBranch}
                 </TooltipContent>
               </Tooltip>
@@ -272,10 +271,9 @@ export function LinkedRepoBranchSection({
                 size="sm"
                 variant="secondary"
                 className="h-5 shrink-0 gap-1 px-1.5 text-[11px] text-muted-foreground"
-                title="此需求显式覆盖的交付轨道（Track/局点）"
               >
                 <span className="shrink-0">轨道：</span>
-                <span className="max-w-28 truncate font-mono" title={trackTemplateName}>{trackTemplateName}</span>
+                <OverflowTooltip text={trackTemplateName} className="max-w-28 truncate font-mono" />
                 <span className="shrink-0">[需求覆盖]</span>
               </Chip>
             ) : trackTemplateName ? (
@@ -283,10 +281,9 @@ export function LinkedRepoBranchSection({
                 size="sm"
                 variant="secondary"
                 className="h-5 shrink-0 gap-1 px-1.5 text-[11px] text-muted-foreground"
-                title="未显式覆盖时自动继承：迭代专属模板优先，其次全局默认轨道"
               >
                 <span className="shrink-0">继承：</span>
-                <span className="max-w-28 truncate font-mono" title={trackTemplateName}>{trackTemplateName}</span>
+                <OverflowTooltip text={trackTemplateName} className="max-w-28 truncate font-mono" />
                 <span className="shrink-0">[{trackOriginLabel}]</span>
               </Chip>
             ) : null}
@@ -305,7 +302,7 @@ export function LinkedRepoBranchSection({
                 variant="secondary"
                 className="h-5 max-w-32 gap-1 px-1.5 font-mono text-xs font-normal"
               >
-                <OverflowTooltip text={templateSourceBranch} title={templateSourceBranch} className="max-w-28 truncate" />
+                <OverflowTooltip text={templateSourceBranch} className="max-w-28 truncate" />
               </Chip>
             </div>
           )}
@@ -340,11 +337,16 @@ export function LinkedRepoBranchSection({
         <>
           <Separator className="bg-border/40" />
           <section className="flex min-w-0 flex-col gap-2" aria-label="其他关联分支">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-              <GitForkIcon className="size-3.5" aria-hidden="true" />
-              <span>其他匹配分支</span>
-              <span className="font-mono text-[11px] text-muted-foreground">({extraMatchedBranches.length})</span>
-            </div>
+            <SectionHeader
+              level="h3"
+              title={(
+                <span className="inline-flex items-center gap-1.5">
+                  <GitForkIcon className="size-3.5" aria-hidden="true" />
+                  <span>其他匹配分支</span>
+                </span>
+              )}
+              count={extraMatchedBranches.length}
+            />
             <div className="flex flex-wrap gap-2">
               {extraMatchedBranches.map((branch) => (
                 <div key={branch} className="flex items-center gap-1">
@@ -353,7 +355,7 @@ export function LinkedRepoBranchSection({
                     variant="secondary"
                     className="h-5 max-w-64 gap-1 px-1.5 font-mono text-xs font-normal"
                   >
-                    <OverflowTooltip text={branch} title={branch} className="max-w-56 truncate" />
+                    <OverflowTooltip text={branch} className="max-w-56 truncate" />
                   </Chip>
                   <CopyButton text={branch} label="复制分支名" />
                   {templateEnabled && operationBaseBranch && (

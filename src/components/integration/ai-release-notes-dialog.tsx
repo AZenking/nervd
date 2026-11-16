@@ -145,6 +145,7 @@ export function AiReleaseNotesDialog({
               size="xs"
               variant="ghost"
               disabled={loading}
+              aria-busy={loading || undefined}
               onClick={() => void handleGenerate()}
               className="h-7 text-xs"
             >
@@ -155,6 +156,7 @@ export function AiReleaseNotesDialog({
               size="xs"
               variant="outline"
               disabled={loading || !content}
+              aria-busy={loading || undefined}
               onClick={() => void handleCopy()}
               className="h-7 text-xs"
             >

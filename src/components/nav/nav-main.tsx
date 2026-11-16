@@ -22,22 +22,26 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
   return (
     <SidebarGroup className="px-0 py-0">
       <SidebarMenu className="gap-1">
-        {items.map((item) => (
-          <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton
-              tooltip={item.title}
-              isActive={item.isActive ?? (item.view != null && item.view === view)}
-              onClick={() => {
-                if (item.onClick) item.onClick();
-                else if (item.view) setView(item.view);
-              }}
-            >
-              {item.icon}
-              <span className="flex-1 font-medium group-data-[collapsible=icon]:hidden">{item.title}</span>
-              {item.badge}
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ))}
+        {items.map((item) => {
+          const isActive = item.isActive ?? (item.view != null && item.view === view);
+          return (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton
+                tooltip={item.title}
+                isActive={isActive}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => {
+                  if (item.onClick) item.onClick();
+                  else if (item.view) setView(item.view);
+                }}
+              >
+                {item.icon}
+                <span className="flex-1 font-medium group-data-[collapsible=icon]:hidden">{item.title}</span>
+                {item.badge}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          );
+        })}
       </SidebarMenu>
     </SidebarGroup>
   );

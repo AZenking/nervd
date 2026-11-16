@@ -1,6 +1,7 @@
 import { AlertCircleIcon, CheckIcon, RefreshCwIcon, RotateCcwIcon } from 'lucide-react';
 import { useSettingsDraft } from '@/store/settings-draft';
-import { Button, Tooltip } from '@heroui/react';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 function formatSavedTime(timestamp: number): string {
   const date = new Date(timestamp);
@@ -10,7 +11,11 @@ function formatSavedTime(timestamp: number): string {
   return `${h}:${m}:${s}`;
 }
 
-/** Linear 风格的设置自动保存状态指示器（支持错误定位 Tooltip、重试操作与保存时间反馈） */
+/**
+ * Linear 风格的设置自动保存状态指示器（支持错误定位 Tooltip、重试操作与保存时间反馈）。
+ * 四态各自落在 role="status"（错误态 role="alert" + aria-live="assertive"）的 live region 中，
+ * 状态迁移可被读屏播报；「未保存」的立即保存是真按钮，「已自动保存」静态态不进入 Tab 序。
+ */
 export function SettingsAutoSaveStatus() {
   const autoSaveStatus = useSettingsDraft((s) => s.autoSaveStatus);
   const saving = useSettingsDraft((s) => s.saving);
@@ -21,7 +26,11 @@ export function SettingsAutoSaveStatus() {
 
   if (saving || autoSaveStatus === 'saving') {
     return (
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground select-none">
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-1.5 text-xs text-muted-foreground select-none"
+      >
         <RefreshCwIcon className="size-3 animate-spin text-muted-foreground" />
         <span>保存中…</span>
       </div>
@@ -44,24 +53,31 @@ export function SettingsAutoSaveStatus() {
     });
 
     return (
-      <div className="flex items-center gap-2">
-        <Tooltip delay={0}>
-          <Tooltip.Trigger className="flex cursor-help items-center gap-1.5 text-xs text-destructive select-none">
+      <div role="alert" aria-live="assertive" className="flex items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                tabIndex={0}
+                className="flex cursor-help items-center gap-1.5 rounded-sm text-xs text-destructive select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+            }
+          >
             <AlertCircleIcon className="size-3" />
             <span>{errorCount > 0 ? `存在 ${errorCount} 处待修正` : '保存失败'}</span>
-          </Tooltip.Trigger>
-          <Tooltip.Content offset={4} placement="bottom end" className="max-w-xs flex flex-col gap-1 text-[11px]">
+          </TooltipTrigger>
+          <TooltipContent placement="bottom end" className="max-w-xs flex-col items-start gap-1 text-[11px]">
             <span className="font-semibold text-destructive-foreground">保存未完成：</span>
             {errorMessages.length > 0 ? (
               <ul className="list-disc pl-3 text-muted-foreground space-y-0.5">
                 {errorMessages.map((msg, i) => (
-                  <li key={i} className="truncate" title={msg}>{msg}</li>
+                  <li key={i} className="whitespace-normal break-words">{msg}</li>
                 ))}
               </ul>
             ) : (
               <span>网络连接或权限异常，请点击重试。</span>
             )}
-          </Tooltip.Content>
+          </TooltipContent>
         </Tooltip>
         {!aiOnly && (
           <Button
@@ -82,31 +98,50 @@ export function SettingsAutoSaveStatus() {
 
   if (autoSaveStatus === 'unsaved') {
     return (
-      <Tooltip delay={0}>
-        <Tooltip.Trigger
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors select-none"
-          onClick={() => void flushAutoSave()}
-        >
-          <span className="size-1.5 rounded-full bg-warning animate-pulse" />
-          <span>未保存</span>
-        </Tooltip.Trigger>
-        <Tooltip.Content offset={4} placement="bottom end" className="text-[11px]">
-          检测到本地草稿改动，停止输入后将自动保存（或点击立即保存）
-        </Tooltip.Content>
-      </Tooltip>
+      <div role="status" aria-live="polite" className="flex items-center">
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onPress={() => void flushAutoSave()}
+                aria-label="立即保存设置"
+                className="h-auto gap-1.5 px-0 text-xs font-normal text-muted-foreground hover:bg-transparent hover:text-foreground"
+              />
+            }
+          >
+            <span className="size-1.5 rounded-full bg-warning animate-pulse" aria-hidden="true" />
+            <span>未保存</span>
+          </TooltipTrigger>
+          <TooltipContent placement="bottom end" className="text-[11px]">
+            检测到本地草稿改动，停止输入后将自动保存（或点击立即保存）
+          </TooltipContent>
+        </Tooltip>
+      </div>
     );
   }
 
   return (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger className="flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-default">
-        <CheckIcon className="size-3 text-success" />
-        <span>已自动保存</span>
-      </Tooltip.Trigger>
-      <Tooltip.Content offset={4} placement="bottom end" className="text-[11px]">
-        所有配置均已持久化至本地
-        {lastSavedAt ? ` · 最近于 ${formatSavedTime(lastSavedAt)}` : ''}
-      </Tooltip.Content>
-    </Tooltip>
+    <div role="status" aria-live="polite" className="flex items-center">
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              tabIndex={-1}
+              className="flex cursor-default items-center gap-1.5 text-xs text-muted-foreground select-none"
+            />
+          }
+        >
+          <CheckIcon className="size-3 text-success" />
+          <span>已自动保存</span>
+        </TooltipTrigger>
+        <TooltipContent placement="bottom end" className="text-[11px]">
+          所有配置均已持久化至本地
+          {lastSavedAt ? ` · 最近于 ${formatSavedTime(lastSavedAt)}` : ''}
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
 }

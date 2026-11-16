@@ -1,9 +1,12 @@
 import { GitPullRequestIcon, PlusIcon } from 'lucide-react';
 import type { MrSummary } from '@/types';
+import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
+import { WriteOpGatedTrigger } from '@/components/WriteOpButton';
 import { Chip } from '@/components/ui/chip';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SectionHeader } from '@/components/section-header';
 import { useBranchDivergence } from '../BranchDivergenceCheck';
 import { MrInlineItem } from './mr-inline-item';
 import { getMrStatusInfo, type IterationBaselineCheck } from './types';
@@ -40,6 +43,7 @@ export function LinkedRepoMrStatus({
   onViewMr,
   onCreateMr,
 }: LinkedRepoMrStatusProps) {
+  const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
   // 1. 存在进行中的合并请求 (Active MR)
   if (targetActiveMr) {
     const statusInfo = getMrStatusInfo(
@@ -56,7 +60,6 @@ export function LinkedRepoMrStatus({
               size="xs"
               onPress={() => onViewMr(targetActiveMr)}
               className="group h-auto p-1 gap-1.5 text-xs text-left cursor-pointer max-w-full font-normal"
-              title={`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label}`}
               aria-label={`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label}`}
             >
               <Chip size="sm" color="accent" variant="soft" className="font-mono text-[11px] font-semibold shrink-0">
@@ -73,7 +76,7 @@ export function LinkedRepoMrStatus({
             </Button>
           }
         />
-        <TooltipContent>查看合并请求 !{targetActiveMr.localId} · 状态：${statusInfo.label}</TooltipContent>
+        <TooltipContent>{`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label}`}</TooltipContent>
       </Tooltip>
     );
   }
@@ -87,24 +90,26 @@ export function LinkedRepoMrStatus({
         <Chip size="sm" variant="soft" color="warning" className="text-[11px] font-medium shrink-0">
           待合入 ({devOnly} 提交)
         </Chip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                variant="link"
-                size="xs"
-                onPress={onCreateMr}
-                className="h-auto p-0 text-[11px] text-primary shrink-0"
-                title="代码已就绪，点击发起 MR 合入基准分支"
-                aria-label="代码已就绪，点击发起 MR 合入基准分支"
-              >
-                发起 MR
-              </Button>
-            }
-          />
-          <TooltipContent>代码已就绪，点击发起 MR 合入基准分支</TooltipContent>
-        </Tooltip>
+        <WriteOpGatedTrigger label="发起 MR" variant="link" />
+        {allowWriteOps && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="link"
+                  size="xs"
+                  onPress={onCreateMr}
+                  className="h-auto p-0 text-[11px] text-primary shrink-0"
+                  aria-label="代码已就绪，点击发起 MR 合入基准分支"
+                >
+                  发起 MR
+                </Button>
+              }
+            />
+            <TooltipContent>代码已就绪，点击发起 MR 合入基准分支</TooltipContent>
+          </Tooltip>
+        )}
       </div>
     );
   }
@@ -128,7 +133,6 @@ export function LinkedRepoMrStatus({
               size="xs"
               onPress={() => onViewMr(matchingMergedMr)}
               className="group h-auto p-1 gap-1.5 text-xs text-left cursor-pointer max-w-full font-normal"
-              title={`历史合并请求 !${matchingMergedMr.localId} 已成功合入，点击查看详情`}
               aria-label={`历史合并请求 !${matchingMergedMr.localId} 已成功合入，点击查看详情`}
             >
               <Chip size="sm" color="success" variant="soft" className="font-mono text-[11px] font-medium shrink-0">
@@ -140,7 +144,7 @@ export function LinkedRepoMrStatus({
             </Button>
           }
         />
-        <TooltipContent>历史合并请求 !{matchingMergedMr.localId} 已成功合入，点击查看详情</TooltipContent>
+        <TooltipContent>{`历史合并请求 !${matchingMergedMr.localId} 已成功合入，点击查看详情`}</TooltipContent>
       </Tooltip>
     );
   }
@@ -195,34 +199,45 @@ export function LinkedRepoMrList({
   onRefresh,
   onCreateMr,
 }: LinkedRepoMrListProps) {
+  const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
   return (
     <>
       <Separator className="bg-border/40" />
       <section className="flex min-w-0 flex-col gap-1.5" aria-label="合并请求">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-            <GitPullRequestIcon className="size-3.5 text-primary" aria-hidden="true" />
-            <span>合并请求</span>
-            <span className="font-mono text-[11px] text-muted-foreground">({sortedMergeRequests.length})</span>
-            {sortedMergeRequests.length === 0 && (
-              <span className="text-xs font-normal text-muted-foreground">· 暂无合并请求</span>
-            )}
-          </div>
-          {developerBranch && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1"
-              onPress={onCreateMr}
-            >
-              <PlusIcon className="size-3" />
-              创建 MR
-            </Button>
+        <SectionHeader
+          level="h3"
+          title={(
+            <span className="inline-flex items-center gap-1.5">
+              <GitPullRequestIcon className="size-3.5 text-primary" aria-hidden="true" />
+              <span>合并请求</span>
+            </span>
           )}
-        </div>
+          count={sortedMergeRequests.length}
+          hint={sortedMergeRequests.length === 0 ? '暂无合并请求' : undefined}
+          action={developerBranch ? (
+            <>
+              <WriteOpGatedTrigger
+                label="创建 MR"
+                icon={<PlusIcon className="size-3" />}
+                variant="ghost"
+              />
+              {allowWriteOps && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                  onPress={onCreateMr}
+                >
+                  <PlusIcon className="size-3" />
+                  创建 MR
+                </Button>
+              )}
+            </>
+          ) : undefined}
+        />
         {sortedMergeRequests.length > 0 && (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col">
             {sortedMergeRequests.map((mr) => (
               <MrInlineItem
                 key={mr.localId}

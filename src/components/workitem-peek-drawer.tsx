@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
-import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RequirementDetails } from '@/components/iteration/RequirementDetails';
 import type { WorkitemChild } from '@/lib/api';
@@ -36,7 +36,6 @@ export function WorkitemPeekDrawer({
   onSelectChild,
   onSelectParent,
 }: WorkitemPeekDrawerProps) {
-  const items = useApp((s) => s.items);
   const openWorkitem = useUi((s) => s.openWorkitem);
 
   useEffect(() => {
@@ -52,7 +51,8 @@ export function WorkitemPeekDrawer({
 
   const handleOpenWorkbench = () => {
     if (!workitemId) return;
-    const it = items.find((i) => i.workitemId === workitemId);
+    // 一次性按 ID 取行，不订阅整张 items（避免任意列表变更都重渲抽屉）
+    const it = useApp.getState().items.find((i) => i.workitemId === workitemId);
     onClose();
     if (onOpenWorkbench) {
       onOpenWorkbench(workitemId, it?.identifier, it?.subject);
@@ -77,6 +77,8 @@ export function WorkitemPeekDrawer({
         data-workspace-peek-drawer=""
         className="w-full sm:w-[min(58rem,92vw)] sm:max-w-none"
       >
+        {/* 读屏可访问名：抽屉头由 RequirementDetails 自绘，这里补 sr-only DrawerTitle 供 Dialog aria-labelledby 引用 */}
+        <DrawerTitle className="sr-only">工作项详情</DrawerTitle>
         {/* animate-* 会覆盖 ScrollShadow 的 scroll-driven animation（同为 animation 简写），
             故入场动画留在外层 div，滚动与边缘渐隐交给内层 ScrollArea */}
         <div key={workitemId ?? 'empty'} className="flex h-full min-h-0 flex-1 flex-col overflow-hidden animate-content-fade">

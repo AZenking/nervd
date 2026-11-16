@@ -6,6 +6,7 @@ import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { comparisonCommits } from './BranchDivergenceCheck';
 import { useMeasure } from '@/hooks/use-measure';
+import { useUi } from '@/store/ui';
 import {
   isDirectConnectBranches,
   TRACK_NODE_GLOW_CLASS,
@@ -91,7 +92,7 @@ type DiagramNode = RootNodeT | RepoNodeT | BranchNodeT;
 
 function RootNode({ data }: NodeProps<RootNodeT>) {
   return (
-    <Card className="w-[280px] p-3 border-primary/40">
+    <Card className="w-[280px] border border-primary/40 p-3 shadow-none">
       <Handle id="tt" type="target" position={Position.Top} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
       <div className="font-mono text-[11px] text-muted-foreground">{data.identifier}</div>
@@ -108,7 +109,7 @@ function RootNode({ data }: NodeProps<RootNodeT>) {
 
 function RepoNode({ data }: NodeProps<RepoNodeT>) {
   return (
-    <Card className="w-[300px] p-2.5">
+    <Card className="w-[300px] border border-border p-2.5 shadow-none">
       <Handle id="tt" type="target" position={Position.Top} style={HIDDEN_HANDLE} isConnectable={false} />
       <Handle id="ttr" type="target" position={Position.Top} style={{ ...HIDDEN_HANDLE, left: '78%' }} isConnectable={false} />
       <Handle id="sb" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} isConnectable={false} />
@@ -125,7 +126,7 @@ function RepoNode({ data }: NodeProps<RepoNodeT>) {
 }
 
 const KIND_CLASS: Record<BranchData['kind'], string> = {
-  '基准分支（源）': 'bg-muted/60 text-foreground border-border',
+  '基准分支（源）': 'bg-surface-secondary text-foreground border-border',
   '迭代分支': 'bg-primary/10 text-foreground border-primary/30',
   '开发分支': 'bg-sig-run/10 text-foreground border-sig-run/30',
 };
@@ -134,7 +135,7 @@ function BranchNode({ data }: NodeProps<BranchNodeT>) {
   const dashed = data.missing;
   return (
     <Card
-      className={`w-[300px] p-2.5 ${dashed ? 'border-dashed' : ''} ${
+      className={`w-[300px] border border-border p-2.5 shadow-none ${dashed ? 'border-dashed' : ''} ${
         data.glow ? TRACK_NODE_GLOW_CLASS[data.glow] : ''
       }`}
     >
@@ -167,12 +168,12 @@ const BADGE_CLASS: Record<Tone, string> = {
   ok: 'border-sig-ok/40 bg-sig-ok/10',
   warn: 'border-sig-run/50 bg-sig-run/10',
   err: 'border-sig-fail/40 bg-sig-fail/10',
-  muted: 'border-border bg-muted',
+  muted: 'border-border bg-surface-secondary',
 };
 
 const nodeTypes = { root: RootNode, repo: RepoNode, branch: BranchNode };
 
-const EDGE_GRAY = 'var(--sig-idle, #8a8f98)';
+const EDGE_GRAY = 'var(--sig-idle)';
 
 function treeEdge(id: string, source: string, target: string, label?: string): Edge {
   return {
@@ -181,21 +182,21 @@ function treeEdge(id: string, source: string, target: string, label?: string): E
     labelStyle: { fill: EDGE_GRAY, fontSize: 10, fontWeight: 500 },
     labelBgPadding: [4, 2],
     labelBgBorderRadius: 4,
-    labelBgStyle: { fill: 'var(--card, rgba(255, 255, 255, 0.95))' },
+    labelBgStyle: { fill: 'var(--card)' },
     style: { stroke: EDGE_GRAY, strokeDasharray: '2 3' },
     markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_GRAY },
   };
 }
 
 function mergeEdge(id: string, source: string, target: string, state: MergeState | undefined, label: string): Edge {
-  const color = state?.tone === 'ok' ? 'var(--sig-ok, #30a46c)' : state?.tone === 'warn' ? 'var(--sig-run, #d9730d)' : EDGE_GRAY;
+  const color = state?.tone === 'ok' ? 'var(--sig-ok)' : state?.tone === 'warn' ? 'var(--sig-run)' : EDGE_GRAY;
   return {
     id, source, sourceHandle: 'stl', target, targetHandle: 'tbl',
     label: state ? `${label}：${state.label}` : label,
     labelStyle: { fill: color, fontSize: 11, fontWeight: 600 },
     labelBgPadding: [4, 2],
     labelBgBorderRadius: 4,
-    labelBgStyle: { fill: 'var(--card, rgba(255, 255, 255, 0.95))' },
+    labelBgStyle: { fill: 'var(--card)' },
     style: { stroke: color, strokeWidth: 1.6 },
     markerEnd: { type: MarkerType.ArrowClosed, color },
   };
@@ -212,6 +213,7 @@ export default function BranchStateDiagram({
 }) {
   const [results, setResults] = useState<Record<string, ResultEntry>>({});
   const [refreshKey, setRefreshKey] = useState(0);
+  const openSettings = useUi((state) => state.openSettings);
   // repos 由父组件渲染期构建（数组身份不稳定），以签名串作为 effect 依赖，ref 取最新值
   const reposRef = useRef(repos);
   reposRef.current = repos;
@@ -385,12 +387,25 @@ export default function BranchStateDiagram({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          {eligible.length
-            ? `实时比较 ${eligible.length} 个仓库（开发↔基准、基准↔源；直连轨道为开发↔源）${pendingCount > 0 ? ` · 进行中 ${Object.keys(results).length}/${expectedPairs}` : ''}`
-            : '暂无可比较的仓库：需先选择分支模板并创建迭代基准分支'}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            {eligible.length
+              ? `实时比较 ${eligible.length} 个仓库（开发↔基准、基准↔源；直连轨道为开发↔源）${pendingCount > 0 ? ` · 进行中 ${Object.keys(results).length}/${expectedPairs}` : ''}`
+              : '暂无可比较的仓库：需先选择分支模板并创建迭代基准分支'}
+          </p>
+          {!eligible.length && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 px-1.5 text-xs"
+              onClick={() => openSettings('trace')}
+            >
+              前往设置配置分支规则
+            </Button>
+          )}
+        </div>
         <Button
           type="button"
           variant="outline"

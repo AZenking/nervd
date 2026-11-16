@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Drawer as HeroUIDrawer } from "@heroui/react"
+import { XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type DrawerPlacement = "top" | "bottom" | "left" | "right"
@@ -141,6 +142,9 @@ interface DrawerContentProps extends Omit<React.ComponentPropsWithoutRef<typeof 
   children?: React.ReactNode | ((opts: any) => React.ReactNode)
   /** Peek 抽屉标记：透传到 Dialog 元素，供键盘层做「仅 Peek 抽屉开启」的浮层让路判定 */
   "data-workspace-peek-drawer"?: string | boolean
+  /** 是否渲染默认关闭 X（绝对定位于右上角）。默认 false：带自定义头部的抽屉会自绘关闭键，
+   *  打开默认 X 会与自绘键重叠；新增抽屉若无自绘头，显式传 true。 */
+  showCloseButton?: boolean
 }
 
 function DrawerContent({
@@ -149,6 +153,7 @@ function DrawerContent({
   placement: placementProp,
   isDismissable: isDismissableProp,
   backdropVariant,
+  showCloseButton = false,
   ...props
 }: DrawerContentProps) {
   const { placement: ctxPlacement, isDismissable: ctxIsDismissable } = useDrawer()
@@ -160,11 +165,20 @@ function DrawerContent({
       <HeroUIDrawer.Content placement={placement}>
         <HeroUIDrawer.Dialog
           className={cn(
-            "p-0 border-l border-border",
+            "relative p-0 border-l border-border",
             className
           )}
           {...props}
         >
+          {showCloseButton && (
+            <HeroUIDrawer.CloseTrigger
+              data-slot="drawer-close"
+              aria-label="关闭抽屉"
+              className="absolute top-3 right-3 z-10 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-colors hover:bg-surface-secondary hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <XIcon className="size-4" />
+            </HeroUIDrawer.CloseTrigger>
+          )}
           <div data-slot="drawer-content" className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {typeof children === "function" ? (children as any) : children}
           </div>

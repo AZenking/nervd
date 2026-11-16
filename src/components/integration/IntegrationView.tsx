@@ -11,13 +11,15 @@ import { Alert, Button, Chip, Input, ListBox, Pagination, Select, Table, Tooltip
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { parseBranchList } from '@/lib/iteration-branches';
-import { extractWorkItemKeys } from '@/lib/link';
+import { extractWorkItemKeys, identifierNum } from '@/lib/link';
 import { comparisonCommits } from '../iteration/BranchDivergenceCheck';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
+import { useUi } from '@/store/ui';
 import { useShallow } from 'zustand/react/shallow';
 import type { BranchInfo } from '@/types';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -43,7 +45,7 @@ import { OverflowTooltip } from '../overflow-tooltip';
 const DEFAULT_PATTERNS = 'release/* integration/* temp/* hotfix/*';
 const DEFAULT_BASE = 'master';
 const PAGE_SIZE = 20;
-const DEBOUNCE_MS = 300;
+const DEBOUNCE_MS = 400;
 const COMPARE_CONCURRENCY = 3;
 const BRANCH_CACHE_TTL = 3 * 60 * 1000;
 
@@ -58,6 +60,30 @@ export function matchPatterns(name: string, patterns: string): boolean {
       .join('.*');
     return new RegExp(`^${source}$`).test(name);
   });
+}
+
+/**
+ * 需求号归一化匹配：
+ * - 分支名里的链接正则有时只捕获数字（如 `205`），而工作项 identifier 是 `REQ-205`；
+ *   严格等值会让跳转入口静默退化为不可点 Chip。
+ * - 先按去分隔符归一化严格匹配（`REQ-205` / `REQ205` / `req-205` 等价）；
+ * - 仅当 key 只有数字且在该工作项集合里唯一命中时才退化匹配，避免 REQ-205 / BUG-205 混淆。
+ */
+export function matchWorkitemByKey<T extends { identifier: string }>(
+  items: readonly T[],
+  key: string,
+): T | undefined {
+  const normalize = (value: string) => value.toUpperCase().replace(/[-_\s]/g, '');
+  const normalizedKey = normalize(key);
+  if (!normalizedKey) return undefined;
+
+  const exact = items.find((item) => normalize(item.identifier) === normalizedKey);
+  if (exact) return exact;
+
+  const num = identifierNum(key);
+  if (!num) return undefined;
+  const byNumber = items.filter((item) => identifierNum(item.identifier) === num);
+  return byNumber.length === 1 ? byNumber[0] : undefined;
 }
 
 export interface BranchRowState {
@@ -147,6 +173,7 @@ export function IntegrationView() {
     })),
   );
   const linkPattern = settings?.linkPattern || '(?:REQ|BUG|TASK)[-_]?(\\d+)';
+  const openSettings = useUi((s) => s.openSettings);
 
   // 可选仓库：优先设置中的默认云效仓库，未配置时回退全部已加载仓库
   const watchedIds = settings?.watchedRepos ?? [];
@@ -345,6 +372,8 @@ export function IntegrationView() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.isComposing) return;
+      // 组合快捷键（⌘[ / Ctrl+] 等）属于浏览器/应用级导航，不在此处抢作翻页
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -352,6 +381,15 @@ export function IntegrationView() {
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable ||
           target.closest('input, textarea, select, [contenteditable="true"]'))
+      ) {
+        return;
+      }
+      // 浮层打开时让路（AGENTS §4.2 浮层优先）：Peek 抽屉 / 命令面板 / 任意模态对话框
+      if (
+        drawerWorkitemId ||
+        selectedReleaseBranch ||
+        target?.closest('[role="dialog"], [role="alertdialog"], [data-slot="drawer-content"]') ||
+        document.querySelector('[data-workspace-peek-drawer], [aria-modal="true"]')
       ) {
         return;
       }
@@ -367,15 +405,21 @@ export function IntegrationView() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [totalPages]);
+  }, [totalPages, drawerWorkitemId, selectedReleaseBranch]);
 
   const repoName = repoOptions.find((option) => Number(option.value) === repoId)?.label ?? '';
 
+  // ---- 布局自适应（DESIGN §F.3）----
+  // 工作区宽度由 Shell 统一测量写入 store（含 ScrollArea padding），避免各视图自测导致阈值偏早。
+  const compact = useWorkspaceCompact();
+
   return (
     <div className="flex flex-col gap-4">
-      {/* 页头（sticky 单行）：navigation=侧栏开关｜title=集成分支｜actions=刷新；筛选工具行下放正文 */}
+      {/* 页头（sticky 单行）：navigation=侧栏开关｜title=集成分支｜actions=刷新；筛选工具行下放正文。
+          工作区 <760px 时切 compact 密度（与 IterationView / SchedulesView 同款口径）。 */}
       <PageHeader
         sticky
+        density={compact ? 'compact' : 'regular'}
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="集成分支"
         actions={
@@ -395,7 +439,7 @@ export function IntegrationView() {
       />
 
       {/* 工具行（自吸顶页头下放正文）：仓库选择 + 基准分支 + 匹配模式 + 命中计数，随页面滚动 */}
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2.5">
           <Select
             className="w-56 text-xs"
@@ -450,7 +494,7 @@ export function IntegrationView() {
             {[0, 1, 2, 3, 4].map((key) => (
               <div
                 key={key}
-                className="flex h-11 w-full items-center gap-2 rounded-lg px-4 bg-muted/20"
+                className="flex h-11 w-full items-center gap-2 rounded-lg px-4 bg-surface-secondary"
               >
                 <div className="flex w-64 shrink-0 items-center gap-1.5 pl-5">
                   <Skeleton className="size-3.5 rounded" />
@@ -493,6 +537,15 @@ export function IntegrationView() {
             icon={FolderIcon}
             title="未匹配到集成分支"
             description={`当前模式「${debouncedPatterns || '（空）'}」没有命中任何分支，可调整上方匹配模式。`}
+            action={(
+              <Button
+                variant="outline"
+                size="sm"
+                onPress={() => setPatterns(DEFAULT_PATTERNS)}
+              >
+                恢复默认匹配模式
+              </Button>
+            )}
           />
         )}
 
@@ -506,7 +559,7 @@ export function IntegrationView() {
                   <OverflowTooltip text={repoName} className="min-w-0 truncate text-[13px]" />
                 </Alert.Title>
                 <Alert.Description className="flex items-center gap-3 text-xs">
-                  <span className="tabular-nums">共 {matchedBranches.length} 条</span>
+                  <span className="font-mono tabular-nums">共 {matchedBranches.length} 条</span>
                   <OverflowTooltip
                     text={`基准 ${debouncedBase}`}
                     className="max-w-40 truncate font-mono"
@@ -529,7 +582,7 @@ export function IntegrationView() {
                       </Tooltip>
                     </Pagination.Item>
                     <Pagination.Item>
-                      <span className="px-1 text-[11px] tabular-nums">
+                      <span className="px-1 font-mono text-[11px] tabular-nums">
                         {page} / {totalPages}
                       </span>
                     </Pagination.Item>
@@ -566,9 +619,7 @@ export function IntegrationView() {
                   <Table.Body>
                     {rows.map((row) => {
                       const requirementButtons = row.keys.map((key) => {
-                        const workitem = items.find(
-                          (i) => i.identifier.toUpperCase() === key.toUpperCase(),
-                        );
+                        const workitem = matchWorkitemByKey(items, key);
                         if (!workitem) {
                           return (
                             <Chip key={key} size="sm" variant="soft" className="font-mono" title={key}>
@@ -614,14 +665,13 @@ export function IntegrationView() {
                           <Table.Cell>
                             <div className="flex items-center gap-2 font-mono">
                               <GitBranchIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                              <OverflowTooltip text={row.name} title={row.name} />
+                              <OverflowTooltip text={row.name} />
                             </div>
                           </Table.Cell>
 
                           <Table.Cell>
                             <OverflowTooltip
                               text={row.commitMessage || '—'}
-                              title={row.commitMessage || '—'}
                               className="text-muted-foreground"
                             />
                           </Table.Cell>
@@ -631,7 +681,7 @@ export function IntegrationView() {
                             <Tooltip>
                               <span
                                 className={cn(
-                                  'flex items-center gap-1 tabular-nums',
+                                  'flex items-center gap-1 font-mono tabular-nums',
                                   row.comparing
                                     ? 'text-muted-foreground'
                                     : diverged
@@ -708,6 +758,11 @@ export function IntegrationView() {
             icon={FolderIcon}
             title="未加载云效仓库"
             description="请先在「设置 → 云效连接」配置并保存连接"
+            action={(
+              <Button variant="outline" size="sm" onPress={() => openSettings('connection')}>
+                前往设置
+              </Button>
+            )}
           />
         )}
       </div>

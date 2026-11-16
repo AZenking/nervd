@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Surface } from '@heroui/react';
 import {
   ArrowRightIcon,
-  CheckCircle2Icon,
   ClockIcon,
   FileTextIcon,
   FolderGit2Icon,
@@ -20,17 +19,16 @@ import {
   TerminalIcon,
   Trash2Icon,
   WorkflowIcon,
-  XCircleIcon,
   XIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
+import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Chip } from '@/components/ui/chip';
 import { Switch } from '@/components/ui/switch';
-import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ListBox } from '@/components/ui/list-box';
 import { EmptyHint } from '@/components/empty-hint';
@@ -38,10 +36,11 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 import { READONLY_BTN_CLASS, WriteOpButton } from '@/components/WriteOpButton';
 import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ScheduleEditorDrawer } from './ScheduleEditorDrawer';
+import { ScheduleEditorDrawer, type ScheduleDraft } from './ScheduleEditorDrawer';
 import { ScheduleLogDrawer } from './ScheduleLogDrawer';
 import { RecentMergeChangesPreview } from './RecentMergeChangesPreview';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { StatusIcon } from '@/components/status-icon';
 import { useScheduleStore } from '@/store/schedule';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
@@ -59,7 +58,6 @@ export function SchedulesView() {
   const setGlobalPaused = useScheduleStore((s) => s.setGlobalPaused);
   const toggleTask = useScheduleStore((s) => s.toggleTask);
   const deleteTask = useScheduleStore((s) => s.deleteTask);
-  const addTask = useScheduleStore((s) => s.addTask);
 
   // Search & Filter (activeTab 持久化记忆用户偏好)
   const [search, setSearch] = useState('');
@@ -71,6 +69,8 @@ export function SchedulesView() {
   // Dialog & Drawer state
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
+  /** 模板卡草稿：只预填编辑器表单，保存时才落盘（不再点击即创建） */
+  const [editorDraft, setEditorDraft] = useState<ScheduleDraft | null>(null);
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const [logTaskId, setLogTaskId] = useState<string | null>(null);
 
@@ -166,12 +166,24 @@ export function SchedulesView() {
   };
 
   const handleOpenEdit = (task: ScheduledTask) => {
+    setEditorDraft(null);
     setEditingTask(task);
     setEditorOpen(true);
   };
 
   const handleOpenCreate = () => {
+    setEditorDraft(null);
     setEditingTask(null);
+    setEditorOpen(true);
+  };
+
+  /**
+   * 空态模板卡：只把模板内容填入草稿并打开编辑器，由用户在编辑器内确认后保存。
+   * 与「启用/暂停」一致，不在点击瞬间产生任何持久化副作用。
+   */
+  const handleUseTemplate = (draft: ScheduleDraft) => {
+    setEditingTask(null);
+    setEditorDraft(draft);
     setEditorOpen(true);
   };
 
@@ -180,6 +192,9 @@ export function SchedulesView() {
     setLogDrawerOpen(true);
   };
 
+  // DESIGN §F.3：工作区 < 760px 才用 compact 页头（宽度由 Shell 统一测量）
+  const compact = useWorkspaceCompact();
+
   return (
     <div className="flex flex-col gap-6">
       {/* 统一吸顶页头：compact 紧凑字阶的轻量页头，仅保留标题行；
@@ -187,7 +202,7 @@ export function SchedulesView() {
           与状态筛选、搜索及任务裸行同域，随正文滚动 */}
       <PageHeader
         sticky
-        density="compact"
+        density={compact ? 'compact' : 'regular'}
         navigation={<SidebarTrigger aria-label="折叠/展开侧栏" />}
         title="定时任务工作台"
         titleBadge={
@@ -349,8 +364,8 @@ export function SchedulesView() {
                       title="开发分支合入主干 (谨慎)"
                       description="每天凌晨 02:00 自动比对 dev 与 master，若有冲突则安全终止"
                       icon={<GitMergeIcon className="size-4 text-primary" />}
-                      onClick={() => {
-                        addTask({
+                      onClick={() =>
+                        handleUseTemplate({
                           name: '开发分支合入主干 (谨慎策略)',
                           description: '每日凌晨比对 dev 分支与 master，若无冲突则自动合入',
                           enabled: true,
@@ -365,17 +380,16 @@ export function SchedulesView() {
                           },
                           notifyOnSuccess: true,
                           notifyOnFailure: true,
-                        });
-                        setEditorOpen(true);
-                      }}
+                        })
+                      }
                     />
 
                     <TemplateCard
                       title="开发分支合入主干 (激进零污染)"
                       description="每天凌晨 03:00 遇冲突自动隔离至影子分支并提审，绝不污染原分支"
                       icon={<ShieldCheckIcon className="size-4 text-warning" />}
-                      onClick={() => {
-                        addTask({
+                      onClick={() =>
+                        handleUseTemplate({
                           name: '开发分支合入主干 (激进零污染)',
                           description: '每日凌晨自动解决冲突并在隔离分支创建 MR，严格不污染原分支',
                           enabled: true,
@@ -391,17 +405,16 @@ export function SchedulesView() {
                           },
                           notifyOnSuccess: true,
                           notifyOnFailure: true,
-                        });
-                        setEditorOpen(true);
-                      }}
+                        })
+                      }
                     />
 
                     <TemplateCard
                       title="云效需求每小时自动同步"
                       description="每小时整点自动刷新云效工作项与最新迭代进展"
                       icon={<RefreshCwIcon className="size-4 text-success" />}
-                      onClick={() => {
-                        addTask({
+                      onClick={() =>
+                        handleUseTemplate({
                           name: '云效需求每小时同步',
                           description: '整点定时拉取云效迭代内最新工作项状态',
                           enabled: true,
@@ -410,8 +423,8 @@ export function SchedulesView() {
                           action: { type: 'sync_workitems' },
                           notifyOnSuccess: false,
                           notifyOnFailure: true,
-                        });
-                      }}
+                        })
+                      }
                     />
                   </div>
                 </div>
@@ -449,21 +462,24 @@ export function SchedulesView() {
                       variant="secondary"
                       className={cn(
                         'w-full group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 rounded-xl border border-border/70 transition-all hover:border-border cursor-pointer group-data-[focused=true]:ring-2 group-data-[focused=true]:ring-primary/40',
-                        !task.enabled && 'opacity-60 bg-muted/20',
+                        !task.enabled && 'opacity-60 bg-surface-secondary',
                       )}
                     >
                       {/* 状态点与任务主体 */}
                       <div className="flex items-start gap-3 min-w-0 flex-1">
                         <div className="pt-0.5 shrink-0">
-                          {isRunning ? (
-                            <Spinner className="size-4 text-warning animate-spin" />
-                          ) : task.lastStatus === 'success' ? (
-                            <CheckCircle2Icon className="size-4 text-success" />
-                          ) : task.lastStatus === 'failed' ? (
-                            <XCircleIcon className="size-4 text-destructive" />
-                          ) : (
-                            <div className="size-2.5 rounded-full bg-sig-idle m-0.5" />
-                          )}
+                          <StatusIcon
+                            status={
+                              isRunning
+                                ? 'running'
+                                : task.lastStatus === 'success'
+                                  ? 'success'
+                                  : task.lastStatus === 'failed'
+                                    ? 'failed'
+                                    : '未执行'
+                            }
+                            className="size-4"
+                          />
                         </div>
 
                         <div className="space-y-2 min-w-0 flex-1">
@@ -477,7 +493,7 @@ export function SchedulesView() {
                             {/* 调度周期 Cron Tag */}
                             <Badge
                               variant="outline"
-                              className="font-mono text-[10px] text-muted-foreground bg-muted/20 border-border/70"
+                              className="font-mono text-[10px] text-muted-foreground bg-surface-secondary border-border/70"
                             >
                               <ClockIcon className="mr-1 size-2.5 text-muted-foreground" />
                               {task.cronLabel || task.cron}
@@ -505,7 +521,7 @@ export function SchedulesView() {
                           )}
 
                           {/* 辅助元数据行 */}
-                          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground font-mono">
+                          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground font-mono tabular-nums">
                             <span>已运行 {task.runCount} 次</span>
                             {task.lastRunAt && (
                               <span>
@@ -660,6 +676,7 @@ export function SchedulesView() {
           open={editorOpen}
           onOpenChange={setEditorOpen}
           initialTask={editingTask}
+          initialDraft={editorDraft}
         />
       </ErrorBoundary>
 
@@ -809,7 +826,7 @@ export function ActionDetailTags({
         <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
           <Badge
             variant="outline"
-            className="border-border/80 text-foreground/90 bg-muted/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+            className="border-border/80 text-foreground/90 bg-surface-secondary text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
           >
             <WorkflowIcon className="size-3 text-success shrink-0" />
             <span>{pipelineDisplayName}</span>
@@ -829,7 +846,7 @@ export function ActionDetailTags({
         <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
           <Badge
             variant="outline"
-            className="border-border/80 text-foreground/90 bg-muted/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+            className="border-border/80 text-foreground/90 bg-surface-secondary text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
           >
             <TerminalIcon className="size-3 text-chart-2 shrink-0" />
             <span>{action.jobFullName}</span>
@@ -851,7 +868,7 @@ export function ActionDetailTags({
         <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
           <Badge
             variant="outline"
-            className="border-border/80 text-muted-foreground bg-muted/40 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+            className="border-border/80 text-muted-foreground bg-surface-secondary text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
           >
             <RefreshCwIcon className="size-2.5 text-warning shrink-0" />
             云效迭代与全量工作项状态巡检
@@ -863,9 +880,9 @@ export function ActionDetailTags({
         <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
           <Badge
             variant="outline"
-            className="border-border/80 text-muted-foreground bg-muted/40 text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
+            className="border-border/80 text-muted-foreground bg-surface-secondary text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
           >
-            <GitCompareIcon className="size-2.5 text-(--sticker-purple-deep) dark:text-(--sticker-purple) shrink-0" />
+            <GitCompareIcon className="size-2.5 text-(--ansi-magenta) shrink-0" />
             {action.repoIds && action.repoIds.length > 0
               ? `指定 ${action.repoIds.length} 个代码库落差`
               : '全量纳管仓库集成分支落差'}
@@ -899,7 +916,7 @@ function TemplateCard({
           onClick();
         }
       }}
-      className="cursor-pointer text-left transition-all hover:bg-muted/40 hover:border-primary/50 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="cursor-pointer text-left transition-all hover:bg-surface-secondary hover:border-primary/50 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <Card.Header className="flex flex-row items-center gap-2 pb-0">
         {icon}

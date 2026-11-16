@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { WorkflowIcon, Loader2Icon, CheckIcon, Trash2Icon } from 'lucide-react';
+import { WorkflowIcon } from 'lucide-react';
 import type { RepoSummary, RepoCiBinding } from '@/types';
 import { useApp } from '@/store/app';
 import { useShallow } from 'zustand/react/shallow';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { humanizeError } from '@/lib/error-format';
 import { Button } from '@/components/ui/button';
+import { READONLY_BTN_CLASS, WriteOpButton } from '@/components/WriteOpButton';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -44,7 +46,10 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
 
   const savedBinding = settings?.repoCiBindings?.[String(repo.id)] ?? null;
   const [binding, setBinding] = useState<RepoCiBinding | null>(savedBinding);
-  const [saving, setSaving] = useState(false);
+  // pendingAction 取代布尔 saving：写入中的按钮由 WriteOpButton 的 isPending 语义（onAction Promise）
+  // 自行呈现，这里只负责在另一个写入口/表单上做互斥，避免两个远端写并发。
+  const [pendingAction, setPendingAction] = useState<'save' | 'clear' | null>(null);
+  const saving = pendingAction !== null;
 
   // 智能推荐匹配
   const matchResult = matchPipelineForRepo(repo.name, pipelines);
@@ -67,7 +72,7 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
   }, [open, repo.id, savedBinding]);
 
   const handleSave = async () => {
-    setSaving(true);
+    setPendingAction('save');
     try {
       await saveRepoCiBinding(repo.id, binding);
       setToast({
@@ -84,12 +89,12 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
         kind: 'fail',
       });
     } finally {
-      setSaving(false);
+      setPendingAction(null);
     }
   };
 
   const handleClear = async () => {
-    setSaving(true);
+    setPendingAction('clear');
     try {
       await saveRepoCiBinding(repo.id, null);
       setToast({ text: `已取消「${repo.name}」的 CI 关联`, kind: 'ok' });
@@ -98,7 +103,7 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
     } catch (err) {
       setToast({ text: `取消 CI 关联失败：${humanizeError(err)}`, kind: 'fail' });
     } finally {
-      setSaving(false);
+      setPendingAction(null);
     }
   };
 
@@ -106,7 +111,7 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg flex flex-col p-6 gap-4">
+      <DialogContent className="sm:max-w-2xl flex flex-col p-6 gap-4">
         <DialogHeader className="shrink-0 text-left">
           <DialogTitle className="text-base font-semibold text-foreground flex items-center gap-2">
             <WorkflowIcon className="size-4.5 text-primary" />
@@ -135,17 +140,16 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
         <DialogFooter className="shrink-0 flex items-center justify-between gap-2 pt-3 border-t border-border/70">
           <div>
             {savedBinding && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onPress={handleClear}
-                disabled={saving}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 text-xs"
-              >
-                <Trash2Icon className="size-3.5" />
-                <span>解除当前 CI 关联</span>
-              </Button>
+              <WriteOpButton
+                label="解除当前 CI 关联"
+                title={`解除「${repo.name}」当前 CI 关联`}
+                variant="danger-soft"
+                confirm="inline"
+                confirmLabel="确认解除"
+                disabled={pendingAction === 'save'}
+                disabledReason={pendingAction === 'save' ? '正在保存关联，请稍候' : undefined}
+                onAction={handleClear}
+              />
             )}
           </div>
 
@@ -154,26 +158,25 @@ export function RepoCiModal({ open, onOpenChange, repo, onSuccess }: RepoCiModal
               type="button"
               variant="ghost"
               size="sm"
-              onPress={() => onOpenChange(false)}
-              disabled={saving}
+              aria-disabled={saving || undefined}
+              className={cn(saving && READONLY_BTN_CLASS)}
+              onPress={() => {
+                if (saving) return;
+                onOpenChange(false);
+              }}
             >
               取消
             </Button>
-            <Button
-              type="button"
+            <WriteOpButton
+              label="保存关联"
+              title="保存代码仓库 CI 关联"
               variant="default"
-              size="sm"
-              onPress={handleSave}
-              disabled={saving}
-              className="gap-1.5"
-            >
-              {saving ? (
-                <Loader2Icon className="size-3.5 animate-spin" />
-              ) : (
-                <CheckIcon className="size-3.5" />
-              )}
-              <span>保存关联</span>
-            </Button>
+              confirm="inline"
+              confirmLabel="确认保存"
+              disabled={pendingAction === 'clear'}
+              disabledReason={pendingAction === 'clear' ? '正在解除关联，请稍候' : undefined}
+              onAction={handleSave}
+            />
           </div>
         </DialogFooter>
       </DialogContent>

@@ -1,16 +1,47 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
-import { Checkbox, Chip, Input, ScrollShadow } from '@heroui/react';
+import { Checkbox, Chip, ScrollShadow } from '@heroui/react';
+import { Input } from '@/components/ui/input';
 import { getCustomDevBranch, setCustomDevBranch } from '@/lib/dev-branch-settings';
-import { SettingsGroup, SettingsRow } from '../settings-group';
+import { SettingsGroup, SettingsRow, SettingsRowError } from '../settings-group';
+
+type SettingsDraftState = ReturnType<typeof useSettingsDraft.getState>;
+
+/** 独立通道（如 dev 分支）提交后据主草稿状态落定页头指示，避免误报「已自动保存」 */
+function settleAutoSaveStatus() {
+  useSettingsDraft.setState((st: SettingsDraftState) => {
+    if (st.saving) return {};
+    if (st.isDirty()) return { autoSaveStatus: 'unsaved' as const };
+    return { autoSaveStatus: 'saved' as const, lastSavedAt: Date.now() };
+  });
+}
+
+function markUnsaved() {
+  useSettingsDraft.setState((st: SettingsDraftState) => (st.saving ? {} : { autoSaveStatus: 'unsaved' as const }));
+}
 
 export function TraceSection() {
   const draft = useSettingsDraft();
+  const [patternError, setPatternError] = useState<string | null>(null);
+
+  const validatePattern = () => {
+    const value = draft.draft?.linkPattern ?? '';
+    if (!value.trim()) {
+      setPatternError('关联正则不能为空');
+      return;
+    }
+    try {
+      new RegExp(value);
+      setPatternError(null);
+    } catch (e) {
+      setPatternError(`正则表达式无效：${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
 
   return (
     <SettingsGroup
-      title="追溯与云效仓库"
+      title="关联规则与默认仓库"
       description="仓库从云效组织获取。这里选择需求未单独关联云效仓库时参与扫描的默认仓库。"
     >
       <SettingsRow
@@ -19,17 +50,26 @@ export function TraceSection() {
         label="关联正则"
         description="命中后自动关联对应工作项，如 (?:REQ|BUG|TASK)[-_]?(\d+)。用于从分支名、Commit 记录与 MR 标题中识别需求。"
         htmlFor="pattern"
+        error={patternError ? <SettingsRowError>{patternError}</SettingsRowError> : undefined}
         control={(
           <Input
             id="pattern"
             className="font-mono"
             value={draft.draft?.linkPattern ?? ''}
-            onChange={(e) => draft.update({ linkPattern: e.target.value })}
+            aria-invalid={Boolean(patternError)}
+            aria-describedby={patternError ? 'pattern-error' : undefined}
+            onChange={(e) => {
+              if (patternError) setPatternError(null);
+              draft.update({ linkPattern: e.target.value });
+            }}
             onKeyDown={(e) => {
               e.stopPropagation();
               if (e.nativeEvent.isComposing) return;
             }}
-            onBlur={() => void draft.flushAutoSave()}
+            onBlur={() => {
+              validatePattern();
+              void draft.flushAutoSave();
+            }}
           />
         )}
       />
@@ -58,6 +98,48 @@ export function TraceSection() {
 
 function DevBranchSettingRow() {
   const [val, setVal] = useState(() => getCustomDevBranch());
+  const timerRef = useRef<number | null>(null);
+  const pendingRef = useRef<string | null>(null);
+
+  /** 提交 dev 分支到 localStorage（静态配置，非设置草稿字段）；仅提交后落定页头状态。 */
+  const commit = (next: string) => {
+    if (timerRef.current != null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    pendingRef.current = null;
+    setCustomDevBranch(next);
+    settleAutoSaveStatus();
+  };
+
+  useEffect(() => () => {
+    // 离开分区时冲刷尚未到期的 800ms 防抖窗口，避免切换设置页丢失输入
+    if (timerRef.current != null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+      if (pendingRef.current != null) {
+        setCustomDevBranch(pendingRef.current);
+        pendingRef.current = null;
+        settleAutoSaveStatus();
+      }
+    }
+  }, []);
+
+  // 窗口失焦时立即冲刷 dev 分支防抖，避免切 App / 关窗前丢失输入
+  useEffect(() => {
+    const flush = () => {
+      if (timerRef.current == null) return;
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+      if (pendingRef.current != null) {
+        setCustomDevBranch(pendingRef.current);
+        pendingRef.current = null;
+        settleAutoSaveStatus();
+      }
+    };
+    window.addEventListener('blur', flush);
+    return () => window.removeEventListener('blur', flush);
+  }, []);
 
   return (
     <SettingsRow
@@ -75,11 +157,20 @@ function DevBranchSettingRow() {
           onChange={(e) => {
             const next = e.target.value;
             setVal(next);
-            setCustomDevBranch(next);
+            pendingRef.current = next;
+            markUnsaved();
+            if (timerRef.current != null) window.clearTimeout(timerRef.current);
+            timerRef.current = window.setTimeout(() => {
+              timerRef.current = null;
+              commit(next);
+            }, 800);
           }}
           onKeyDown={(e) => {
             e.stopPropagation();
             if (e.nativeEvent.isComposing) return;
+          }}
+          onBlur={() => {
+            if (pendingRef.current != null) commit(pendingRef.current);
           }}
         />
       )}
@@ -117,9 +208,17 @@ function RepoChecklist() {
 
   return (
     <SettingsRow
-      label={`默认云效仓库${
-        repositories.length ? `（已选 ${watched.length} / 共 ${scoped.length} 个）` : ''
-      }`}
+      label={
+        repositories.length ? (
+          <span>
+            默认云效仓库（已选{' '}
+            <span className="font-mono tabular-nums">{watched.length}</span> / 共{' '}
+            <span className="font-mono tabular-nums">{scoped.length}</span> 个）
+          </span>
+        ) : (
+          '默认云效仓库'
+        )
+      }
       description="未单独关联仓库的需求，扫描这些仓库的分支 / commit / MR。"
       htmlFor="repo-filter-input"
       control={(
@@ -156,7 +255,7 @@ function RepoChecklist() {
                   key={r.id}
                   isSelected={watched.includes(r.id)}
                   onChange={() => toggleRepo(r.id)}
-                  className="cursor-pointer rounded-md px-2 py-1.5 font-normal text-foreground hover:bg-muted"
+                  className="cursor-pointer rounded-md px-2 py-1.5 font-normal text-foreground hover:bg-surface-secondary"
                 >
                   <Checkbox.Content>
                     <Checkbox.Control>

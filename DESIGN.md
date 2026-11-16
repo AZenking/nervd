@@ -203,6 +203,7 @@ HeroUI 默认 accent 为蓝色；nervd 将整套强调色覆盖为 **Linear Viol
 补充约定：
 
 - **贴纸色**（`--sticker-*`：sky / purple / pink / orange / teal / green / brown / brand-indigo）**只做装饰与状态点**，状态文字一律用墨色（对比度优先）；sig-idle 已按此规范取 `ink-muted`。
+- **日志 ANSI 品红** `--ansi-magenta`（浅 `#4f46b5` / 深 `#c0bcf7`）：**日志 ANSI 装饰色**，用于日志 / 终端中品红（ANSI 35 / 95）命令与装饰行的高亮，与 `--sticker-*` 同属装饰槽位，**不得用于状态语义**，也不作按钮、链接等交互强调色。
 - **身份色** `--avatar-*`（indigo / sky / emerald / amber / rose / purple / teal，7 hue 明暗双档）：仅用于 `UserAvatar` 首字母身份区分，**不作状态语义**；文字主色对底 ≥4.5:1，底色/描边由 color-mix 从主色派生（`bg-(--avatar-*)/15` · `border-(--avatar-*)/30`）。
 - 状态语义闭环由 `StatusIcon` 原语统一渲染，排序遵从生命周期：**运行中（Amber）→ 失败（Red）→ 空闲（Slate）→ 成功（Emerald）**（`STATUS_TONE_ORDER`）。
 - 文本选区：`--accent-dim`（紫 10% / 20% 透明度）。
@@ -227,7 +228,7 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 - 区块标题：h2 15px semibold（`SectionHeader`）/ h3 13px medium；eyebrow 标签 12px / 600。
 - 字体栈：`--font-sans` = Inter（含 PingFang SC / Microsoft YaHei 回退）；`--font-mono` = SF Mono 系（标识符、分支名、SHA、运行号、`kbd`、统计数字，一律 `font-mono tabular-nums`）；`--font-log` = 日志/终端专用等宽族。
 - 12px 档与上游契约一致：正文活动集中在 12–15px，标题靠字重（600/700）表达层级，不用颜色和装饰。
-- **微字阶（meta/徽标专用，2026-11-05 收编为规范）**：`text-[11px]` 为默认微字档（表格元数据、Chip、状态行）；`text-[10px]` 用于徽标/计数；`text-[9px]` 仅限极小头像徽标（avatar xs）等极端受限场景。侧栏/导航存量过渡档 `text-[12.5px]` / `text-[13.5px]` 保留不再新增使用点。微字阶禁止用于段落正文与表单标签。
+- **微字阶（meta/徽标专用，2026-11-05 收编为规范）**：`text-[11px]` 为默认微字档（表格元数据、Chip、状态行）；`text-[10px]` 用于徽标/计数；`text-[9px]` 仅限极小头像徽标（avatar xs）等极端受限场景。存量 `text-[12.5px]` / `text-[13.5px]` **仅侧栏/导航，新增禁止**。微字阶禁止用于段落正文与表单标签。
 
 ## 2.4 明暗模式与切换
 

@@ -55,7 +55,6 @@ export function CodeDiffDrawer({
                 <DrawerTitle className="min-w-0 flex-1 text-sm font-semibold text-foreground">
                   <OverflowTooltip
                     text={`${title} · 代码变更`}
-                    title={`${title} · 代码变更`}
                     className="block max-w-full truncate"
                   />
                 </DrawerTitle>
@@ -69,7 +68,7 @@ export function CodeDiffDrawer({
                 <span>→</span>
                 <span className="text-foreground/90">{targetBranch}</span>
                 {(totalAdditions > 0 || totalDeletions > 0) && (
-                  <span className="ml-2 font-medium">
+                  <span className="ml-2 font-medium tabular-nums">
                     <span className="text-success">+{totalAdditions}</span>{' '}
                     <span className="text-danger">-{totalDeletions}</span>
                   </span>
@@ -91,7 +90,6 @@ export function CodeDiffDrawer({
                         size="xs"
                         className="gap-1 text-xs h-7 px-2"
                         onPress={() => onOpenExternal(mrUrl)}
-                        title="在云效中查看"
                         aria-label="在云效中查看"
                       >
                         <span>云效直达</span>
@@ -112,7 +110,6 @@ export function CodeDiffDrawer({
                       size="icon"
                       className="size-7 text-muted-foreground hover:text-foreground rounded-sm"
                       onPress={() => onOpenChange(false)}
-                      title="关闭 (Esc)"
                       aria-label="关闭 (Esc)"
                     >
                       <XIcon className="size-4" />

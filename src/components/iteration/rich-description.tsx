@@ -208,10 +208,9 @@ export function RichDescription({
               <div
                 className={cn(
                   'rounded-md transition-colors p-1.5 -m-1.5',
-                  workitemId && allowWrite && 'hover:bg-muted/15 cursor-text',
+                  workitemId && allowWrite && 'hover:bg-surface-secondary cursor-text',
                 )}
                 onDoubleClick={workitemId && allowWrite ? handleStartEdit : undefined}
-                title={workitemId && allowWrite ? '双击快速编辑描述' : undefined}
               >
                 <RichEditor
                   content={initialHtml}
@@ -232,7 +231,7 @@ export function RichDescription({
                     handleStartEdit();
                   }
                 }}
-                className="flex items-center gap-2 rounded-md border border-dashed border-border/80 px-3 py-2 text-xs text-muted-foreground/80 hover:border-primary/50 hover:bg-muted/15 hover:text-foreground transition-all cursor-pointer group/placeholder focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex items-center gap-2 rounded-md border border-dashed border-border/80 px-3 py-2 text-xs text-muted-foreground/80 hover:border-primary/50 hover:bg-surface-secondary hover:text-foreground transition-all cursor-pointer group/placeholder focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 title="点击添加需求描述"
               >
                 <PencilIcon className="size-3 shrink-0 group-hover/placeholder:text-primary transition-colors" />

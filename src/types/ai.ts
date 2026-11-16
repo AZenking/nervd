@@ -40,12 +40,43 @@ export interface AiChatMessage {
 export interface AiBreakdownItem {
   id: string;
   subject: string;
-  tag: string;
+  /** 旧版维度标签：新版按功能点拆解，不再产出 */
+  tag?: string;
   selected: boolean;
+  /** 建议的实施顺序（从 0 开始） */
+  order?: number;
   assigneeId?: string;
   assigneeName?: string;
-  /** AI 评估的预计工时（小时，0.5 粒度）；undefined 表示未评估 */
+  /** 旧版工时评估：新版不再产出，保留字段仅兼容历史数据 */
   estimatedHours?: number;
+}
+
+/** 一次拆解使用的完整仓库上下文 */
+export interface BreakdownContext {
+  scope: BreakdownRepoScope[];
+  code: BreakdownRepoCode[];
+}
+
+/** 现有代码节选（AI 拆解上下文） */
+export interface BreakdownRepoCode {
+  repoName: string;
+  gitRef?: string;
+  tree?: string[];
+  files?: Array<{ path: string; content: string; truncated: boolean }>;
+  note?: string;
+}
+
+/** AI 拆解时传给模型的单个仓库上下文：仓库名 + 开发分支相对基准分支的改动范围 */
+export interface BreakdownRepoScope {
+  repoName: string;
+  workitemBranch?: string;
+  baselineBranch?: string;
+  /** 开发分支是否已创建 */
+  branchCreated: boolean;
+  /** 变更文件（按改动量排序后截断） */
+  files?: Array<{ path: string; additions: number; deletions: number }>;
+  /** 读取失败等说明 */
+  note?: string;
 }
 
 export interface AiMergeRequestDraft {

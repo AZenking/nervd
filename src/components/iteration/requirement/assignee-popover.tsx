@@ -177,7 +177,7 @@ export function SearchableAssigneePopover({
         <span
           title="点击更改负责人"
           className={cn(
-            'flex h-7 max-w-44 items-center gap-1.5 truncate rounded-md border border-border/70 bg-background px-2 text-xs font-medium text-foreground hover:bg-muted',
+            'flex h-7 max-w-44 items-center gap-1.5 truncate rounded-md border border-border/70 bg-background px-2 text-xs font-medium text-foreground hover:bg-surface-secondary',
             updatingCls,
           )}
         >
@@ -196,7 +196,7 @@ export function SearchableAssigneePopover({
           variant="soft"
           title="点击更改负责人"
           className={cn(
-            'group/assignee max-w-32 cursor-pointer gap-1.5 rounded-md text-foreground transition-colors select-none hover:bg-muted/60',
+            'group/assignee max-w-32 cursor-pointer gap-1.5 rounded-md text-foreground transition-colors select-none hover:bg-surface-secondary',
             updatingCls,
           )}
         >

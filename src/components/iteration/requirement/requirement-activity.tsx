@@ -12,6 +12,8 @@ import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { RichEditor } from '@/components/ui/rich-editor';
 import { cn } from '@/lib/utils';
+import { formatCompactDateTime, formatDateTime } from '@/lib/format';
+import { READONLY_BTN_CLASS } from '@/components/WriteOpButton';
 import { EmptyHint } from '@/components/empty-hint';
 import { SectionHeader } from '@/components/section-header';
 import { useApp } from '@/store/app';
@@ -33,6 +35,9 @@ export interface RequirementActivityProps {
   subtaskStats?: { total: number; done: number };
   className?: string;
 }
+
+/** 评论正文折叠阈值（纯文本字符数）：超过后默认收起，避免长评论挤占活动流 */
+const COMMENT_COLLAPSE_THRESHOLD = 400;
 
 /** Activity / 评论讨论（1:1 对齐 Linear Activity 时间轴、AI 纪要与智能草稿） */
 export function RequirementActivity({
@@ -62,6 +67,18 @@ export function RequirementActivity({
 
   // AI 草稿生成中状态
   const [generatingDraft, setGeneratingDraft] = useState<string | null>(null);
+
+  // 长评论折叠：仅对超过阈值的正文提供「展开 / 收起」
+  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
+
+  const toggleCommentExpanded = (index: number) => {
+    setExpandedComments((previous) => {
+      const next = new Set(previous);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
 
   const commentItems = comments as Record<string, unknown>[];
 
@@ -149,11 +166,6 @@ export function RequirementActivity({
 
   const handleSendComment = async () => {
     if (!workitemId || submitting) return;
-    const trimmed = commentDraft.replace(/<[^>]*>/g, '').trim();
-    if (!trimmed) {
-      toast.add({ title: '请输入评论内容', type: 'warning' });
-      return;
-    }
     if (!allowWrite) {
       toast.add({
         title: '当前处于只读模式',
@@ -164,6 +176,11 @@ export function RequirementActivity({
           onClick: () => openSettings('security'),
         },
       });
+      return;
+    }
+    const trimmed = commentDraft.replace(/<[^>]*>/g, '').trim();
+    if (!trimmed) {
+      toast.add({ title: '请输入评论内容', type: 'warning' });
       return;
     }
     setSubmitting(true);
@@ -240,7 +257,7 @@ export function RequirementActivity({
                       size="icon-xs"
                       onPress={() => setSummaryExpanded(!summaryExpanded)}
                       className="size-6 text-muted-foreground hover:text-foreground"
-                      title={summaryExpanded ? '收起纪要' : '展开纪要'}
+                      aria-label={summaryExpanded ? '收起纪要' : '展开纪要'}
                     >
                       {summaryExpanded ? <ChevronUpIcon className="size-3.5" /> : <ChevronDownIcon className="size-3.5" />}
                     </Button>
@@ -311,6 +328,15 @@ export function RequirementActivity({
                 ?? '—',
             );
             const richHtml = extractRichHtml(c.content) || markdownToHtml(String(c.content ?? ''));
+            const rawTime = c.createdAt ?? c.createTime ?? c.gmtCreate ?? '';
+            const occurredAt = new Date(
+              typeof rawTime === 'number' ? rawTime : String(rawTime),
+            );
+            const hasTime = rawTime !== '' && rawTime !== null && rawTime !== undefined
+              && !Number.isNaN(occurredAt.getTime());
+            const plainText = String(c.content ?? '').replace(/<[^>]*>/g, '').trim();
+            const isLong = plainText.length > COMMENT_COLLAPSE_THRESHOLD;
+            const expanded = expandedComments.has(i);
 
             return (
               <article key={i} className="relative flex items-start gap-3">
@@ -322,13 +348,36 @@ export function RequirementActivity({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     <span className="text-xs font-medium text-foreground">{authorName}</span>
-                    <span className="text-[11px] text-muted-foreground font-mono">
-                      {String(c.createdAt ?? c.createTime ?? c.gmtCreate ?? '')}
-                    </span>
+                    {hasTime && (
+                      <time
+                        dateTime={occurredAt.toISOString()}
+                        title={formatDateTime(occurredAt.getTime())}
+                        className="text-[11px] text-muted-foreground font-mono tabular-nums"
+                      >
+                        {formatCompactDateTime(occurredAt)}
+                      </time>
+                    )}
                   </div>
-                  <div className="mt-1 text-sm leading-relaxed text-foreground/85">
+                  <div
+                    className={cn(
+                      'mt-1 text-sm leading-relaxed text-foreground/85',
+                      isLong && !expanded && 'max-h-36 overflow-hidden',
+                    )}
+                  >
                     <RichEditor content={richHtml} editable={false} className="cursor-default" />
                   </div>
+                  {isLong && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="xs"
+                      className="mt-0.5 h-6 px-0 text-[11px] text-muted-foreground hover:text-foreground"
+                      onPress={() => toggleCommentExpanded(i)}
+                      aria-expanded={expanded}
+                    >
+                      {expanded ? '收起' : '展开全文'}
+                    </Button>
+                  )}
                 </div>
               </article>
             );
@@ -409,23 +458,34 @@ export function RequirementActivity({
             <span className="text-[11px] text-muted-foreground">
               按 <Kbd className="h-5! px-1.5! text-[10px]!">⌘ + Enter</Kbd> 快速发送
             </span>
-            <Button
-              type="button"
-              variant={allowWrite ? 'default' : 'outline'}
-              size="xs"
-              onPress={() => void handleSendComment()}
-              disabled={submitting}
-              aria-disabled={!allowWrite}
-              className={cn(!allowWrite && 'opacity-60 cursor-not-allowed')}
-              title={allowWrite ? '发送评论 (⌘+Enter)' : '只读模式不可用'}
-            >
-              {submitting ? (
-                <Loader2Icon className="size-3 mr-1 animate-spin" />
-              ) : (
-                <SendIcon className="size-3 mr-1" />
-              )}
-              发送评论
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={(
+                  <Button
+                    type="button"
+                    variant={allowWrite ? 'default' : 'outline'}
+                    size="xs"
+                    onPress={() => void handleSendComment()}
+                    aria-disabled={!allowWrite || submitting || undefined}
+                    className={cn((!allowWrite || submitting) && READONLY_BTN_CLASS, 'gap-1.5')}
+                  >
+                    {submitting ? (
+                      <Loader2Icon className="size-3 mr-1 animate-spin" />
+                    ) : (
+                      <SendIcon className="size-3 mr-1" />
+                    )}
+                    发送评论
+                  </Button>
+                )}
+              />
+              <TooltipContent>
+                {!allowWrite
+                  ? '写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）'
+                  : submitting
+                    ? '正在发布评论…'
+                    : '发送评论 (⌘+Enter)'}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       )}

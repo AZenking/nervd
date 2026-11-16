@@ -49,7 +49,7 @@ export function SectionHeader({
         ) : (
           <Tag className={cn('min-w-0 truncate', headingClass)}>{title}</Tag>
         )}
-        {count !== undefined && <span className="shrink-0 font-mono text-xs text-muted-foreground">{count}</span>}
+        {count !== undefined && <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">{count}</span>}
         {hint && <span className="min-w-0 truncate text-xs text-muted-foreground">{hint}</span>}
       </div>
       {action && <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">{action}</div>}

@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GitBranchIcon, GitFork, PlusIcon, XIcon } from 'lucide-react';
 import { Alert, Button as HeroButton, Description, Input, Label, Pagination, TextField } from '@heroui/react';
 import { useApp } from '@/store/app';
+import { getBranchTrackDefault, setBranchTrackDefault } from '@/lib/api';
+import { isTauriRuntime } from '@/lib/attribution-api';
+import { branchTrackWarnings } from '@/lib/branch-track-warnings';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { BranchRuleTemplate } from '@/types';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +23,8 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 import { EmptyHint } from '@/components/empty-hint';
 import { SettingsGroup, SettingsRow } from '@/components/settings/settings-group';
 import { expandBranchPattern } from '@/components/iteration/requirement/types';
+import { BranchTopologyFields } from './BranchTopologyFields';
+import { BranchPatternField, type BranchPatternVariable } from './BranchPatternField';
 import { TrackTopologyDiagram } from './track-topology-diagram';
 import { TrackTopologyModal } from './track-topology-modal';
 
@@ -83,6 +88,12 @@ export interface BranchTemplatesManagerProps {
   inSettingsCard?: boolean;
   /** 当前迭代名称（用于实时预览和占位提示） */
   iterationName?: string;
+  /** 当前迭代 ID（iteration scope 的默认轨道读写需要）。 */
+  iterationId?: string;
+  /** 当前迭代结束日（YYYY-MM-DD），用于 {iterationEnd}/{yyyy}/{MM}/{dd} 预览。 */
+  iterationEndDate?: string;
+  /** 设置默认轨道后刷新模板列表（全局/迭代各自实现）。 */
+  onRefreshTemplates?: () => Promise<void> | void;
 }
 
 export function BranchTemplatesManager({
@@ -95,6 +106,9 @@ export function BranchTemplatesManager({
     : '为代码仓库预设全局分支生成规则（每条模板即一条交付轨道 Track/局点），供需求详情按仓库选用。',
   inSettingsCard = false,
   iterationName = '',
+  iterationId,
+  iterationEndDate,
+  onRefreshTemplates,
 }: BranchTemplatesManagerProps) {
   const { settings, setToast } = useApp();
   const [draft, setDraft] = useState<BranchRuleTemplate>(EMPTY_DRAFT);
@@ -103,6 +117,7 @@ export function BranchTemplatesManager({
   const [drawerOpen, setDrawerOpen] = useState(false);
   // 独立弹窗快速查看指定模板的拓扑图
   const [topologyModalTemplate, setTopologyModalTemplate] = useState<BranchRuleTemplate | null>(null);
+  const [defaultTrackId, setDefaultTrackId] = useState<string | null>(null);
 
   // 模板列表分页（超出 5 条时分页展示，避免长列表滚动）
   const TEMPLATE_PAGE_SIZE = 5;
@@ -113,6 +128,54 @@ export function BranchTemplatesManager({
     const start = (currentPage - 1) * TEMPLATE_PAGE_SIZE;
     return templates.slice(start, start + TEMPLATE_PAGE_SIZE);
   }, [templates, currentPage]);
+
+  const dateSample = iterationEndDate?.trim() || '2026-10-29';
+  const compactDate = dateSample.replace(/-/g, '');
+  const baselineVariables = useMemo<BranchPatternVariable[]>(
+    () => [
+      { token: '{iteration}', label: '迭代名', sample: iterationName?.trim() || 'Sprint-1' },
+      { token: '{track}', label: '轨道名', sample: draft.name?.trim() || '标准迭代主线' },
+      { token: '{iterationEnd}', label: '迭代结束日', sample: compactDate, description: 'YYYYMMDD，稳定，推荐 release 基线' },
+      { token: '{yyyy}', label: '年', sample: compactDate.slice(0, 4) },
+      { token: '{MM}', label: '月', sample: compactDate.slice(4, 6) },
+      { token: '{dd}', label: '日', sample: compactDate.slice(6, 8) },
+    ],
+    [compactDate, draft.name, iterationName],
+  );
+  const workitemVariables = useMemo<BranchPatternVariable[]>(
+    () => [
+      { token: '{identifier}', label: '工作项编号', sample: 'REQ-101' },
+      { token: '{iterationEnd}', label: '迭代结束日', sample: compactDate, description: 'YYYYMMDD，适合 release/hotfix 命名' },
+      { token: '{yyyy}', label: '年', sample: compactDate.slice(0, 4) },
+      { token: '{MM}', label: '月', sample: compactDate.slice(4, 6) },
+      { token: '{dd}', label: '日', sample: compactDate.slice(6, 8) },
+    ],
+    [compactDate],
+  );
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let cancelled = false;
+    void getBranchTrackDefault(scope, scope === 'iteration' ? iterationId : undefined)
+      .then((id) => {
+        if (!cancelled) setDefaultTrackId(id);
+      })
+      .catch((error) => errorLog('branch-track-default-load', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [scope, iterationId, templates.length]);
+
+  const handleSetDefault = async (trackId: string) => {
+    try {
+      await setBranchTrackDefault(trackId);
+      setDefaultTrackId(trackId);
+      setToast({ text: '默认分支轨道已更新', kind: 'ok' });
+      await onRefreshTemplates?.();
+    } catch (error) {
+      setToast({ text: `设置默认轨道失败：${humanizeError(error)}`, kind: 'fail' });
+    }
+  };
 
   const reset = () => {
     setDraft(EMPTY_DRAFT);
@@ -206,6 +269,7 @@ export function BranchTemplatesManager({
     iteration: iterationName || 'Sprint-1',
     template: previewTrack,
     identifier: 'REQ-101',
+    iterationEnd: iterationEndDate,
   };
   const previewBaseline = draft.baselineBranchPattern
     ? expandBranchPattern(draft.baselineBranchPattern, previewVariables)
@@ -248,6 +312,11 @@ export function BranchTemplatesManager({
                   >
                     {scope === 'iteration' ? '迭代专属' : '全局通用'}
                   </Badge>
+                  {defaultTrackId === template.id && (
+                    <Badge variant="soft" color="accent" className="font-mono">
+                      默认
+                    </Badge>
+                  )}
                   {usageCount(template.id) > 0 && (
                     <Badge variant="secondary" className="font-mono">
                       {usageCount(template.id)} 个需求仓库使用
@@ -267,6 +336,14 @@ export function BranchTemplatesManager({
                     {template.workitemBranchPattern}
                   </Badge>
                 </div>
+                {branchTrackWarnings(template, scope).map((warning) => (
+                  <p
+                    key={warning.code}
+                    className={warning.severity === 'error' ? 'text-[11px] text-danger' : 'text-[11px] text-warning'}
+                  >
+                    {warning.message}
+                  </p>
+                ))}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <Button
@@ -280,6 +357,16 @@ export function BranchTemplatesManager({
                   <GitFork className="size-3 text-primary" />
                   <span>拓扑图</span>
                 </Button>
+                {defaultTrackId !== template.id && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                    onClick={() => void handleSetDefault(template.id)}
+                  >
+                    设为默认
+                  </Button>
+                )}
                 <Button variant="outline" size="xs" onClick={() => startEdit(template)}>
                   编辑
                 </Button>
@@ -302,7 +389,7 @@ export function BranchTemplatesManager({
           {totalPages > 1 && (
             <Pagination
               size="sm"
-              className="flex w-full flex-wrap items-center justify-between gap-2 border-t border-border/40 bg-muted/10 px-4 py-2 text-xs text-muted-foreground"
+              className="flex w-full flex-wrap items-center justify-between gap-2 border-t border-border/40 bg-surface-secondary px-4 py-2 text-xs text-muted-foreground"
             >
               <Pagination.Summary className="text-[11px] text-muted-foreground">
                 共 {templates.length} 个模板（第 {(currentPage - 1) * TEMPLATE_PAGE_SIZE + 1} -{' '}
@@ -364,7 +451,7 @@ export function BranchTemplatesManager({
         {'{track}'}
       </Badge>
       <Badge variant="outline" className="font-mono">
-        {'{template}'}
+        {'{iterationEnd}'}
       </Badge>
       <Badge variant="outline" className="font-mono">
         {'{identifier}'}
@@ -380,7 +467,7 @@ export function BranchTemplatesManager({
           <SettingsRow
             orientation="horizontal"
             label="变量通配说明"
-            description="基准模板支持 {iteration}（当前迭代标识）、{track}（交付轨道 Track/局点名，等价于 {template} 模板名称，推荐新配置使用 {track}），需求分支支持 {identifier}（需求编号，如 REQ-101）。"
+            description="基准模板支持 {iteration}（当前迭代标识）、{track}（交付轨道 Track/局点名）、{iterationEnd}（迭代结束日）与 {yyyy}/{MM}/{dd}；需求分支支持 {identifier}、{iterationEnd}、{yyyy}/{MM}/{dd}。"
             control={variableHelpControl}
           />
         </SettingsGroup>
@@ -398,7 +485,7 @@ export function BranchTemplatesManager({
                   <Badge variant="outline" className="font-mono">{'{iteration}'}</Badge>、
                   <Badge variant="outline" className="font-mono">{'{track}'}</Badge>
                   （交付轨道 Track/局点名，等价
-                  <Badge variant="outline" className="font-mono">{'{template}'}</Badge>
+                  <Badge variant="outline" className="font-mono">{'{iterationEnd}'}</Badge>
                   ，推荐新配置使用），需求分支支持
                   <Badge variant="outline" className="font-mono">{'{identifier}'}</Badge>
                   。
@@ -422,7 +509,7 @@ export function BranchTemplatesManager({
           if (!open) closeDrawer();
         }}
       >
-        <DrawerContent className="w-full sm:w-[min(32rem,92vw)] sm:max-w-none">
+        <DrawerContent className="w-full sm:w-[min(36rem,92vw)] sm:max-w-none">
           <DrawerHeader className="shrink-0 border-b border-border/70 px-5 py-3">
             <div className="flex items-center justify-between gap-4">
               <DrawerTitle className="min-w-0 truncate text-sm font-semibold">
@@ -453,8 +540,8 @@ export function BranchTemplatesManager({
               <Alert.Content>
                 <Alert.Description>
                   {scope === 'iteration'
-                    ? '仅在当前迭代生效，构成该迭代的专属交付轨道（Track/局点）。支持 {iteration}、{track}（等价 {template}）与 {identifier} 动态变量。'
-                    : '保存在本机作为全局预设模板，每条模板即一条交付轨道（Track/局点），所有迭代与需求均可选用。支持 {iteration}、{track}（等价 {template}）与 {identifier} 动态变量。'}
+                    ? '仅在当前迭代生效，构成该迭代的专属交付轨道（Track/局点）。支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd} 与 {identifier} 动态变量。'
+                    : '保存在本机作为全局预设模板，每条模板即一条交付轨道（Track/局点），所有迭代与需求均可选用。支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd} 与 {identifier} 动态变量。'}
                 </Alert.Description>
               </Alert.Content>
             </Alert>
@@ -483,7 +570,7 @@ export function BranchTemplatesManager({
             >
               <Label>模板名称</Label>
               <Input placeholder="A 局点 / B 局点 / Hotfix" />
-              <Description>即交付轨道（Track/局点）名称，用于 {'{track}'} / {'{template}'} 占位符展开。</Description>
+              <Description>即交付轨道（Track/局点）名称，用于 {'{track}'} 占位符展开。</Description>
             </TextField>
             <TextField
               isRequired
@@ -494,31 +581,67 @@ export function BranchTemplatesManager({
               <Input className="font-mono" placeholder="master 或 test" />
               <Description>迭代基准分支的切出基点；与基准分支同名时即为单主干直连（Trunk-Based），无需创建迭代基准。</Description>
             </TextField>
-            <TextField
-              isRequired
+            <BranchPatternField
+              label="迭代基准分支命名模板"
               value={draft.baselineBranchPattern}
               onChange={(value) => setDraft({ ...draft, baselineBranchPattern: value })}
-            >
-              <Label>迭代基准分支命名模板</Label>
-              <Input className="font-mono" placeholder="iteration/{iteration}/{track}" />
-              <Description>
-                支持 <span className="font-mono">{'{iteration}'}</span> 与{' '}
-                <span className="font-mono">{'{track}'}</span>（等价{' '}
-                <span className="font-mono">{'{template}'}</span>，推荐使用{' '}
-                <span className="font-mono">{'{track}'}</span>）。
-              </Description>
-            </TextField>
-            <TextField
-              isRequired
+              variables={baselineVariables}
+              placeholder="iteration/{iteration}/{track}"
+              required
+              description="支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd}；固定分支请确认是长期线。"
+            />
+            <BranchPatternField
+              label="需求开发分支命名模板"
               value={draft.workitemBranchPattern}
               onChange={(value) => setDraft({ ...draft, workitemBranchPattern: value })}
-            >
-              <Label>需求开发分支命名模板</Label>
-              <Input className="font-mono" placeholder="feature/{identifier}" />
-              <Description>
-                支持 <span className="font-mono">{'{identifier}'}</span>（需求编号，如 <span className="font-mono">REQ-101</span>）。
-              </Description>
-            </TextField>
+              variables={workitemVariables}
+              placeholder="feature/{identifier}"
+              required
+              requiredTokens={['{identifier}']}
+              description="支持 {identifier}（需求编号，如 REQ-101）。"
+            />
+
+            {branchTrackWarnings(draft, scope).length > 0 && (
+              <Alert status="default">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>命名规则提示</Alert.Title>
+                  <Alert.Description>
+                    <span className="flex flex-col gap-1">
+                      {branchTrackWarnings(draft, scope).map((warning) => (
+                        <span
+                          key={warning.code}
+                          className={warning.severity === 'error' ? 'text-danger' : 'text-warning'}
+                        >
+                          {warning.message}
+                        </span>
+                      ))}
+                    </span>
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
+            {editingId ? (
+              <BranchTopologyFields
+                trackId={editingId}
+                templateName={draft.name}
+                iterationName={iterationName}
+                iterationEndDate={iterationEndDate}
+                baselinePattern={draft.baselineBranchPattern}
+                workitemPattern={draft.workitemBranchPattern}
+                readOnly={settings?.allowWriteOps === false}
+              />
+            ) : (
+              <Alert status="default">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Description>
+                    保存模板后可配置子分支拓扑（legacy / 不建子分支 / 自定义模式、基点与 MR 目标）。
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
 
             {/* 实时分支生成预览（HeroUI Alert） */}
             {(previewBaseline || previewWorkitem) && (
@@ -548,6 +671,7 @@ export function BranchTemplatesManager({
                   iteration: previewVariables.iteration,
                   track: previewTrack,
                   identifier: 'REQ-101',
+                  iterationEnd: iterationEndDate,
                 }}
                 templateName={draft.name || (scope === 'iteration' ? '迭代专属分支模板' : '全局分支模板')}
               />

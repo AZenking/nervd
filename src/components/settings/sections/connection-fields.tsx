@@ -4,7 +4,8 @@ import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { errorLog, humanizeError } from '@/lib/error-format';
-import { Button, Chip, Input } from '@heroui/react';
+import { Button, Chip } from '@heroui/react';
+import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/searchable-select';
 import { SettingsRow, SettingsRowError } from '../settings-group';
 
@@ -138,7 +139,12 @@ export function SpaceRow({ orientation = 'horizontal' }: { orientation?: 'vertic
       htmlFor="space"
       error={spaceError ? <SettingsRowError>{spaceError}</SettingsRowError> : undefined}
       control={(
-        <div className="flex gap-2">
+        <div
+          role="group"
+          aria-invalid={Boolean(spaceError)}
+          aria-describedby={spaceError ? 'space-error' : undefined}
+          className="flex w-full gap-2"
+        >
           <SearchableSelect
             id="space"
             className="min-w-0 flex-1 font-mono"

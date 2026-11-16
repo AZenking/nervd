@@ -6,6 +6,9 @@ import { CI_STATUS_MAP } from '@/lib/ci';
  * 全工程统一状态徽章：使用 HeroUI 原生 Chip 呈现状态语义。
  * 连接 / 读写策略 / CI 运行 / 合并请求 / 迭代 / 工作项状态共用同一套语义分组与图形，
  * 原始英文状态（SUCCESS/RUNNING/…）统一翻译，中文状态（进行中/未开始/…）原样透传。
+ * 无障碍编码二选一：状态图形固定 decorative（aria-hidden），语义完全由可见文本
+ * `Chip.Label` 承担，避免读屏重复播报；也不再挂原生 title，避免与容器 Tooltip 重复弹出
+ * （DESIGN.md 第三部分 G）。状态色只消费 sig-* / 语义 token。
  */
 export type StatusTone = 'ok' | 'run' | 'fail' | 'idle';
 
@@ -84,10 +87,13 @@ export function StatusBadge({
       size={size === 'sm' ? 'sm' : 'md'}
       color={color}
       variant={variant}
-      title={status && status.trim() !== text ? status.trim() : undefined}
       className={className}
     >
-      <StatusIcon status={status} className={size === 'sm' ? 'size-3 shrink-0' : 'size-3.5 shrink-0'} />
+      <StatusIcon
+        status={status}
+        decorative
+        className={size === 'sm' ? 'size-3 shrink-0' : 'size-3.5 shrink-0'}
+      />
       <Chip.Label className="truncate">{text}</Chip.Label>
     </Chip>
   );

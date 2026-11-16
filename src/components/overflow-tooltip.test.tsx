@@ -120,36 +120,41 @@ describe('OverflowTooltip 溢出测量', () => {
     expect(tooltipContents()).toHaveLength(0);
   });
 
-  it('截断溢出时提供原生 title 回退，未截断时不添加多余 title', async () => {
-    const trigger = await render({ text: '长文本需求标题内容' });
+  it('截断溢出时只显示 Tooltip，不写原生 title（DESIGN G 禁止重复弹出）', async () => {
+    const trigger = await render({ text: '长文本需求标题内容', render: <span tabIndex={0} /> });
     expect(trigger.getAttribute('title')).toBeNull();
 
     setMetrics(trigger, { clientWidth: 50, scrollWidth: 150 });
     await recalculate();
-    expect(trigger.getAttribute('title')).toBe('长文本需求标题内容');
+    await act(() => trigger.focus());
+    expect(trigger.getAttribute('title')).toBeNull();
+    expect(tooltipContents().map((node) => node.textContent)).toEqual(['长文本需求标题内容']);
 
     setMetrics(trigger, { clientWidth: 200, scrollWidth: 150 });
     await recalculate();
     expect(trigger.getAttribute('title')).toBeNull();
+    expect(tooltipContents()).toHaveLength(0);
   });
 
-  it('支持 ReactNode children 提取纯文本作为 title 回退', async () => {
+  it('ReactNode children 的全文提示只走 Tooltip，不写原生 title', async () => {
     const trigger = await render({
       children: <span><span>前缀 - </span><strong>需求名称</strong></span>,
+      render: <span tabIndex={0} />,
     });
     setMetrics(trigger, { clientWidth: 50, scrollWidth: 150 });
     await recalculate();
-    expect(trigger.getAttribute('title')).toBe('前缀 - 需求名称');
+    await act(() => trigger.focus());
+    expect(trigger.getAttribute('title')).toBeNull();
+    expect(tooltipContents().map((node) => node.textContent)).toEqual(['前缀 - 需求名称']);
   });
 
-  it('优先使用显式声明的 title', async () => {
-    const trigger = await render({
-      text: '默认文本',
-      title: '自定义说明',
-    });
+  it('显式 title 仅作为 Tooltip 文案兜底，不写入原生 title', async () => {
+    const trigger = await render({ title: '自定义说明', render: <span tabIndex={0} /> });
     setMetrics(trigger, { clientWidth: 50, scrollWidth: 150 });
     await recalculate();
-    expect(trigger.getAttribute('title')).toBe('自定义说明');
+    await act(() => trigger.focus());
+    expect(trigger.getAttribute('title')).toBeNull();
+    expect(tooltipContents().map((node) => node.textContent)).toEqual(['自定义说明']);
   });
 });
 

@@ -1,3 +1,4 @@
+import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
@@ -7,16 +8,18 @@ export { RequirementDetailsSkeleton as RequirementViewSkeleton };
 
 /** 集成分支视图骨架屏 */
 export function IntegrationViewSkeleton() {
+  const compact = useWorkspaceCompact();
   return (
     <div className="flex flex-col gap-4" aria-hidden="true">
       {/* 与真实页头一致：单行（导航 + 标题 + 刷新），工具行已下放正文 */}
       <PageHeader
         sticky
+        density={compact ? 'compact' : 'regular'}
         navigation={<Skeleton className="size-7 rounded-md" />}
         title="集成分支"
         actions={<Skeleton className="h-7 w-7 rounded-md" />}
       />
-      <div className="flex flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         {/* 工具行骨架：仓库选择 + 基准分支 + 匹配模式（与真实正文工具行同位） */}
         <div className="flex items-center gap-2.5">
           <Skeleton className="h-8 w-56 rounded-md" />
@@ -24,7 +27,7 @@ export function IntegrationViewSkeleton() {
           <Skeleton className="h-8 w-56 rounded-md" />
         </div>
         <div className="flex flex-col gap-4">
-        <div className="flex h-7 items-center gap-2 rounded-md bg-muted/70 px-3">
+        <div className="flex h-7 items-center gap-2 rounded-md bg-surface-secondary px-3">
           <Skeleton className="size-3.5 rounded" />
           <Skeleton className="h-4 w-32 rounded" />
           <Skeleton className="h-3 w-16 rounded" />
@@ -49,20 +52,15 @@ export function IntegrationViewSkeleton() {
 
 /** 定时任务工作台骨架屏 */
 export function SchedulesViewSkeleton() {
+  const compact = useWorkspaceCompact();
   return (
     <div className="flex flex-col gap-6" aria-hidden="true">
       <PageHeader
         sticky
-        density="compact"
+        density={compact ? 'compact' : 'regular'}
         navigation={<Skeleton className="size-7 rounded-md" />}
         title="定时任务工作台"
-        toolbar={
-          <div className="flex items-center justify-end gap-2 w-full">
-            <Skeleton className="h-8 w-28 rounded-md" />
-            <Skeleton className="h-8 w-32 rounded-md" />
-            <Skeleton className="h-8 w-32 rounded-md" />
-          </div>
-        }
+        titleBadge={<Skeleton className="h-5 w-24 rounded-md" />}
       />
       {/* 筛选与搜索行骨架（自页头下移至正文，与真实页面同位） */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -98,13 +96,15 @@ export function SchedulesViewSkeleton() {
 
 /** 设置视图（工作区嵌入模态）骨架屏 */
 export function SettingsViewSkeleton() {
+  const compact = useWorkspaceCompact();
   return (
     <div className="flex flex-col gap-6" aria-hidden="true">
       <PageHeader
         sticky
+        density={compact ? 'compact' : 'regular'}
+        contentClassName="w-full"
         navigation={<Skeleton className="size-7 rounded-md" />}
         title="系统设置"
-        description="加载配置模块中…"
         actions={<Skeleton className="h-6 w-24 rounded" />}
       />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-20">

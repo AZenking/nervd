@@ -9,7 +9,7 @@ export function getAvatarColorClass(name?: string, isAssigned?: boolean): string
     return 'bg-primary/15 text-primary border-primary/30 font-semibold'
   }
   if (!name) {
-    return 'bg-muted/50 text-muted-foreground border-border/40'
+    return 'bg-surface-secondary text-muted-foreground border-border/40'
   }
   const colors = [
     'bg-(--avatar-indigo)/15 text-(--avatar-indigo) border-(--avatar-indigo)/30 font-medium',
@@ -80,7 +80,7 @@ function AvatarFallback({
     <HeroAvatar.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "flex size-full items-center justify-center rounded-full bg-muted/60 text-sm font-medium text-foreground/90 group-data-[size=sm]/avatar:text-xs",
+        "flex size-full items-center justify-center rounded-full bg-surface-secondary text-sm font-medium text-foreground/90 group-data-[size=sm]/avatar:text-xs",
         className
       )}
       {...props}
@@ -130,7 +130,7 @@ function AvatarGroupCount({
     <HeroAvatarGroup.Count
       data-slot="avatar-group-count"
       className={cn(
-        "relative flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm text-muted-foreground ring-2 ring-background group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3",
+        "relative flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-secondary text-sm text-muted-foreground ring-2 ring-background group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3",
         className
       )}
       {...props}
@@ -167,7 +167,7 @@ export function UserAvatar({
 
   if (!name || name === '待分配' || name === '未分配' || name === '—') {
     const unassignedBadge = (
-      <span className={cn('flex items-center justify-center rounded-full border border-dashed border-border/80 bg-muted/20 shrink-0', currentSize.root)}>
+      <span className={cn('flex items-center justify-center rounded-full border border-dashed border-border/80 bg-surface-secondary/50 shrink-0', currentSize.root)}>
         <UserIcon className="size-3 opacity-60" />
       </span>
     )
@@ -210,7 +210,7 @@ export function UserAvatar({
       <span
         className={cn(
           'group/user-badge inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 transition-colors',
-          'bg-muted/40 border border-transparent',
+          'bg-surface-secondary border border-transparent',
           isAssigned && 'bg-primary/10 border-primary/25',
           className
         )}
@@ -237,6 +237,8 @@ export function UserAvatar({
         className={className}
       >
         {avatarEl}
+        {/* 全名此前只存在于 hover Tooltip；补 sr-only 文本，读屏/键盘用户无需悬停即可获知（audit §2.3 / DESIGN §3.2） */}
+        <span className="sr-only">{name}</span>
       </TooltipTrigger>
       <TooltipContent>{name}</TooltipContent>
     </Tooltip>

@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { WriteOpButton } from '@/components/WriteOpButton';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 
 function parseBranchList(value: unknown): string[] {
   const collect = (input: unknown): string[] => {
@@ -58,6 +59,10 @@ export interface CreateMrDialogProps {
   repoName: string;
   identifier: string;
   subject: string;
+  /** 当前工作项 UUID；用于云效 MR 原生 workItemIds 关联。 */
+  workitemId?: string;
+  /** 父需求 UUID；缺陷 MR 时一并关联。 */
+  parentWorkitemId?: string;
   sourceBranch?: string;
   targetBranch?: string;
   availableBranches?: string[];
@@ -74,6 +79,8 @@ export function CreateMrDialog({
   repoName,
   identifier,
   subject,
+  workitemId,
+  parentWorkitemId,
   sourceBranch: initialSourceBranch = '',
   targetBranch: initialTargetBranch = '',
   availableBranches = [],
@@ -85,6 +92,7 @@ export function CreateMrDialog({
   const [targetBranch, setTargetBranch] = useState(initialTargetBranch);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [titleError, setTitleError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [remoteBranches, setRemoteBranches] = useState<string[]>([]);
@@ -113,6 +121,7 @@ export function CreateMrDialog({
       setDescription(`${workitemSection}\n\n### 变更分支\n${src || '（未选择）'} -> ${tgt || '（未选择）'}`);
       setRemoteBranches(availableBranches);
       userEditedRef.current = false;
+      setTitleError(null);
       bugImpactScopeRef.current = '';
 
       // 异步补拉仓库远端分支列表
@@ -299,6 +308,8 @@ export function CreateMrDialog({
       return;
     }
     if (!trimmedTitle) {
+      // 除 Toast 外保留字段级错误：aria-invalid + aria-describedby 指向内联说明
+      setTitleError('请输入 MR 标题');
       toast.add({ title: '请输入 MR 标题', type: 'warning' });
       return;
     }
@@ -337,12 +348,18 @@ export function CreateMrDialog({
         // 查询失败不阻塞创建
       }
 
+      const linkedWorkitemIds = [workitemId, parentWorkitemId]
+        .map((id) => id?.trim())
+        .filter((id): id is string => Boolean(id))
+        .filter((id, index, all) => all.indexOf(id) === index)
+        .join(',');
       const res = await api.createMergeRequest({
         repoId,
         title: trimmedTitle,
         sourceBranch: src,
         targetBranch: tgt,
         description: description.trim(),
+        ...(linkedWorkitemIds ? { workItemIds: linkedWorkitemIds } : {}),
       }) as Record<string, unknown> | null;
 
       const createdLocalId = Number(res?.localId ?? res?.local_id ?? res?.id ?? 0) || undefined;
@@ -400,7 +417,7 @@ export function CreateMrDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl flex flex-col p-5">
+      <DialogContent className="sm:max-w-2xl flex flex-col p-5">
         <DialogHeader className="shrink-0 pb-1">
           <div className="flex items-center gap-2">
             <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -411,12 +428,12 @@ export function CreateMrDialog({
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
-            仓库：<span className="font-medium text-foreground truncate inline-block max-w-[320px] align-bottom" title={repoName}>{repoName}</span>
+            仓库：<OverflowTooltip text={repoName} className="max-w-[320px] text-left font-medium text-foreground" />
           </DialogDescription>
         </DialogHeader>
 
         {/* 分支选择区（可搜索、支持自定义输入、支持分页补拉） */}
-        <Card>
+        <Card className="border border-border/60 shadow-none">
           <Card.Header className="flex flex-row items-center justify-between gap-2 pb-2">
             <Card.Title className="text-xs font-semibold text-foreground">分支流转</Card.Title>
             <Button
@@ -474,12 +491,14 @@ export function CreateMrDialog({
         {/* 表单内容 */}
         <div className="flex flex-col gap-3 py-1">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground">MR 标题</label>
+            <label htmlFor="create-mr-title" className="text-xs font-medium text-foreground">MR 标题</label>
             <Input
+              id="create-mr-title"
               value={title}
               onChange={(e) => {
                 userEditedRef.current = true;
                 setTitle(e.target.value);
+                if (titleError && e.target.value.trim()) setTitleError(null);
               }}
               onKeyDown={(e) => {
                 if (e.key !== 'Escape' && e.key !== 'Tab') {
@@ -493,13 +512,21 @@ export function CreateMrDialog({
               }}
               placeholder="feat(REQ-xxx): 标题"
               disabled={submitting}
+              aria-invalid={titleError ? true : undefined}
+              aria-describedby={titleError ? 'create-mr-title-error' : undefined}
               className="h-8 text-xs font-mono bg-background"
             />
+            {titleError && (
+              <p id="create-mr-title-error" role="alert" className="text-[11px] text-destructive">
+                {titleError}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground">详细变更说明 (Markdown)</label>
+            <label htmlFor="create-mr-description" className="text-xs font-medium text-foreground">详细变更说明 (Markdown)</label>
             <Textarea
+              id="create-mr-description"
               value={description}
               onChange={(e) => {
                 userEditedRef.current = true;

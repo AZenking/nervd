@@ -142,7 +142,7 @@ export function IterationDevDivergence({
 
         {status.state === 'dev-missing' && (
           <Tooltip>
-            <TooltipTrigger render={<span tabIndex={0} className="rounded-sm truncate text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />}>
+            <TooltipTrigger render={<span className="rounded-sm truncate text-muted-foreground cursor-help" />}>
               无 {status.checkedDevBranch} 分支
             </TooltipTrigger>
             <TooltipContent>
@@ -152,12 +152,12 @@ export function IterationDevDivergence({
         )}
 
         {status.state === 'error' && (
-          <Tooltip>
-            <TooltipTrigger render={<span tabIndex={0} className="inline-flex items-center gap-1 rounded-sm text-destructive truncate cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />}>
-              <AlertCircleIcon className="size-3 shrink-0" />比较失败
-            </TooltipTrigger>
-            <TooltipContent>{status.message}</TooltipContent>
-          </Tooltip>
+          <span className="inline-flex min-w-0 items-start gap-1 rounded-sm text-destructive">
+            <AlertCircleIcon className="mt-px size-3 shrink-0" />
+            <span className="min-w-0 break-words">
+              比较失败{status.message ? `：${status.message}` : ''}
+            </span>
+          </span>
         )}
 
         {status.state === 'ready' && (
@@ -173,7 +173,7 @@ export function IterationDevDivergence({
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <span tabIndex={0} className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 font-medium text-warning cursor-help truncate focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+                    <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 font-medium text-warning cursor-help truncate" />
                   }
                 >
                   <span>
@@ -189,7 +189,7 @@ export function IterationDevDivergence({
             )}
 
             {status.behindDev > 0 && status.aheadDev === 0 && (
-              <span className="text-[10px] text-muted-foreground/80 font-mono">
+              <span className="text-[10px] text-muted-foreground/80 font-mono tabular-nums">
                 落后 {status.behindDev}
               </span>
             )}
@@ -207,7 +207,7 @@ export function IterationDevDivergence({
               disabled={status.state === 'loading'}
               onPress={() => setRefreshKey((k) => k + 1)}
               className="size-5 text-muted-foreground hover:text-foreground data-disabled:opacity-40 p-0 shrink-0"
-              title="刷新与 dev/集成主干的差异检测"
+              aria-label="刷新与 dev/集成主干的差异检测"
             >
               <RefreshCwIcon className={cn('size-3', status.state === 'loading' && 'animate-spin text-primary')} />
             </Button>

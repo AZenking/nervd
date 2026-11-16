@@ -1,20 +1,21 @@
 import type React from 'react';
 import {
-  CheckCircle2Icon,
   InfoIcon,
   Loader2Icon,
   PlusIcon,
   Settings2Icon,
-  XCircleIcon,
 } from 'lucide-react';
 import type { CiRunSummary, RepoCiBinding, RepoCiSnapshot } from '@/types';
+import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
-import { Chip } from '@/components/ui/chip';
 import { Separator } from '@/components/ui/separator';
+import { StatusIcon } from '@/components/status-icon';
+import { WriteOpGatedTrigger } from '@/components/WriteOpButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ciStatusInfo } from '@/lib/ci';
 import { formatDateTime, formatDuration, formatRelativeTime } from '@/lib/format';
 import { BuildWorkbenchTrigger, openBuildWorkbenchFromTrigger } from '@/components/build-workbench';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import type { BuildWorkbenchTarget } from '@/store/ui';
 
 export interface LinkedRepoCiStatusProps {
@@ -55,7 +56,6 @@ export function LinkedRepoCiStatus({
               size="xs"
               onPress={onOpenCiModal}
               className="group h-auto p-1 gap-1 text-xs text-muted-foreground hover:text-foreground font-normal"
-              title="点击关联流水线"
               aria-label="点击关联流水线"
             >
               <span>— 未关联 CI</span>
@@ -69,10 +69,6 @@ export function LinkedRepoCiStatus({
   }
   if (latestRun) {
     const ciInfo = ciStatusInfo(latestRun.status);
-    const isSuccess = ciInfo.tone === 'ok';
-    const isFailed = ciInfo.tone === 'fail';
-    const isRunning = ciInfo.tone === 'run';
-
     const providerLabel = snapshot?.provider === 'jenkins' ? 'Jenkins' : 'Flow';
 
     return (
@@ -85,28 +81,15 @@ export function LinkedRepoCiStatus({
               size="xs"
               onPress={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
               className="group h-auto p-1 gap-1.5 text-xs text-left max-w-full font-normal truncate"
-              title={`${ciSummary}，点击查看构建记录`}
               aria-label={`${ciSummary}，点击查看构建记录`}
             >
-              <div className="flex items-center gap-1 min-w-0 shrink-0">
-                {isSuccess && <CheckCircle2Icon className="size-3.5 text-success shrink-0" />}
-                {isFailed && <XCircleIcon className="size-3.5 text-destructive shrink-0" />}
-                {isRunning && <Loader2Icon className="size-3.5 text-warning animate-spin shrink-0" />}
-                {!isSuccess && !isFailed && !isRunning && (
-                  <span className="size-2 rounded-full bg-muted-foreground shrink-0" />
-                )}
-
+              <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+                <StatusIcon status={latestRun.status} decorative className="size-3.5" />
                 <span className="font-mono text-[11px] font-medium text-foreground/90 group-hover:text-primary shrink-0">
                   {providerLabel} #{latestRun.runId}
                 </span>
-                <Chip
-                  size="sm"
-                  variant="soft"
-                  color={isSuccess ? 'success' : isFailed ? 'danger' : isRunning ? 'warning' : 'default'}
-                  className="text-[11px] font-medium shrink-0"
-                >
-                  {ciInfo.label}
-                </Chip>
+                {/* 行首已有状态图形：行尾不再重复文字徽标（AGENTS §3.4）；状态语义仅保留读屏文本 */}
+                <span className="sr-only">{ciInfo.label}</span>
               </div>
             </Button>
           }
@@ -125,7 +108,6 @@ export function LinkedRepoCiStatus({
             size="xs"
             onPress={onOpenCiModal}
             className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground truncate font-normal"
-            title="该仓库暂无运行记录，点击查看配置"
             aria-label="该仓库暂无运行记录，点击查看配置"
           >
             暂无运行记录
@@ -150,6 +132,7 @@ export function LinkedRepoBuildAction({
   buildTarget,
   onOpenCiModal,
 }: LinkedRepoBuildActionProps) {
+  const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
   if (ciBinding) {
     return (
       <BuildWorkbenchTrigger
@@ -161,16 +144,21 @@ export function LinkedRepoBuildAction({
     );
   }
   return (
-    <Button
-      type="button"
-      size="sm"
-      variant="outline"
-      onPress={onOpenCiModal}
-      className="h-7 text-xs gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
-    >
-      <PlusIcon className="size-3.5" />
-      <span>关联 CI</span>
-    </Button>
+    <>
+      <WriteOpGatedTrigger label="关联 CI" icon={<PlusIcon className="size-3.5" />} variant="outline" />
+      {allowWriteOps && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onPress={onOpenCiModal}
+          className="h-7 text-xs gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
+        >
+          <PlusIcon className="size-3.5" />
+          <span>关联 CI</span>
+        </Button>
+      )}
+    </>
   );
 }
 
@@ -203,7 +191,7 @@ export function LinkedRepoCiSection({
               <button
                 type="button"
                 aria-label="说明"
-                className="inline-flex cursor-help items-center rounded-sm text-muted-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="inline-flex cursor-help items-center rounded-sm text-muted-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <InfoIcon className="size-3.5" aria-hidden="true" />
               </button>
@@ -223,7 +211,6 @@ export function LinkedRepoCiSection({
                   size="xs"
                   onPress={onOpenCiModal}
                   className="group h-auto p-0 gap-1 font-mono text-[11px] text-muted-foreground hover:text-foreground truncate max-w-48 font-normal"
-                  title="点击修改关联的 CI 流水线"
                   aria-label="点击修改关联的 CI 流水线"
                 >
                   <span className="truncate">
@@ -244,8 +231,7 @@ export function LinkedRepoCiSection({
                   variant="ghost"
                   size="xs"
                   onPress={onOpenCiModal}
-                  className="h-auto px-1.5 py-0.5 gap-1 rounded text-[11px] font-medium text-warning bg-warning/10 hover:bg-warning/20"
-                  title="该仓库尚未关联 CI，点击就地配置云效 Flow 或 Jenkins"
+                  className="h-auto px-1.5 py-0.5 gap-1 rounded-md text-[11px] font-medium text-warning bg-warning/10 hover:bg-warning/20"
                   aria-label="该仓库尚未关联 CI，点击就地配置云效 Flow 或 Jenkins"
                 >
                   <PlusIcon className="size-3" />
@@ -257,15 +243,15 @@ export function LinkedRepoCiSection({
           </Tooltip>
         )}
         {latestRun?.startTime && (
-          <span
-            className="hidden sm:inline text-[11px] text-muted-foreground font-mono truncate max-w-64"
-            title={`构建时间：${formatDateTime(latestRun.startTime)}`}
-          >
-            · 上次构建 {formatRelativeTime(latestRun.startTime)}
-            {latestRun.durationMs != null && latestRun.durationMs > 0
-              ? ` (${formatDuration(latestRun.durationMs)})`
-              : ''}
-          </span>
+          <OverflowTooltip
+            text={`· 上次构建 ${formatRelativeTime(latestRun.startTime)}${
+              latestRun.durationMs != null && latestRun.durationMs > 0
+                ? ` (${formatDuration(latestRun.durationMs)})`
+                : ''
+            }`}
+            tooltip={`构建时间：${formatDateTime(latestRun.startTime)}`}
+            className="hidden sm:inline-block max-w-64 truncate font-mono text-[11px] text-muted-foreground"
+          />
         )}
         </div>
         <div className="flex shrink-0 items-center">{buildAction}</div>

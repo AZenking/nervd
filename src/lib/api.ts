@@ -65,6 +65,17 @@ export async function listIterationTracks(iterationId: string): Promise<BranchRu
 export async function importIterationTracks(map: Record<string, BranchRuleTemplate[]>): Promise<boolean> {
   return invoke('import_iteration_tracks', { map });
 }
+/** 读取某 scope 的默认分支轨道（global / iteration）。 */
+export async function getBranchTrackDefault(
+  scope: 'global' | 'iteration',
+  iterationId?: string,
+): Promise<string | null> {
+  return invoke('get_branch_track_default', { scope, iterationId });
+}
+/** 设置默认分支轨道；同 scope / iteration 内只保留一个。 */
+export async function setBranchTrackDefault(trackId: string): Promise<boolean> {
+  return invoke('set_branch_track_default', { trackId });
+}
 export async function saveRepoCiBinding(repoId: number, binding: RepoCiBinding | null): Promise<SettingsView> {
   return invoke('save_repo_ci_binding', { repoId, binding });
 }
@@ -313,8 +324,14 @@ export async function createBranch(repoId: number, branchName: string, refName: 
   return invoke('create_branch', { repoId, branchName, refName });
 }
 
-export async function listRepositoryCommits(repoId: number, page?: number): Promise<Record<string, unknown>> {
-  return invoke('list_repository_commits', { repoId, page });
+export async function listRepositoryCommits(
+  repoId: number,
+  page?: number,
+  refName?: string,
+  start?: string,
+  end?: string,
+): Promise<Record<string, unknown>> {
+  return invoke('list_repository_commits', { repoId, page, refName, start, end });
 }
 
 export async function listMergeRequests(repoId: number, state?: string): Promise<Record<string, unknown>> {
@@ -322,6 +339,7 @@ export async function listMergeRequests(repoId: number, state?: string): Promise
 }
 export async function createMergeRequest(p: {
   repoId: number; title: string; sourceBranch: string; targetBranch: string; description?: string;
+  workItemIds?: string; reviewerIds?: string[];
 }): Promise<unknown> {
   return invoke('create_merge_request', p);
 }

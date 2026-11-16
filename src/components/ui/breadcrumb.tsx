@@ -94,10 +94,9 @@ function BreadcrumbLink({
 function BreadcrumbPage({ className, ...props }: React.ComponentPropsWithRef<"span">) {
   const slots = breadcrumbsVariants()
   return (
+    // 当前页是非交互文本，不应伪装成禁用链接：只保留 aria-current="page"（WAI-ARIA breadcrumb 模式）
     <span
       data-slot="breadcrumb-page"
-      role="link"
-      aria-disabled="true"
       aria-current="page"
       className={cn(slots.link(), "font-normal text-foreground", className)}
       {...props}
@@ -139,8 +138,8 @@ function BreadcrumbEllipsis({
       )}
       {...props}
     >
+      {/* 容器已 aria-hidden，内部 sr-only 文案会被一并隐藏，属自相矛盾，删除 */}
       <MoreHorizontalIcon />
-      <span className="sr-only">More</span>
     </span>
   )
 }

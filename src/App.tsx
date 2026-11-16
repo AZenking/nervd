@@ -11,7 +11,7 @@ import { useApp } from './store/app';
 import { useUi, initThemeListener, restoreNavigation, type SettingsSection, type WorkspaceView } from './store/ui';
 import { useUpdater } from './store/updater';
 import { useWindowDrag } from './hooks/use-window-drag';
-import type { JenkinsBuildEvent, PipelineRunEvent, SettingsView as SettingsViewType } from './types';
+import type { JenkinsBuildEvent, SettingsView as SettingsViewType } from './types';
 import { openExternal } from '@/lib/yunxiao-link';
 import { migrateIterationTemplatesToDb } from './lib/iteration-templates';
 
@@ -57,7 +57,7 @@ function ToastHost() {
 }
 
 export default function App() {
-  const { booting, settings, init, loadPipelines, loadRepoCi } = useApp();
+  const { booting, settings, init, loadRepoCi } = useApp();
   const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => checkHasOnboarded(settings));
 
   // 全局注入 macOS 沉浸式窗口拖拽与双击最大化
@@ -66,7 +66,10 @@ export default function App() {
   useEffect(() => {
     const unlistenTheme = initThemeListener();
     const resolvedTheme = useUi.getState().resolvedTheme;
+    // DESIGN §2.4 明暗双通道：启动期同时写 `.dark` 类与 `data-theme`，与 index.html 首帧脚本
+    // 及运行期 setTheme/setResolvedTheme 保持一致（只看 class 会漏掉 data-theme 消费方）。
     document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
+    document.documentElement.setAttribute('data-theme', resolvedTheme);
     void init();
     return () => {
       unlistenTheme();
@@ -134,25 +137,6 @@ export default function App() {
     };
   }, [loadRepoCi]);
 
-  useEffect(() => {
-    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-    if (!isTauri) return;
-
-    const un = listen<PipelineRunEvent>('pipeline-run-finished', (e) => {
-      const { pipelineId, pipelineName, runId, status } = e.payload;
-      const url = `https://flow.aliyun.com/pipelines/${pipelineId}/current`;
-      toast.add({
-        title: `${pipelineName} #${runId} → ${status}`,
-        type: status === 'SUCCESS' ? 'success' : status === 'FAIL' ? 'error' : 'info',
-        actionProps: { children: '查看', onPress: () => openExternal(url) },
-      });
-      void loadPipelines();
-    });
-    return () => {
-      void un.then((f) => f());
-    };
-  }, [loadPipelines]);
-
   // 监听 macOS 原生系统菜单栏（工具栏/应用菜单）发出的指令
   useEffect(() => {
     const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -163,7 +147,7 @@ export default function App() {
     });
     const unSettings = listen<string | undefined>('open-settings', (e) => {
       const section = e.payload;
-      const sections: SettingsSection[] = ['connection', 'trace', 'ci', 'security', 'ai', 'about'];
+      const sections: SettingsSection[] = ['connection', 'trace', 'attribution', 'ci', 'security', 'ai', 'about'];
       useUi.getState().openSettings(sections.includes(section as SettingsSection) ? section as SettingsSection : 'connection');
     });
     const unCommand = listen('open-command', () => {

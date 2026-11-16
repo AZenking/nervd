@@ -1,7 +1,7 @@
 // 设置分区唯一清单：侧栏设置菜单（AppSidebar）与设置页内容（SettingsView）共用，
 // 保证左侧菜单与右侧内容永远一一对应；新增分区只改这里。
 import type { LucideIcon } from 'lucide-react';
-import { CloudIcon, GitBranchIcon, InfoIcon, ShieldIcon, SparklesIcon, WorkflowIcon } from 'lucide-react';
+import { CloudIcon, GitBranchIcon, GitCommitIcon, InfoIcon, ShieldIcon, SparklesIcon, WorkflowIcon } from 'lucide-react';
 import type { SettingsSection } from '@/store/ui';
 
 export interface SettingsSectionMeta {
@@ -25,6 +25,12 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
     label: '追溯与云效仓库',
     description: '需求关联正则与默认扫描仓库，仓库列表来自云效组织。',
     icon: GitBranchIcon,
+  },
+  {
+    value: 'attribution',
+    label: '变更归属',
+    description: '代码变更归属、本地仓库绑定、commit-msg 钩子与动态回写策略。',
+    icon: GitCommitIcon,
   },
   {
     value: 'ci',

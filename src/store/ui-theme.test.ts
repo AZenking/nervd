@@ -4,11 +4,15 @@ import { getStoredTheme, getSystemTheme, initThemeListener, resolveTheme, useUi 
 describe('UI Store Theme Runtime Synchronization', () => {
   const originalMatchMedia = window.matchMedia;
 
-  const mockMatchMedia = (isDark: boolean) => {
+  /**
+   * 系统偏好模拟：'dark' / 'light' 明确声明；'none' 表示系统未声明偏好
+   * （dark 与 light 两个媒体查询均不匹配），此时应用须回退深色（DESIGN §2.4）。
+   */
+  const mockMatchMedia = (mode: 'dark' | 'light' | 'none') => {
     const listeners = new Set<(e: MediaQueryListEvent) => void>();
-    const mql = {
-      matches: isDark,
-      media: '(prefers-color-scheme: dark)',
+    const createMql = (matches: boolean, media: string) => ({
+      matches,
+      media,
       onchange: null,
       addListener: vi.fn((cb: any) => listeners.add(cb)),
       removeListener: vi.fn((cb: any) => listeners.delete(cb)),
@@ -19,19 +23,27 @@ describe('UI Store Theme Runtime Synchronization', () => {
         if (event === 'change') listeners.delete(cb);
       }),
       dispatchEvent: vi.fn(),
-      // Helper to trigger media change in tests
-      _dispatchChange: (matches: boolean) => {
-        mql.matches = matches;
-        const event = { matches, media: '(prefers-color-scheme: dark)' } as MediaQueryListEvent;
-        for (const listener of listeners) {
-          listener(event);
-        }
-      },
+    });
+    const darkMql = createMql(mode === 'dark', '(prefers-color-scheme: dark)') as ReturnType<
+      typeof createMql
+    > & { _dispatchChange: (matches: boolean) => void };
+    const lightMql = createMql(mode === 'light', '(prefers-color-scheme: light)');
+    // Helper to trigger media change in tests（同步两个查询的 matches，保持可再次解析）
+    darkMql._dispatchChange = (matches: boolean) => {
+      darkMql.matches = matches;
+      lightMql.matches = !matches;
+      const event = { matches, media: '(prefers-color-scheme: dark)' } as MediaQueryListEvent;
+      for (const listener of listeners) {
+        listener(event);
+      }
     };
 
     window.matchMedia = vi.fn((query: string) => {
       if (query.includes('dark')) {
-        return mql as any;
+        return darkMql as any;
+      }
+      if (query.includes('light')) {
+        return lightMql as any;
       }
       return {
         matches: false,
@@ -45,7 +57,7 @@ describe('UI Store Theme Runtime Synchronization', () => {
       } as any;
     }) as any;
 
-    return mql;
+    return darkMql;
   };
 
   beforeEach(() => {
@@ -91,7 +103,7 @@ describe('UI Store Theme Runtime Synchronization', () => {
 
   describe('system theme resolution with mock window.matchMedia', () => {
     it('resolves system theme to dark when prefers-color-scheme is dark', () => {
-      mockMatchMedia(true);
+      mockMatchMedia('dark');
 
       useUi.getState().setTheme('system');
 
@@ -103,7 +115,7 @@ describe('UI Store Theme Runtime Synchronization', () => {
     });
 
     it('resolves system theme to light when prefers-color-scheme is light', () => {
-      mockMatchMedia(false);
+      mockMatchMedia('light');
 
       useUi.getState().setTheme('system');
 
@@ -115,7 +127,7 @@ describe('UI Store Theme Runtime Synchronization', () => {
     });
 
     it('dynamically updates data-theme and classList when system theme changes', () => {
-      const mql = mockMatchMedia(true);
+      const mql = mockMatchMedia('dark');
       const unlisten = initThemeListener();
 
       useUi.getState().setTheme('system');
@@ -140,7 +152,7 @@ describe('UI Store Theme Runtime Synchronization', () => {
     });
 
     it('does not alter explicit user theme when system theme changes', () => {
-      const mql = mockMatchMedia(true);
+      const mql = mockMatchMedia('dark');
       const unlisten = initThemeListener();
 
       // User explicitly set 'light'
@@ -180,19 +192,27 @@ describe('UI Store Theme Runtime Synchronization', () => {
       expect(resolveTheme('dark')).toBe('dark');
       expect(resolveTheme('light')).toBe('light');
 
-      mockMatchMedia(true);
+      mockMatchMedia('dark');
       expect(resolveTheme('system')).toBe('dark');
 
-      mockMatchMedia(false);
+      mockMatchMedia('light');
       expect(resolveTheme('system')).toBe('light');
+
+      // 系统未声明偏好（深/浅媒体查询皆不匹配）→ 回退深色（DESIGN §2.4）
+      mockMatchMedia('none');
+      expect(resolveTheme('system')).toBe('dark');
     });
 
     it('getSystemTheme reads system preference correctly', () => {
-      mockMatchMedia(true);
+      mockMatchMedia('dark');
       expect(getSystemTheme()).toBe('dark');
 
-      mockMatchMedia(false);
+      mockMatchMedia('light');
       expect(getSystemTheme()).toBe('light');
+
+      // 无系统偏好 / 不支持 → 回退深色（DESIGN §2.4）
+      mockMatchMedia('none');
+      expect(getSystemTheme()).toBe('dark');
     });
 
     it('getStoredTheme retrieves valid theme or defaults to system', () => {

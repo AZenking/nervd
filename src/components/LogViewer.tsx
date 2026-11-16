@@ -3,29 +3,24 @@ import {
   AlertTriangleIcon,
   ArrowDownIcon,
   ArrowLeftIcon,
-  CheckCircle2Icon,
   CopyIcon,
   GitCommitIcon,
-  Loader2Icon,
-  MinusCircleIcon,
-  PauseCircleIcon,
   TerminalIcon,
   WrapTextIcon,
-  XCircleIcon,
   XIcon,
 } from 'lucide-react';
 import { Accordion, Button, Surface, Tabs } from '@heroui/react';
 import { useApp } from '../store/app';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Drawer,
-  DrawerContent,
   DrawerDescription,
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { StatusIcon } from '@/components/status-icon';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
+import { SectionHeader } from '@/components/section-header';
 import { humanizeError } from '@/lib/error-format';
 import { cn } from '@/lib/utils';
 import {
@@ -39,24 +34,9 @@ import type { CiStageItem } from '@/lib/api';
 
 type FilterMode = 'all' | 'error' | 'warning' | 'stage';
 
+/** 阶段状态图形：统一走 StatusIcon（状态语义单一来源），不再自绘 lucide 图标 */
 function StageStatusIcon({ status }: { status: string }) {
-  const s = status.toUpperCase();
-  if (s === 'SUCCESS') {
-    return <CheckCircle2Icon className="size-3.5 text-sig-ok shrink-0" />;
-  }
-  if (s === 'IN_PROGRESS' || s === 'RUNNING') {
-    return <Loader2Icon className="size-3.5 text-sig-run animate-spin shrink-0" />;
-  }
-  if (s === 'FAILED' || s === 'FAILURE' || s === 'FAIL') {
-    return <XCircleIcon className="size-3.5 text-destructive shrink-0" />;
-  }
-  if (s === 'ABORTED' || s === 'CANCELED') {
-    return <MinusCircleIcon className="size-3.5 text-muted-foreground shrink-0" />;
-  }
-  if (s.includes('PAUSE')) {
-    return <PauseCircleIcon className="size-3.5 text-sig-idle shrink-0" />;
-  }
-  return <div className="size-2 rounded-full bg-muted-foreground/60 shrink-0" />;
+  return <StatusIcon status={status} className="size-3.5 shrink-0" />;
 }
 
 function stageStatusBadgeClass(status: string): string {
@@ -70,7 +50,7 @@ function stageStatusBadgeClass(status: string): string {
   if (s === 'FAILED' || s === 'FAILURE' || s === 'FAIL') {
     return 'border-destructive/30 bg-destructive/10 text-destructive';
   }
-  return 'border-border/60 bg-muted/30 text-muted-foreground';
+  return 'border-border/60 bg-surface-secondary text-muted-foreground';
 }
 
 /**
@@ -99,7 +79,11 @@ export function LogViewerContent({
   const followTargetKeyRef = useRef<string | null>(null);
   const previousScrollMetricsRef = useRef<LogScrollMetrics | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
-  const [wrapLines, setWrapLines] = useState<boolean>(true);
+  // 默认不折行：日志以单行横向滚动呈现（换行后长命令行会被截成多行，破坏列对齐与报错定位）；
+  // 用户仍可用头部「自动换行」按钮切回折行模式。
+  const [wrapLines, setWrapLines] = useState<boolean>(false);
+  // followLatestRef 是滚动判定用的可变引用，UI 状态另存一份用于底部「跟随中/已暂停」反馈
+  const [isFollowing, setIsFollowing] = useState(true);
   const [openSectionId, setOpenSectionId] = useState<string | null>(null);
   const lineRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const accordionTargetKeyRef = useRef<string | null>(null);
@@ -154,8 +138,11 @@ export function LogViewerContent({
     if (followTargetKeyRef.current === accordionTargetKey) return;
     followTargetKeyRef.current = accordionTargetKey;
     followLatestRef.current = true;
+    setIsFollowing(true);
 
-    const viewport = contentRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+    // ScrollArea 的滚动节点就是 ScrollShadow 根节点（data-slot="scroll-area"），
+    // 旧选择器 scroll-area-viewport 在当前 HeroUI 版本并不存在，会导致跟随判定永远不触发。
+    const viewport = bodyRef.current?.closest<HTMLElement>('[data-slot="scroll-area"]');
     if (viewport) {
       previousScrollMetricsRef.current = {
         scrollTop: viewport.scrollTop,
@@ -163,7 +150,7 @@ export function LogViewerContent({
         clientHeight: viewport.clientHeight,
       };
     }
-  }, [accordionTargetKey]);
+  }, [accordionTargetKey, logView?.loading]);
 
   useEffect(() => {
     if (!logView) {
@@ -186,7 +173,7 @@ export function LogViewerContent({
   }, [openSectionId, visibleSections]);
 
   useEffect(() => {
-    const viewport = contentRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+    const viewport = bodyRef.current?.closest<HTMLElement>('[data-slot="scroll-area"]');
     if (!viewport) return;
 
     previousScrollMetricsRef.current = {
@@ -204,18 +191,20 @@ export function LogViewerContent({
       };
 
       followLatestRef.current = updateLogFollowState(followLatestRef.current, previous, current);
+      setIsFollowing(followLatestRef.current);
       previousScrollMetricsRef.current = current;
     };
 
     viewport.addEventListener('scroll', handleScroll, { passive: true });
     return () => viewport.removeEventListener('scroll', handleScroll);
-  }, [accordionTargetKey]);
+    // logView.loading 翻转为 false / 筛选切换后正文节点可能重新挂载，需要重新绑定滚动监听
+  }, [accordionTargetKey, logView?.loading, filterMode]);
 
   // 自动滚动到底部（仅在全量展示且处于实时追加模式时）
   useEffect(() => {
     if (logView && filterMode === 'all' && logView.hasMore && followLatestRef.current) {
       const frame = requestAnimationFrame(() => {
-        const vp = bodyRef.current?.closest('[data-slot="scroll-area-viewport"]');
+        const vp = bodyRef.current?.closest<HTMLElement>('[data-slot="scroll-area"]');
         if (followLatestRef.current) {
           vp?.scrollTo({ top: vp.scrollHeight, behavior: 'auto' });
         }
@@ -257,6 +246,17 @@ export function LogViewerContent({
     }, 50);
   };
 
+  /**
+   * 恢复实时跟随：把可变引用与可见状态同时复位，并立刻滚到最新一行。
+   * 用户向上翻看历史时跟随会自动暂停，此处是唯一显式的「回到最新」入口。
+   */
+  const resumeFollow = () => {
+    followLatestRef.current = true;
+    setIsFollowing(true);
+    const vp = bodyRef.current?.closest<HTMLElement>('[data-slot="scroll-area"]');
+    vp?.scrollTo({ top: vp.scrollHeight, behavior: 'smooth' });
+  };
+
   return (
       <div ref={contentRef} className="flex min-h-0 flex-1 flex-col">
         {/* 页头区 */}
@@ -287,7 +287,8 @@ export function LogViewerContent({
                   <span>{logView?.repoId ? `仓库 #${logView.repoId} · 构建运行实时日志` : '流水线运行日志'}</span>
                   {stats.totalLines > 0 && (
                     <span className="text-[11px] text-muted-foreground/80">
-                      (共 {stats.totalLines} 行{stats.errorCount > 0 ? ` · ${stats.errorCount} 处报错` : ''})
+                      (共 <span className="font-mono tabular-nums">{stats.totalLines}</span> 行
+                      {stats.errorCount > 0 ? <> · <span className="font-mono tabular-nums">{stats.errorCount}</span> 处报错</> : ''})
                     </span>
                   )}
                 </DrawerDescription>
@@ -336,18 +337,18 @@ export function LogViewerContent({
             >
               <Tabs.List aria-label="日志级别筛选" className="flex-nowrap shrink-0 gap-1">
                 <Tabs.Tab id="all" className="whitespace-nowrap shrink-0 px-2.5 text-xs">
-                  <span className="whitespace-nowrap">全部 ({stats.totalLines})</span>
+                  <span className="whitespace-nowrap">全部 (<span className="font-mono tabular-nums">{stats.totalLines}</span>)</span>
                   <Tabs.Indicator />
                 </Tabs.Tab>
                 <Tabs.Tab id="error" className="whitespace-nowrap shrink-0 px-2.5 text-xs">
                   <span className={cn('whitespace-nowrap', stats.errorCount > 0 && filterMode !== 'error' && 'text-destructive font-medium')}>
-                    错误 ({stats.errorCount})
+                    错误 (<span className="font-mono tabular-nums">{stats.errorCount}</span>)
                   </span>
                   <Tabs.Indicator />
                 </Tabs.Tab>
                 <Tabs.Tab id="warning" className="whitespace-nowrap shrink-0 px-2.5 text-xs">
                   <span className={cn('whitespace-nowrap', stats.warningCount > 0 && filterMode !== 'warning' && 'text-warning font-medium')}>
-                    警告 ({stats.warningCount})
+                    警告 (<span className="font-mono tabular-nums">{stats.warningCount}</span>)
                   </span>
                   <Tabs.Indicator />
                 </Tabs.Tab>
@@ -368,14 +369,15 @@ export function LogViewerContent({
               aria-label={`直接滚动至第 ${stats.firstErrorLine} 行报错`}
             >
               <AlertTriangleIcon className="size-3" />
-              <span>直达首个报错 (第 {stats.firstErrorLine} 行)</span>
+              <span>直达首个报错 (第 <span className="font-mono tabular-nums">{stats.firstErrorLine}</span> 行)</span>
               <ArrowDownIcon className="size-3 ml-0.5" />
             </Button>
           )}
         </div>
 
         {/* 控制台正文展示 */}
-        <ScrollArea className="min-h-0 flex-1 bg-muted/5">
+        {/* 控制台正文不再铺 muted 灰底：由抽屉 surface 透出，日志面板用内层 Surface secondary 自成一个面，避免同层级双底叠加 */}
+        <ScrollArea className="min-h-0 flex-1">
           {logView?.loading && (!logView.text || logView.text === '加载中…') ? (
             <div className="flex flex-col gap-2.5 p-5" aria-hidden>
               <Skeleton className="h-3.5 w-3/4 rounded" />
@@ -396,12 +398,18 @@ export function LogViewerContent({
               ref={bodyRef}
               className="space-y-3 p-4"
             >
-              <div className="flex items-center gap-1.5 px-1 text-xs font-semibold text-foreground">
-                <GitCommitIcon className="size-3.5 text-primary" aria-hidden="true" />
-                <span>流水线步骤追溯 (Trace)</span>
-                <span className="font-mono text-[11px] text-muted-foreground">({logSections.length})</span>
-                <span className="ml-1 text-[11px] font-normal text-muted-foreground">展开步骤查看阶段日志</span>
-              </div>
+              {/* 区块标题统一走 SectionHeader（DESIGN 第三部分 B：禁止内联复刻） */}
+              <SectionHeader
+                level="h3"
+                title={(
+                  <span className="flex items-center gap-1.5">
+                    <GitCommitIcon className="size-3.5 text-primary" aria-hidden="true" />
+                    流水线步骤追溯 (Trace)
+                  </span>
+                )}
+                count={`(${logSections.length})`}
+                hint="展开步骤查看阶段日志"
+              />
 
               <Accordion
                 allowsMultipleExpanded
@@ -420,7 +428,7 @@ export function LogViewerContent({
                       className="rounded-lg border border-border/70 bg-card/60 transition-colors data-[expanded=true]:bg-card/90 overflow-hidden"
                     >
                       <Accordion.Heading>
-                        <Accordion.Trigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/60">
+                        <Accordion.Trigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-surface-secondary">
                           <StageStatusIcon status={section.status} />
                           <span className="font-semibold text-foreground truncate">{section.name}</span>
                           <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
@@ -483,11 +491,11 @@ export function LogViewerContent({
                                       else lineRefs.current.delete(line.lineNumber);
                                     }}
                                     className={cn(
-                                      'flex items-start px-3 py-0.5 transition-colors hover:bg-muted/40',
+                                      'flex items-start px-3 py-0.5 transition-colors hover:bg-surface-secondary',
                                       isError && 'bg-destructive/10 text-destructive border-l-2 border-destructive pl-2.5 font-medium',
                                       isWarning && 'bg-sig-run/10 text-sig-run border-l-2 border-sig-run pl-2.5',
                                       isStage && 'bg-primary/10 text-primary border-l-2 border-primary pl-2.5 font-medium',
-                                      isCommand && 'text-(--sticker-purple-deep) dark:text-(--sticker-purple) font-medium',
+                                      isCommand && 'text-(--ansi-magenta) font-medium',
                                     )}
                                   >
                                     <span className="w-12 shrink-0 pr-3 text-right select-none font-mono text-[11px] text-muted-foreground/40 tabular-nums">
@@ -522,12 +530,37 @@ export function LogViewerContent({
             {logView?.error
               ? `日志读取失败，将自动重试：${humanizeError(logView.error, '日志暂时不可读')}`
               : logView?.repoId && logView.hasMore
-                ? '正在自动跟随 Jenkins 实时日志…'
+                ? isFollowing
+                  ? '正在自动跟随 Jenkins 实时日志…'
+                  : '已暂停跟随：向上滚动查看历史，点「回到最新」恢复'
                 : logView?.repoId
                   ? '构建已结束，日志已更新至最新'
                   : ''}
           </span>
           <div className="flex shrink-0 items-center gap-2">
+            {/* 仅在「仍在增量追加」的实时日志上暴露跟随开关；已结束的日志显示跟随状态没有意义 */}
+            {logView?.hasMore && (
+              isFollowing ? (
+                <span
+                  role="status"
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground"
+                >
+                  <ArrowDownIcon className="size-3" aria-hidden="true" />
+                  跟随中
+                </span>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onPress={resumeFollow}
+                  className="h-7 gap-1 text-[11px]"
+                  aria-label="已暂停跟随，回到最新日志"
+                >
+                  <ArrowDownIcon className="size-3" aria-hidden="true" />
+                  已暂停 · 回到最新
+                </Button>
+              )
+            )}
             {logView?.repoId && (
               <Button
                 variant="outline"
@@ -541,18 +574,5 @@ export function LogViewerContent({
           </div>
         </div>
       </div>
-  );
-}
-
-/** 兼容旧调用方：日志内容现在由 BuildWorkbenchDrawer 统一承载。 */
-export function LogViewer() {
-  const logView = useApp((s) => s.logView);
-  const closeLogs = useApp((s) => s.closeLogs);
-  return (
-    <Drawer open={!!logView} onOpenChange={(open) => { if (!open) closeLogs(); }} swipeDirection="right">
-      <DrawerContent className="w-full sm:w-[560px] md:w-[600px] lg:w-[640px] sm:max-w-none">
-        <LogViewerContent />
-      </DrawerContent>
-    </Drawer>
   );
 }

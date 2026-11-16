@@ -47,7 +47,8 @@ function Input({
       ref={ref}
       type={type}
       data-slot="input"
-      isDisabled={isDisabled ?? disabled}
+      // react-aria 的 Input 只认 DOM 的 disabled；传 isDisabled 会泄漏到 DOM 触发 React 告警
+      disabled={isDisabled ?? disabled}
       className={cn("h-8 text-[13px]", className)}
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}

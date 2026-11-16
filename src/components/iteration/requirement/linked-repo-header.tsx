@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type React from 'react';
 import {
   ArrowRightIcon,
@@ -18,6 +19,19 @@ import { openBuildWorkbenchFromTrigger } from '@/components/build-workbench';
 import type { BuildWorkbenchTarget } from '@/store/ui';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from '@/components/ui/toast';
+import { useApp } from '@/store/app';
+import { useUi } from '@/store/ui';
 import type { IterationBaselineCheck } from './types';
 
 export interface LinkedRepoHeaderProps {
@@ -57,6 +71,39 @@ export function LinkedRepoHeader({
   onCreateMr,
   onUnlinkRepo,
 }: LinkedRepoHeaderProps) {
+  // 取消关联 = 破坏性远端写：只读态 Toast 引导，写模式走 AlertDialog 二次确认。
+  // 注意：AlertDialog 必须挂在菜单之外 —— HeroUI 菜单在选中项后立即关闭，
+  // 若把确认弹窗渲染在菜单项内部（如 WriteOpButton asMenuItem），会随菜单卸载而永不显示。
+  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
+  const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
+  const openSettings = useUi((state) => state.openSettings);
+
+  const requestUnlink = () => {
+    if (!onUnlinkRepo) return;
+    if (!allowWriteOps) {
+      toast.add({
+        title: '当前处于只读模式',
+        description: '「取消关联」是写操作。可在「设置 → 安全」中开启写权限后执行。',
+        type: 'warning',
+        actionProps: { children: '前往设置', onClick: () => openSettings('security') },
+      });
+      return;
+    }
+    setUnlinkOpen(true);
+  };
+
+  const confirmUnlink = async () => {
+    if (!onUnlinkRepo) return;
+    setUnlinking(true);
+    try {
+      await onUnlinkRepo(repo.id);
+      setUnlinkOpen(false);
+    } finally {
+      setUnlinking(false);
+    }
+  };
+
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3.5">
       {/* 左侧：展开折叠图标 + 仓库图标 + 仓库名称与分支拓扑 */}
@@ -71,7 +118,7 @@ export function LinkedRepoHeader({
             onPress={onToggleDetails}
             aria-label={detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}
             aria-expanded={detailsOpen}
-            className="size-6 shrink-0 rounded-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            className="size-6 shrink-0 rounded-sm text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground"
           >
             <ChevronRightIcon
               className={cn(
@@ -100,17 +147,15 @@ export function LinkedRepoHeader({
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <OverflowTooltip
               text={repo.name}
-              title={repo.name}
               className="text-sm font-semibold tracking-tight text-foreground"
             />
             {repo.pathWithNamespace && (
               <Chip
                 size="sm"
                 variant="secondary"
-                className="h-5 max-w-72 cursor-default gap-1 px-2 font-mono text-[11px] font-normal text-muted-foreground"
-                title={repo.pathWithNamespace}
+                className="h-5 max-w-72 min-w-0 cursor-default gap-1 px-2 font-mono text-[11px] font-normal text-muted-foreground"
               >
-                <span className="truncate">{repo.pathWithNamespace}</span>
+                <OverflowTooltip text={repo.pathWithNamespace} className="truncate" />
               </Chip>
             )}
           </div>
@@ -126,7 +171,6 @@ export function LinkedRepoHeader({
             >
               <OverflowTooltip
                 text={developerBranch || '未配置需求分支'}
-                title={developerBranch || '未配置需求分支'}
                 className="max-w-40 truncate sm:max-w-56"
               />
             </Chip>
@@ -139,7 +183,6 @@ export function LinkedRepoHeader({
             >
               <OverflowTooltip
                 text={operationBaseBranch || '未配置目标基准'}
-                title={operationBaseBranch || '未配置目标基准'}
                 className="max-w-40 truncate sm:max-w-56"
               />
             </Chip>
@@ -156,7 +199,7 @@ export function LinkedRepoHeader({
               variant/size 对其无效（内部为无样式的 react-aria Button），紧凑外观由 className 覆盖 */}
           <Dropdown.Trigger
             type="button"
-            className="h-7 rounded-sm px-2 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+            className="h-7 rounded-sm px-2 text-xs text-muted-foreground hover:bg-surface-secondary hover:text-foreground"
             aria-label="更多仓库操作"
           >
             更多
@@ -182,7 +225,7 @@ export function LinkedRepoHeader({
                     onCreateMr();
                     break;
                   case 'unlink':
-                    onUnlinkRepo?.(repo.id);
+                    requestUnlink();
                     break;
                 }
               }}
@@ -214,9 +257,15 @@ export function LinkedRepoHeader({
               {onUnlinkRepo && (
                 <>
                   <Separator className="my-1 bg-border/60" />
-                  <Dropdown.Item id="unlink" textValue="取消关联" variant="danger">
+                  {/* 破坏性远端写：菜单项只负责发起，二次确认由根部受控 AlertDialog 承载 */}
+                  <Dropdown.Item
+                    id="unlink"
+                    textValue="取消关联"
+                    variant="danger"
+                    className={cn(!allowWriteOps && 'opacity-60')}
+                  >
                     <UnlinkIcon className="size-3.5 shrink-0 text-danger" />
-                    <Label>取消关联</Label>
+                    <Label>取消关联{!allowWriteOps ? '（写操作已关闭）' : ''}</Label>
                   </Dropdown.Item>
                 </>
               )}
@@ -224,6 +273,24 @@ export function LinkedRepoHeader({
           </Dropdown.Popover>
         </Dropdown>
       </Toolbar>
+
+      {/* 确认弹窗挂在菜单之外：菜单关闭不会卸载它（受控 open 由 requestUnlink 打开） */}
+      <AlertDialog open={unlinkOpen} onOpenChange={(next) => { if (!unlinking) setUnlinkOpen(next); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>取消关联仓库</AlertDialogTitle>
+            <AlertDialogDescription>
+              将解除「{repo.name}」与当前需求的关联，并清空该仓库的分支与 CI 绑定视图。此操作为写操作，将在远端实际生效。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unlinking}>保留关联</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={unlinking} onPress={() => void confirmUnlink()}>
+              {unlinking ? '正在取消…' : '确认取消关联'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

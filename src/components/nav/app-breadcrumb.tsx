@@ -5,6 +5,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { cn } from '@/lib/utils';
@@ -23,7 +24,12 @@ export function AppBreadcrumb() {
   );
   const crumbPage = (label: string, className?: string) => (
     <BreadcrumbItem key={`page-${label}`}>
-      <BreadcrumbPage className={cn('max-w-48 truncate font-medium', className)}>{label}</BreadcrumbPage>
+      {/* 关键短文本（迭代名 / 编号）实际截断时才出全文提示，避免静态文字无条件占用焦点或弹原生 title */}
+      <OverflowTooltip
+        text={label}
+        className="max-w-48"
+        render={<BreadcrumbPage className={cn('font-medium', className)} />}
+      />
     </BreadcrumbItem>
   );
   const sep = (key: string) => <BreadcrumbSeparator key={`separator-${key}`} />;

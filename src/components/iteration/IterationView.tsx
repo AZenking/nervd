@@ -18,7 +18,6 @@ import { UserAvatar } from '@/components/ui/avatar';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
-import { SINGLE_COLUMN_WORKSPACE_WIDTH } from '@/store/layout';
 import { useShallow } from 'zustand/react/shallow';
 import {
   useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters, buildWorkitemFilterOptions, UNPLANNED_ITERATION,
@@ -33,7 +32,7 @@ import { WorkitemPeekDrawer } from '../workitem-peek-drawer';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useCiPolling } from '@/hooks/use-ci-polling';
 import { useBatchSelection } from '@/hooks/use-batch-selection';
-import { useElementWidth } from '@/hooks/use-element-width';
+import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import type { WorkitemChild } from '@/lib/api';
 import { WorkitemFilterBar } from './workitem-filter-menu';
 import { IterationBranches } from './IterationBranches';
@@ -61,7 +60,7 @@ function getStatusGroupChipClass(status: string): string {
   if (tone === 'ok') {
     return 'border-success/25 bg-success/10 text-success font-semibold';
   }
-  return 'border-border/60 bg-muted/40 text-muted-foreground font-medium';
+  return 'border-border/60 bg-surface-secondary text-muted-foreground font-medium';
 }
 
 /** 工作项行类型：直接从 app store 的 items 元素推导，避免再引一层 lib/api */
@@ -143,18 +142,21 @@ const WorkitemRow = memo(function WorkitemRow({
       onContextMenu={(e) => onContextMenu(e, item, flatIndex)}
       className={cn(
         'group relative flex w-full cursor-pointer items-center gap-2.5 rounded-md text-left transition-colors min-h-0',
-        'hover:bg-muted/60',
-        'data-[active=true]:bg-muted-bg',
+        'hover:bg-surface-secondary',
+        // AGENTS §3.3.1：激活态统一 bg-accent text-accent-foreground（不再自造 muted-bg）
+        'data-[active=true]:bg-accent data-[active=true]:text-accent-foreground',
+        // 指针悬停不得盖掉激活态底色（hover 与 data-[active] 同权重，显式提高一档）
+        'data-[active=true]:hover:bg-accent',
         'h-10 px-2.5 pl-3',
       )}
     >
-      {/* 检视光标 / 参与人 / 处理人左侧精致标识线 */}
+      {/* 检视光标 / 参与人 / 处理人左侧精致标识线（激活行底色为品牌紫，标识线改用反色保持可辨） */}
       {isAssigned ? (
-        <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-primary" />
+        <span className={cn('absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full', isActive ? 'bg-accent-foreground/80' : 'bg-primary')} />
       ) : isRelated ? (
-        <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-warning" />
+        <span className={cn('absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full', isActive ? 'bg-accent-foreground/60' : 'bg-warning')} />
       ) : isActive ? (
-        <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-r-full bg-primary/70" />
+        <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-r-full bg-accent-foreground/70" />
       ) : null}
 
       {/* 多选 Checkbox（Linear 风格：悬停滑出，已选常驻）
@@ -166,7 +168,8 @@ const WorkitemRow = memo(function WorkitemRow({
         onClick={(e) => e.stopPropagation()}
         className={cn(
           'flex size-4 shrink-0 items-center justify-center cursor-pointer transition-opacity',
-          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+          // 未选中行悬停/键盘聚焦时滑出（focus-within 保证 Tab 聚焦后可见，避免焦点落在隐形控件上）
+          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
         )}
       >
         <Checkbox
@@ -179,13 +182,12 @@ const WorkitemRow = memo(function WorkitemRow({
       {/* 原地流转状态下拉 Popover */}
       <RowStatusDropdown item={item} />
 
-      {/* 编号 */}
+      {/* 编号（完整展示、不截断，故不挂原生 title，避免与 Tooltip 重复提示） */}
       <span
         className={cn(
           'shrink-0 font-mono text-xs transition-colors',
-          isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
+          isActive ? 'text-accent-foreground font-semibold' : 'text-muted-foreground'
         )}
-        title={item.identifier}
       >
         {item.identifier}
       </span>
@@ -196,7 +198,12 @@ const WorkitemRow = memo(function WorkitemRow({
           size="sm"
           variant="soft"
           color="accent"
-          className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-sm select-none"
+          className={cn(
+            'h-5 shrink-0 px-2 text-[11px] font-medium rounded-sm select-none border',
+            isActive
+              ? 'border-accent-foreground/40 bg-accent-foreground/15 text-accent-foreground'
+              : 'border-primary/30 bg-primary/15 text-primary',
+          )}
         >
           我负责
         </Chip>
@@ -205,26 +212,30 @@ const WorkitemRow = memo(function WorkitemRow({
           size="sm"
           variant="soft"
           color="warning"
-          className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-sm select-none"
+          className={cn(
+            'h-5 shrink-0 px-2 text-[11px] font-medium rounded-sm select-none border',
+            isActive
+              ? 'border-accent-foreground/40 bg-accent-foreground/15 text-accent-foreground'
+              : 'border-warning/30 bg-warning/15 text-warning',
+          )}
         >
           我参与
         </Chip>
       ) : null}
 
-      {/* 标题 */}
+      {/* 标题（全文提示由 OverflowTooltip 仅在真截断时给出，不再叠加原生 title） */}
       <OverflowTooltip
         text={item.subject}
-        title={item.subject}
         className={cn(
           'min-w-0 flex-1 truncate text-[13px] transition-colors',
-          isActive ? 'text-foreground font-semibold' : 'text-foreground/90 font-medium'
+          isActive ? 'text-accent-foreground font-semibold' : 'text-foreground/90 font-medium'
         )}
       />
 
       {/* 右侧信息 */}
       <span className={cn(
         'ml-auto flex shrink-0 items-center gap-2 text-xs transition-colors',
-        isActive ? 'text-foreground/80' : 'text-muted-foreground'
+        isActive ? 'text-accent-foreground/80' : 'text-muted-foreground'
       )}>
         <span
           className="hidden tabular-nums md:block"
@@ -250,8 +261,8 @@ function WorkitemSkeletonRows() {
     <div className="flex flex-col gap-6" aria-hidden>
       {[0, 1].map((groupKey) => (
         <div key={groupKey} className="flex flex-col gap-1.5">
-          {/* 模拟分组头骨架 */}
-          <div className="flex items-center gap-2 px-1">
+          {/* 模拟分组头骨架：与真实组头同高 h-7，避免加载完成时整组下跳 */}
+          <div className="flex h-7 items-center gap-2 px-2">
             <Skeleton className="size-3.5 rounded shrink-0" />
             <Skeleton className="h-4 w-16 rounded" />
             <Skeleton className="h-3.5 w-6 rounded-sm" />
@@ -261,7 +272,7 @@ function WorkitemSkeletonRows() {
             {[0, 1, 2, 3, 4].map((key) => (
               <div
                 key={key}
-                className="flex h-10 w-full items-center gap-2.5 rounded-md px-2.5 bg-muted-bg"
+                className="flex h-10 w-full items-center gap-2.5 rounded-md px-2.5 bg-surface-secondary"
               >
                 <Skeleton className="size-3.5 rounded-sm shrink-0" />
                 <Skeleton className="h-5 w-14 rounded-sm shrink-0" />
@@ -301,6 +312,7 @@ export function IterationView() {
   const setIteration = useUi((s) => s.setIteration);
   const openWorkitem = useUi((s) => s.openWorkitem);
   const filters = useUi((s) => s.filters);
+  const clearFilters = useUi((s) => s.clearFilters);
   const updateListContext = useUi((s) => s.updateListContext);
   const {
     items, repositories, category, setCategory, loadingList, listFetchedAt, loadList, nextToken,
@@ -417,9 +429,16 @@ export function IterationView() {
     prevScopedCountRef.current = scoped.length;
   }, [pageIndex]);
 
-  // 当前页未填满且云端还有数据 → 适度自动补拉下一接口页（最多尝试 3 轮，或连续 2 轮无本迭代新增则熔断）
+  // 当前页补拉（历史 A3）：满足任一条件才继续向接口追加下一页——
+  // ① 当前页无更多可见项（页内未填满）；② 当前页已是已加载末页（pageIndex >= totalPages）
+  //    而远端 nextToken 仍未覆盖。旧的 `pageItems.length >= PAGE_SIZE 即 return` 在
+  //    「刚好整页（如 30 条）+ nextToken 仍在」时既不出下一页入口、也永远不再补拉（数据被截断）。
+  // 页满且后面仍有已加载页时无需补拉；沿用 3 轮 / 连续 2 轮无新增熔断，避免小迭代抽干全空间。
+  const pageFilled = pageItems.length >= PAGE_SIZE;
+  const atLoadedTail = pageIndex >= totalPages;
   useEffect(() => {
-    if (pageItems.length >= PAGE_SIZE || !nextToken || loadingList) return;
+    if (!nextToken || loadingList) return;
+    if (pageFilled && !atLoadedTail) return;
 
     if (scoped.length > prevScopedCountRef.current) {
       zeroYieldStreakRef.current = 0;
@@ -435,7 +454,7 @@ export function IterationView() {
 
     backfillRoundRef.current += 1;
     void loadList(true);
-  }, [pageItems.length, nextToken, loadingList, loadList, scoped.length]);
+  }, [atLoadedTail, pageFilled, nextToken, loadingList, loadList, scoped.length]);
 
   // 计数口径（工具行尾部 + 列表底部共用）：全部已加载 y 项（当前迭代 x 项在工具行单独拼）
   const countSummary = `全部已加载 ${items.length} 项`;
@@ -492,11 +511,9 @@ export function IterationView() {
   const shownTab = isUnplanned && viewTab === 'branches' ? 'workitems' : viewTab;
 
   // ---- 布局自适应（窄窗口 compact 化）----
-  // 测量的是本视图根容器（= 扣除侧栏后的工作区宽度），测量节点常驻；
-  // 宽度仅用于窄窗口 PageHeader compact 密度判定（详情检视已统一为 Peek 抽屉，不再有分栏/单栏切换）。
-  const [measureRef, workspaceWidth] = useElementWidth<HTMLDivElement>();
-  /** 工作区宽度低于 760 → compact 形态（首帧未测量完成时不触发，避免挂载闪烁） */
-  const singleColumn = workspaceWidth > 0 && workspaceWidth < SINGLE_COLUMN_WORKSPACE_WIDTH;
+  // DESIGN §F.3 的工作区宽度由 Shell 统一测量（同一来源），本视图不再自测，
+  // 避免与其它视图出现阈值偏差；首帧未测量完成（0）时不触发，防止页头留白闪烁。
+  const singleColumn = useWorkspaceCompact();
 
   const previewClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelPreviewClick = useCallback(() => {
@@ -741,6 +758,21 @@ export function IterationView() {
     if (id) scrollRowIntoView(id);
   }, [cursor, flatIds, scrollRowIntoView]);
 
+  // 翻页后光标收敛（历史反馈：翻页后仍停在旧页的序号位置，视口不跟手）：
+  // 旧页行序号在新页毫无意义 → 光标收回新页首行，并在 DOM 提交后的下一帧主动滚动到可见位置。
+  const prevPageForCursorRef = useRef(pageIndex);
+  useEffect(() => {
+    if (prevPageForCursorRef.current === pageIndex) return;
+    prevPageForCursorRef.current = pageIndex;
+    pendingCursorIndexRef.current = null;
+    applyCursor(0);
+    const frame = requestAnimationFrame(() => {
+      const firstId = flatIds[0];
+      if (firstId) scrollRowIntoView(firstId);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [applyCursor, flatIds, pageIndex, scrollRowIntoView]);
+
   // 抽屉开启状态下，键盘光标移动联动更新抽屉详情内容（Linear 核心交互：j/k 快速连续检视）
   // 仅在 cursor 变化且当前未在钻取子工作项时，联动切换工作项
   const prevCursorRef = useRef(cursor);
@@ -766,10 +798,12 @@ export function IterationView() {
     return cancelPeekSelect;
   }, [cancelPeekSelect, cursor, flatIds, itemById, peekWorkitemId]);
 
-  // 阶梯式 Esc：钻取层优先于抽屉层。
-  // 第三优先级：抽屉内已钻取子工作项时，Esc 退回父需求且不关抽屉；
-  // 第四优先级：无钻取层时，Esc 关闭抽屉回到全宽列表。
-  // 用捕获阶段监听先于 React Aria 的 document 级 Esc dismiss；抽屉之上有其他浮层（菜单/弹窗/Tooltip）
+  // 阶梯式 Esc（AGENTS §4.2 严格 1→5 层级）：浮层 > 多选 > 钻取 > 抽屉 > 整页。
+  // 本捕获层在抽屉打开时才挂载，因此浮层（菜单/弹窗/Tooltip）与「多选」都必须先于钻取/抽屉判断：
+  // ① 已有多选（selectedIds 非空）→ 只清空多选并就地返回，绝不越级关抽屉；
+  // ② 抽屉内已钻取子工作项 → Esc 退回父需求且不关抽屉；
+  // ③ 无钻取层 → Esc 关闭抽屉回到全宽列表；整页层由 Shell 兜底。
+  // 用捕获阶段监听先于 React Aria 的 document 级 Esc dismiss；抽屉之上有其他浮层
   // 或焦点在文本编辑中时不接管，交由对应浮层原生处理。
   useEffect(() => {
     if (!peekWorkitemId) return;
@@ -780,6 +814,11 @@ export function IterationView() {
       if (document.querySelector('[role="tooltip"]:not([data-closed]):not([hidden])')) return;
       e.preventDefault();
       e.stopPropagation();
+      // 第二优先级：多选优先于钻取与抽屉（历史 P1-17：无此分支会直接关抽屉）
+      if (hasSelected) {
+        clearSelection();
+        return;
+      }
       if (peekParentWorkitemId) {
         const parentId = peekParentWorkitemId;
         setPeekWorkitemId(parentId);
@@ -794,7 +833,7 @@ export function IterationView() {
     };
     window.addEventListener('keydown', onKeyDownCapture, true);
     return () => window.removeEventListener('keydown', onKeyDownCapture, true);
-  }, [cancelPeekSelect, cancelPreviewClick, peekWorkitemId, peekParentWorkitemId]);
+  }, [cancelPeekSelect, cancelPreviewClick, clearSelection, hasSelected, peekWorkitemId, peekParentWorkitemId]);
 
   // 键盘导航（Linear 操作逻辑核心）：j/↓ k/↑ 循环移动光标，Enter 打开光标行，/ 聚焦筛选输入框。
   // 焦点在文本输入控件 / 命令面板打开时让路；右键菜单打开时按键归菜单（防弹层后方的幽灵光标移动与 Enter 双重动作）；
@@ -822,6 +861,22 @@ export function IterationView() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // Shift+F10 / ContextMenu 键：右键菜单的键盘等价入口（行内 onKeyDown 已处理时会被 defaultPrevented 拦截）
+      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        const item = itemById.get(flatIds[cursorRef.current]);
+        if (!item) return;
+        e.preventDefault();
+        if (!selectedIdsRef.current.has(item.workitemId)) selectOnly(item.workitemId);
+        const rowEl = rowRefs.current.get(rowKeyOf(item));
+        const rect = rowEl?.getBoundingClientRect();
+        setCtxMenu({
+          item,
+          x: rect ? rect.left + 24 : 24,
+          y: rect ? rect.top + Math.min(rect.height, 28) : 24,
+        });
+        return;
+      }
 
       if (e.key === 'Escape') {
         if (hasSelected) {
@@ -862,7 +917,7 @@ export function IterationView() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [flatIds, itemById, openDetail, applyCursor, ctxMenu, totalPages, peekWorkitemId, hasSelected, clearSelection, toggleSelect, selectAll]);
+  }, [flatIds, itemById, openDetail, applyCursor, ctxMenu, totalPages, peekWorkitemId, hasSelected, clearSelection, toggleSelect, selectAll, selectOnly]);
 
   // 稳定的行回调：与 WorkitemRow memo 配合，j/k 光标移动 / CI 轮询时只重渲真正变化的行。
   const selectedIdsRef = useRef(selectedIds);
@@ -920,12 +975,22 @@ export function IterationView() {
     if (target?.closest('button, a, input, select, textarea, [role="button"], [role="checkbox"]')) {
       if (target !== e.currentTarget) return;
     }
+    // 右键菜单的键盘等价入口（历史：行上只有鼠标 onContextMenu，键盘用户无入口）：
+    // Shift+F10 / ContextMenu 键触发同一菜单，锚点贴当前行，行为与鼠标右键一致。
+    if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      e.preventDefault();
+      applyCursor(flatIndex);
+      if (!selectedIdsRef.current.has(item.workitemId)) selectOnly(item.workitemId);
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setCtxMenu({ item, x: rect.left + 24, y: rect.top + Math.min(rect.height, 28) });
+      return;
+    }
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       applyCursor(flatIndex);
       openDetail(item);
     }
-  }, [applyCursor, openDetail]);
+  }, [applyCursor, openDetail, selectOnly]);
 
   const handleRowContextMenu = useCallback((
     e: React.MouseEvent,
@@ -952,14 +1017,14 @@ export function IterationView() {
             <Accordion.Item key={group.status} id={group.status} className="border-none">
               {/* 组头：Linear 组头形态；微弱字距，清晰层级，可折叠 */}
               <Accordion.Heading>
-                <Accordion.Trigger className="group/group-header -ml-1 flex h-7 w-full cursor-pointer items-center gap-2 rounded px-2 text-left transition-colors hover:bg-muted/60">
+                <Accordion.Trigger className="group/group-header -ml-1 flex h-7 w-full cursor-pointer items-center gap-2 rounded px-2 text-left transition-colors hover:bg-surface-secondary">
                   <StatusIcon status={group.status} className="size-3.5 shrink-0" />
-                  <span className="text-[13px] font-semibold text-foreground/90" title={group.status || '未知'}>{group.status || '未知'}</span>
+                  <span className="text-[13px] font-semibold text-foreground/90">{group.status || '未知'}</span>
                   <Chip
                     size="sm"
                     variant="soft"
                     className={cn(
-                      "h-4.5 min-w-5 px-1.5 text-[10.5px] font-mono tabular-nums border rounded-sm transition-colors",
+                      "h-4.5 min-w-5 px-1.5 text-[11px] font-mono tabular-nums border rounded-sm transition-colors",
                       getStatusGroupChipClass(group.status)
                     )}
                   >
@@ -1019,14 +1084,24 @@ export function IterationView() {
               : nextToken
                 ? '当前迭代暂无已加载的工作项（翻到下一页会继续拉取）'
                 : undefined}
+            action={activeFilterCount > 0 ? (
+              <Button variant="outline" size="sm" onPress={clearFilters}>
+                清除筛选
+              </Button>
+            ) : undefined}
           />
         )}
         {/* 底部数量统计与分页器 */}
         {filtered.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
             <span data-testid="pagination-info" className="text-[11px] text-muted-foreground">
-              共 {filtered.length} 项
-              {totalPages > 1 && `（第 ${(pageIndex - 1) * PAGE_SIZE + 1} - ${Math.min(pageIndex * PAGE_SIZE, filtered.length)} 项）`}
+              共 <span className="font-mono tabular-nums">{filtered.length}</span> 项
+              {totalPages > 1 && (
+                <>
+                  （第 <span className="font-mono tabular-nums">{(pageIndex - 1) * PAGE_SIZE + 1}</span> -{' '}
+                  <span className="font-mono tabular-nums">{Math.min(pageIndex * PAGE_SIZE, filtered.length)}</span> 项）
+                </>
+              )}
             </span>
 
             {/* 多于一页时展示分页控制 */}
@@ -1035,6 +1110,26 @@ export function IterationView() {
               totalPages={totalPages}
               onPageChange={setPageIndex}
             />
+          </div>
+        )}
+        {/* A3 可聚焦兜底：远端仍有 nextToken 时始终提供 Tab 可达的「加载更多」，
+            避免「刚好整页 + 远端仍有数据」时既无下一页入口、也永远等不到补拉。 */}
+        {nextToken && (
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-xs text-muted-foreground">
+            <Button
+              variant="outline"
+              size="xs"
+              data-testid="load-more"
+              aria-disabled={loadingList || undefined}
+              className={cn('h-7 gap-1.5 text-xs', loadingList && 'cursor-wait opacity-70')}
+              onPress={() => {
+                if (loadingList) return;
+                void loadList(true);
+              }}
+            >
+              {loadingList ? '加载中…' : '加载更多'}
+            </Button>
+            <span className="text-[11px]">远端还有更多工作项</span>
           </div>
         )}
       </section>
@@ -1054,6 +1149,7 @@ export function IterationView() {
     <IterationBranches
       iterationId={iteration?.id}
       iterationName={iteration?.name ?? iterationKey}
+      iterationEndDate={iteration?.endDate}
     />
   );
 
@@ -1188,7 +1284,7 @@ export function IterationView() {
                   <Chip
                     size="sm"
                     variant="soft"
-                    className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums border border-border/40 bg-muted/30 text-muted-foreground"
+                    className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums border border-border/40 bg-surface-secondary text-muted-foreground"
                   >
                     {filtered.length}
                   </Chip>
@@ -1199,7 +1295,7 @@ export function IterationView() {
                     <Chip
                       size="sm"
                       variant="soft"
-                      className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums border border-border/40 bg-muted/30 text-muted-foreground"
+                      className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums border border-border/40 bg-surface-secondary text-muted-foreground"
                     >
                       {scopedRepoCount}
                     </Chip>
@@ -1212,7 +1308,7 @@ export function IterationView() {
                       <Chip
                         size="sm"
                         variant="soft"
-                        className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums border border-border/40 bg-muted/30 text-muted-foreground"
+                        className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums border border-border/40 bg-surface-secondary text-muted-foreground"
                       >
                         {templateCount}
                       </Chip>
@@ -1241,7 +1337,7 @@ export function IterationView() {
       />
 
       {/* 页头贴左全宽，正文居中限宽；工具行已下放正文、随页面滚动 */}
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 pt-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 pt-4">
         {/* 工具行（自吸顶页头下放正文）：随内容滚动 */}
         {viewTab === 'workitems' && (
           <div className="flex min-w-0 flex-wrap items-center gap-2.5">
@@ -1292,7 +1388,7 @@ export function IterationView() {
   // 根容器：常驻测量节点；列表常驻全宽渲染，详情统一经右侧 Peek 抽屉就地滑出（列表现场永不卸载），
   // 跨越 760 阈值只影响页头 compact 密度，绝不 reset 状态、不重建数据请求。
   return (
-    <div ref={measureRef} className="relative flex h-full min-h-0 w-full flex-col overflow-hidden">
+    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden">
       {fullWidthView}
       <WorkitemPeekDrawer
         workitemId={peekWorkitemId}

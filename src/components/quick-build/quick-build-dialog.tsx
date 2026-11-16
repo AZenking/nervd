@@ -144,6 +144,8 @@ export function QuickBuildDialog() {
    * 只读模式直接交给 store 弹 Toast（不进入确认态）；可写时第一次进入待确认态，第二次才提交。
    */
   const requestTrigger = (target: QuickBuildTarget) => {
+    // 触发中：按钮只做 aria-disabled（保留可聚焦与进度文案），点击在此早退，避免重复提交
+    if (triggeringId === target.id) return;
     if (!allowWriteOps) {
       void handleTrigger(target);
       return;
@@ -194,11 +196,12 @@ export function QuickBuildDialog() {
     <Modal isOpen={open} onOpenChange={setOpen}>
       <Modal.Backdrop>
         <Modal.Container placement="top" size="lg">
-          <Modal.Dialog className="p-0 overflow-hidden sm:max-w-[640px] mt-[12vh]">
+          <Modal.Dialog className="relative p-0 overflow-hidden sm:max-w-[640px] mt-[12vh]">
+            <Modal.CloseTrigger aria-label="关闭快速构建" />
             <Modal.Heading className="sr-only">快速构建</Modal.Heading>
 
-            {/* 顶栏：搜索输入与快捷键提示 */}
-          <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4">
+            {/* 顶栏：搜索输入与快捷键提示（右侧预留关闭 X 的绝对定位空间） */}
+          <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4 pr-11">
             <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
             <input
               ref={inputRef}
@@ -212,12 +215,8 @@ export function QuickBuildDialog() {
               aria-label="搜索快速构建目标"
               autoComplete="off"
               spellCheck={false}
-              className="h-full w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground"
+              className="h-full w-full rounded-sm bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
             />
-            <div className="flex items-center gap-1.5 shrink-0 pl-2">
-              <Kbd>↵ 确认</Kbd>
-              <Kbd>esc</Kbd>
-            </div>
           </div>
 
           {/* 只读门控提示：写权限关闭时显式告知并给出直达设置入口（不再只有底层 Toast） */}
@@ -244,11 +243,26 @@ export function QuickBuildDialog() {
           {/* 内容区 */}
           <ScrollArea className="max-h-[min(26rem,50vh)] py-2 overscroll-contain">
             {flatEntries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center text-xs text-muted-foreground">
+              <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-xs text-muted-foreground">
                 {q ? (
-                  <span>未匹配到相关仓库或流水线</span>
+                  <>
+                    <span>未匹配到相关仓库或流水线</span>
+                    <Button size="sm" variant="outline" onPress={() => setQuery('')}>
+                      清除搜索
+                    </Button>
+                  </>
                 ) : (
-                  <span>尚未配置任何流水线绑定，请在代码仓库或设置中关联 Flow / Jenkins</span>
+                  <>
+                    <span>尚未配置任何流水线绑定，请在代码仓库或设置中关联 Flow / Jenkins</span>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <Button size="sm" variant="outline" onPress={() => openSettings('ci')}>
+                        去绑定 CI
+                      </Button>
+                      <Button size="sm" variant="ghost" onPress={() => openSettings('connection')}>
+                        前往设置
+                      </Button>
+                    </div>
+                  </>
                 )}
               </div>
             ) : (
@@ -276,12 +290,14 @@ export function QuickBuildDialog() {
                             type="button"
                             onClick={() => requestTrigger(target)}
                             onMouseEnter={() => setSelectedIndex(idx)}
-                            disabled={isTriggering}
+                            aria-disabled={isTriggering || undefined}
+                            aria-busy={isTriggering || undefined}
                             className={cn(
                               'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                              isTriggering && 'cursor-not-allowed opacity-50',
                               isSelected
                                 ? 'bg-accent text-accent-foreground'
-                                : 'hover:bg-muted/60 text-foreground',
+                                : 'hover:bg-surface-secondary text-foreground',
                             )}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
@@ -355,7 +371,7 @@ export function QuickBuildDialog() {
                                   ) : (
                                     <PlayIcon className="size-2.5 fill-current" />
                                   )}
-                                  <span>{isArmed ? '确认触发 (4s)' : '触发构建'}</span>
+                                  <span>{isTriggering ? '触发中…' : isArmed ? '确认触发 (4s)' : '触发构建'}</span>
                                 </div>
                               ) : (
                                 <span className="flex items-center gap-1 rounded bg-default px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
@@ -394,12 +410,14 @@ export function QuickBuildDialog() {
                             type="button"
                             onClick={() => requestTrigger(target)}
                             onMouseEnter={() => setSelectedIndex(idx)}
-                            disabled={isTriggering}
+                            aria-disabled={isTriggering || undefined}
+                            aria-busy={isTriggering || undefined}
                             className={cn(
                               'mx-2 flex min-h-9 cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                              isTriggering && 'cursor-not-allowed opacity-50',
                               isSelected
                                 ? 'bg-accent text-accent-foreground'
-                                : 'hover:bg-muted/60 text-foreground',
+                                : 'hover:bg-surface-secondary text-foreground',
                             )}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
@@ -449,7 +467,7 @@ export function QuickBuildDialog() {
                                 ) : (
                                   <PlayIcon className="size-2.5 fill-current" />
                                 )}
-                                <span>{isArmed ? '确认触发 (4s)' : '触发构建'}</span>
+                                <span>{isTriggering ? '触发中…' : isArmed ? '确认触发 (4s)' : '触发构建'}</span>
                               </div>
                             ) : (
                               <span className="ml-2 flex items-center gap-1 rounded bg-default px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">

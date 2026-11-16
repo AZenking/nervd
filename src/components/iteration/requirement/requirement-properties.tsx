@@ -11,13 +11,17 @@ import { useUi } from '@/store/ui';
 import { useApp } from '@/store/app';
 import { useShallow } from 'zustand/react/shallow';
 import { StatusIcon } from '@/components/status-icon';
+import { SectionHeader } from '@/components/section-header';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
 import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
+import { READONLY_BTN_CLASS } from '@/components/WriteOpButton';
+import { formatDateTime } from '@/lib/format';
 
 /** 原地快速流转详情状态（Select 下拉，打开时拉取状态流程） */
 export function DetailStatusPopover({
@@ -38,6 +42,8 @@ export function DetailStatusPopover({
     currentStatusId: statusId,
     currentStatusName: status,
   });
+  // 只读门控：禁止用原生 disabled（会吞掉 hover/focus），改用 aria-disabled + 灰阶 + Tooltip。
+  const readOnly = useApp((s) => !(s.settings?.allowWriteOps ?? false));
 
   // Select 负责交互与无障碍，Chip 负责 HeroUI 语义化的视觉层。
   const triggerCls = cn(
@@ -63,12 +69,32 @@ export function DetailStatusPopover({
       }}
       className={cn('min-w-0 max-w-44', className)}
     >
-      <Select.Trigger className={triggerCls} showIndicator={false}>
-        <Chip variant="soft" size={variant === 'cell' ? 'sm' : 'md'} className={chipCls}>
-          <StatusIcon status={status} className="size-4 shrink-0" />
-          <Chip.Label className="truncate">{status || '未知状态'}</Chip.Label>
-          <Select.Indicator className="static size-3.5 shrink-0 text-muted-foreground" />
-        </Chip>
+      <Select.Trigger
+        className={cn(triggerCls, readOnly && 'cursor-not-allowed')}
+        aria-label={readOnly ? '流转状态（只读模式）' : '流转状态'}
+        aria-disabled={readOnly || undefined}
+        showIndicator={false}
+      >
+        <Tooltip>
+          <TooltipTrigger
+            render={(
+              <Chip
+                variant="soft"
+                size={variant === 'cell' ? 'sm' : 'md'}
+                className={cn(chipCls, readOnly && READONLY_BTN_CLASS)}
+              >
+                <StatusIcon status={status} className="size-4 shrink-0" />
+                <Chip.Label className="truncate">{status || '未知状态'}</Chip.Label>
+                <Select.Indicator className="static size-3.5 shrink-0 text-muted-foreground" />
+              </Chip>
+            )}
+          />
+          <TooltipContent>
+            {readOnly
+              ? '写操作已关闭：需在「设置 → 安全」中开启后才能流转状态'
+              : '流转状态'}
+          </TooltipContent>
+        </Tooltip>
       </Select.Trigger>
       {/* Select 必须始终保留 ListBox 集合，否则空态下触发器只能聚焦、无法展开。 */}
       {loadingStatuses || statuses.length === 0 ? (
@@ -178,22 +204,42 @@ export function DetailAssigneePopover({
       onValueChange={handleValueChange}
       className={cn('min-w-0 max-w-44', className)}
     >
-      <Select.Trigger className={triggerCls} showIndicator={false}>
-        <Chip variant="soft" size={variant === 'cell' ? 'sm' : 'md'} className={chipCls}>
-          {updating ? (
-            <Spinner className="size-4 shrink-0" />
-          ) : assignedToName ? (
-            <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
-              <AvatarFallback className="text-[9px] bg-transparent font-medium">
-                {assignedToName.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-          ) : (
-            <UserIcon className="size-4 text-muted-foreground/60 shrink-0" />
-          )}
-          <Chip.Label className="truncate">{assignedToName || '未分配'}</Chip.Label>
-          <Select.Indicator className="static size-3.5 shrink-0 text-muted-foreground" />
-        </Chip>
+      <Select.Trigger
+        className={cn(triggerCls, readOnly && 'cursor-not-allowed')}
+        aria-label={readOnly ? '更改负责人（只读模式）' : '更改负责人'}
+        aria-disabled={readOnly || undefined}
+        showIndicator={false}
+      >
+        <Tooltip>
+          <TooltipTrigger
+            render={(
+              <Chip
+                variant="soft"
+                size={variant === 'cell' ? 'sm' : 'md'}
+                className={cn(chipCls, readOnly && READONLY_BTN_CLASS)}
+              >
+                {updating ? (
+                  <Spinner className="size-4 shrink-0" />
+                ) : assignedToName ? (
+                  <Avatar className={cn('size-4 shrink-0 border', getAvatarColorClass(assignedToName))}>
+                    <AvatarFallback className="text-[9px] bg-transparent font-medium">
+                      {assignedToName.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <UserIcon className="size-4 text-muted-foreground/60 shrink-0" />
+                )}
+                <Chip.Label className="truncate">{assignedToName || '未分配'}</Chip.Label>
+                <Select.Indicator className="static size-3.5 shrink-0 text-muted-foreground" />
+              </Chip>
+            )}
+          />
+          <TooltipContent>
+            {readOnly
+              ? '写操作已关闭：需在「设置 → 安全」中开启后才能更改负责人'
+              : '更改负责人'}
+          </TooltipContent>
+        </Tooltip>
       </Select.Trigger>
       {/* Select 必须始终保留 ListBox 集合，否则空候选时触发器无法展开。 */}
       {candidates.length === 0 ? (
@@ -242,6 +288,8 @@ export interface RequirementPropertiesProps {
   assignedToName: string;
   candidateAssignees?: { id: string; name: string; role?: string }[];
   category: string;
+  /** 创建人（嵌入态元数据条收敛后，剩余信息在全屏属性区承载） */
+  creatorName?: string;
   parent?: { workitemId: string; identifier: string; subject?: string } | null;
   spaceName: string;
   iterationName: string;
@@ -261,6 +309,7 @@ export function RequirementProperties({
   assignedToName,
   candidateAssignees,
   category,
+  creatorName,
   parent,
   spaceName,
   iterationName,
@@ -276,9 +325,12 @@ export function RequirementProperties({
   return (
     <aside className={cn('flex w-full flex-col gap-6 xl:sticky xl:top-20 xl:w-auto', className)}>
       <div className="flex flex-col">
-        <p className="eyebrow px-2 pb-1.5">属性</p>
+        <div className="px-2 pb-1.5">
+          <SectionHeader level="h3" title="属性" />
+        </div>
         <Descriptions
           variant="plain"
+          labelClassName="font-medium"
           items={[
             {
               key: 'status',
@@ -324,6 +376,16 @@ export function RequirementProperties({
               ),
               children: category in CATEGORY_LABELS ? CATEGORY_LABELS[category as Category] : category,
             },
+            ...(creatorName ? [{
+              key: 'creator',
+              label: (
+                <span className="flex items-center gap-1.5">
+                  <UserIcon className="size-3.5" />
+                  <span>创建人</span>
+                </span>
+              ),
+              children: <OverflowTooltip text={creatorName} className="min-w-0 truncate" />,
+            }] : []),
             ...(parent ? [{
               key: 'parent',
               label: (
@@ -358,7 +420,9 @@ export function RequirementProperties({
                   <span>项目空间</span>
                 </span>
               ),
-              children: spaceName || <span className="text-muted-foreground">—</span>,
+              children: spaceName
+                ? <OverflowTooltip text={spaceName} className="min-w-0 truncate" />
+                : <span className="text-muted-foreground">—</span>,
             },
             {
               key: 'iteration',
@@ -368,7 +432,9 @@ export function RequirementProperties({
                   <span>所属迭代</span>
                 </span>
               ),
-              children: iterationName || <span className="text-muted-foreground">未关联</span>,
+              children: iterationName
+                ? <OverflowTooltip text={iterationName} className="min-w-0 truncate" />
+                : <span className="text-muted-foreground">未关联</span>,
             },
             {
               key: 'updatedAt',
@@ -379,18 +445,20 @@ export function RequirementProperties({
                 </span>
               ),
               children: updatedAt
-                ? String(updatedAt).slice(0, 16).replace('T', ' ')
+                ? <OverflowTooltip text={formatDateTime(updatedAt)} className="min-w-0 truncate" />
                 : <span className="text-muted-foreground">—</span>,
-              contentClassName: 'font-mono text-xs',
             },
           ]}
         />
       </div>
 
       <div className="flex flex-col">
-        <p className="eyebrow px-2 pb-1.5">交付配置</p>
+        <div className="px-2 pb-1.5">
+          <SectionHeader level="h3" title="交付配置" />
+        </div>
         <Descriptions
           variant="plain"
+          labelClassName="font-medium"
           items={[
             {
               key: 'linkedRepos',

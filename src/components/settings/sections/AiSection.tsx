@@ -6,13 +6,14 @@ import {
 import {
   deleteAiApiKey, getAiSettings, saveAiApiKey, saveAiSettings, testAiConnection,
 } from '@/lib/ai-api';
-import { Button, Chip, Input, TextArea, toast } from '@heroui/react';
-import { cn } from '@/lib/utils';
+import { Button, Chip, TextArea, toast } from '@heroui/react';
+import { Button as UiButton } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import type { AiBreakdownMode, AiCustomPrompts, AiProvider, AiSettingsView, AiTestConnectionResult } from '@/types/ai';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const PROVIDER_PRESETS: Record<AiProvider, { name: string; baseUrl: string; defaultModel: string; hint: string }> = {
   dashscope: {
@@ -47,7 +48,6 @@ const PROVIDER_PRESETS: Record<AiProvider, { name: string; baseUrl: string; defa
   },
 };
 
-const AVAILABLE_TAGS = ['前端', '后端', '自测', '文档', '运维'];
 
 export function AiSection() {
   const [settings, setSettings] = useState<AiSettingsView>({
@@ -77,6 +77,11 @@ export function AiSection() {
   const settingsRef = useRef(settings);
   const draftsRef = useRef({ baseUrl: '', model: '' });
   const saveTimerRef = useRef<number | null>(null);
+  // Prompt 规则为逐字符输入：合并到同一 800ms 防抖窗口，避免每按键一次 store 写盘
+  const promptTimerRef = useRef<number | null>(null);
+  const pendingPromptsRef = useRef<AiCustomPrompts | null>(null);
+  // AI 设置走独立后端通道；串行化提交，避免端点与 Prompt 两次保存互相覆盖旧快照
+  const aiSaveChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -84,16 +89,57 @@ export function AiSection() {
 
   useEffect(() => () => {
     if (saveTimerRef.current != null) window.clearTimeout(saveTimerRef.current);
+    if (promptTimerRef.current != null) {
+      window.clearTimeout(promptTimerRef.current);
+      promptTimerRef.current = null;
+      // 离开设置页时冲刷尚未到期的 Prompt 防抖窗口，避免丢配置
+      const pending = pendingPromptsRef.current;
+      pendingPromptsRef.current = null;
+      if (pending) {
+        const current = settingsRef.current;
+        void saveAiSettings({
+          provider: current.provider,
+          baseUrl: current.baseUrl,
+          model: current.model,
+          temperature: current.temperature,
+          breakdownMode: current.breakdownMode,
+          defaultBreakdownTags: current.defaultBreakdownTags,
+          customPrompts: pending,
+        }).catch(() => undefined);
+      }
+    }
   }, []);
 
-  /** 清理 AI 字段错误并同步设置页右上角「已自动保存」态（AI 设置走独立后端） */
+  // 窗口失焦（切到其他 App）时立即冲刷端点/模型与 Prompt 的防抖窗口，避免关窗前丢改动
+  useEffect(() => {
+    const flush = () => {
+      if (saveTimerRef.current != null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        void commitAiDrafts();
+      }
+      if (promptTimerRef.current != null) {
+        window.clearTimeout(promptTimerRef.current);
+        promptTimerRef.current = null;
+        void commitPrompts();
+      }
+    };
+    window.addEventListener('blur', flush);
+    return () => window.removeEventListener('blur', flush);
+    // 两个提交函数只读取 refs 与稳定 setter，无需重绑
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 清理 AI 字段错误；仅当主设置草稿不 dirty（且没有保存中的主草稿）才落定「已自动保存」 */
   const markAiSaved = () => {
     useSettingsDraft.setState((st) => {
       const fieldErrors = { ...st.fieldErrors };
       for (const key of Object.keys(fieldErrors)) {
         if (key.startsWith('ai-')) delete fieldErrors[key];
       }
-      return { autoSaveStatus: 'saved', fieldErrors, lastSavedAt: Date.now() };
+      if (st.saving) return { fieldErrors };
+      if (st.isDirty()) return { fieldErrors, autoSaveStatus: 'unsaved' as const };
+      return { fieldErrors, autoSaveStatus: 'saved' as const, lastSavedAt: Date.now() };
     });
   };
 
@@ -109,6 +155,52 @@ export function AiSection() {
     if (saveTimerRef.current != null) {
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
+    }
+  };
+
+  const clearPromptTimer = () => {
+    if (promptTimerRef.current != null) {
+      window.clearTimeout(promptTimerRef.current);
+      promptTimerRef.current = null;
+    }
+  };
+
+  /** 串行提交 AI 设置：后一次保存排队等待前一次完成，避免快照互相覆盖 */
+  const persistAi = (next: AiSettingsView) => {
+    const payload = {
+      provider: next.provider,
+      baseUrl: next.baseUrl,
+      model: next.model,
+      temperature: next.temperature,
+      breakdownMode: next.breakdownMode,
+      defaultBreakdownTags: next.defaultBreakdownTags,
+      customPrompts: next.customPrompts,
+    };
+    const task = aiSaveChainRef.current
+      .catch(() => undefined)
+      .then(() => saveAiSettings(payload));
+    aiSaveChainRef.current = task.catch(() => undefined);
+    return task;
+  };
+
+  /** 提交 Prompt 规则草稿（800ms 防抖 / 失焦 / 离开页面） */
+  const commitPrompts = async () => {
+    clearPromptTimer();
+    const pending = pendingPromptsRef.current;
+    if (!pending) return;
+    pendingPromptsRef.current = null;
+    const current = settingsRef.current;
+    const next = { ...current, customPrompts: pending };
+    settingsRef.current = next;
+    setSettings(next);
+    useSettingsDraft.setState((st) => (st.saving ? {} : { autoSaveStatus: 'saving' as const }));
+    try {
+      await persistAi(next);
+      markAiSaved();
+    } catch (e) {
+      // 保留待提交内容：用户继续编辑会在下一轮防抖重试
+      pendingPromptsRef.current = pending;
+      markAiError('ai-prompts', e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -141,17 +233,10 @@ export function AiSection() {
 
     const next = { ...current, baseUrl, model };
     setSettings(next);
-    useSettingsDraft.setState({ autoSaveStatus: 'saving' });
+    settingsRef.current = next;
+    useSettingsDraft.setState((st) => (st.saving ? {} : { autoSaveStatus: 'saving' as const }));
     try {
-      await saveAiSettings({
-        provider: next.provider,
-        baseUrl: next.baseUrl,
-        model: next.model,
-        temperature: next.temperature,
-        breakdownMode: next.breakdownMode,
-        defaultBreakdownTags: next.defaultBreakdownTags,
-        customPrompts: next.customPrompts,
-      });
+      await persistAi(next);
       setBaseUrlError(null);
       // 若保存期间用户又改了草稿，保持「未保存」并由下一轮防抖继续提交
       if (draftsRef.current.baseUrl === baseUrl && draftsRef.current.model === model) {
@@ -167,7 +252,7 @@ export function AiSection() {
   };
 
   const scheduleAiDrafts = () => {
-    useSettingsDraft.setState({ autoSaveStatus: 'unsaved' });
+    useSettingsDraft.setState((st) => (st.saving ? {} : { autoSaveStatus: 'unsaved' as const }));
     clearSaveTimer();
     saveTimerRef.current = window.setTimeout(() => {
       saveTimerRef.current = null;
@@ -198,10 +283,12 @@ export function AiSection() {
       ...settings,
       baseUrl: baseUrlDraft || settings.baseUrl,
       model: modelDraft || settings.model,
+      customPrompts: pendingPromptsRef.current ?? settings.customPrompts,
       ...patch,
     };
     clearSaveTimer();
     setSettings(next);
+    settingsRef.current = next;
     if (patch.baseUrl !== undefined) {
       setBaseUrlDraft(patch.baseUrl);
       draftsRef.current = { ...draftsRef.current, baseUrl: patch.baseUrl };
@@ -211,15 +298,7 @@ export function AiSection() {
       draftsRef.current = { ...draftsRef.current, model: patch.model };
     }
     try {
-      await saveAiSettings({
-        provider: next.provider,
-        baseUrl: next.baseUrl,
-        model: next.model,
-        temperature: next.temperature,
-        breakdownMode: next.breakdownMode,
-        defaultBreakdownTags: next.defaultBreakdownTags,
-        customPrompts: next.customPrompts,
-      });
+      await persistAi(next);
       setBaseUrlError(null);
       markAiSaved();
     } catch (e) {
@@ -242,8 +321,9 @@ export function AiSection() {
   };
 
   const handleSaveApiKey = async () => {
-    if (!apiKeyInput.trim()) return;
+    if (!apiKeyInput.trim() || savingKey) return;
     setSavingKey(true);
+    useSettingsDraft.setState((st) => (st.saving ? {} : { autoSaveStatus: 'saving' as const }));
     try {
       await saveAiApiKey(apiKeyInput.trim());
       setSettings((prev) => ({ ...prev, hasApiKey: true }));
@@ -251,10 +331,11 @@ export function AiSection() {
       setShowApiKey(false);
       toast.success('API Key 已安全保存至 Keychain');
       setTestResult(null);
+      markAiSaved();
     } catch (e) {
-      toast.danger('保存 API Key 失败', {
-        description: e instanceof Error ? e.message : String(e),
-      });
+      const message = e instanceof Error ? e.message : String(e);
+      markAiError('ai-api-key', message);
+      toast.danger('保存 API Key 失败', { description: message });
     } finally {
       setSavingKey(false);
     }
@@ -267,10 +348,11 @@ export function AiSection() {
       setSettings((prev) => ({ ...prev, hasApiKey: false }));
       toast.success('已清除保存在 Keychain 中的 API Key');
       setTestResult(null);
+      markAiSaved();
     } catch (e) {
-      toast.danger('清除 API Key 失败', {
-        description: e instanceof Error ? e.message : String(e),
-      });
+      const message = e instanceof Error ? e.message : String(e);
+      markAiError('ai-api-key', message);
+      toast.danger('清除 API Key 失败', { description: message });
     } finally {
       setDeletingKey(false);
     }
@@ -301,11 +383,21 @@ export function AiSection() {
   };
 
   const handleUpdatePrompt = (key: keyof AiCustomPrompts, value: string) => {
-    const nextPrompts = {
-      ...settings.customPrompts,
+    const nextPrompts: AiCustomPrompts = {
+      ...(pendingPromptsRef.current ?? settingsRef.current.customPrompts),
       [key]: value.trim() ? value : undefined,
     };
-    void handleUpdate({ customPrompts: nextPrompts });
+    const next = { ...settingsRef.current, customPrompts: nextPrompts };
+    // 输入立即乐观呈现；落盘走 800ms 防抖，避免每个按键都触发一次后端保存
+    settingsRef.current = next;
+    setSettings(next);
+    pendingPromptsRef.current = nextPrompts;
+    useSettingsDraft.setState((st) => (st.saving ? {} : { autoSaveStatus: 'unsaved' as const }));
+    clearPromptTimer();
+    promptTimerRef.current = window.setTimeout(() => {
+      promptTimerRef.current = null;
+      void commitPrompts();
+    }, 800);
   };
 
   if (loading) {
@@ -359,6 +451,7 @@ export function AiSection() {
           description={PROVIDER_PRESETS[settings.provider].hint}
           control={
             <Tabs
+              aria-label="模型服务商预设"
               value={settings.provider}
               onValueChange={(v) => {
                 if (v) handleProviderChange(v as AiProvider);
@@ -399,7 +492,7 @@ export function AiSection() {
                 aria-invalid={Boolean(baseUrlError)}
                 aria-describedby={baseUrlError ? 'ai-base-url-error' : undefined}
                 placeholder="https://..."
-                className="h-8 font-mono text-xs bg-background"
+                className="h-8 font-mono text-xs"
               />
               {baseUrlError && (
                 <p id="ai-base-url-error" className="text-[11px] leading-4 text-destructive">
@@ -441,7 +534,7 @@ export function AiSection() {
                 }
               }}
               placeholder="qwen-plus"
-              className="h-8 font-mono text-xs bg-background"
+              className="h-8 font-mono text-xs"
             />
           }
         />
@@ -470,7 +563,7 @@ export function AiSection() {
               )}
             </div>
           }
-          description="输入服务商提供的 API 密钥（如 sk-xxxx）。保存后输入框将自动清空，密钥受操作系统级保护。"
+          description="输入服务商提供的 API 密钥（如 sk-xxxx）。离开输入框即自动保存，保存后输入框自动清空，密钥受操作系统级保护。"
           control={
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -478,45 +571,56 @@ export function AiSection() {
                   id="ai-api-key"
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setApiKeyInput(next);
+                    if (next.trim()) {
+                      useSettingsDraft.setState((st) => (st.saving ? {} : { autoSaveStatus: 'unsaved' as const }));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (apiKeyInput.trim()) void handleSaveApiKey();
+                  }}
                   onKeyDown={(e) => {
                     e.stopPropagation();
                     if (e.nativeEvent.isComposing) return;
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleSaveApiKey();
+                    }
                   }}
                   placeholder={settings.hasApiKey ? '••••••••••••••••••••••••••••••••（已加密存储，输入可覆盖）' : '请输入 API Key，如 sk-...'}
-                  className="h-8 pr-8 font-mono text-xs bg-background"
+                  className="h-8 pr-8 font-mono text-xs"
                 />
-                <button
+                <UiButton
                   type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={showApiKey ? '隐藏 API Key' : '显示 API Key'}
+                  aria-pressed={showApiKey}
+                  className="absolute right-0.5 top-0.5 text-muted-foreground hover:text-foreground"
+                  onPress={() => setShowApiKey((v) => !v)}
                 >
                   {showApiKey ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
-                </button>
+                </UiButton>
               </div>
 
-              <Button
-                size="sm"
-                variant="primary"
-                isDisabled={savingKey || !apiKeyInput.trim()}
-                onPress={() => void handleSaveApiKey()}
-              >
-                {savingKey ? '保存中…' : '保存至 Keychain'}
-              </Button>
+              {savingKey && <span className="text-xs text-muted-foreground">保存中…</span>}
 
               {settings.hasApiKey && (
-                <Button
-                  size="sm"
+                <ConfirmButton
+                  label="清除"
+                  title="清除已保存的 API Key？"
+                  description="清除后该密钥将从 macOS Keychain 中永久删除且不可恢复；需要重新输入密钥才能继续使用 AI 功能。"
+                  confirmLabel="清除密钥"
                   variant="ghost"
-                  className="text-destructive hover:bg-destructive/10"
-                  isDisabled={deletingKey}
-                  onPress={() => void handleDeleteApiKey()}
-                  aria-label="清除保存在 Keychain 中的 API Key"
+                  size="sm"
+                  disabled={deletingKey}
+                  onConfirm={handleDeleteApiKey}
                 >
-                  <Trash2Icon className="size-3.5 mr-1" />
-                  清除
-                </Button>
+                  <Trash2Icon className="size-3.5" />
+                  <span className="text-destructive">清除</span>
+                </ConfirmButton>
               )}
             </div>
           }
@@ -535,6 +639,7 @@ export function AiSection() {
           description="选择生成子任务后的交互流程。"
           control={
             <Tabs
+              aria-label="拆解执行模式"
               value={settings.breakdownMode}
               onValueChange={(v) => {
                 if (v) void handleUpdate({ breakdownMode: v as AiBreakdownMode });
@@ -553,62 +658,18 @@ export function AiSection() {
         />
 
         {/* 模式说明条 */}
-        <div className="border-t border-border/50 px-4 py-3 bg-muted/15 text-xs text-muted-foreground leading-relaxed">
+        <div className="border-t border-border/50 px-4 py-3 bg-surface-secondary text-xs text-muted-foreground leading-relaxed">
           {settings.breakdownMode === 'review' ? (
             <p>
               <strong>弹窗二次确认模式</strong>：点击 AI 拆解后调出复核弹窗，可在确认创建到云效前自由勾选、原地微调子任务标题、选择指派人。
             </p>
           ) : (
             <p>
-              <strong>一键直达生成模式</strong>：点击 AI 拆解后无需弹窗确认，在后台根据需求描述与默认标签极速生成并直接批量创建至云效。
+              <strong>一键直达生成模式</strong>：点击 AI 拆解后无需弹窗确认，根据需求描述与关联仓库的改动范围极速生成并直接批量创建至云效。
             </p>
           )}
         </div>
 
-        {/* 默认拆解维度标签（HeroUI ToggleButtonGroup 多选：选中态 primary 实色胶囊 + 勾选图标） */}
-        <SettingsRow
-          orientation="vertical"
-          label="默认拆解维度标签 (Tags)"
-          description="AI 拆解时将定向产出被选中的工程维度任务条目（至少保留一项）。"
-          control={
-            <ToggleGroup
-              selectionMode="multiple"
-              size="sm"
-              selectedKeys={new Set(settings.defaultBreakdownTags)}
-              onSelectionChange={(keys) => {
-                const next = Array.from(keys, String);
-                if (next.length === 0) {
-                  toast.warning('至少需要保留一个默认拆解维度标签');
-                  return;
-                }
-                void handleUpdate({ defaultBreakdownTags: next });
-              }}
-              className="flex-wrap"
-            >
-              {AVAILABLE_TAGS.map((tag) => {
-                const active = settings.defaultBreakdownTags.includes(tag);
-                return (
-                  <ToggleGroupItem
-                    key={tag}
-                    id={tag}
-                    variant="outline"
-                    className={cn(
-                      'gap-1 font-mono text-xs',
-                      // 选中态：Linear Violet 实色胶囊（utilities 层覆盖 heroui accent-soft 弱底色）；悬停/按压加深一档
-                      active
-                        ? 'border-primary/70 bg-primary font-medium text-primary-foreground data-[hovered=true]:bg-primary/90 data-[pressed=true]:bg-primary/85'
-                        : 'text-muted-foreground data-[hovered=true]:text-foreground',
-                    )}
-                    aria-label={`切换默认拆解标签 ${tag}`}
-                  >
-                    {active && <CheckIcon className="size-3" data-icon="inline-start" />}
-                    {tag}
-                  </ToggleGroupItem>
-                );
-              })}
-            </ToggleGroup>
-          }
-        />
       </SettingsGroup>
 
       {/* 场景上下文与提示词定制 */}
@@ -619,14 +680,17 @@ export function AiSection() {
         {/* 子任务拆解规则 */}
         <SettingsRow
           orientation="vertical"
+          htmlFor="ai-prompt-breakdown"
           label="子任务拆解工程规范 (Breakdown Rules)"
           description="定义拆解子任务时的团队约束。例如：必须包含自测任务、后端需注明 RPC 接口、标题动宾结构等。"
           control={
             <TextArea
+              id="ai-prompt-breakdown"
               value={settings.customPrompts?.breakdown ?? ''}
               onChange={(e) => handleUpdatePrompt('breakdown', e.target.value)}
+              onBlur={() => void commitPrompts()}
               placeholder="例如：每个需求必须包含一个自测任务；后端任务注明涉及的 RPC 接口；标题严格在 25 字以内。"
-              className="min-h-16 font-sans text-xs bg-background"
+              className="min-h-16 font-sans text-xs"
             />
           }
         />
@@ -634,14 +698,17 @@ export function AiSection() {
         {/* 讨论纪要提炼规则 */}
         <SettingsRow
           orientation="vertical"
+          htmlFor="ai-prompt-comment-summary"
           label="评论讨论纪要规则 (Discussion Summary)"
           description="提炼需求讨论历史时的侧重偏好。例如：重点关注交付时间变更、明确阻塞项责任人等。"
           control={
             <TextArea
+              id="ai-prompt-comment-summary"
               value={settings.customPrompts?.commentSummary ?? ''}
               onChange={(e) => handleUpdatePrompt('commentSummary', e.target.value)}
+              onBlur={() => void commitPrompts()}
               placeholder="例如：关注技术方案共识与对上线排期的影响，必须明确标出每个阻塞项的责任人。"
-              className="min-h-16 font-sans text-xs bg-background"
+              className="min-h-16 font-sans text-xs"
             />
           }
         />
@@ -649,14 +716,17 @@ export function AiSection() {
         {/* 评论与进度汇报模板 */}
         <SettingsRow
           orientation="vertical"
+          htmlFor="ai-prompt-comment-draft"
           label="评论与提测/进度生成偏好 (Comment Generation)"
           description="定制自动生成研发进度同步、提测交付说明或评论润色时的语言风格与标准段落格式。"
           control={
             <TextArea
+              id="ai-prompt-comment-draft"
               value={settings.customPrompts?.commentDraft ?? ''}
               onChange={(e) => handleUpdatePrompt('commentDraft', e.target.value)}
+              onBlur={() => void commitPrompts()}
               placeholder="例如：提测说明必须包含部署环境和测试账号说明；研发进度汇报按「已完成、进行中、风险项」排版。"
-              className="min-h-16 font-sans text-xs bg-background"
+              className="min-h-16 font-sans text-xs"
             />
           }
         />
@@ -664,14 +734,17 @@ export function AiSection() {
         {/* 关联仓库推荐规则 */}
         <SettingsRow
           orientation="vertical"
+          htmlFor="ai-prompt-repo-recommendation"
           label="代码仓库架构背景说明 (Repo Recommendation Rules)"
           description="向 AI 提供团队组织的代码仓库命名习惯与业务域归属，帮助 AI 更精准推荐需求应关联的仓库。"
           control={
             <TextArea
+              id="ai-prompt-repo-recommendation"
               value={settings.customPrompts?.repoRecommendation ?? ''}
               onChange={(e) => handleUpdatePrompt('repoRecommendation', e.target.value)}
+              onBlur={() => void commitPrompts()}
               placeholder="例如：trade-* 为交易履约核心服务，fed-* 为前端应用，crm-* 为客户中心，common-* 为公共底层库。"
-              className="min-h-16 font-sans text-xs bg-background"
+              className="min-h-16 font-sans text-xs"
             />
           }
         />
@@ -679,14 +752,17 @@ export function AiSection() {
         {/* Merge Request 规范 */}
         <SettingsRow
           orientation="vertical"
+          htmlFor="ai-prompt-merge-request"
           label="Merge Request 描述规范 (MR Rules)"
           description="生成 MR 标题与描述时的规范要求。例如：强制遵循 Conventional Commits、包含自测验证清单等。"
           control={
             <TextArea
+              id="ai-prompt-merge-request"
               value={settings.customPrompts?.mergeRequest ?? ''}
               onChange={(e) => handleUpdatePrompt('mergeRequest', e.target.value)}
+              onBlur={() => void commitPrompts()}
               placeholder="例如：标题强制遵循 Conventional Commits 规范；描述必须包含自测用例清单与回归检查点；跳过 WIP 提交。"
-              className="min-h-16 font-sans text-xs bg-background"
+              className="min-h-16 font-sans text-xs"
             />
           }
         />

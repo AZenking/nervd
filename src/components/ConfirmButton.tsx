@@ -54,7 +54,17 @@ export function ConfirmButton({
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={<Button variant={variant} size={size} disabled={disabled || busy} />}>
+      <AlertDialogTrigger
+        render={
+          <Button
+            variant={variant}
+            size={size}
+            disabled={disabled || busy}
+            // 仅图标形态（children 为图标）时，label 必须成为可访问名；纯文字形态保持文本自身命名。
+            aria-label={children ? label : undefined}
+          />
+        }
+      >
         {children ?? (busy ? (<Spinner data-icon="inline-start" />) : label)}
       </AlertDialogTrigger>
       <AlertDialogContent>

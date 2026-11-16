@@ -9,11 +9,10 @@
       window.__NERVD_START_TIME__ = Date.now();
       try {
         var theme = localStorage.getItem('nervd-theme') || 'system';
-        var isDark =
-          theme === 'dark' ||
-          (theme !== 'light' &&
-            window.matchMedia &&
-            window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var prefersLight = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+        // DESIGN §2.4：默认跟随系统；系统未声明偏好（深浅皆否）时回退深色（客户端基准视觉）。
+        var isDark = theme === 'dark' || (theme !== 'light' && (prefersDark || !prefersLight));
         if (isDark) {
           document.documentElement.classList.add('dark');
           document.documentElement.setAttribute('data-theme', 'dark');
@@ -24,20 +23,24 @@
       } catch (e) {}
     </script>
     <style>
+      /* 首帧启动遮罩：优先消费语义 token，theme.css 未加载时回退到等值字面量，
+         避免闪白 / 闪黑；禁止在这里另立一套品牌色。 */
       :root {
-        --splash-bg: #ffffff;
-        --splash-card-bg: #ffffff;
-        --splash-border: rgba(0, 0, 0, 0.08);
+        --splash-bg: var(--background, #ffffff);
+        --splash-card-bg: var(--surface, #ffffff);
+        --splash-border: var(--hairline, rgba(0, 0, 0, 0.08));
         --splash-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.12), 0 0 32px -4px rgba(94, 106, 210, 0.18);
-        --splash-primary: #5e6ad2;
+        --splash-primary: var(--primary, #5e6ad2);
       }
 
-      html.dark {
-        --splash-bg: #121215;
-        --splash-card-bg: #18181c;
-        --splash-border: rgba(255, 255, 255, 0.08);
+      /* 明暗双通道：`.dark` 类与 `data-theme="dark"` 任一命中都切换遮罩（DESIGN §2.4） */
+      html.dark,
+      html[data-theme="dark"] {
+        --splash-bg: var(--background, #121215);
+        --splash-card-bg: var(--surface, #18181c);
+        --splash-border: var(--hairline, rgba(255, 255, 255, 0.08));
         --splash-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.5), 0 0 32px -4px rgba(94, 106, 210, 0.25);
-        --splash-primary: #5e6ad2;
+        --splash-primary: var(--primary, #5e6ad2);
       }
 
       html, body {
@@ -83,7 +86,7 @@
         justify-content: center;
         width: 76px;
         height: 76px;
-        border-radius: 18px;
+        border-radius: 16px;
         background-color: var(--splash-card-bg);
         box-shadow: var(--splash-shadow);
         border: 1px solid var(--splash-border);
@@ -95,7 +98,7 @@
       .splash-logo {
         width: 100%;
         height: 100%;
-        border-radius: 18px;
+        border-radius: 16px;
         object-fit: cover;
         display: block;
       }
@@ -133,7 +136,7 @@
     </style>
   </head>
 
-  <body>
+  <body class="bg-background text-foreground">
     <div id="root"></div>
     <div id="app-splash" role="status" aria-label="正在加载 nervd...">
       <div class="splash-card">

@@ -5,8 +5,10 @@ import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { cn } from '@/lib/utils';
-import { Avatar, Button, Chip, Input } from '@heroui/react';
+import { Avatar, Button, Chip } from '@heroui/react';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StatusBadge, connectionStatus } from '@/components/StatusBadge';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 import { OrgRow, PatRow, SpaceRow } from './connection-fields';
@@ -42,6 +44,21 @@ export function ConnectionSection() {
       setTestResult(`连接失败：${humanizeError(e, '无法连接云效，请检查令牌与组织 ID')}`);
     }
   };
+
+  // 原生 disabled 会吞掉 hover/focus，导致依赖说明不可达：改用 isDisabled + Tooltip 包裹
+  const customNameInput = (
+    <Input
+      id="custom-match-name"
+      isDisabled={!workitemHighlight.enabled}
+      value={workitemHighlight.customName ?? ''}
+      onChange={(e) => setWorkitemHighlight({ customName: e.target.value })}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.nativeEvent.isComposing) return;
+      }}
+      placeholder={currentUser?.name ? `默认匹配：${currentUser.name}` : '如：花名 / 别名'}
+    />
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -153,7 +170,7 @@ export function ConnectionSection() {
                 size="sm"
                 variant="soft"
                 color="accent"
-                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-sm select-none"
+                className="h-5 shrink-0 px-2 text-[10px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-sm select-none"
               >
                 我负责
               </Chip>
@@ -183,7 +200,7 @@ export function ConnectionSection() {
                 size="sm"
                 variant="soft"
                 color="warning"
-                className="h-5 shrink-0 px-2 text-[10.5px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-sm select-none"
+                className="h-5 shrink-0 px-2 text-[10px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-sm select-none"
               >
                 我参与
               </Chip>
@@ -210,19 +227,18 @@ export function ConnectionSection() {
           label="自定义匹配姓名（可选）"
           description="如果工作项中的处理人显示名与云效账号姓名存在差异或使用花名，可在此指定补充匹配姓名。"
           htmlFor="custom-match-name"
-          control={(
-            <Input
-              id="custom-match-name"
-              disabled={!workitemHighlight.enabled}
-              value={workitemHighlight.customName ?? ''}
-              onChange={(e) => setWorkitemHighlight({ customName: e.target.value })}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.nativeEvent.isComposing) return;
-              }}
-              placeholder={currentUser?.name ? `默认匹配：${currentUser.name}` : '如：花名 / 别名'}
-            />
-          )}
+          control={
+            workitemHighlight.enabled ? customNameInput : (
+              <Tooltip>
+                <TooltipTrigger render={<span className="flex w-full cursor-not-allowed" />}>
+                  {customNameInput}
+                </TooltipTrigger>
+                <TooltipContent>
+                  需先开启上方「需求列表高亮标记」，才能填写自定义匹配姓名
+                </TooltipContent>
+              </Tooltip>
+            )
+          }
         />
       </SettingsGroup>
     </div>

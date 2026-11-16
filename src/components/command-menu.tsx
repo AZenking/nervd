@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '@heroui/react';
 import { Header } from 'react-aria-components';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import {
   CalendarClockIcon,
   CalendarDaysIcon,
@@ -173,7 +174,8 @@ export function CommandMenu() {
       group: '迭代',
       label: it.name,
       hint: it.state,
-      icon: <StatusIcon status={it.state} className="size-4" />,
+      // 状态已由 hint 文本（it.state）承担，图形仅装饰，避免读屏重复播报
+      icon: <StatusIcon status={it.state} className="size-4" decorative />,
       keywords: it.title,
       run: () => setIteration(it.name),
     }));
@@ -364,8 +366,10 @@ export function CommandMenu() {
               autoFocus
               autoComplete="off"
               spellCheck={false}
-              className="h-full w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="h-full w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
             />
+            {/* 可见关闭入口：Esc 之外的鼠标 / 触控兜底（保留 Esc 关闭） */}
+            <Modal.CloseTrigger aria-label="关闭命令面板" className="shrink-0" />
           </div>
 
           {/* 结果列表：HeroUI ListBox（Section 分组 + 语义 option 行，系统级 hover/焦点样式） */}
@@ -409,18 +413,20 @@ export function CommandMenu() {
                         >
                           {entry.icon}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-left" title={entry.label}>{entry.label}</span>
+                        {/* DESIGN §G1：只有真实截断才提示全文，统一走 OverflowTooltip（原生 title 仅鼠标可见） */}
+                        <OverflowTooltip
+                          text={entry.label}
+                          className="min-w-0 flex-1 truncate text-left"
+                        />
                         {entry.hint && (
-                          <span
+                          <OverflowTooltip
+                            text={entry.hint}
                             className={cn(
                               'ml-auto shrink-0 font-mono text-xs',
                               // 实色 accent 上必须用 accent-foreground（muted 在 #5e6ad2 上仅 1.07:1）
                               isActiveRow ? 'text-accent-foreground' : 'text-muted-foreground',
                             )}
-                            title={entry.hint}
-                          >
-                            {entry.hint}
-                          </span>
+                          />
                         )}
                       </ListBox.Item>
                     );

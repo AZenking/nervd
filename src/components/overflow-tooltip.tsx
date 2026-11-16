@@ -1,6 +1,5 @@
 import {
   cloneElement,
-  isValidElement,
   useCallback,
   useId,
   useLayoutEffect,
@@ -42,7 +41,10 @@ export interface OverflowTooltipProps {
   lineClamp?: number;
   /** Base UI render 组合 API；可传入已有 button/a 或显式 focusable 文本控件。 */
   render?: ReactElement;
-  /** 原生 HTML title 提示（默认在文本溢出时自动补齐纯文本文案） */
+  /**
+   * @deprecated DESIGN Part 1/G：禁止原生 title 与 Tooltip 重复弹出。
+   * 该值仅作为全文文案的兜底（未显式传 text/tooltip 时），不再写入 DOM。
+   */
   title?: string;
 }
 
@@ -166,17 +168,6 @@ function hasSemanticTooltipAncestor(element: HTMLElement): boolean {
   return false;
 }
 
-function extractText(node: ReactNode): string {
-  if (node === null || node === undefined || typeof node === 'boolean') return '';
-  if (typeof node === 'string' || typeof node === 'number') return String(node);
-  if (Array.isArray(node)) return node.map(extractText).join('');
-  if (isValidElement(node)) {
-    const props = node.props as { children?: ReactNode };
-    return props.children ? extractText(props.children) : '';
-  }
-  return '';
-}
-
 function hasTooltipContent(value: ReactNode): boolean {
   return value !== null && value !== undefined && value !== false && value !== '';
 }
@@ -222,8 +213,8 @@ export function OverflowTooltip({
   const [open, setOpen] = useState(false);
 
   const content = children ?? text;
-  const tipText = tooltip ?? (typeof children === 'string' ? children : (text ?? children));
-  const rawTipString = typeof tipText === 'string' ? tipText : extractText(tipText);
+  const tipText = tooltip
+    ?? (typeof children === 'string' ? children : (text ?? title ?? children));
   const hasTip = hasTooltipContent(tipText);
   const openRef = useRef(open);
   const hasTipRef = useRef(hasTip);
@@ -553,7 +544,6 @@ export function OverflowTooltip({
       <TooltipTrigger
         ref={ref as unknown as Ref<HTMLButtonElement>}
         render={triggerElement}
-        title={title ?? (overflowed && rawTipString ? rawTipString : undefined)}
         className={cn(
           'inline-block max-w-full align-bottom min-w-0',
           !isMultiline && 'truncate',

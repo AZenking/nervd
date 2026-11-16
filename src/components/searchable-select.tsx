@@ -116,14 +116,12 @@ function VirtualAutocompleteList<T extends SearchableSelectOption<any>>({
                 )}
               >
                 {item.badge ? (
-                  <span className="flex items-center justify-between gap-2 w-full min-w-0" title={item.label}>
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  <span className="flex items-center justify-between gap-2 w-full min-w-0">
+                    <OverflowTooltip text={item.label} className="min-w-0 flex-1 truncate" />
                     <span className="shrink-0">{item.badge}</span>
                   </span>
                 ) : (
-                  <span className="block min-w-0 w-full truncate" title={item.label}>
-                    {item.label}
-                  </span>
+                  <OverflowTooltip text={item.label} className="block min-w-0 w-full truncate" />
                 )}
                 <ListBox.ItemIndicator />
               </ListBox.Item>
@@ -302,14 +300,12 @@ export function SearchableSelect<V extends string | number | null>({
                   )}
                 >
                   {item.badge ? (
-                    <span className="flex items-center justify-between gap-2 w-full min-w-0" title={item.label}>
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    <span className="flex items-center justify-between gap-2 w-full min-w-0">
+                      <OverflowTooltip text={item.label} className="min-w-0 flex-1 truncate" />
                       <span className="shrink-0">{item.badge}</span>
                     </span>
                   ) : (
-                    <span className="block min-w-0 w-full truncate" title={item.label}>
-                      {item.label}
-                    </span>
+                    <OverflowTooltip text={item.label} className="block min-w-0 w-full truncate" />
                   )}
                   <ListBox.ItemIndicator />
                 </ListBox.Item>

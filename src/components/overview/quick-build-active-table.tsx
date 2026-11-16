@@ -3,6 +3,7 @@ import { Button, Card, Chip, Table } from '@heroui/react';
 import { ExternalLinkIcon, FileTextIcon, GitBranchIcon, XIcon } from 'lucide-react';
 import { StatusIcon } from '@/components/status-icon';
 import { statusMeta } from '@/components/StatusBadge';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { openRepoBuildLogs, openPipelineRunLogs } from '@/components/build-workbench';
 import { openExternal } from '@/lib/yunxiao-link';
 import { ciStatusInfo } from '@/lib/ci';
@@ -317,21 +318,29 @@ function BuildTargetDetails({ item }: { item: ActiveBuildItem }) {
   return (
     <div className="min-w-0">
       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <span className="min-w-0 truncate font-medium text-foreground" title={item.title}>{item.title}</span>
+        <OverflowTooltip
+          text={item.title}
+          className="min-w-0 font-medium text-foreground"
+        />
         {item.subTitle && (
-          <span className="min-w-0 truncate text-xs text-muted" title={item.subTitle}>· {item.subTitle}</span>
+          <OverflowTooltip
+            text={item.subTitle}
+            className="min-w-0 text-xs text-muted"
+          >
+            · {item.subTitle}
+          </OverflowTooltip>
         )}
       </div>
       {(item.branch || item.environment) && (
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           {item.branch && (
-            <span className="flex min-w-0 items-center gap-1 font-mono" title={item.branch}>
+            <span className="flex min-w-0 items-center gap-1 font-mono">
               <GitBranchIcon className="size-2.5 shrink-0" />
-              <span className="truncate">{item.branch}</span>
+              <OverflowTooltip text={item.branch} className="min-w-0" />
             </span>
           )}
           {item.environment && (
-            <Chip size="sm" variant="tertiary" color="default" className="font-mono text-[10px]" title={item.environment}>
+            <Chip size="sm" variant="tertiary" color="default" className="font-mono text-[10px]">
               <Chip.Label>{item.environment}</Chip.Label>
             </Chip>
           )}
@@ -468,7 +477,7 @@ export function QuickBuildActiveTable({
       {!isSingleBuild && (
         <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-transparent px-4 py-2">
           <span className="text-xs font-medium text-muted">运行任务</span>
-          <span className="font-mono text-xs text-muted">实时更新 · 4s</span>
+          <span className="font-mono text-xs tabular-nums text-muted">实时更新 · 4s</span>
         </div>
       )}
 

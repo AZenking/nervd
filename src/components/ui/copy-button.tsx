@@ -43,7 +43,9 @@ export function CopyButton({ text, label = '复制' }: { text: string; label?: s
       size="icon-xs"
       aria-label={copied ? '已复制' : label}
       title={copied ? '已复制' : label}
-      className="h-5 w-5 shrink-0 rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      // 尺寸交给 size="icon-xs"（size-6 = 24px，满足触达尺寸下限）；底色用 surface-secondary，
+      // 不得用 --muted（DESIGN §2.1 该 token 是 supporting text 文字色，不是背景）
+      className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground"
       onPress={() => {
         void copyToClipboard(text).then((ok) => setCopied(ok));
       }}

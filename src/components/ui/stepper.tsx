@@ -37,7 +37,7 @@ export function Stepper({ steps, current = 0, className }: StepperProps) {
                   'transition-colors duration-300 ease-[var(--ease-smooth)] motion-reduce:transition-none',
                   steps[index - 1]?.done ?? index - 1 < current
                     ? 'bg-primary/80'
-                    : 'bg-muted-foreground/25',
+                    : 'bg-border',
                 )}
               />
             )}
