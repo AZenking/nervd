@@ -3,6 +3,11 @@
 All notable changes to **nervd** will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.2.1](https://github.com/AZenking/nervd/releases/tag/v1.2.1) - 2026-11-17
+
+### ♻️ Refactor
+
+- *(ui)* Unify HeroUI v3 wrappers and split settings sections ([1eaf569](https://github.com/AZenking/nervd/commit/1eaf569d7a6a28b4f141fa3960d359a7943db527))
 ## [1.2.0](https://github.com/AZenking/nervd/releases/tag/v1.2.0) - 2026-11-17
 
 ### 🚀 Features
@@ -17,6 +22,10 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 ### ♻️ Refactor
 
 - *(ui)* Align design system and components with HeroUI v3 and DESIGN.md v2 ([85f10ea](https://github.com/AZenking/nervd/commit/85f10ea2732b727b9bf64c08c36b111b888f39e5))
+
+### 📚 Documentation
+
+- *(changelog)* Update CHANGELOG.md for v1.2.0 ([3f9f1bd](https://github.com/AZenking/nervd/commit/3f9f1bdd87714aa193b97e86402e065df6f5b4c0))
 ## [1.1.3](https://github.com/AZenking/nervd/releases/tag/v1.1.3) - 2026-11-12
 
 ### 🐛 Bug Fixes
