@@ -221,6 +221,8 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 | `rounded-xl` | 12px | 大容器、侧栏行、品牌图标框 |
 | `rounded-2xl` ~ `rounded-4xl` | 16 / 24 / 32px | 预留档位 |
 
+> **例外（2026-11-17 设计评审）**：以下组件**不套用上表的直角档位**，一律采用上游 HeroUI 默认圆角——`Chip`（`rounded-2xl` 16px）、`Tabs`（`.tabs__list-container` `calc(var(--radius) * 2.5)`、`.tabs__tab` / `.tabs__indicator` 1.5rem）、`Modal`（`.modal__dialog` `min(32px, --radius-3xl)` = 24px）。理由：这些是 HeroUI 的形态标志件，评审要求"与 HeroUI 组件默认外观一致"；`theme.css` 不再覆写其圆角，业务层也不得再写 `rounded-*`。其余组件（Card / Popover / Menu / Table / Input 等）仍按上表执行。
+
 ## 2.3 排版与密度
 
 - **正文基准 14px / 1.55**（`body` 全局）——产品是桌面高密度工作台。
@@ -258,8 +260,8 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 1. **theme.css 是唯一事实源**：token 变更先改代码，再回填 2.1–2.5 表格。
 2. 上游契约（第一部分）更新时重新收录并在 front matter `contract_collected` 注明日期；冲突时以已安装 `@heroui` 版本为准。
 3. 新增界面严禁硬编码色值 / 阴影 / 圆角，一律走语义 token 与既有工具类。
-4. **组件层禁止覆盖 HeroUI 的尺寸 / 圆角 / 字号 / 底色**：密度与形态统一由 `theme.css` 的 `@layer components` 承载（`.card / .modal__dialog / .popover` 8px、`.menu-item` 32px/6px、`.table__*` 12px 密度、`.input / .textarea / .label`、`.alert`、`.kbd`、`.chip`、`.toggle-button-group`）。业务层只传语义变体与 `size` 档（`Button`: `2xs|xs|sm|default|lg|inline|icon*`；`Chip`: `sm|md|lg`），不再写 `h-* / px-* / text-[Npx] / rounded-* / shadow-*`。
-5. **业务层只消费 `src/components/ui/*`**：`Button / Card / Chip / Table / Alert / Surface / Pagination / Accordion / Toolbar / ProgressBar / ToggleButton(Group) / RadioGroup / TagGroup / TimeField / Input / Select / ListBox / Label / Field / Dialog / Popover / DropdownMenu / Tooltip / Tabs / Drawer` 均有出口，禁止再直接 `import from '@heroui/react'`（`command-menu` 的 `Header` 等无包装必要的原子件除外，须注释说明）。
+4. **组件层禁止覆盖 HeroUI 的尺寸 / 圆角 / 字号 / 底色**：密度与形态统一由 `theme.css` 的 `@layer components` 承载（`.card / .popover` 8px、`.menu-item` 32px/6px、`.table__*` 12px 密度、`.input / .textarea / .label`、`.select__trigger / .autocomplete__trigger` 32px（与 `.input` 同档，选择控件不再比输入框高 6px）、`.alert`、`.kbd`、`.toggle-button-group`）。**`.chip` / `.tabs__*` / `.modal__dialog` 不覆写圆角**（见 §2.2 例外条款：沿用 HeroUI 默认形态）。业务层只传语义变体与 `size` 档（`Button`: `2xs|xs|sm|default|lg|inline|bare|icon*`；`Chip`: `sm|md|lg`），不再写 `h-* / px-* / text-[Npx] / rounded-* / shadow-*`。该规则由 `src/components/ui/button-style-guard.test.ts` 门禁（扫描 `src/**/*.tsx`，命中即红），按钮形态需要调整时改 `ui/button.tsx` 的档位或 `theme.css`，不要在调用点补样式。
+5. **业务层只消费 `src/components/ui/*`**：`Button / ButtonGroup / Card / Chip / Table / Alert / Surface / Pagination / Accordion / Toolbar / ProgressBar / ToggleButton(Group) / RadioGroup / TagGroup / TimeField / Input / Select / ComboBox / ListBox / Label / Field / Dialog / Popover / DropdownMenu / Tooltip / Tabs / Drawer` 均有出口，禁止再直接 `import from '@heroui/react'`（`command-menu` 的 `Header` 等无包装必要的原子件除外，须注释说明）。
 
 ---
 

@@ -182,7 +182,7 @@ export function RecentMergeChangesPreview({
                 size="2xs"
                 onPress={() => void handleWorkitemClick(wi)}
                 title={`查看或复制需求 ${wi}`}
-                className="font-mono font-medium shrink-0"
+                className="shrink-0"
               >
                 {wi}
               </Button>
@@ -210,7 +210,7 @@ export function RecentMergeChangesPreview({
                 size="2xs"
                 aria-expanded={expanded}
                 onPress={() => setExpanded((v) => !v)}
-                className="font-mono shrink-0 ml-1"
+                className="shrink-0 ml-1"
               >
                 <span>{expanded ? '收起' : `+${displayCommits.length - 1} 条`}</span>
                 {expanded ? (
@@ -287,7 +287,7 @@ export function RecentMergeChangesPreview({
                       size="2xs"
                       onPress={() => void handleWorkitemClick(wi)}
                       title={`查看或复制需求 ${wi}`}
-                      className="font-mono shrink-0"
+                      className="shrink-0"
                     >
                       {wi}
                     </Button>
@@ -342,7 +342,7 @@ export function RecentMergeChangesPreview({
             size="2xs"
             isDisabled={probing}
             onPress={handleProbeChanges}
-            className="font-medium ml-1"
+            className="ml-1"
           >
             <RefreshCwIcon className={cn('size-2.5', probing && 'animate-spin text-primary')} />
             <span>探测待合入变更</span>

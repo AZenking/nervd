@@ -268,11 +268,10 @@ export function AiBreakdownDialog({
               : '未选择（仅按需求描述拆解）'}
           </span>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             disabled={loading || creating}
             onPress={() => void handleGenerate()}
-            className="h-7 text-xs"
           >
             <RefreshCwIcon className={cn('size-3.5 mr-1', loading && 'animate-spin')} />
             {loading ? '正在分析拆解…' : '重新生成'}
@@ -338,7 +337,7 @@ export function AiBreakdownDialog({
                             variant="outline"
                             size="sm"
                             disabled={creating}
-                            className="flex items-center gap-1 shrink-0 font-normal max-w-28"
+                            className="flex items-center gap-1 shrink-0 max-w-28"
                             aria-label="选择该子任务的处理人"
                           />
                         }
@@ -389,7 +388,7 @@ export function AiBreakdownDialog({
                             size="icon-xs"
                             disabled={creating}
                             onPress={() => deleteItem(item.id)}
-                            className="text-muted-foreground hover:text-destructive size-6 rounded-md"
+                            className="text-muted-foreground hover:text-destructive"
                             aria-label="删除此项"
                           >
                             <Trash2Icon className="size-3.5" />

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from 'react';
 import {
-  BugIcon, ChevronRightIcon, InboxIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, ShieldCheckIcon, SparklesIcon,
+  BugIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, ShieldCheckIcon, SparklesIcon,
   TerminalIcon, UserIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
@@ -25,6 +25,7 @@ import { useWorkitemWorkflowStatuses, type WorkflowStatusItem } from '@/hooks/us
 import { Badge } from '@/components/ui/badge';
 import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
+import { ButtonGroup } from '@/components/ui/button-group';
 import { Card } from '@/components/ui/card';
 import { ListBox } from '@/components/ui/list-box';
 import { Select } from '@/components/ui/select';
@@ -123,7 +124,7 @@ export function InlineStatusDropdown({
               size="xs"
               aria-disabled={updatingStatus || undefined}
               className={cn(
-                'group/status gap-1.5 font-medium hover:bg-surface-secondary',
+                'group/status gap-1.5 hover:bg-surface-secondary',
                 updatingStatus && READONLY_BTN_CLASS,
               )}
               aria-label={updatingStatus ? '正在更新状态…' : '点击快速更改状态'}
@@ -198,7 +199,6 @@ export function InlineAssigneeDropdown({
 export interface ChildrenCardProps {
   title: string;
   category: 'Task' | 'Bug';
-  description: string;
   items: WorkitemChild[];
   error?: string | null;
   debug?: string | null;
@@ -228,7 +228,6 @@ export interface ChildrenCardProps {
 export function ChildrenCard({
   title,
   category,
-  description,
   items,
   error,
   debug,
@@ -306,7 +305,7 @@ export function ChildrenCard({
         title: '尚未确定本地仓库',
         description: '先在子任务行点「处理」选择要使用的本地仓库，再复制 Codex 启动命令。',
         type: 'warning',
-        actionProps: { children: '前往设置', onClick: () => openSettings('attribution') },
+        actionProps: { children: '前往设置', onClick: () => openSettings('trace') },
       });
       return;
     }
@@ -437,7 +436,7 @@ export function ChildrenCard({
     if (!allowWriteOps) {
       toast.add({
         title: '当前处于只读模式',
-        description: 'AI 拆解创建子任务需在「设置 → 安全」中开启写操作。',
+        description: 'AI 拆解创建子任务需在「设置 → 安全与权限」中开启写操作。',
         type: 'warning',
         actionProps: {
           children: '前往设置',
@@ -495,7 +494,7 @@ export function ChildrenCard({
     if (!allowWriteOps) {
       toast.add({
         title: '当前处于只读模式',
-        description: `新建${title}需在「设置 → 安全」中开启写操作。`,
+        description: `新建${title}需在「设置 → 安全与权限」中开启写操作。`,
         type: 'warning',
         actionProps: {
           children: '前往设置',
@@ -539,7 +538,7 @@ export function ChildrenCard({
     if (!allowWriteOps) {
       toast.add({
         title: '当前处于只读模式',
-        description: `新建${title}需在「设置 → 安全」中开启写操作。`,
+        description: `新建${title}需在「设置 → 安全与权限」中开启写操作。`,
         type: 'warning',
         actionProps: {
           children: '前往设置',
@@ -831,8 +830,7 @@ export function ChildrenCard({
           size="sm"
           disabled={submitting || !newSubject.trim()}
           onPress={() => void handleCreate()}
-          className="font-medium"
-        >
+                  >
           {submitting ? '创建中…' : '创建'}
         </Button>
         <Button
@@ -853,60 +851,50 @@ export function ChildrenCard({
       <SectionHeader
         title={title}
         count={countBadge}
-        hint={description}
         action={(
-          <div className="flex items-center gap-1.5">
-            {/* AI 拆解与新建按使用场景收纳进「更多」，避免常驻按钮抢占区块标题 */}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                data-testid="children-card-more-trigger"
+          /* 2026-11-17 设计评审：不再用「更多」菜单收纳这两个动作，
+             直接以 HeroUI ButtonGroup 常驻呈现；文案超过四个字按规范只给图标 + Tooltip。 */
+          <ButtonGroup variant="secondary" className="shrink-0" aria-label={`${title}操作`}>
+            <Tooltip>
+              <TooltipTrigger
                 render={(
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`更多${title}操作`}
-                    className="gap-1 text-muted-foreground hover:text-foreground"
+                    variant="secondary"
+                    size="icon-sm"
+                    data-testid="children-card-add"
+                    aria-label={`新建${title}`}
+                    aria-disabled={!allowWriteOps || undefined}
+                    className={cn(!allowWriteOps && READONLY_BTN_CLASS)}
+                    onPress={() => void startAdding()}
                   />
                 )}
               >
-                <MoreHorizontalIcon className="size-3.5" />
-                <span>更多</span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" aria-label={`${title}更多操作`} className="w-56">
-                <DropdownMenuItem
-                  data-testid="children-card-more-add"
-                  aria-disabled={!allowWriteOps || undefined}
-                  onPress={startAdding}
-                  className={cn('gap-2', !allowWriteOps && 'text-muted-foreground')}
-                >
-                  <PlusIcon className="size-3.5" />
-                  <span>新建{title}</span>
-                  {!allowWriteOps && (
-                    <span className="ml-auto text-[10px] text-muted-foreground">只读模式</span>
+                <PlusIcon className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>新建{title}</TooltipContent>
+            </Tooltip>
+            {!isBug && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={(
+                    <Button
+                      variant="secondary"
+                      size="icon-sm"
+                      data-testid="children-card-ai-breakdown"
+                      aria-label={aiDirectLoading ? 'AI 拆解生成中…' : 'AI 智能拆解'}
+                      aria-disabled={!allowWriteOps || undefined}
+                      disabled={aiDirectLoading}
+                      className={cn('text-primary', !allowWriteOps && READONLY_BTN_CLASS)}
+                      onPress={() => void handleAiBreakdown()}
+                    />
                   )}
-                </DropdownMenuItem>
-                {!isBug && (
-                  <DropdownMenuItem
-                    data-testid="ai-breakdown-menu-item"
-                    disabled={aiDirectLoading}
-                    aria-disabled={!allowWriteOps || undefined}
-                    onPress={() => void handleAiBreakdown()}
-                    className={cn('gap-2', !allowWriteOps && 'text-muted-foreground')}
-                  >
-                    {aiDirectLoading ? (
-                      <Spinner className="size-3.5" />
-                    ) : (
-                      <SparklesIcon className={cn('size-3.5', allowWriteOps ? 'text-primary' : 'text-muted-foreground')} />
-                    )}
-                    <span>{aiDirectLoading ? 'AI 拆解生成中…' : 'AI 智能拆解'}</span>
-                    {!allowWriteOps && !aiDirectLoading && (
-                      <span className="ml-auto text-[10px] text-muted-foreground">只读模式</span>
-                    )}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                >
+                  {aiDirectLoading ? <Spinner className="size-3.5" /> : <SparklesIcon className="size-3.5" />}
+                </TooltipTrigger>
+                <TooltipContent>{aiDirectLoading ? 'AI 拆解生成中…' : 'AI 智能拆解'}</TooltipContent>
+              </Tooltip>
+            )}
+          </ButtonGroup>
         )}
       />
 
@@ -1054,7 +1042,7 @@ export function ChildrenCard({
               type="button"
               variant="ghost"
               size="default"
-              className="w-full justify-start rounded-none border-t border-border/40 text-muted-foreground hover:text-foreground font-normal"
+              className="w-full justify-start"
               onPress={startAdding}
             >
               <PlusIcon className="size-3.5 shrink-0" />

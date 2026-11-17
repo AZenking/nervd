@@ -104,7 +104,7 @@ export function RichDescription({
   const handleStartEdit = () => {
     if (!workitemId) return;
     if (!allowWrite) {
-      setToast({ text: '当前处于只读模式，请在「设置 → 安全」中开启允许写操作', kind: 'fail' });
+      setToast({ text: '当前处于只读模式，请在「设置 → 安全与权限」中开启允许写操作', kind: 'fail' });
       return;
     }
     setDraftHtml(initialHtml);

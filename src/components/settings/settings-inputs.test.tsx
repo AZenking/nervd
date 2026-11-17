@@ -166,4 +166,26 @@ describe('Settings Inputs and Dropdowns Audit', () => {
 
     expect(document.body.textContent).toContain('存在 1 处待修正');
   });
+
+  it('仓库清单每行只渲染一个勾选框，并对大量仓库限制首屏行数', async () => {
+    useApp.setState({
+      repositories: Array.from({ length: 200 }, (_, index) => ({
+        id: 1000 + index,
+        name: `repo-${index}`,
+        pathWithNamespace: `group/repo-${index}`,
+      })),
+    } as never);
+    await act(async () => {
+      root?.render(<TraceSection />);
+    });
+
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-slot="checkbox"]')];
+    // 首屏最多 80 行；每行只保留一个勾选框（ui/checkbox 已内置 Content/Control/Indicator）
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThanOrEqual(80);
+    expect(document.body.textContent).toContain('还有 120 个仓库未显示');
+    expect(
+      rows.reduce((sum, row) => sum + row.querySelectorAll('.checkbox__indicator').length, 0),
+    ).toBe(rows.length);
+  });
 });

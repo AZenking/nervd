@@ -159,7 +159,7 @@ export function SpaceRow({ orientation = 'horizontal' }: { orientation?: 'vertic
           <Button
             isIconOnly
             variant="secondary"
-            size="sm"
+            size="icon"
             aria-label="重新拉取项目列表"
             onPress={() => void loadProjects()}
           >

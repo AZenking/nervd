@@ -15,12 +15,15 @@ import { OverflowTooltip } from '@/components/overflow-tooltip';
  */
 export function SectionHeader({
   title,
+  titleAdornment,
   count,
   hint,
   action,
   level = 'h2',
 }: {
   title: ReactNode;
+  /** 紧跟标题其后的内联控件（如「分支规则」选择器），与标题同组左对齐。 */
+  titleAdornment?: ReactNode;
   count?: ReactNode;
   hint?: ReactNode;
   action?: ReactNode;
@@ -39,7 +42,14 @@ export function SectionHeader({
         level === 'h2' && 'border-b border-border pb-2',
       )}
     >
-      <div className="flex min-w-[6ch] flex-1 items-baseline gap-2">
+      {/* 标题旁带内联控件（如规则选择器）时按中线对齐，避免控件比文字高时整体上浮；
+          纯文本标题仍沿用基线对齐。 */}
+      <div
+        className={cn(
+          'flex min-w-[6ch] flex-1 gap-2',
+          titleAdornment ? 'items-center' : 'items-baseline',
+        )}
+      >
         {isPlainText(title) ? (
           <OverflowTooltip
             as={level}
@@ -49,6 +59,7 @@ export function SectionHeader({
         ) : (
           <Tag className={cn('min-w-0 truncate', headingClass)}>{title}</Tag>
         )}
+        {titleAdornment && <div className="ml-1 flex shrink-0 items-center">{titleAdornment}</div>}
         {count !== undefined && <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">{count}</span>}
         {hint && <span className="min-w-0 truncate text-xs text-muted-foreground">{hint}</span>}
       </div>

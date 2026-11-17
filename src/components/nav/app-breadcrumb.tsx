@@ -80,7 +80,7 @@ export function AppBreadcrumb() {
             <Button
               variant="ghost"
               size="icon-sm"
-              className="size-6 text-muted-foreground"
+              className="shrink-0"
               aria-label="后退（⌘←）"
               disabled={!history.length}
               onPress={back}

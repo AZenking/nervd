@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRightIcon, FileCodeIcon, ScrollTextIcon } from 'lucide-react';
-import { Surface } from '@/components/ui/surface';
+import { ArrowRightIcon } from 'lucide-react';
 import { ciStatusText } from '@/lib/ci';
 import { formatDateTime, formatDuration } from '@/lib/format';
 import { useApp } from '@/store/app';
@@ -9,17 +8,27 @@ import { useUi } from '@/store/ui';
 import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
 import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import type { BuildWorkbenchTarget } from '@/store/ui';
 import { useBranchDivergence } from '../BranchDivergenceCheck';
 import { CreateMrDialog } from './create-mr-dialog';
 import { RepoCiModal } from './repo-ci-modal';
-import { Card } from '@/components/ui/card';
-import { SectionHeader } from '@/components/section-header';
-import { openBuildWorkbenchFromTrigger, openRepoBuildLogs } from '@/components/build-workbench';
-import { WriteOpButton } from '@/components/WriteOpButton';
-import { cn } from '@/lib/utils';
+import {
+  Card,
+} from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from '@/components/ui/toast';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
+import { CopyButton } from '@/components/ui/copy-button';
+import { openBuildWorkbenchFromTrigger } from '@/components/build-workbench';
 import type {
   IterationBaselineCheck,
   ResolvedRepoBranchRule,
@@ -41,17 +50,8 @@ import { LinkedRepoHeader } from './linked-repo-header';
 import { LinkedRepoStatusStrip } from './linked-repo-status-strip';
 import { LinkedRepoPrimaryAction } from './linked-repo-primary-action';
 import { useLinkedRepoBranchOps } from './linked-repo-branch-ops';
-import { CodeDiffDrawer } from './code-diff-drawer';
 
 /** 交付主操作中的写操作：只能出现在展开后的交付详情中，摘要行不得常驻。 */
-const WRITE_DELIVERY_ACTIONS = new Set<LinkedRepoDeliveryDecision['action']>([
-  'create-baseline',
-  'create-workitem-branch',
-  'create-mr',
-  'build',
-  'blocked',
-]);
-
 export {
   LinkedRepoBranchSection,
   LinkedRepoBranchStatus,
@@ -215,7 +215,6 @@ export function LinkedRepoCard({
   const [ciModalOpen, setCiModalOpen] = useState(false);
   const [autoOpenWorkbenchOnBind, setAutoOpenWorkbenchOnBind] = useState(false);
   const [pendingMrScrollId, setPendingMrScrollId] = useState<number | null>(null);
-  const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
 
   // 稳定 ref 间接层：让 ops 先于 divergence hook 调用（ops 需要 refetch，divergence 需要 ops 的 developerBranchState）
   const divergenceRefetchRef = useRef<() => void>(() => {});
@@ -256,7 +255,6 @@ export function LinkedRepoCard({
     developerBranchState,
   );
   /** 分支差异（摘要「查看差异」与 diff 抽屉共用同一份数据，不额外发起状态计算）。 */
-  const branchDiffs = divergence.diffs ?? [];
   useEffect(() => {
     divergenceRefetchRef.current = divergence.refetch;
   });
@@ -330,7 +328,6 @@ export function LinkedRepoCard({
       : (effectiveOperationBaseBranch || 'master');
 
   // 写操作一律收进展开后的交付详情：摘要行只保留只读主操作与只读入口。
-  const isWriteAction = WRITE_DELIVERY_ACTIONS.has(delivery.action);
 
   const buildTarget: BuildWorkbenchTarget = {
     kind: 'repo',
@@ -424,6 +421,27 @@ export function LinkedRepoCard({
     />
   );
 
+  const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
+  const [unlinkOpen, setUnlinkOpen] = useState(false);
+
+  /** 更多菜单里的「取消关联」：只读态给 Toast 引导，可写态走 AlertDialog 二次确认。 */
+  const requestUnlink = () => {
+    if (!onUnlinkRepo) return;
+    if (!allowWriteOps) {
+      toast.add({
+        title: '当前处于只读模式',
+        description: '「取消关联」是写操作。可在「设置 → 安全与权限」中开启写权限后执行。',
+        type: 'warning',
+        actionProps: {
+          children: '前往设置',
+          onClick: () => useUi.getState().openSettings('security'),
+        },
+      });
+      return;
+    }
+    setUnlinkOpen(true);
+  };
+
   const palette = getRepoPalette(repo.name);
 
   const primaryActionNode = (
@@ -436,8 +454,6 @@ export function LinkedRepoCard({
       developerBranch={developerBranch}
       branchDisabledReason={branchDisabledReason}
       onCreateDeveloperBranch={createDeveloperBranch}
-      targetActiveMr={targetActiveMr}
-      onViewMr={handleViewMr}
       onCreateMr={() => setCreateMrOpen(true)}
       ciBinding={ciBinding}
       repoName={repo.name}
@@ -453,243 +469,185 @@ export function LinkedRepoCard({
     />
   );
 
-  /** 「查看差异」复用 BranchDivergenceCheck 的差异数据与 CodeDiffDrawer 抽屉能力。 */
-  const handleViewDiff = () => {
-    if (divergence.check.status === 'ready' && branchDiffs.length > 0) {
-      setDiffDrawerOpen(true);
-      return;
-    }
-    // 差异尚未就绪 / 已对齐：展开交付详情，就地查看分支同步结论。
-    setDetailsOpen(true);
-  };
-
-  /** 「查看日志」复用构建工作台 / LogViewer：有运行记录直接进日志页，否则先看运行记录。 */
-  const handleViewLogs = () => {
-    if (latestRun) {
-      void openRepoBuildLogs(repo.id, latestRun.runId, `${repo.name} #${latestRun.runId}`);
-      return;
-    }
-    openBuildWorkbenchFromTrigger(buildTarget, 'runs');
-  };
+  // 动作归位（2026-11-17 布局评审）：
+  // - 分支/规则类动作（建迭代基准、建需求分支、阻塞说明、前往配置轨道）随「分支关系」标题行；
+  // - create-mr / build 由「合并请求」「构建」Surface 自己的按钮承载，避免重复；
+  // - 回退态（重试查询 / 查询中 / 查看详情）留在卡片 Header，收起时仍可操作。
+  const BRANCH_SURFACE_ACTIONS = new Set<LinkedRepoDeliveryDecision['action']>([
+    'create-baseline',
+    'create-workitem-branch',
+    'blocked',
+    'configure-rule',
+  ]);
+  const HEADER_FALLBACK_ACTIONS = new Set<LinkedRepoDeliveryDecision['action']>([
+    'retry',
+    'querying',
+    'details',
+  ]);
+  const deliveryActionNode = BRANCH_SURFACE_ACTIONS.has(delivery.action) ? primaryActionNode : undefined;
+  const headerActionNode = HEADER_FALLBACK_ACTIONS.has(delivery.action) ? primaryActionNode : undefined;
 
   return (
     <Card
       data-testid={`linked-repo-card-${repo.id}`}
-      className={cn(
-        'group relative overflow-hidden p-0 transition-colors duration-150',
-        detailsOpen && 'ring-1 ring-border/50',
-      )}
+      // 结构交给 HeroUI Card 插槽；排列与间距由 Tailwind 控制。
+      // @container：摘要三列依据「卡片实际可用宽度」切换，而不是窗口宽度。
+      variant="transparent"
+      className="@container gap-0 rounded-lg border border-border bg-surface p-0"
     >
-      <div data-testid="delivery-summary">
-        {/* Tier 1: 仓库主行（摘要） */}
-        <LinkedRepoHeader
-          repo={repo}
-          detailsOpen={detailsOpen}
-          onToggleDetails={() => setDetailsOpen((prev) => !prev)}
-          palette={palette}
-          developerBranch={developerBranch}
-          developerBranchState={developerBranchState}
-          operationBaseBranch={effectiveOperationBaseBranch}
-          traceState={traceState}
-          primaryAction={isWriteAction ? undefined : primaryActionNode}
-          cardRefreshing={cardRefreshing}
-          onRefresh={() => void handleRefreshSingleRepo()}
-          hasRuns={Boolean(snapshot?.runs.length)}
-          buildTarget={buildTarget}
-        />
+      <LinkedRepoHeader
+        repo={repo}
+        palette={palette}
+        traceState={traceState}
+        primaryAction={headerActionNode}
+        detailsOpen={detailsOpen}
+        onToggleDetails={() => setDetailsOpen((prev) => !prev)}
+        onUnlink={onUnlinkRepo ? requestUnlink : undefined}
+        cardRefreshing={cardRefreshing}
+        onRefresh={() => void handleRefreshSingleRepo()}
+        hasRuns={Boolean(snapshot?.runs.length)}
+        buildTarget={buildTarget}
+      />
 
-        {/* Tier 2: 交付状态与指标条 (Status Strip) */}
-        <LinkedRepoStatusStrip
-          developerBranchState={developerBranchState}
-          traceState={traceState}
-          divergence={divergence}
-          targetActiveMr={targetActiveMr}
-          developerBranch={developerBranch}
-          operationBaseBranch={effectiveOperationBaseBranch}
-          historyMrs={historyMrs}
-          hasMatchingMergedMr={hasMatchingMergedMr}
-          onViewMr={handleViewMr}
-          loadingCi={entry?.loading}
-          ciError={Boolean(entry?.error)}
-          repoLatestBuild={repoLatestBuild}
-          ciBinding={ciBinding}
-          latestRun={latestRun}
-          snapshot={snapshot}
-          ciSummary={ciSummary}
-          buildTarget={buildTarget}
-          onOpenCiModal={() => {
-            setAutoOpenWorkbenchOnBind(false);
-            setCiModalOpen(true);
-          }}
-        />
-
-        {/* Tier 2.5: 摘要常驻入口（只读）——查看详情 / 查看差异 / 查看日志 */}
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/40 px-4 py-2">
-          <div className="flex flex-wrap items-center gap-0.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="gap-1 text-muted-foreground hover:text-foreground"
-              onPress={() => setDetailsOpen((prev) => !prev)}
-              aria-expanded={detailsOpen}
-            >
-              <ChevronRightIcon
-                className={cn('size-3 transition-transform', detailsOpen && 'rotate-90 text-primary')}
-                aria-hidden="true"
+      <Card.Content className="space-y-4 px-5 pb-5">
+        <div data-testid="delivery-summary" className="space-y-4">
+          {/* 交付分支路径：需求分支 → 目标基准（长名截断 + 悬停查看全文 + 复制） */}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+            <span className="shrink-0 text-[11px] text-muted-foreground">交付分支</span>
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <OverflowTooltip
+                text={developerBranch || '未配置需求分支'}
+                className="max-w-56 truncate font-mono text-[12px] text-foreground/90"
               />
-              {detailsOpen ? '收起详情' : '查看详情'}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="gap-1 text-muted-foreground hover:text-foreground"
-              onPress={handleViewDiff}
-              title={
-                divergence.check.status === 'ready' && branchDiffs.length > 0
-                  ? `查看 ${developerBranch} 与 ${effectiveOperationBaseBranch} 的代码差异`
-                  : '差异尚未就绪或分支已对齐：展开交付详情查看分支同步结论'
-              }
-            >
-              <FileCodeIcon className="size-3" aria-hidden="true" />
-              查看差异
-              {divergence.check.status === 'ready' && branchDiffs.length > 0 && (
-                <span className="font-mono tabular-nums">({branchDiffs.length})</span>
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="gap-1 text-muted-foreground hover:text-foreground"
-              onPress={handleViewLogs}
-              title={latestRun ? `查看构建 #${latestRun.runId} 的日志` : '暂无构建运行记录，先打开运行记录'}
-            >
-              <ScrollTextIcon className="size-3" aria-hidden="true" />
-              查看日志
-            </Button>
-          </div>
-          {isWriteAction && (
-            <span className="text-[11px] text-warning">
-              待处理：{delivery.conclusion} · 展开交付详情执行
+              {developerBranch && <CopyButton text={developerBranch} label="复制需求分支名" />}
             </span>
-          )}
+            <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <OverflowTooltip
+                text={effectiveOperationBaseBranch || '未配置目标基准'}
+                className="max-w-56 truncate font-mono text-[12px] text-foreground/90"
+              />
+              {effectiveOperationBaseBranch && (
+                <CopyButton text={effectiveOperationBaseBranch} label="复制目标基准分支名" />
+              )}
+            </span>
+          </div>
+
+          <LinkedRepoStatusStrip
+            developerBranchState={developerBranchState}
+            traceState={traceState}
+            divergence={divergence}
+            targetActiveMr={targetActiveMr}
+            developerBranch={developerBranch}
+            operationBaseBranch={effectiveOperationBaseBranch}
+            historyMrs={historyMrs}
+            hasMatchingMergedMr={hasMatchingMergedMr}
+            onViewMr={handleViewMr}
+            loadingCi={entry?.loading}
+            ciError={Boolean(entry?.error)}
+            repoLatestBuild={repoLatestBuild}
+            ciBinding={ciBinding}
+            latestRun={latestRun}
+            snapshot={snapshot}
+            ciSummary={ciSummary}
+            buildTarget={buildTarget}
+            onOpenCiModal={() => {
+              setAutoOpenWorkbenchOnBind(false);
+              setCiModalOpen(true);
+            }}
+          />
         </div>
-      </div>
-      {/* 下沉展开折叠面板 */}
-      <Collapsible
-        open={detailsOpen}
-        onOpenChange={(open) => setDetailsOpen(open)}
-        className="min-w-0"
-      >
-        {/* 收合态下 DisclosurePanel 仅保留 height/clip；内边距与分隔线必须在内层，
-            否则收起后仍残留 py + border 的空白条（卡片底部假下边距）。 */}
-        <CollapsibleContent className="transition-all">
-          <Surface variant="secondary" className="flex flex-col gap-3 border-t border-border/50 px-4 py-3.5">
-            {/* 写操作只在展开后的交付详情中出现：建/迭代基准、需求分支、创建 MR、构建参数、取消关联 */}
-            {isWriteAction && (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="min-w-0 text-[11px] text-muted-foreground">
-                    交付操作（写操作）· {delivery.conclusion}
-                  </span>
-                  <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                    {primaryActionNode}
-                  </div>
-                </div>
-                <Separator className="bg-border/40" />
-              </>
-            )}
-            {/* 展开面板顶栏（收合由表头展开按钮控制，HeroUI Separator 分隔） */}
-            <SectionHeader
-              level="h3"
-              title={'分支与交付详情 · ' + repo.name}
-            />
-            <Separator className="bg-border/40" />
 
-            {/* 分支与规则网格 + 差异 + 其他匹配分支 */}
-            <LinkedRepoBranchSection
-              repoId={repo.id}
-              repoName={repo.name}
-              developerBranch={developerBranch}
-              developerBranchState={developerBranchState}
-              operationBaseBranch={effectiveOperationBaseBranch}
-              iterationId={iterationId}
-              baselineBranch={baselineBranch}
-              configuredBaselineBranch={configuredBaselineBranch}
-              baselineState={baselineState}
-              defaultBaseState={defaultBaseState}
-              onRetryBaseline={onRetryBaseline}
-              templateId={templateId}
-              templates={templates}
-              templateEnabled={templateEnabled}
-              onTemplateChange={onTemplateChange}
-              templateSourceBranch={templateSourceBranch}
-              templateSelectId={templateSelectId}
-              extraMatchedBranches={extraMatchedBranches}
-              trackTemplateName={branchRule?.templateName}
-              trackOrigin={branchRule?.origin}
-              directConnect={directConnect}
-            />
+        <Collapsible
+          open={detailsOpen}
+          onOpenChange={(open) => setDetailsOpen(open)}
+          className="min-w-0"
+        >
+          <CollapsibleContent className="transition-all">
+            <div className="flex flex-col gap-4">
+              {/* 分支关系：占满 Card 宽度 */}
+              <LinkedRepoBranchSection
+                repoId={repo.id}
+                repoName={repo.name}
+                developerBranch={developerBranch}
+                developerBranchState={developerBranchState}
+                operationBaseBranch={effectiveOperationBaseBranch}
+                iterationId={iterationId}
+                baselineBranch={baselineBranch}
+                configuredBaselineBranch={configuredBaselineBranch}
+                baselineState={baselineState}
+                defaultBaseState={defaultBaseState}
+                onRetryBaseline={onRetryBaseline}
+                templateId={templateId}
+                templates={templates}
+                templateEnabled={templateEnabled}
+                onTemplateChange={onTemplateChange}
+                templateSourceBranch={templateSourceBranch}
+                templateSelectId={templateSelectId}
+                extraMatchedBranches={extraMatchedBranches}
+                trackTemplateName={branchRule?.templateName}
+                trackOrigin={branchRule?.origin}
+                directConnect={directConnect}
+                deliveryAction={deliveryActionNode}
+              />
 
-            {/* 合并请求列表 */}
-            <LinkedRepoMrList
-              repoId={repo.id}
-              repoPathWithNamespace={repo.pathWithNamespace}
-              developerBranch={developerBranch}
-              sortedMergeRequests={sortedMergeRequests}
-              expandedMrId={expandedMrId}
-              onToggleMr={(localId) => setExpandedMrId((prev) => (prev === localId ? null : localId))}
-              onRefresh={() => {
-                divergence.refetch();
-                void loadTrace({ force: true });
-              }}
-              onCreateMr={() => setCreateMrOpen(true)}
-            />
+              {/* 合并请求 / 构建：容器宽度不足 320px 一列时自动上下排列 */}
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] items-start gap-4">
+                <LinkedRepoMrList
+                  repoId={repo.id}
+                  repoPathWithNamespace={repo.pathWithNamespace}
+                  developerBranch={developerBranch}
+                  sortedMergeRequests={sortedMergeRequests}
+                  expandedMrId={expandedMrId}
+                  onToggleMr={(localId) => setExpandedMrId((prev) => (prev === localId ? null : localId))}
+                  onRefresh={() => {
+                    divergence.refetch();
+                    void loadTrace({ force: true });
+                  }}
+                  onCreateMr={() => setCreateMrOpen(true)}
+                />
 
-            {/* 构建操作 */}
-            <LinkedRepoCiSection
-              repoName={repo.name}
-              ciBinding={ciBinding}
-              latestRun={latestRun}
-              buildAction={renderBuildAction()}
-              onOpenCiModal={() => {
-                setAutoOpenWorkbenchOnBind(false);
-                setCiModalOpen(true);
-              }}
-            />
-
-            {/* 解除关联（破坏性写操作，同样只出现在展开后的交付详情中） */}
-            {onUnlinkRepo && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2">
-                <span className="text-[11px] text-muted-foreground">
-                  解除「{repo.name}」与需求的关联（写操作）
-                </span>
-                <WriteOpButton
-                  label="取消关联"
-                  title={`取消关联仓库 ${repo.name}`}
-                  confirmLabel="确认取消关联"
-                  variant="outline"
-                  onAction={async () => { onUnlinkRepo(repo.id); }}
+                <LinkedRepoCiSection
+                  repoName={repo.name}
+                  ciBinding={ciBinding}
+                  latestRun={latestRun}
+                  buildAction={renderBuildAction()}
+                  onOpenCiModal={() => {
+                    setAutoOpenWorkbenchOnBind(false);
+                    setCiModalOpen(true);
+                  }}
+                  buildBranch={actualJenkinsBranch || effectiveOperationBaseBranch}
+                  onViewRuns={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
                 />
               </div>
-            )}
-          </Surface>
-        </CollapsibleContent>
-      </Collapsible>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card.Content>
 
-      {/* 摘要「查看差异」入口复用的分支差异抽屉（数据来自 useBranchDivergence，不新增状态计算） */}
-      {diffDrawerOpen && (
-        <CodeDiffDrawer
-          open
-          onOpenChange={(open) => { if (!open) setDiffDrawerOpen(false); }}
-          title={`${repo.name} · 需求分支差异`}
-          sourceBranch={developerBranch}
-          targetBranch={effectiveOperationBaseBranch}
-          diffs={branchDiffs}
-        />
-      )}
+      {/* 取消关联确认：沿用写操作的 AlertDialog 二次确认（入口在「更多」菜单） */}
+      <AlertDialog open={unlinkOpen} onOpenChange={setUnlinkOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认取消关联</AlertDialogTitle>
+            <AlertDialogDescription>
+              「取消关联」为写操作，将解除「{repo.name}」与本需求的关联。确定继续吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onPress={() => setUnlinkOpen(false)}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onPress={() => {
+                setUnlinkOpen(false);
+                onUnlinkRepo?.(repo.id);
+              }}
+            >
+              确认取消关联
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <RepoCiModal
         open={ciModalOpen}

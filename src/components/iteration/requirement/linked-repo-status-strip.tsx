@@ -1,9 +1,10 @@
+import type React from 'react';
 import type { CiRunSummary, MrSummary, RepoCiBinding, RepoCiSnapshot } from '@/types';
 import type { BuildWorkbenchTarget } from '@/store/ui';
 import type { useBranchDivergence } from '../BranchDivergenceCheck';
 import type { IterationBaselineCheck } from './types';
 import type { RepoTraceState } from './linked-repo-delivery';
-import { Separator } from '@/components/ui/separator';
+import { Surface } from '@/components/ui/surface';
 import { LinkedRepoBranchStatus } from './linked-repo-branch-section';
 import { LinkedRepoMrStatus } from './linked-repo-mr-list';
 import { LinkedRepoCiStatus } from './linked-repo-ci-status';
@@ -52,56 +53,58 @@ export function LinkedRepoStatusStrip({
   onOpenCiModal,
 }: LinkedRepoStatusStripProps) {
   return (
-    <div className="text-xs">
-      <Separator className="bg-border/50" />
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2.5">
-        {/* 分支状态 */}
-        <div className="flex min-w-[130px] flex-1 items-center gap-2">
-          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">分支状态:</span>
-          <div className="min-w-0 flex-1">
-            <LinkedRepoBranchStatus
-              developerBranchState={developerBranchState}
-              traceState={traceState}
-              divergence={divergence}
-            />
-          </div>
-        </div>
+    // 三组摘要独立成块（小标题 + 主值），依据「卡片容器宽度」切换列数：
+    // 卡片根节点标了 @container，容器 ≥680px 时三列并排，否则单列堆叠。
+    <Surface
+      variant="secondary"
+      className="grid grid-cols-1 gap-4 rounded-lg p-4 @min-[680px]:grid-cols-3"
+    >
+      <SummaryGroup label="分支同步">
+        <LinkedRepoBranchStatus
+          developerBranchState={developerBranchState}
+          traceState={traceState}
+          divergence={divergence}
+        />
+      </SummaryGroup>
 
-        {/* 合并请求 (MR) */}
-        <div className="flex min-w-[140px] flex-1 items-center gap-2">
-          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">合并请求:</span>
-          <div className="min-w-0 flex-1">
-            <LinkedRepoMrStatus
-              targetActiveMr={targetActiveMr}
-              developerBranch={developerBranch}
-              developerBranchState={developerBranchState}
-              operationBaseBranch={operationBaseBranch}
-              historyMrs={historyMrs}
-              hasMatchingMergedMr={hasMatchingMergedMr}
-              divergence={divergence}
-              onViewMr={onViewMr}
-            />
-          </div>
-        </div>
+      <SummaryGroup label="合并请求">
+        <LinkedRepoMrStatus
+          targetActiveMr={targetActiveMr}
+          developerBranch={developerBranch}
+          developerBranchState={developerBranchState}
+          operationBaseBranch={operationBaseBranch}
+          historyMrs={historyMrs}
+          hasMatchingMergedMr={hasMatchingMergedMr}
+          divergence={divergence}
+          onViewMr={onViewMr}
+        />
+      </SummaryGroup>
 
-        {/* 最近构建 (CI) */}
-        <div className="flex min-w-[180px] flex-1 items-center gap-2">
-          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">最近构建:</span>
-          <div className="min-w-0 flex-1">
-            <LinkedRepoCiStatus
-              loading={loadingCi}
-              error={ciError}
-              repoLatestBuild={repoLatestBuild}
-              ciBinding={ciBinding}
-              latestRun={latestRun}
-              snapshot={snapshot}
-              ciSummary={ciSummary}
-              buildTarget={buildTarget}
-              onOpenCiModal={onOpenCiModal}
-            />
-          </div>
-        </div>
-      </div>
+      <SummaryGroup label="最近构建">
+        <LinkedRepoCiStatus
+          loading={loadingCi}
+          error={ciError}
+          repoLatestBuild={repoLatestBuild}
+          ciBinding={ciBinding}
+          latestRun={latestRun}
+          snapshot={snapshot}
+          ciSummary={ciSummary}
+          buildTarget={buildTarget}
+          onOpenCiModal={onOpenCiModal}
+        />
+      </SummaryGroup>
+    </Surface>
+  );
+}
+
+/** 摘要分组：小标题 + 主值（副值由各行内容自己渲染）。
+ *  主值区固定最小高度 40px（两行明细实测约 37px），
+ *  刷新时骨架 / 「暂无记录」/ 两行明细之间切换都在同一高度内，分组高度不再变化。 */
+function SummaryGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+      <div className="flex min-h-10 min-w-0 flex-col justify-center">{children}</div>
     </div>
   );
 }

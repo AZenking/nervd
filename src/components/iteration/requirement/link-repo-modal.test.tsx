@@ -3,7 +3,12 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepoSummary } from '@/types';
 import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
-import { LinkRepoModal, resolveTopologyPreviewContext } from './link-repo-modal';
+import {
+  LinkRepoModal,
+  REPO_OPTION_LIMIT,
+  resolveTopologyPreviewContext,
+  selectVisibleRepos,
+} from './link-repo-modal';
 
 const mockStore = {
   settings: { repoCiBindings: {}, jenkinsConnections: [] },
@@ -111,17 +116,17 @@ describe('LinkRepoModal 分支链路预览', () => {
     document.body.innerHTML = '';
   });
 
-  const renderModal = async () => {
+  const renderModal = async (repos: RepoSummary[] = repositories) => {
     await act(() => {
       root.render(
         <LinkRepoModal
           open
           onOpenChange={vi.fn()}
-          repositories={repositories}
+          repositories={repos}
           effectiveRepoIds={[]}
           fusedTemplates={fusedTemplates}
           iterationId="iter-1"
-          isRequirement
+          templatePickerEnabled
           savingRepos={false}
           recommendingRepos={false}
           recommendedRepos={[]}
@@ -181,5 +186,127 @@ describe('LinkRepoModal 分支链路预览', () => {
     expect(diagram?.getAttribute('data-form')).toBe('direct');
     expect(diagram?.querySelector('[data-node="baseline"]')).toBeNull();
     expect(diagram?.textContent).toContain('直连主干');
+  });
+});
+
+describe('selectVisibleRepos', () => {
+  const makeRepos = (count: number): RepoSummary[] =>
+    Array.from({ length: count }, (_, index) => ({
+      id: index + 1,
+      name: `repo-${index}`,
+      pathWithNamespace: `group/repo-${index}`,
+    }));
+
+  it('无输入时只取前 N 条并给出隐藏条数', () => {
+    const { items, hiddenCount } = selectVisibleRepos(makeRepos(260), '', '', 100);
+    expect(items).toHaveLength(100);
+    expect(hiddenCount).toBe(160);
+    expect(items[0].pathWithNamespace).toBe('group/repo-0');
+  });
+
+  it('有输入时交回全量集合（过滤由 ComboBox 负责）', () => {
+    const { items, hiddenCount } = selectVisibleRepos(makeRepos(260), 'repo-25', '', 100);
+    expect(items).toHaveLength(260);
+    expect(hiddenCount).toBe(0);
+  });
+
+  it('已选仓库落在窗口外时补进列表，保证选中态回显', () => {
+    const { items, hiddenCount } = selectVisibleRepos(makeRepos(260), '', 'group/repo-259', 100);
+    expect(items.some((repo) => repo.pathWithNamespace === 'group/repo-259')).toBe(true);
+    expect(hiddenCount).toBe(159);
+  });
+
+  it('候选数量未超上限时不提示隐藏', () => {
+    const { items, hiddenCount } = selectVisibleRepos(makeRepos(12), '', '', 100);
+    expect(items).toHaveLength(12);
+    expect(hiddenCount).toBe(0);
+  });
+});
+
+describe('LinkRepoModal 仓库下拉（大数据量）', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+
+  const manyRepos: RepoSummary[] = Array.from({ length: 260 }, (_, index) => ({
+    id: index + 1,
+    name: `repo-${index}`,
+    pathWithNamespace: `group/repo-${index}`,
+  }));
+
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+  });
+
+  afterEach(async () => {
+    await act(() => root.unmount());
+    host.remove();
+    document.body.innerHTML = '';
+  });
+
+  const renderModal = async () => {
+    await act(() => {
+      root.render(
+        <LinkRepoModal
+          open
+          onOpenChange={vi.fn()}
+          repositories={manyRepos}
+          effectiveRepoIds={[]}
+          fusedTemplates={fusedTemplates}
+          iterationId="iter-1"
+          templatePickerEnabled
+          savingRepos={false}
+          recommendingRepos={false}
+          recommendedRepos={[]}
+          onRecommendRepos={vi.fn().mockResolvedValue(undefined)}
+          onClearRecommendations={vi.fn()}
+          onQuickLinkRepo={vi.fn().mockResolvedValue(undefined)}
+          onLinkRepo={vi.fn().mockResolvedValue(true)}
+        />,
+      );
+    });
+  };
+
+  /** react-aria 按指针事件开合（jsdom 需显式派发 pointerdown/up + click） */
+  const press = (el: Element) => {
+    el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1, isPrimary: true }));
+    el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerId: 1, isPrimary: true }));
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+  };
+
+  it('展开下拉只渲染上限内的候选，并提示剩余数量', async () => {
+    await renderModal();
+    await act(async () => {
+      const trigger = document.body.querySelector('button[aria-haspopup="listbox"]');
+      expect(trigger).toBeTruthy();
+      if (trigger) press(trigger);
+    });
+
+    const options = document.body.querySelectorAll('[role="option"]');
+    expect(options.length).toBe(REPO_OPTION_LIMIT);
+    expect(document.body.textContent).toContain('还有 160 个仓库未显示，输入关键词继续筛选');
+  });
+
+  it('输入关键词后只渲染命中项，并收起隐藏提示', async () => {
+    await renderModal();
+    await act(async () => {
+      const trigger = document.body.querySelector('button[aria-haspopup="listbox"]');
+      if (trigger) press(trigger);
+    });
+
+    const input = document.body.querySelector('[data-slot="combo-box"] input') as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(input, 'group/repo-259');
+      input?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const options = Array.from(document.body.querySelectorAll('[role="option"]'));
+    expect(options).toHaveLength(1);
+    expect(options[0].textContent).toContain('group/repo-259');
+    expect(document.body.textContent).not.toContain('个仓库未显示');
   });
 });

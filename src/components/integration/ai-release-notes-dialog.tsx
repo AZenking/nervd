@@ -142,23 +142,21 @@ export function AiReleaseNotesDialog({
 
           <div className="flex items-center gap-2">
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               disabled={loading}
               aria-busy={loading || undefined}
               onClick={() => void handleGenerate()}
-              className="h-7 text-xs"
             >
               <RefreshCwIcon className={`size-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
               {loading ? '正在分析生成…' : '重新生成'}
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={loading || !content}
               aria-busy={loading || undefined}
               onClick={() => void handleCopy()}
-              className="h-7 text-xs"
             >
               {copied ? <CheckIcon className="size-3.5 mr-1 text-success" /> : <CopyIcon className="size-3.5 mr-1" />}
               {copied ? '已复制' : '复制 Markdown'}

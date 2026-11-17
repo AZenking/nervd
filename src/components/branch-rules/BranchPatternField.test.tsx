@@ -26,6 +26,20 @@ function Harness({ initial = 'feature/' }: { initial?: string }) {
   );
 }
 
+function PopoverHarness() {
+  const [value, setValue] = useState('feature/');
+  return (
+    <BranchPatternField
+      label="命名模板"
+      value={value}
+      onChange={setValue}
+      variables={[VARIABLES[0], VARIABLES[1]]}
+      variablePicker="popover"
+      showPreview={false}
+    />
+  );
+}
+
 describe('BranchPatternField', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -73,5 +87,52 @@ describe('BranchPatternField', () => {
     await act(async () => root.render(<Harness initial="feature/{slug}" />));
     expect(container.textContent).toContain('未知变量');
     expect(container.textContent).toContain('缺少必需变量');
+  });
+});
+
+describe('BranchPatternField · 插入变量 Popover', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    document.body.innerHTML = '';
+  });
+
+  it('变量入口收敛为「插入变量」按钮，且不再渲染字段级预览', async () => {
+    await act(async () => root.render(<PopoverHarness />));
+
+    expect(container.querySelector('[data-testid="branch-pattern-variable-trigger"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid^="branch-pattern-chip-"]')).toBeNull();
+    expect(container.querySelector('[data-testid="branch-pattern-preview"]')).toBeNull();
+  });
+
+  it('列表只列出该字段支持的变量，选中后插入到光标处并恢复焦点', async () => {
+    await act(async () => root.render(<PopoverHarness />));
+    const input = container.querySelector<HTMLInputElement>('[data-testid="branch-pattern-input"]')!;
+    input.focus();
+    input.setSelectionRange(8, 8);
+
+    const trigger = container.querySelector<HTMLButtonElement>('[data-testid="branch-pattern-variable-trigger"]')!;
+    await act(async () => { trigger.click(); });
+
+    const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+    expect(options).toHaveLength(2);
+    expect(options.map((o) => o.textContent ?? '').join(' ')).toContain('{iteration}');
+    expect(options.map((o) => o.textContent ?? '').join(' ')).not.toContain('{identifier}');
+
+    await act(async () => { options[0].click(); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 260)); });
+
+    expect(input.value).toBe('feature/{iteration}');
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe('feature/{iteration}'.length);
   });
 });

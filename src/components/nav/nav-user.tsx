@@ -1,16 +1,18 @@
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from '@/components/ui/sidebar';
 import { HelpCircleIcon, MonitorIcon, MoonIcon, SettingsIcon, SunIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUi } from '@/store/ui';
 import { useAppUpdate } from '@/hooks/use-app-update';
 import { APP_VERSION } from '@/lib/app-info';
-import { Kbd } from '@/components/ui/kbd';
-import { Chip } from '@/components/ui/chip';
 
-/** 侧栏底部操作区：对齐现代 SaaS 风格底部（帮助与信息、界面主题切换、系统设置） */
+/**
+ * 侧栏底部操作区（2026-11-17 设计评审：去除中文文案，只留图标）：
+ * - 三个纯图标入口横排为紧凑工具簇，语义全部由 Tooltip + aria-label 承载，视觉不出现中文字样；
+ * - 帮助：有新版本时在图标右上角显示品牌色圆点（无文字徽标），Tooltip 内给出新版本号；
+ * - 主题：图标随当前主题切换（跟随系统 / 深色 / 浅色），点击就地切换并保留 View Transition 涟漪；
+ * - 设置：直达系统设置，Tooltip 内保留 `g s` 快捷键提示；
+ * - 侧栏折叠为图标模式时自动改为竖排三枚图标，与主导航折叠态节奏一致。
+ */
 export function NavUser() {
   const { openSettings, theme, resolvedTheme, toggleTheme, setAboutOpen } = useUi();
   const { hasUpdate, updateInfo } = useAppUpdate();
@@ -26,52 +28,73 @@ export function NavUser() {
     theme === 'system' ? MonitorIcon : theme === 'dark' ? MoonIcon : SunIcon;
 
   return (
-    <SidebarMenu className="gap-1">
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          size="default"
-          tooltip={hasUpdate ? `发现新版本 v${updateInfo?.latestVersion} · 点击查看更新` : `帮助与关于 nervd (v${APP_VERSION})`}
-          onClick={() => setAboutOpen(true)}
-          className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+    <div
+      data-slot="nav-user-actions"
+      className="flex w-full items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center"
+    >
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`帮助与信息 (v${APP_VERSION})`}
+              onClick={() => setAboutOpen(true)}
+              className="relative text-muted-foreground hover:text-foreground"
+            />
+          }
         >
-          <HelpCircleIcon className="size-[18px] shrink-0" />
-          <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">帮助与信息</span>
-          {hasUpdate ? (
-            <Chip size="sm" variant="soft" color="accent" className="ml-auto group-data-[collapsible=icon]:hidden">
-              新版本
-            </Chip>
-          ) : (
-            <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground/60 group-data-[collapsible=icon]:hidden leading-none">
-              v{APP_VERSION}
-            </span>
+          <HelpCircleIcon className="size-[18px]" />
+          {hasUpdate && (
+            <span
+              aria-hidden="true"
+              className="absolute right-1 top-1 size-2 rounded-full bg-(--brand-indigo) ring-2 ring-sidebar"
+            />
           )}
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          size="default"
-          tooltip={`当前: ${themeLabel} · 点击切换`}
-          onClick={(e) => toggleTheme({ clientX: e.clientX, clientY: e.clientY })}
-          className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {hasUpdate
+            ? `发现新版本 v${updateInfo?.latestVersion} · 点击查看更新 (v${APP_VERSION})`
+            : `帮助与关于 nervd (v${APP_VERSION})`}
+        </TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={themeLabel}
+              onClick={(e) => toggleTheme({ clientX: e.clientX, clientY: e.clientY })}
+              className="text-muted-foreground hover:text-foreground"
+            />
+          }
         >
-          <ThemeIcon className="size-[18px] shrink-0" />
-          <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">{themeLabel}</span>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          size="default"
-          tooltip="系统设置 (g s)"
-          onClick={() => openSettings()}
-          className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+          <ThemeIcon className="size-[18px]" />
+        </TooltipTrigger>
+        <TooltipContent side="top">当前: {themeLabel} · 点击切换</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="系统设置"
+              onClick={() => openSettings()}
+              className="text-muted-foreground hover:text-foreground"
+            />
+          }
         >
-          <SettingsIcon className="size-[18px] shrink-0" />
-          <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">系统设置</span>
-          <Kbd className="ml-auto h-5! px-1.5! text-[10px]! leading-none! group-data-[collapsible=icon]:hidden">
-            g s
-          </Kbd>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
+          <SettingsIcon className="size-[18px]" />
+        </TooltipTrigger>
+        <TooltipContent side="top">系统设置 (g s)</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }

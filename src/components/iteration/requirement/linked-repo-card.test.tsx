@@ -125,8 +125,9 @@ describe('LinkedRepoCard 缺陷上下文（缺陷单号分支 → 需求单号�
 
   const openMrDialog = async () => {
     // 创建 MR 是写操作：先展开交付详情（摘要行不再常驻写操作入口），再点击「创建 MR」
-    const expandBtn = host.querySelector('button[aria-label="展开分支与交付详情"]');
-    expect(expandBtn).not.toBeNull();
+    // 展开开关是卡片头部的「展开 / 收起」（稳定 testid，不依赖文案）
+    const expandBtn = host.querySelector('[data-testid="linked-repo-details-toggle"]') ?? undefined;
+    expect(expandBtn).not.toBeUndefined();
     await act(async () => {
       expandBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     });

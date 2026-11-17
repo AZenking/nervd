@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { GitBranchIcon, GitFork, PlusIcon, XIcon } from 'lucide-react';
+import { ChevronRightIcon, GitBranchIcon, GitFork, PlusIcon, XIcon } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { getBranchTrackDefault, setBranchTrackDefault } from '@/lib/api';
 import { isTauriRuntime } from '@/lib/attribution-api';
@@ -10,8 +10,16 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Descriptions } from '@/components/ui/descriptions';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Surface } from '@/components/ui/surface';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { Table } from '@/components/ui/table';
@@ -19,6 +27,7 @@ import {
   Drawer,
   DrawerBody,
   DrawerContent,
+  DrawerDescription,
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
@@ -31,8 +40,8 @@ import { WriteOpButton } from '@/components/WriteOpButton';
 import { SettingsGroup, SettingsRow } from '@/components/settings/settings-group';
 import { expandBranchPattern } from '@/components/iteration/requirement/types';
 import { BranchTopologyFields } from './BranchTopologyFields';
-import { BranchPatternField, type BranchPatternVariable } from './BranchPatternField';
 import { TrackTopologyDiagram } from './track-topology-diagram';
+import { BranchPatternField, type BranchPatternVariable } from './BranchPatternField';
 import { TrackTopologyModal } from './track-topology-modal';
 
 const EMPTY_DRAFT: BranchRuleTemplate = {
@@ -52,7 +61,7 @@ const BRANCH_TEMPLATE_PRESETS: Array<{
   draft: Pick<BranchRuleTemplate, 'name' | 'sourceBranch' | 'baselineBranchPattern' | 'workitemBranchPattern'>;
 }> = [
   {
-    label: '🌱 单主干直连',
+    label: '单主干直连',
     draft: {
       name: '标准主线直连',
       sourceBranch: 'master',
@@ -61,7 +70,7 @@ const BRANCH_TEMPLATE_PRESETS: Array<{
     },
   },
   {
-    label: '📦 迭代集成基线',
+    label: '迭代集成基线',
     draft: {
       name: '标准迭代主线',
       sourceBranch: 'master',
@@ -70,7 +79,7 @@ const BRANCH_TEMPLATE_PRESETS: Array<{
     },
   },
   {
-    label: '🎯 现场局点',
+    label: '现场局点',
     draft: {
       name: '局点专版',
       sourceBranch: 'master',
@@ -125,6 +134,9 @@ export function BranchTemplatesManager({
   // 独立弹窗快速查看指定模板的拓扑图
   const [topologyModalTemplate, setTopologyModalTemplate] = useState<BranchRuleTemplate | null>(null);
   const [defaultTrackId, setDefaultTrackId] = useState<string | null>(null);
+  /** 预览用示例需求编号：与命名模板共享同一份预览上下文。 */
+  const [exampleIdentifier, setExampleIdentifier] = useState('REQ-101');
+  const [rulesExpanded, setRulesExpanded] = useState(false);
 
   // 模板列表分页（超出 5 条时分页展示，避免长列表滚动）
   const TEMPLATE_PAGE_SIZE = 5;
@@ -270,20 +282,31 @@ export function BranchTemplatesManager({
       0,
     );
 
-  // 弹窗内的实时分支规则预览（命名文本与拓扑图共用同一组示例变量，保证口径一致）
-  const previewTrack = draft.name || '默认';
+  // 统一预览上下文：模板名 / 迭代名 / 日期 / 示例编号共用一份，避免各处口径不一致
+  const previewMissingContext = scope === 'iteration' && !iterationName?.trim();
+  const previewTrack = draft.name?.trim() || '默认';
   const previewVariables = {
-    iteration: iterationName || 'Sprint-1',
+    iteration: iterationName?.trim() || 'Sprint-1',
     template: previewTrack,
-    identifier: 'REQ-101',
+    identifier: exampleIdentifier.trim() || 'REQ-101',
     iterationEnd: iterationEndDate,
   };
+  const previewSource = draft.sourceBranch.trim();
   const previewBaseline = draft.baselineBranchPattern
     ? expandBranchPattern(draft.baselineBranchPattern, previewVariables)
     : '';
   const previewWorkitem = draft.workitemBranchPattern
     ? expandBranchPattern(draft.workitemBranchPattern, previewVariables)
     : '';
+  // 源分支 ≡ 展开后的基准分支：单主干直连，不再画重复的迭代基准节点
+  const previewDirectConnect = Boolean(previewSource) && previewSource === previewBaseline.trim();
+  const previewSteps = [
+    { key: 'source', label: '源分支', value: previewSource },
+    ...(previewDirectConnect
+      ? []
+      : [{ key: 'baseline', label: '迭代基准', value: previewBaseline }]),
+    { key: 'workitem', label: '需求开发分支', value: previewWorkitem },
+  ];
 
   const addButton = (
     <Button
@@ -310,7 +333,7 @@ export function BranchTemplatesManager({
                 <Table.Header>
                   <Table.Column isRowHeader>模板</Table.Column>
                   <Table.Column>分支链</Table.Column>
-                  <Table.Column>使用情况</Table.Column>
+                  <Table.Column>引用</Table.Column>
                   <Table.Column className="text-end">操作</Table.Column>
                 </Table.Header>
                 <Table.Body>
@@ -319,14 +342,12 @@ export function BranchTemplatesManager({
                       <Table.Cell>
                         <div className="flex min-w-0 flex-col gap-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[13px] font-medium text-foreground">{template.name}</span>
-                            <Badge
-                              variant={scope === 'iteration' ? 'soft' : 'outline'}
-                              color={scope === 'iteration' ? 'accent' : 'default'}
-                              className="font-mono"
-                            >
-                              {scope === 'iteration' ? '迭代专属' : '全局通用'}
-                            </Badge>
+                            <span className="whitespace-nowrap text-[13px] font-medium text-foreground">{template.name}</span>
+                            {scope === 'iteration' && (
+                              <Badge variant="soft" color="accent" className="font-mono">
+                                迭代专属
+                              </Badge>
+                            )}
                             {defaultTrackId === template.id && (
                               <Badge variant="soft" color="accent" className="font-mono">
                                 默认
@@ -360,8 +381,12 @@ export function BranchTemplatesManager({
                       </Table.Cell>
                       <Table.Cell>
                         {usageCount(template.id) > 0 ? (
-                          <Badge variant="secondary" className="font-mono">
-                            {usageCount(template.id)} 个需求仓库使用
+                          <Badge
+                            variant="secondary"
+                            className="whitespace-nowrap font-mono"
+                            title={`被 ${usageCount(template.id)} 个需求仓库引用`}
+                          >
+                            {usageCount(template.id)} 个仓库
                           </Badge>
                         ) : (
                           <span className="text-xs text-muted-foreground">未使用</span>
@@ -493,7 +518,7 @@ export function BranchTemplatesManager({
           <SettingsRow
             orientation="horizontal"
             label="变量通配说明"
-            description="基准模板支持 {iteration}（当前迭代标识）、{track}（交付轨道 Track/局点名）、{iterationEnd}（迭代结束日）与 {yyyy}/{MM}/{dd}；需求分支支持 {identifier}、{iterationEnd}、{yyyy}/{MM}/{dd}。"
+            description="基准与需求分支通用；{identifier} 仅用于需求分支。"
             control={variableHelpControl}
           />
         </SettingsGroup>
@@ -520,21 +545,29 @@ export function BranchTemplatesManager({
         </div>
       )}
 
-      {/* 新增/编辑分支模板抽屉 */}
+      {/* 新增/编辑分支模板抽屉：头尾固定，仅正文滚动；约 720px，窄窗口自适应 */}
       <Drawer
         open={drawerOpen}
         onOpenChange={(open) => {
           if (!open) closeDrawer();
         }}
       >
-        <DrawerContent className="w-full sm:w-[min(36rem,92vw)] sm:max-w-none">
-          <DrawerHeader className="shrink-0 border-b border-border/70 px-5 py-3">
-            <div className="flex items-center justify-between gap-4">
-              <DrawerTitle className="min-w-0 truncate text-sm font-semibold">
-                {editingId
-                  ? `编辑${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`
-                  : `新增${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`}
-              </DrawerTitle>
+        <DrawerContent className="w-full sm:w-[min(45rem,94vw)] sm:max-w-none">
+          <DrawerHeader className="shrink-0 border-b border-border/70 px-6 py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 flex-col gap-1">
+                <DrawerTitle className="min-w-0 truncate text-sm font-semibold">
+                  {editingId
+                    ? `编辑${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`
+                    : `新增${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`}
+                </DrawerTitle>
+                {/* 开头只保留作用范围，变量清单交给各字段的「插入变量」 */}
+                <DrawerDescription className="text-[11px] text-muted-foreground">
+                  {scope === 'iteration'
+                    ? `仅对当前迭代生效：${iterationName?.trim() || '未选择迭代'}`
+                    : '全局预设模板：保存在本机，所有迭代与需求仓库均可选用'}
+                </DrawerDescription>
+              </div>
               <Button
                 type="button"
                 variant="ghost"
@@ -552,151 +585,189 @@ export function BranchTemplatesManager({
             </div>
           </DrawerHeader>
 
-          <DrawerBody className="flex min-h-0 flex-1 flex-col px-5 py-4">
-            {/* 滚动与边缘渐隐由 ScrollArea 承担，DrawerBody 只做弹性布局壳 */}
-            <ScrollArea className="flex min-h-0 flex-1 flex-col gap-3">
-            {/* 作用域与变量说明 */}
-            <FieldDescription>
-              {scope === 'iteration'
-                ? '仅在当前迭代生效，构成该迭代的专属交付轨道（Track/局点）。支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd} 与 {identifier} 动态变量。'
-                : '保存在本机作为全局预设模板，每条模板即一条交付轨道（Track/局点），所有迭代与需求均可选用。支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd} 与 {identifier} 动态变量。'}
-            </FieldDescription>
+          <DrawerBody className="flex min-h-0 flex-1 flex-col p-0">
+            {/* 滚动与边缘渐隐由 ScrollArea 承担；正文 24px 边距、分组 24px 间距 */}
+            <ScrollArea className="flex min-h-0 flex-1 flex-col">
+              <div className="flex flex-col gap-6 px-6 py-6">
+                {/* 快速填充：仅填充草稿字段，不自动提交 */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="shrink-0 text-[11px] font-medium text-muted-foreground">快速填充</span>
+                  {BRANCH_TEMPLATE_PRESETS.map((preset) => (
+                    <Button
+                      key={preset.label}
+                      type="button"
+                      variant="secondary"
+                      size="xs"
+                      onClick={() => setDraft((prev) => ({ ...prev, ...preset.draft }))}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
 
-            {/* 一键预设：仅填充草稿字段（含建议名称，可改），不自动保存 */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="shrink-0 text-[11px] font-medium text-muted-foreground">一键预设：</span>
-              {BRANCH_TEMPLATE_PRESETS.map((preset) => (
-                <Button
-                  key={preset.label}
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => setDraft((prev) => ({ ...prev, ...preset.draft }))}
-                >
-                  {preset.label}
-                </Button>
-              ))}
-            </div>
+                {/* 基础信息 */}
+                <FieldSet>
+                  <FieldLegend>基础信息</FieldLegend>
+                  <FieldGroup className="gap-4">
+                    <Field
+                      isRequired
+                      value={draft.name}
+                      onChange={(value) => setDraft({ ...draft, name: value })}
+                    >
+                      <FieldLabel>模板名称</FieldLabel>
+                      <Input placeholder="A 局点 / B 局点 / Hotfix" />
+                      <FieldDescription>即交付轨道名，用于 {'{track}'} 展开。</FieldDescription>
+                    </Field>
+                  </FieldGroup>
+                </FieldSet>
 
-            <Field
-              isRequired
-              value={draft.name}
-              onChange={(value) => setDraft({ ...draft, name: value })}
-            >
-              <FieldLabel>模板名称</FieldLabel>
-              <Input placeholder="A 局点 / B 局点 / Hotfix" />
-              <FieldDescription>即交付轨道（Track/局点）名称，用于 {'{track}'} 占位符展开。</FieldDescription>
-            </Field>
-            <Field
-              isRequired
-              value={draft.sourceBranch}
-              onChange={(value) => setDraft({ ...draft, sourceBranch: value })}
-            >
-              <FieldLabel>迭代基准的源分支</FieldLabel>
-              <Input className="font-mono" placeholder="master 或 test" />
-              <FieldDescription>迭代基准分支的切出基点；与基准分支同名时即为单主干直连（Trunk-Based），无需创建迭代基准。</FieldDescription>
-            </Field>
-            <BranchPatternField
-              label="迭代基准分支命名模板"
-              value={draft.baselineBranchPattern}
-              onChange={(value) => setDraft({ ...draft, baselineBranchPattern: value })}
-              variables={baselineVariables}
-              placeholder="iteration/{iteration}/{track}"
-              required
-              description="支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd}；固定分支请确认是长期线。"
-            />
-            <BranchPatternField
-              label="需求开发分支命名模板"
-              value={draft.workitemBranchPattern}
-              onChange={(value) => setDraft({ ...draft, workitemBranchPattern: value })}
-              variables={workitemVariables}
-              placeholder="feature/{identifier}"
-              required
-              requiredTokens={['{identifier}']}
-              description="支持 {identifier}（需求编号，如 REQ-101）。"
-            />
+                {/* 分支规则 */}
+                <FieldSet>
+                  <FieldLegend>分支规则</FieldLegend>
+                  <FieldGroup className="gap-4">
+                    <Field
+                      isRequired
+                      value={draft.sourceBranch}
+                      onChange={(value) => setDraft({ ...draft, sourceBranch: value })}
+                    >
+                      <FieldLabel>基准源分支</FieldLabel>
+                      <Input className="font-mono" placeholder="master 或 test" />
+                      <FieldDescription>迭代基准的切出基点。</FieldDescription>
+                    </Field>
 
-            {draftWarnings.length > 0 && (
-              <Alert status={draftHasError ? 'danger' : 'warning'}>
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>命名规则提示</Alert.Title>
-                  <Alert.Description>
-                    <span className="flex flex-col gap-1">
-                      {draftWarnings.map((warning) => (
-                        <span key={warning.code}>{warning.message}</span>
-                      ))}
-                    </span>
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
+                    <BranchPatternField
+                      label="迭代基准命名模板"
+                      value={draft.baselineBranchPattern}
+                      onChange={(value) => setDraft({ ...draft, baselineBranchPattern: value })}
+                      variables={baselineVariables}
+                      placeholder="iteration/{iteration}/{track}"
+                      required
+                      variablePicker="popover"
+                      showPreview={false}
+                      description="与源分支同名即为单主干直连。"
+                    />
 
-            {editingId ? (
-              <BranchTopologyFields
-                trackId={editingId}
-                templateName={draft.name}
-                iterationName={iterationName}
-                iterationEndDate={iterationEndDate}
-                baselinePattern={draft.baselineBranchPattern}
-                workitemPattern={draft.workitemBranchPattern}
-                readOnly={settings?.allowWriteOps !== true}
-              />
-            ) : (
-              <FieldDescription>
-                保存模板后可配置子分支拓扑（legacy / 不建子分支 / 自定义模式、基点与 MR 目标）。
-              </FieldDescription>
-            )}
+                    <BranchPatternField
+                      label="需求开发分支命名模板"
+                      value={draft.workitemBranchPattern}
+                      onChange={(value) => setDraft({ ...draft, workitemBranchPattern: value })}
+                      variables={workitemVariables}
+                      placeholder="feature/{identifier}"
+                      required
+                      requiredTokens={['{identifier}']}
+                      variablePicker="popover"
+                      showPreview={false}
+                      description="必须包含需求编号变量。"
+                    />
 
-            {/* 实时分支生成预览 */}
-            {(previewBaseline || previewWorkitem) && (
-              <div className="flex flex-col gap-1.5">
-                <SectionHeader level="h3" title="命名预览" />
-                <Descriptions
-                  variant="plain"
-                  items={[
-                    {
-                      key: 'baseline',
-                      label: '基准分支',
-                      children: (
-                        <span className="min-w-0 truncate font-mono text-[11px] text-foreground/90">
-                          {previewBaseline || '—'}
+                    {/* 较长的命名规则说明收进默认收起的 Disclosure */}
+                    <Collapsible open={rulesExpanded} onOpenChange={setRulesExpanded}>
+                      <CollapsibleTrigger render={<Button type="button" variant="ghost" size="xs" className="cursor-pointer gap-1 text-muted-foreground" />}>
+                        <ChevronRightIcon
+                          className={`size-3.5 transition-transform${rulesExpanded ? ' rotate-90' : ''}`}
+                          aria-hidden="true"
+                        />
+                        命名规则说明
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-2">
+                        <ul className="flex list-disc flex-col gap-1 pl-4 text-[11px] leading-relaxed text-muted-foreground">
+                          <li>固定分支名（不含变量）请确认是长期存在的主线分支。</li>
+                          <li>迭代基准常用 {'{iteration}'}、{'{track}'}、{'{iterationEnd}'} 组合，日期变量形如 {'{yyyy}{MM}{dd}'}。</li>
+                          <li>需求开发分支必须包含 {'{identifier}'}，否则需求间会共用同一分支。</li>
+                          <li>未知变量不会被展开，保存前会给出提示。</li>
+                        </ul>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {draftWarnings.length > 0 && (
+                      <Alert status={draftHasError ? 'danger' : 'warning'}>
+                        <Alert.Indicator />
+                        <Alert.Content>
+                          <Alert.Title>命名规则提示</Alert.Title>
+                          <Alert.Description>
+                            <span className="flex flex-col gap-1">
+                              {draftWarnings.map((warning) => (
+                                <span key={warning.code}>{warning.message}</span>
+                              ))}
+                            </span>
+                          </Alert.Description>
+                        </Alert.Content>
+                      </Alert>
+                    )}
+                  </FieldGroup>
+                </FieldSet>
+
+                {/* 生成结果预览：面板内唯一一份，复用真实迭代上下文 */}
+                <Surface variant="secondary" className="flex flex-col gap-3 rounded-lg p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[13px] font-semibold text-foreground">生成结果预览</span>
+                    <Field className="w-40 shrink-0 gap-1">
+                      <FieldLabel className="text-[11px] text-muted-foreground">示例需求编号</FieldLabel>
+                      <Input
+                        className="h-7 font-mono text-xs"
+                        value={exampleIdentifier}
+                        onChange={(event) => setExampleIdentifier(event.target.value)}
+                        aria-label="示例需求编号"
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="flex min-w-0 flex-col gap-2 text-[11px]">
+                    {previewSteps.map((step) => (
+                      <div key={step.key} className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap text-muted-foreground">{step.label}</span>
+                        <span className="min-w-0 break-all font-mono text-[12px] text-foreground/90">
+                          {step.value || '—'}
                         </span>
-                      ),
-                    },
-                    {
-                      key: 'workitem',
-                      label: '需求分支',
-                      children: (
-                        <span className="min-w-0 truncate font-mono text-[11px] text-primary">
-                          {previewWorkitem || '—'}
-                        </span>
-                      ),
-                    },
-                  ]}
-                />
+                      </div>
+                    ))}
+                  </div>
+
+                  {previewDirectConnect && (
+                    <p className="text-[11px] text-muted-foreground">直接使用该分支，不创建迭代基准。</p>
+                  )}
+                  {previewMissingContext && (
+                    <p className="text-[11px] text-warning">
+                      未获取到当前迭代上下文，预览中的迭代名使用占位值。
+                    </p>
+                  )}
+
+                  {/* 拓扑示意与上面的文字链共用同一份预览上下文（直连时自动收敛为两节点） */}
+                  {(draft.sourceBranch || draft.baselineBranchPattern || draft.workitemBranchPattern) && (
+                    <TrackTopologyDiagram
+                      sourceBranch={draft.sourceBranch}
+                      baselinePattern={draft.baselineBranchPattern}
+                      workitemPattern={draft.workitemBranchPattern}
+                      variables={{
+                        iteration: previewVariables.iteration,
+                        track: previewTrack,
+                        identifier: previewVariables.identifier,
+                        iterationEnd: iterationEndDate,
+                      }}
+                      templateName={draft.name || (scope === 'iteration' ? '迭代专属分支模板' : '全局分支模板')}
+                    />
+                  )}
+                </Surface>
+
+                {/* 子分支拓扑：编辑态内联配置，新增态一句说明 */}
+                {editingId ? (
+                  <BranchTopologyFields
+                    trackId={editingId}
+                    templateName={draft.name}
+                    iterationName={iterationName}
+                    iterationEndDate={iterationEndDate}
+                    baselinePattern={draft.baselineBranchPattern}
+                    workitemPattern={draft.workitemBranchPattern}
+                    readOnly={settings?.allowWriteOps !== true}
+                  />
+                ) : (
+                  <FieldDescription>添加后可继续配置子分支拓扑。</FieldDescription>
+                )}
               </div>
-            )}
-
-            {/* 交付轨道拓扑实时预览：输入源分支与两条命名规则时重绘；基准≡源主干时自动切直连两节点 */}
-            {(draft.sourceBranch || draft.baselineBranchPattern || draft.workitemBranchPattern) && (
-              <TrackTopologyDiagram
-                sourceBranch={draft.sourceBranch}
-                baselinePattern={draft.baselineBranchPattern}
-                workitemPattern={draft.workitemBranchPattern}
-                variables={{
-                  iteration: previewVariables.iteration,
-                  track: previewTrack,
-                  identifier: 'REQ-101',
-                  iterationEnd: iterationEndDate,
-                }}
-                templateName={draft.name || (scope === 'iteration' ? '迭代专属分支模板' : '全局分支模板')}
-              />
-            )}
             </ScrollArea>
           </DrawerBody>
 
-          <DrawerFooter className="shrink-0 justify-end gap-2 border-t border-border/70 px-5 py-3">
+          <DrawerFooter className="shrink-0 justify-end gap-2 border-t border-border/70 px-6 py-3">
             <Button
               type="button"
               variant="secondary"

@@ -152,7 +152,7 @@ export function SchedulesView() {
     if (!allowWriteOps) {
       toast.add({
         title: '当前处于只读模式',
-        description: `「${task.enabled ? '暂停' : '启用'}定时任务」是写操作。可在「设置 → 安全」中开启写权限后执行。`,
+        description: `「${task.enabled ? '暂停' : '启用'}定时任务」是写操作。可在「设置 → 安全与权限」中开启写权限后执行。`,
         type: 'warning',
         actionProps: {
           children: '前往设置',
@@ -586,7 +586,7 @@ export function SchedulesView() {
                               }
                             />
                             <TooltipContent>
-                              写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）
+                              写操作已关闭：需在「设置 → 安全与权限」中开启（需写权限令牌）
                             </TooltipContent>
                           </Tooltip>
                         )}
@@ -907,7 +907,6 @@ function TemplateCard({
           size="2xs"
           onPress={onClick}
           aria-label={`使用模板：${title}`}
-          className="font-medium"
         >
           立即配置 →
         </Button>

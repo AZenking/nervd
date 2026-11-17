@@ -89,7 +89,7 @@ export function WorkitemStatusDropdown({
   const notifyReadonly = () => {
     toast.add({
       title: '当前处于只读模式',
-      description: '原地流转状态是写操作。可在「设置 → 安全」中开启写权限后执行。',
+      description: '原地流转状态是写操作。可在「设置 → 安全与权限」中开启写权限后执行。',
       type: 'warning',
       actionProps: {
         children: '前往设置',
@@ -101,7 +101,7 @@ export function WorkitemStatusDropdown({
   // 只读门控（AGENTS §5.1）：禁止原生 disabled（会吞 hover/focus 导致原因不可见）。
   // 触发器保留 aria-disabled + 灰阶样式 + Tooltip，点击给 Toast 引导，不展开菜单、不发写请求。
   if (!allowWrite) {
-    const readonlyReason = '写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）';
+    const readonlyReason = '写操作已关闭：需在「设置 → 安全与权限」中开启（需写权限令牌）';
     const handleReadonlyClick = () => notifyReadonly();
     const readonlyTrigger = variant === 'icon' ? (
       <Button
@@ -114,7 +114,7 @@ export function WorkitemStatusDropdown({
         aria-label={`状态：${status || '未指定'}（只读，点击查看原因）`}
         onClick={(e) => e.stopPropagation()}
         onPress={handleReadonlyClick}
-        className={cn('shrink-0 border', READONLY_BTN_CLASS, className)}
+        className={cn('shrink-0', READONLY_BTN_CLASS, className)}
       >
         <StatusIcon status={status} className="size-3.5 shrink-0" />
       </Button>
@@ -122,12 +122,12 @@ export function WorkitemStatusDropdown({
       <Button
         type="button"
         variant="ghost"
-        size="inline"
+        size="bare"
         aria-disabled="true"
         aria-label={`状态：${status || '未知状态'}（只读，点击查看原因）`}
         onClick={(e) => e.stopPropagation()}
         onPress={handleReadonlyClick}
-        className={cn('cursor-not-allowed p-0', READONLY_BTN_CLASS)}
+        className={cn('cursor-not-allowed', READONLY_BTN_CLASS)}
       >
         <Chip size="sm" color={chipColor} variant="soft" className={cn('grayscale opacity-80', className)}>
           <StatusIcon status={status} className="size-3 shrink-0" />
@@ -143,7 +143,7 @@ export function WorkitemStatusDropdown({
         aria-label={`状态：${status || '未知状态'}（只读，点击查看原因）`}
         onClick={(e) => e.stopPropagation()}
         onPress={handleReadonlyClick}
-        className={cn('gap-1.5 font-medium text-muted-foreground cursor-not-allowed', className)}
+        className={cn('gap-1.5 text-muted-foreground cursor-not-allowed', className)}
       >
         <StatusIcon status={status} className="size-3.5 shrink-0" />
         <span>{status || '未知状态'}</span>
@@ -170,6 +170,7 @@ export function WorkitemStatusDropdown({
             className,
           )}
           title={`状态：${status || '未指定'}（点击原地流转）`}
+          aria-label={`状态：${status || '未指定'}（点击原地流转）`}
         >
           <StatusIcon status={status} className="size-3.5 shrink-0" />
         </DropdownMenuTrigger>

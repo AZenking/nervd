@@ -88,7 +88,7 @@ export function DetailStatusPopover({
           />
           <TooltipContent>
             {readOnly
-              ? '写操作已关闭：需在「设置 → 安全」中开启后才能流转状态'
+              ? '写操作已关闭：需在「设置 → 安全与权限」中开启后才能流转状态'
               : '流转状态'}
           </TooltipContent>
         </Tooltip>
@@ -168,7 +168,7 @@ export function DetailAssigneePopover({
     if (readOnly) {
       toast.add({
         title: '当前处于只读模式',
-        description: '更改负责人需在「设置 → 安全」中开启写操作。',
+        description: '更改负责人需在「设置 → 安全与权限」中开启写操作。',
         type: 'warning',
         actionProps: {
           children: '前往设置',
@@ -230,7 +230,7 @@ export function DetailAssigneePopover({
           />
           <TooltipContent>
             {readOnly
-              ? '写操作已关闭：需在「设置 → 安全」中开启后才能更改负责人'
+              ? '写操作已关闭：需在「设置 → 安全与权限」中开启后才能更改负责人'
               : '更改负责人'}
           </TooltipContent>
         </Tooltip>
@@ -397,7 +397,7 @@ export function RequirementProperties({
                     if (onSelectParent && embedded) onSelectParent(parent.workitemId);
                     else openWorkitem(parent.workitemId, parent);
                   }}
-                  className="font-mono text-xs text-primary hover:underline cursor-pointer text-left truncate justify-start"
+                  className="cursor-pointer text-left truncate justify-start"
                 >
                   <OverflowTooltip
                     text={`${parent.identifier} ${parent.subject}`}

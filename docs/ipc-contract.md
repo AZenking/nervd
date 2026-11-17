@@ -49,9 +49,9 @@
   }
 }
 ```
-- `workitemRepos` 只用于 `Req`；Bug/Task 继承父需求的解析链（父需求有覆盖键时用父需求覆盖，否则回退 `watchedRepos`；父级未知时同样回退 `watchedRepos`，空数组覆盖默认值）。
+- `workitemRepos` 键为稳定 `workitemId`，承载 `Req` 与**无父需求的独立 Task/Bug**（缺陷经常独立处理，没有父需求可继承）：Req 以自身键为准；Task/Bug 有父需求时严格继承父需求（父需求有覆盖键时用父需求覆盖，否则回退 `watchedRepos`），无父需求时以自身键为准；空数组表示显式不关联。
 - `branchRuleTemplates` 在迭代页维护并保存在本机；模板含源分支、迭代基准分支命名模板和需求开发分支命名模板。基准分支名支持 `{iteration}`、`{template}` 及其等价别名 `{track}`（`{template}` 永久保留兼容旧配置），需求分支名支持 `{identifier}`。
-- `workitemRepoBranchTemplates` 在需求页逐个仓库选择模板，键为稳定 `workitemId`，内层键为仓库 ID，值为模板 ID。创建真实迭代需求分支时，先检查模板基准；缺失时从模板源分支创建迭代基准，再从迭代基准创建需求分支。MR 默认以需求分支为源、迭代基准为目标。此配置保存在本机。
+- `workitemRepoBranchTemplates` 在需求页 / 独立工作项页逐个仓库选择模板，键为稳定 `workitemId`，内层键为仓库 ID，值为模板 ID。创建真实迭代需求分支时，先检查模板基准；缺失时从模板源分支创建迭代基准，再从迭代基准创建需求分支。MR 默认以需求分支为源、迭代基准为目标。此配置保存在本机。
 - 每个 Jenkins API Token 存在 macOS Keychain：service=`dev.nervd.app`，account=`jenkins:<connectionId>`；Token 不写入 `settings.json`。Jenkins 通过用户名与 API Token 做 HTTP Basic 认证。
 - 未配置 PAT 或 organizationId 时，UI 显示**引导页**（SettingsView）。
 
@@ -175,7 +175,7 @@ src-tauri/src/
 
 ### 本机配置与追溯/CI 类型
 
-- `Settings.workitemRepos: Record<workitemId, repoId[]>`：仅 Req 覆盖默认仓库；属性存在且为空数组时表示显式不关联仓库。缺键回退 `watchedRepos`。
+- `Settings.workitemRepos: Record<workitemId, repoId[]>`：`Req` 与无父需求的独立 `Task/Bug` 覆盖默认仓库；挂在需求下的子项不落盘自身键，按父需求解析。属性存在且为空数组时表示显式不关联仓库。缺键回退 `watchedRepos`。
 - `Settings.branchRuleTemplates: BranchRuleTemplate[]`：本机可复用分支模板，每项为 `{id, name, sourceBranch, baselineBranchPattern, workitemBranchPattern}`；旧设置缺少该字段时按空数组读取。
 - `Settings.workitemRepoBranchTemplates: Record<workitemId, Record<repoId, templateId>>`：需求关联仓库的模板选择；按仓库分别套用。删除需求仓库关联或模板时同步清理对应选择。旧设置缺少该字段时按空对象读取。
 - `Settings.jenkinsConnections: JenkinsConnection[]`：`{id, name, baseUrl, username}`；`SettingsView` 增补 `hasToken`，该字段由 Keychain 状态派生，不写入 JSON。

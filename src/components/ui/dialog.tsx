@@ -138,9 +138,8 @@ function DialogContent({
         >
           <DialogDescriptionContext.Provider value={descriptionContext}>
             {showCloseButton && (
-              <HeroUIModal.CloseTrigger
-                className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
-              />
+              // 位置由上游 .modal__close-trigger（absolute end-4 top-4）提供，不再自绘定位与配色
+              <HeroUIModal.CloseTrigger />
             )}
             {typeof children === "function" ? (children as any) : children}
           </DialogDescriptionContext.Provider>

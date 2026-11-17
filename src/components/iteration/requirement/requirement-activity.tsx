@@ -1,17 +1,12 @@
 import { useState } from 'react';
 import {
   MessageSquareIcon, SendIcon, Loader2Icon, SparklesIcon, CopyIcon,
-  CheckIcon, RocketIcon, FlaskConicalIcon, Wand2Icon, ChevronDownIcon,
-  ChevronUpIcon,
+  CheckIcon, RocketIcon, FlaskConicalIcon, Wand2Icon, ChevronUpIcon, ChevronDownIcon, KeyboardIcon,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { ButtonGroup } from '@/components/ui/button-group';
+import { IconHint } from '@/components/ui/icon-hint';
 import { Kbd } from '@/components/ui/kbd';
 import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -174,7 +169,7 @@ export function RequirementActivity({
     if (!allowWrite) {
       toast.add({
         title: '当前处于只读模式',
-        description: '发表评论是写操作。可在「设置 → 安全」中开启写权限后执行。',
+        description: '发表评论是写操作。可在「设置 → 安全与权限」中开启写权限后执行。',
         type: 'warning',
         actionProps: {
           children: '前往设置',
@@ -220,7 +215,7 @@ export function RequirementActivity({
             variant="ghost"
             disabled={summarizing}
             onPress={() => void handleSummarize()}
-            className="h-7 text-xs text-primary hover:bg-primary/10 transition-colors"
+            className="text-primary transition-colors"
           >
             {summarizing ? (
               <>
@@ -249,9 +244,9 @@ export function RequirementActivity({
               <Button
                 type="button"
                 variant="ghost"
-                size="xs"
+                size="2xs"
                 onPress={() => void handleCopySummary()}
-                className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                className="gap-1 text-muted-foreground hover:text-foreground"
               >
                 {copiedSummary ? <CheckIcon className="size-3 text-success" /> : <CopyIcon className="size-3" />}
                 {copiedSummary ? '已复制' : '复制纪要'}
@@ -264,7 +259,7 @@ export function RequirementActivity({
                       variant="ghost"
                       size="icon-xs"
                       onPress={() => setSummaryExpanded(!summaryExpanded)}
-                      className="size-6 text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground"
                       aria-label={summaryExpanded ? '收起纪要' : '展开纪要'}
                     >
                       {summaryExpanded ? <ChevronUpIcon className="size-3.5" /> : <ChevronDownIcon className="size-3.5" />}
@@ -398,86 +393,89 @@ export function RequirementActivity({
       {/* 底部 Linear 风格评论快速发表框 */}
       {workitemId && (
         <div className="mt-2 flex flex-col gap-2 rounded-md border border-border/80 bg-background/50 p-3 focus-within:border-primary/50 transition-colors">
-          {/* AI 辅助：按使用场景收纳的快捷生成菜单（图标 + 加载态 + 禁用原因） */}
+          {/* AI 辅助：三种生成场景全部常驻，收进同一个 HeroUI ButtonGroup
+              （图标 + 文案 + 加载态；禁用原因与用途说明交给 Tooltip）。 */}
           <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b border-border/50">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={(
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="tertiary"
-                    aria-label="打开 AI 辅助菜单"
-                    data-testid="activity-ai-menu-trigger"
-                    className="gap-1"
-                  />
-                )}
-              >
-                <SparklesIcon className="size-3.5" />
-                <span>AI 辅助</span>
-                <ChevronDownIcon className="size-3 text-muted-foreground" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                aria-label="AI 辅助"
-                className="w-64"
-                header={(
-                  <div className="px-2 pt-1.5 pb-1">
-                    <div className="text-[11px] font-medium text-foreground">AI 辅助 · 评论文案</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      基于需求当前状态与输入生成评论文案
-                    </div>
-                  </div>
-                )}
-              >
-                <DropdownMenuItem
-                  data-testid="ai-menu-progress"
-                  disabled={Boolean(generatingDraft)}
-                  onPress={() => void handleGenerateDraft('progress')}
-                  className="gap-2"
+            <ButtonGroup variant="tertiary" aria-label="AI 辅助">
+              <Tooltip>
+                <TooltipTrigger
+                  render={(
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="tertiary"
+                      data-testid="ai-menu-progress"
+                      disabled={Boolean(generatingDraft)}
+                      onPress={() => void handleGenerateDraft('progress')}
+                      className="gap-1"
+                      aria-label="AI 辅助：研发进度同步"
+                    />
+                  )}
                 >
                   {generatingDraft === 'progress'
                     ? <Loader2Icon className="size-3.5 animate-spin" />
                     : <RocketIcon className="size-3.5" />}
                   <span>研发进度同步</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {generatingDraft === 'progress' ? '生成中…' : '状态播报'}
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  data-testid="ai-menu-test-delivery"
-                  disabled={Boolean(generatingDraft)}
-                  onPress={() => void handleGenerateDraft('test_delivery')}
-                  className="gap-2"
+                </TooltipTrigger>
+                <TooltipContent>
+                  {generatingDraft === 'progress' ? '生成中…' : '按需求当前状态播报研发进度'}
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger
+                  render={(
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="tertiary"
+                      data-testid="ai-menu-test-delivery"
+                      disabled={Boolean(generatingDraft)}
+                      onPress={() => void handleGenerateDraft('test_delivery')}
+                      className="gap-1"
+                      aria-label="AI 辅助：提测交付说明"
+                    />
+                  )}
                 >
                   {generatingDraft === 'test_delivery'
                     ? <Loader2Icon className="size-3.5 animate-spin" />
                     : <FlaskConicalIcon className="size-3.5" />}
                   <span>提测交付说明</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {generatingDraft === 'test_delivery' ? '生成中…' : '提测说明'}
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  data-testid="ai-menu-polish"
-                  disabled={Boolean(generatingDraft) || !draftPlainText}
-                  onPress={() => void handleGenerateDraft('polish')}
-                  className={cn('gap-2', !draftPlainText && 'text-muted-foreground')}
+                </TooltipTrigger>
+                <TooltipContent>
+                  {generatingDraft === 'test_delivery' ? '生成中…' : '生成提测交付说明'}
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger
+                  render={(
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="tertiary"
+                      data-testid="ai-menu-polish"
+                      disabled={Boolean(generatingDraft) || !draftPlainText}
+                      onPress={() => void handleGenerateDraft('polish')}
+                      className="gap-1"
+                      aria-label="AI 辅助：智能润色"
+                    />
+                  )}
                 >
                   {generatingDraft === 'polish'
                     ? <Loader2Icon className="size-3.5 animate-spin" />
                     : <Wand2Icon className="size-3.5" />}
                   <span>智能润色</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {generatingDraft === 'polish'
-                      ? '生成中…'
-                      : draftPlainText
-                        ? '润色当前输入'
-                        : '先输入要点'}
-                  </span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {generatingDraft === 'polish'
+                    ? '生成中…'
+                    : draftPlainText
+                      ? '润色当前输入'
+                      : '先输入要点再润色'}
+                </TooltipContent>
+              </Tooltip>
+            </ButtonGroup>
           </div>
 
           <RichEditor
@@ -487,16 +485,18 @@ export function RequirementActivity({
             placeholder={
               allowWrite
                 ? '写下评论，支持 Markdown 语法与快捷指令 (按 ⌘ + Enter 发送)…'
-                : '当前处于只读模式，无法发表评论（可在「设置 → 安全」开启写权限）'
+                : '当前处于只读模式，无法发表评论（可在「设置 → 安全与权限」开启写权限）'
             }
             onChange={setCommentDraft}
             onSubmit={() => void handleSendComment()}
             editorClassName="min-h-[3.5rem]"
           />
           <div className="flex items-center justify-between pt-2 border-t border-border/50">
-            <span className="text-[11px] text-muted-foreground">
-              按 <Kbd className="h-5! px-1.5! text-[10px]!">⌘ + Enter</Kbd> 快速发送
-            </span>
+            <IconHint
+              icon={<KeyboardIcon className="size-3.5" />}
+              label={<>按 <Kbd className="px-1 text-[10px]">⌘ + Enter</Kbd> 快速发送</>}
+              ariaLabel="按 ⌘ + Enter 快速发送"
+            />
             <Tooltip>
               <TooltipTrigger
                 render={(
@@ -519,7 +519,7 @@ export function RequirementActivity({
               />
               <TooltipContent>
                 {!allowWrite
-                  ? '写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）'
+                  ? '写操作已关闭：需在「设置 → 安全与权限」中开启（需写权限令牌）'
                   : submitting
                     ? '正在发布评论…'
                     : '发送评论 (⌘+Enter)'}

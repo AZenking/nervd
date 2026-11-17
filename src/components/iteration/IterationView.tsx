@@ -144,33 +144,48 @@ const WorkitemRow = memo(function WorkitemRow({
         'h-10 px-2.5 pl-3',
       )}
     >
-      {/* 检视光标 / 参与人 / 处理人左侧精致标识线（激活行底色为品牌紫，标识线改用反色保持可辨） */}
-      {isAssigned ? (
-        <span className={cn('absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full', isActive ? 'bg-accent-foreground/80' : 'bg-primary')} />
-      ) : isRelated ? (
-        <span className={cn('absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full', isActive ? 'bg-accent-foreground/60' : 'bg-warning')} />
-      ) : isActive ? (
-        <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-r-full bg-accent-foreground/70" />
-      ) : null}
+      {/* 身份与光标不再用行首竖条表达（2026-11-17 设计评审：竖条属重复装饰）：
+          我负责 / 我参与 由 HeroUI Chip 承载，键盘光标由 data-active 的紫色底色承载。 */}
 
-      {/* 多选 Checkbox（Linear 风格：悬停滑出，已选常驻）
-          注意：HeroUI Checkbox 是包裹隐藏 input 的 label，一次点击会冒泡
-          两个 click（原始 + label→input 转发），切换必须挂 onCheckedChange
-          （由 input change 驱动，恰好一次），span 仅负责 stopPropagation
-          屏蔽行点击（打开抽屉/清空多选）。 */}
+      {/* 多选 Checkbox（Linear 风格：悬停滑出，已选常驻 + 扩大的命中区）
+          交互收敛到外层 role="checkbox"：HeroUI Checkbox 是「label 包裹隐藏 input」的 RAC 复合件，
+          其 press → input change 链路会被行内重渲染打断（行状态刷新后 label 已被替换，
+          pointerup 落在行上，change 永不触发 → 表现为「偶尔点不动 / 再次点击无响应」）。
+          因此内层 Checkbox 只负责视觉（inert + pointer-events-none），toggle 由外层 click 与
+          键盘 Space/Enter 直接驱动，并 stopPropagation 阻断行级 press（否则行 onAction 会清空多选）。 */}
       <span
-        onClick={(e) => e.stopPropagation()}
+        role="checkbox"
+        aria-checked={isSelected}
+        aria-label={`选择 ${item.identifier ?? item.subject}`}
+        tabIndex={0}
+        data-testid="row-select-checkbox"
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleSelect(item.workitemId);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== ' ' && e.key !== 'Enter') return;
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleSelect(item.workitemId);
+        }}
         className={cn(
-          'flex size-4 shrink-0 items-center justify-center cursor-pointer transition-opacity',
-          // 未选中行悬停/键盘聚焦时滑出（focus-within 保证 Tab 聚焦后可见，避免焦点落在隐形控件上）
-          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+          'relative flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none',
+          // 16px 视觉 + 28×24px 命中区：before 伪元素扩边，不改变行内布局
+          'before:absolute before:-inset-x-1.5 before:-inset-y-1 before:content-[""]',
+          'focus-visible:ring-2 focus-visible:ring-ring/60',
+          isSelected
+            ? 'opacity-100'
+            : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100',
         )}
       >
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={() => onToggleSelect(item.workitemId)}
-          aria-label={`选择 ${item.identifier}`}
-        />
+        {/* inert：把内层 HeroUI Checkbox 完全移出焦点与可访问性树（它只负责视觉），
+            交互与语义由外层 role="checkbox" 承担 */}
+        <span aria-hidden="true" inert className="pointer-events-none">
+          <Checkbox checked={isSelected} />
+        </span>
       </span>
 
       {/* 原地流转状态下拉 Popover */}
@@ -306,7 +321,7 @@ export function IterationView() {
   const updateListContext = useUi((s) => s.updateListContext);
   const {
     items, repositories, category, setCategory, loadingList, listFetchedAt, loadList, nextToken,
-    iterations: realIterations, loadingIterations, loadIterations,
+    iterations: realIterations, loadIterations,
     settings,
     currentUser, workitemHighlight,
     revalidateList, revalidatingList,
@@ -321,7 +336,6 @@ export function IterationView() {
       loadList: s.loadList,
       nextToken: s.nextToken,
       iterations: s.iterations,
-      loadingIterations: s.loadingIterations,
       loadIterations: s.loadIterations,
       settings: s.settings,
       currentUser: s.currentUser,
@@ -449,14 +463,8 @@ export function IterationView() {
     void loadList(true);
   }, [atLoadedTail, pageFilled, nextToken, loadingList, loadList, scoped.length]);
 
-  // 计数口径（工具行尾部 + 列表底部共用）：全部已加载 y 项（当前迭代 x 项在工具行单独拼）
-  const countSummary = `全部已加载 ${items.length} 项`;
-
-  // 工具行计数（Linear 无大标题形态）：类别 · 当前迭代 x 项 · 迭代周期 · 全部已加载 ·（回退时）占位提示
-  const toolSummary = `${CATEGORY_LABELS[category]} · ${scoped.length} 项`
-    + (iteration.startDate && iteration.endDate ? ` · ${iteration.startDate} ~ ${iteration.endDate}` : '')
-    + ` · ${countSummary}`
-    + (usingFallback ? ` · 占位数据 · 迭代接口不可用${loadingIterations ? '，获取中…' : ''}` : '');
+  // 工具行不显示计数/周期摘要文案（2026-11-17 设计评审：删除「需求 · 36 项 · 周期 · 全部已加载」
+  // 一行，类别切换由左侧 Tabs 表达、加载状态由列表底部与骨架屏表达）。
 
   // 状态分组：组顺序 = run → fail → idle → ok，组内保持原顺序（按当前页切片）
   const groups = useMemo(() => groupByStatus(pageItems), [pageItems]);
@@ -1117,7 +1125,7 @@ export function IterationView() {
               size="xs"
               data-testid="load-more"
               aria-disabled={loadingList || undefined}
-              className={cn('gap-1.5', loadingList && 'cursor-wait opacity-70')}
+              className={cn('gap-1.5', loadingList && 'cursor-wait')}
               onPress={() => {
                 if (loadingList) return;
                 void loadList(true);
@@ -1291,7 +1299,7 @@ export function IterationView() {
                   <Chip
                     size="sm"
                     variant="soft"
-                    className="min-w-4 font-mono tabular-nums text-muted-foreground"
+                    className="min-w-4 font-mono tabular-nums"
                   >
                     {filtered.length}
                   </Chip>
@@ -1302,7 +1310,7 @@ export function IterationView() {
                     <Chip
                       size="sm"
                       variant="soft"
-                      className="min-w-4 font-mono tabular-nums text-muted-foreground"
+                      className="min-w-4 font-mono tabular-nums"
                     >
                       {scopedRepoCount}
                     </Chip>
@@ -1315,7 +1323,7 @@ export function IterationView() {
                       <Chip
                         size="sm"
                         variant="soft"
-                        className="min-w-4 font-mono tabular-nums text-muted-foreground"
+                        className="min-w-4 font-mono tabular-nums"
                       >
                         {templateCount}
                       </Chip>
@@ -1355,7 +1363,6 @@ export function IterationView() {
                 ))}
               </TabsList>
             </Tabs>
-            <span className="min-w-0 truncate text-xs text-muted-foreground">{toolSummary}</span>
             {/* 筛选组（自侧栏迁入）：处理人 / 关联人 / 状态多选，命中时给清除入口 */}
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <WorkitemFilterBar options={filterOptions} activeFilterCount={activeFilterCount} />
@@ -1369,19 +1376,13 @@ export function IterationView() {
               variant="ghost"
               size="xs"
               onPress={() => useUi.getState().openSettings('ci')}
-              className="gap-1 text-xs text-muted-foreground hover:text-foreground"
+              className="gap-1"
             >
               <Link2Icon className="size-3" />
               <span>配置 CI 绑定</span>
             </Button>
           </div>
         )}
-        {shownTab === 'branches' && (
-          <span className="min-w-0 truncate text-xs text-muted-foreground">
-            针对各仓库定义的分支生成规则模板，保存在本机供需求仓库选用
-          </span>
-        )}
-
         {shownTab === 'workitems' && renderWorkitemList()}
         {shownTab === 'repos' && reposView}
         {shownTab === 'branches' && branchesView}

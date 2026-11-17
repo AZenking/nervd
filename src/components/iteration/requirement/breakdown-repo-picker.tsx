@@ -113,14 +113,9 @@ export function BreakdownRepoPicker({
                     onChange={() => toggle(repo.id)}
                     className="w-full cursor-pointer rounded-md px-2 py-1.5 text-xs font-normal hover:bg-surface-secondary"
                   >
-                    <Checkbox.Content>
-                      <Checkbox.Control>
-                        <Checkbox.Indicator />
-                      </Checkbox.Control>
-                      <span className="min-w-0 flex-1 truncate font-mono" title={label}>
-                        {compactFsPath(label, 4)}
-                      </span>
-                    </Checkbox.Content>
+                    <span className="min-w-0 flex-1 truncate font-mono" title={label}>
+                      {compactFsPath(label, 4)}
+                    </span>
                   </Checkbox>
                 );
               })

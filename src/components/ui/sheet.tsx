@@ -281,6 +281,48 @@ function SheetDescription({
   )
 }
 
+/**
+ * 非模态底部 Sheet 条（Sheet 形态、无遮罩、无焦点陷阱）：
+ *
+ * 为什么不用 `<Sheet>`：HeroUI / React Aria 的 Sheet 建立在 Modal 之上——会加遮罩、抢焦点，
+ * 并把后方内容 `aria-hidden`。常驻的批量操作条必须在打开时仍能操作背后的列表（继续勾选工作项、
+ * j/k 移动光标），否则多选流程被打断。因此这里复用 Sheet 的**视觉契约**（贴底、顶部圆角、
+ * 抓手、level-2 阴影、底部上滑入场），但不引入 Modal 语义与行为。
+ *
+ * 打开态由调用方控制：关闭时调用方直接不渲染（不保留 inert 节点，避免污染可访问性树与测试断言）。
+ */
+interface SheetBarProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** 无障碍名称（读屏播报为普通 region，而不是 dialog） */
+  label: string;
+  className?: string;
+  children?: React.ReactNode;
+}
+
+function SheetBar({ label, className, children, ...props }: SheetBarProps) {
+  return (
+    <div
+      data-slot="sheet-bar"
+      role="region"
+      aria-label={label}
+      {...props}
+      className={cn(
+        'fixed inset-x-0 bottom-0 z-40 mx-auto flex w-fit max-w-[calc(100vw-2rem)] flex-col',
+        'rounded-t-xl border border-b-0 border-border bg-popover bg-clip-padding text-popover-foreground shadow-level-2',
+        'px-3.5 pb-3 pt-2.5',
+        'animate-in fade-in slide-in-from-bottom-4 duration-200 ease-out',
+        className,
+      )}
+    >
+      {/* 抓手：Sheet 形态标识（本组件不含下滑手势，仅作视觉锚点） */}
+      <span
+        aria-hidden="true"
+        className="mx-auto mb-2 h-1 w-8 shrink-0 rounded-full bg-border"
+      />
+      {children}
+    </div>
+  )
+}
+
 export {
   Sheet,
   SheetTrigger,
@@ -292,4 +334,5 @@ export {
   SheetDescription,
   SheetPortal,
   SheetOverlay,
+  SheetBar,
 }

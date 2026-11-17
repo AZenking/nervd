@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertCircleIcon, CheckIcon, FileCodeIcon, GitCompareIcon, RefreshCwIcon } from 'lucide-react';
-import { Surface } from '@/components/ui/surface';
 import { Button } from '@/components/ui/button';
-import { Chip } from '@/components/ui/chip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -144,10 +142,10 @@ export function BranchDivergenceCheck({
   const baseline = baselineBranch?.trim() ?? '';
 
   if (!baseline) {
-    return <span className="text-xs text-muted-foreground">先选择分支模板</span>;
+    return <div className="py-1.5 text-xs text-muted-foreground">先选择分支模板</div>;
   }
   if (baselineState === 'missing') {
-    return <span className="text-xs text-muted-foreground">迭代分支尚未创建</span>;
+    return <div className="py-1.5 text-xs text-muted-foreground">迭代分支尚未创建</div>;
   }
   if (baselineState === 'error') {
     return (
@@ -163,7 +161,7 @@ export function BranchDivergenceCheck({
     return <Skeleton className="h-5 w-24 rounded" />;
   }
   if (developerBranchState === 'missing') {
-    return <span className="text-xs text-muted-foreground">需求分支尚未创建</span>;
+    return <div className="py-1.5 text-xs text-muted-foreground">需求分支尚未创建</div>;
   }
   if (developerBranchState === 'loading') {
     return <Skeleton className="h-5 w-24 rounded" />;
@@ -171,21 +169,27 @@ export function BranchDivergenceCheck({
 
   const ready = check.status === 'ready';
   const aligned = ready && check.developmentOnly === 0 && check.baselineOnly === 0;
+  const devOnly = ready ? (check.developmentOnly ?? 0) : 0;
+  const baseOnly = ready ? (check.baselineOnly ?? 0) : 0;
+  const leadLabel = aligned
+    ? '与迭代分支已同步'
+    : baseOnly > 0
+      ? `迭代领先 ${baseOnly} 条提交`
+      : `开发领先 ${devOnly} 条提交`;
 
   return (
-    <Surface variant="secondary" className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 text-xs text-muted-foreground">
-      <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
-        <div className="flex items-center gap-1 font-medium text-foreground shrink-0">
-          <GitCompareIcon className="size-3 text-muted-foreground" />
-          <span>分支同步:</span>
+    <div className="flex flex-wrap items-center justify-between gap-2 py-1 text-xs">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 font-medium text-foreground">
+          <GitCompareIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          <span>开发分支 ↔ 迭代分支</span>
         </div>
+        <span className="hidden h-3 w-px shrink-0 bg-border sm:block" aria-hidden="true" />
 
-        {check.status === 'loading' && (
-          <Skeleton className="h-4 w-28 rounded" />
-        )}
+        {check.status === 'loading' && <Skeleton className="h-4 w-28 rounded" />}
 
         {check.status === 'error' && (
-          // 错误文案常驻并换行完整呈现（DESIGN G：错误原因优先换行，不能只靠悬停读全；也不再挂原生 title 重复提示）
+          // 错误文案常驻并换行完整呈现（DESIGN G：错误原因优先换行，不能只靠悬停读全）
           <span className="inline-flex min-w-0 items-start gap-1 text-destructive">
             <AlertCircleIcon className="mt-0.5 size-3 shrink-0" />
             <span className="min-w-0 whitespace-normal break-words">比较失败：{check.message}</span>
@@ -193,46 +197,40 @@ export function BranchDivergenceCheck({
         )}
 
         {ready && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {aligned ? (
-              <Chip size="sm" variant="soft" color="success" className="gap-1">
-                <CheckIcon className="size-3" />
-                <Chip.Label>已同步迭代分支</Chip.Label>
-              </Chip>
-            ) : (
-              <Chip size="sm" variant="soft" color="warning" className="gap-1">
-                <Chip.Label>
-                  有落差 (开发独有 <span className="font-mono tabular-nums">{check.developmentOnly}</span> · 迭代独有 <span className="font-mono tabular-nums">{check.baselineOnly}</span>)
-                </Chip.Label>
-              </Chip>
-            )}
-
-            {!aligned && diffs.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={(
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="2xs"
-                      className="text-muted-foreground hover:text-foreground gap-1"
-                      onPress={() => setDiffDrawerOpen(true)}
-                    >
-                      <FileCodeIcon className="size-3 text-primary" />
-                      <span>差异 (<span className="font-mono tabular-nums">{diffs.length}</span>)</span>
-                    </Button>
-                  )}
-                />
-                <TooltipContent>
-                  在本地抽屉中查看两分支代码差异
-                </TooltipContent>
-              </Tooltip>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 font-medium',
+                aligned ? 'text-success' : 'text-warning',
+              )}
+            >
+              <span className="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
+              {aligned ? <CheckIcon className="size-3 shrink-0" aria-hidden="true" /> : null}
+              <span className="font-mono tabular-nums">{leadLabel}</span>
+            </span>
+            {!aligned && (
+              <span className="text-[11px] text-muted-foreground">
+                开发独有 <span className="font-mono tabular-nums">{devOnly}</span> ·
+                迭代独有 <span className="font-mono tabular-nums">{baseOnly}</span>
+              </span>
             )}
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex shrink-0 items-center gap-1.5">
+        {!aligned && diffs.length > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="cursor-pointer text-primary hover:text-primary/80"
+            onPress={() => setDiffDrawerOpen(true)}
+          >
+            <FileCodeIcon className="size-3" aria-hidden="true" />
+            查看差异
+          </Button>
+        )}
         <Tooltip>
           <TooltipTrigger
             render={(
@@ -246,7 +244,7 @@ export function BranchDivergenceCheck({
                   if (check.status === 'loading') return;
                   refetch();
                 }}
-                className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               >
                 <RefreshCwIcon className={cn('size-3', check.status === 'loading' && 'animate-spin text-primary')} />
               </Button>
@@ -267,6 +265,6 @@ export function BranchDivergenceCheck({
         targetBranch={baseline}
         diffs={diffs}
       />
-    </Surface>
+    </div>
   );
 }

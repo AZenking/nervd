@@ -1,6 +1,6 @@
 // CI 集成共享区（UX 评审 A1）：Jenkins 实例 + 仓库 CI 绑定只此一份实现，
 // CI 集成设置卡，和其他设置区编辑同一份 settings 草稿。
-import { useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
@@ -199,18 +199,28 @@ export function RepoCiBindingsCard() {
   const [repoFilter, setRepoFilter] = useState('');
   const [boundOnly, setBoundOnly] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const deferredFilter = useDeferredValue(repoFilter);
 
   const archivedCount = repositories.filter((repo) => repo.archived).length;
   // 已绑定的归档仓库仍显示，否则用户无法解绑
   const scoped = showArchived
     ? repositories
     : repositories.filter((repo) => !repo.archived || Boolean(bindings[String(repo.id)]));
-  const keyword = repoFilter.trim().toLowerCase();
+  const keyword = deferredFilter.trim().toLowerCase();
   const boundCount = scoped.filter((repo) => bindings[String(repo.id)]).length;
-  const visibleRepos = scoped.filter((repo) => {
+  const matchedRepos = scoped.filter((repo) => {
     if (boundOnly && !bindings[String(repo.id)]) return false;
     return !keyword || (repo.pathWithNamespace || repo.name).toLowerCase().includes(keyword);
   });
+  // 组织仓库可能上千：只挂载有限行（已绑定项始终保留），其余靠过滤定位
+  const renderLimit = keyword ? 120 : 80;
+  const boundVisible = matchedRepos.filter((repo) => bindings[String(repo.id)]).slice(0, renderLimit);
+  const unboundVisible = matchedRepos
+    .filter((repo) => !bindings[String(repo.id)])
+    .slice(0, Math.max(0, renderLimit - boundVisible.length));
+  const visibleIds = new Set([...boundVisible, ...unboundVisible].map((repo) => repo.id));
+  const visibleRepos = matchedRepos.filter((repo) => visibleIds.has(repo.id));
+  const hiddenCount = matchedRepos.length - visibleRepos.length;
 
   const verifyJenkinsJob = async (repoId: number, binding: Extract<RepoCiBinding, { provider: 'jenkins' }>) => {
     const key = `repo-${repoId}`;
@@ -262,12 +272,7 @@ export function RepoCiBindingsCard() {
               onChange={(v) => setShowArchived(v)}
               className="cursor-pointer text-muted-foreground"
             >
-              <Checkbox.Content>
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                显示已归档（{archivedCount}）
-              </Checkbox.Content>
+              显示已归档（{archivedCount}）
             </Checkbox>
           )}
           <Tabs
@@ -417,6 +422,11 @@ export function RepoCiBindingsCard() {
           </div>
         );
       })}
+      {hiddenCount > 0 && (
+        <div className="border-b border-border/50 px-4 py-2.5 text-[11px] leading-4 text-muted-foreground last:border-b-0">
+          还有 {hiddenCount} 个仓库未显示，输入名称过滤可快速定位。
+        </div>
+      )}
       {!visibleRepos.length && (
         <EmptyHint
           compact

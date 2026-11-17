@@ -246,7 +246,7 @@ export const useQuickBuild = create<QuickBuildState>((set, get) => ({
 
     if (!allowWriteOps) {
       app.setToast({
-        text: '当前处于只读保护模式，无法发起构建。请前往「设置 → 安全策略」开启写操作。',
+        text: '当前处于只读保护模式，无法发起构建。请前往「设置 → 安全与权限策略」开启写操作。',
         kind: 'fail',
       });
       return false;

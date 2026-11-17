@@ -1,46 +1,32 @@
 import {
   CheckCircle2Icon,
-  CopyIcon,
+  ChevronDownIcon,
   DownloadIcon,
-  ExternalLinkIcon,
   InfoIcon,
   KeyRoundIcon,
-  MonitorIcon,
-  MoonIcon,
   RefreshCwIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
   SparklesIcon,
-  SunIcon,
-  TerminalIcon,
 } from 'lucide-react';
-// ToggleButton（分段项）上游尚未有 ui 出口，暂留直连；ToggleButtonGroup 走 ui 出口
-import { ToggleButton } from '@/components/ui/toggle-button';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
-import { ToggleButtonGroup } from '@/components/ui/toggle-button-group';
-import { Kbd } from '@/components/ui/kbd';
-import { CopyButton } from '@/components/ui/copy-button';
-import { OverflowTooltip } from '@/components/overflow-tooltip';
+import { Accordion } from '@/components/ui/accordion';
 import { SettingsGroup, SettingsRow } from '../settings-group';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { useAppUpdate } from '@/hooks/use-app-update';
-import {
-  APP_BUILD_CHANNEL,
-  APP_NAME,
-  APP_TAGLINE,
-  APP_VERSION,
-  copyDiagnosticSnapshot,
-  copyQuarantineCommand,
-  DOCS_URL,
-  REPO_URL,
-} from '@/lib/app-info';
-import { openExternal } from '@/lib/yunxiao-link';
+import { APP_BUILD_CHANNEL, APP_NAME, APP_TAGLINE, APP_VERSION } from '@/lib/app-info';
 
+/**
+ * 设置 → 关于 nervd（应用）。
+ *
+ * 只承载产品版本、发布渠道与更新检查；安全配置摘要提供跳转而不重复配置，
+ * 技术架构信息默认折叠。主题偏好已迁至「外观与交互」，诊断能力已迁至「诊断与支持」。
+ */
 export function AboutSection() {
   const { settings } = useApp();
-  const { openSettings, setShortcutsOpen, setAboutOpen, theme, resolvedTheme, setTheme } = useUi();
+  const { openSettings, setAboutOpen } = useUi();
   const { status, hasUpdate, isChecking, updateInfo, error, checkForUpdates, openDownload } = useAppUpdate();
 
   const allowWriteOps = settings?.allowWriteOps ?? false;
@@ -107,7 +93,7 @@ export function AboutSection() {
               variant="primary"
               size="sm"
               onPress={() => void openDownload()}
-              className="shrink-0 gap-1.5 font-medium"
+              className="shrink-0 gap-1.5"
             >
               <DownloadIcon className="size-3.5" />
               <span>下载更新</span>
@@ -168,63 +154,14 @@ export function AboutSection() {
         />
       </SettingsGroup>
 
-      {/* 外观与主题偏好 */}
+      {/* 安全与凭据状态摘要：只读状态 + 跳转，不重复配置项 */}
       <SettingsGroup
-        title="外观与主题"
-        description="选择 nervd 界面主题模式，支持跟随 macOS 系统外观自动切换。"
+        title="安全概览"
+        description="当前只读保护与凭据存储状态；具体开关与说明在「安全与权限」中管理。"
       >
         <SettingsRow
           orientation="horizontal"
-          label="明暗主题模式"
-          description={
-            theme === 'system'
-              ? `当前正跟随系统外观（当前解析为${resolvedTheme === 'dark' ? '深色模式' : '浅色模式'}）。`
-              : theme === 'dark'
-              ? '当前已锁定深色模式（Dark）。'
-              : '当前已锁定浅色模式（Light）。'
-          }
-          control={(
-            <ToggleButtonGroup
-              aria-label="明暗主题模式"
-              selectionMode="single"
-              disallowEmptySelection
-              size="sm"
-              selectedKeys={new Set([theme])}
-            >
-              <ToggleButton
-                id="system"
-                onPress={(e) => setTheme('system', { clientX: e.x, clientY: e.y })}
-              >
-                <MonitorIcon className="size-3.5" />
-                跟随系统
-              </ToggleButton>
-              <ToggleButton
-                id="light"
-                onPress={(e) => setTheme('light', { clientX: e.x, clientY: e.y })}
-              >
-                <SunIcon className="size-3.5" />
-                浅色
-              </ToggleButton>
-              <ToggleButton
-                id="dark"
-                onPress={(e) => setTheme('dark', { clientX: e.x, clientY: e.y })}
-              >
-                <MoonIcon className="size-3.5" />
-                深色
-              </ToggleButton>
-            </ToggleButtonGroup>
-          )}
-        />
-      </SettingsGroup>
-
-      {/* 运行时与安全环境 */}
-      <SettingsGroup
-        title="运行环境与安全概览"
-        description="当前客户端连接状态、凭据保护与系统写操作防护模式。"
-      >
-        <SettingsRow
-          orientation="horizontal"
-          label="写操作权限控制"
+          label="写操作权限"
           description={
             allowWriteOps
               ? '当前已开启受控写操作模式，可在客户端内创建分支、触发流水线与回写状态。'
@@ -257,162 +194,77 @@ export function AboutSection() {
 
         <SettingsRow
           orientation="horizontal"
-          label="访问凭据加密存储"
-          description="云效个人访问令牌（PAT）经 macOS Keychain 本地硬件级密钥保护，不落盘明文。"
-          control={(
-            <div className="flex items-center gap-1.5">
-              <KeyRoundIcon className="size-3.5 text-muted-foreground" />
-              <Chip size="sm" variant="secondary">
-                macOS Keychain
-              </Chip>
-            </div>
-          )}
-        />
-
-        <SettingsRow
-          orientation="horizontal"
-          label="绑定的云效空间"
-          description="当前工作台聚合拉取工作项与流水线的默认云效空间。"
-          control={(
-            settings?.organizationId ? (
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
-                  {settings.defaultSpaceIdentifier || '全项目'}
-                </span>
-                <span aria-hidden="true" className="text-muted-foreground/60">·</span>
-                <OverflowTooltip
-                  text={settings.organizationId}
-                  className="max-w-40 font-mono text-xs tabular-nums text-muted-foreground"
-                />
-                <CopyButton text={settings.organizationId} label="复制组织 ID" />
-              </div>
-            ) : (
-              <span className="font-mono text-xs text-muted-foreground">尚未配置</span>
-            )
-          )}
-        />
-      </SettingsGroup>
-
-      {/* 技术架构规范 */}
-      <SettingsGroup
-        title="技术架构体系"
-        description="nervd 采用的现代化跨平台与前端无障碍架构栈。"
-      >
-        <SettingsRow
-          orientation="horizontal"
-          label="桌面核心与 IPC 通信"
-          description="基于 Tauri 2 + Rust 驱动，具备纳秒级启动开销与零 Node.js 内存驻留设计。"
-          control={(
-            <Chip size="sm" variant="secondary">
-              Tauri 2 (Rust Core)
-            </Chip>
-          )}
-        />
-        <SettingsRow
-          orientation="horizontal"
-          label="视图与无障碍原语"
-          description="React 19 + TypeScript + @heroui/react v3 无障碍组件基座（React Aria），保障键盘顺畅流动。"
-          control={(
-            <Chip size="sm" variant="secondary">
-              React 19 · HeroUI v3
-            </Chip>
-          )}
-        />
-        <SettingsRow
-          orientation="horizontal"
-          label="设计系统与图谱引擎"
-          description="深浅色双模 Tailwind CSS v4 CSS-First 主题 + @xyflow/react 分支流图。"
-          control={(
-            <Chip size="sm" variant="secondary">
-              Tailwind v4 · XYFlow
-            </Chip>
-          )}
-        />
-      </SettingsGroup>
-
-      {/* 诊断、支持与开源协议 */}
-      <SettingsGroup
-        title="诊断与技术支持"
-        description="用于 GitHub Issue 报障排查的诊断快照与快捷参考指南。"
-      >
-        <SettingsRow
-          orientation="horizontal"
-          label="系统诊断快照"
-          description="一键生成并复制脱敏后的系统版本、环境参数与配置状态，便于排查异常。"
-          control={(
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => void copyDiagnosticSnapshot(settings, allowWriteOps)}
-              className="gap-1.5"
-            >
-              <CopyIcon className="size-3.5 text-muted-foreground" />
-              <span>复制诊断快照</span>
-            </Button>
-          )}
-        />
-
-        <SettingsRow
-          orientation="horizontal"
-          label="macOS 首次安装安全放行"
-          description="新版本通过浏览器下载覆盖后若被 Gatekeeper 拦截（提示“无法验证开发者”或“已损坏”），点击复制终端命令执行即可一键解除隔离。"
-          control={(
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => void copyQuarantineCommand()}
-              className="gap-1.5 font-mono"
-            >
-              <TerminalIcon className="size-3.5 text-muted-foreground" />
-              <span>复制放行命令</span>
-            </Button>
-          )}
-        />
-
-        <SettingsRow
-          orientation="horizontal"
-          label="键盘快捷键速查"
-          description="查看全键盘导航 (j/k/Enter/x)、g 系列单手序列与全局命令快捷键速查表。"
-          control={(
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => setShortcutsOpen(true)}
-              className="gap-1.5"
-            >
-              <Kbd variant="light">?</Kbd>
-              <span>查看速查表</span>
-            </Button>
-          )}
-        />
-
-        <SettingsRow
-          orientation="horizontal"
-          label="开源协议与外部支持"
-          description="nervd 遵循开源许可协议开发，欢迎提交建议与 Pull Request。"
+          label="访问凭据保护"
+          description="云效个人访问令牌（PAT）经 macOS Keychain 本地保护，不以明文落盘。"
           control={(
             <div className="flex items-center gap-2">
+              <Chip size="sm" variant="secondary" className="gap-1">
+                <KeyRoundIcon className="size-3 text-muted-foreground" />
+                macOS Keychain
+              </Chip>
               <Button
                 variant="ghost"
                 size="sm"
-                onPress={() => void openExternal(REPO_URL)}
-                className="gap-1 text-muted-foreground hover:text-foreground"
+                onPress={() => openSettings('security')}
+                className="text-muted-foreground hover:text-foreground"
               >
-                <span>GitHub</span>
-                <ExternalLinkIcon className="size-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onPress={() => void openExternal(DOCS_URL)}
-                className="gap-1 text-muted-foreground hover:text-foreground"
-              >
-                <span>云效平台</span>
-                <ExternalLinkIcon className="size-3" />
+                查看说明
               </Button>
             </div>
           )}
         />
+      </SettingsGroup>
+
+      {/* 技术架构（默认折叠） */}
+      <SettingsGroup
+        title="技术信息"
+        description="实现架构栈与运行环境；默认收起，排查问题时展开查看。"
+      >
+        <Accordion hideSeparator>
+          <Accordion.Item id="tech-stack">
+            <Accordion.Heading>
+              <Accordion.Trigger>
+                技术架构与运行环境
+                <Accordion.Indicator>
+                  <ChevronDownIcon />
+                </Accordion.Indicator>
+              </Accordion.Trigger>
+            </Accordion.Heading>
+            <Accordion.Panel>
+              <Accordion.Body>
+                <div className="flex flex-col gap-3 text-xs">
+                  {[
+                    {
+                      label: '桌面核心与 IPC 通信',
+                      description: '基于 Tauri 2 + Rust 驱动，具备纳秒级启动开销与零 Node.js 内存驻留设计。',
+                      value: 'Tauri 2 (Rust Core)',
+                    },
+                    {
+                      label: '视图与无障碍原语',
+                      description: 'React 19 + TypeScript + @heroui/react v3 无障碍组件基座（React Aria），保障键盘顺畅流动。',
+                      value: 'React 19 · HeroUI v3',
+                    },
+                    {
+                      label: '设计系统与图谱引擎',
+                      description: '深浅色双模 Tailwind CSS v4 CSS-First 主题 + @xyflow/react 分支流图。',
+                      value: 'Tailwind v4 · XYFlow',
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="font-medium text-foreground">{item.label}</span>
+                        <p className="leading-5 text-muted-foreground">{item.description}</p>
+                      </div>
+                      <Chip size="sm" variant="secondary" className="shrink-0">
+                        {item.value}
+                      </Chip>
+                    </div>
+                  ))}
+                </div>
+              </Accordion.Body>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
       </SettingsGroup>
     </div>
   );

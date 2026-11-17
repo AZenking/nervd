@@ -100,7 +100,16 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
 }
 
 export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings' | 'schedules';
-export type SettingsSection = 'connection' | 'trace' | 'attribution' | 'ci' | 'security' | 'ai' | 'about';
+export type SettingsSection =
+  | 'appearance'
+  | 'connection'
+  | 'trace'
+  | 'attribution'
+  | 'ci'
+  | 'security'
+  | 'ai'
+  | 'diagnostics'
+  | 'about';
 export type IterationViewTab = 'workitems' | 'repos' | 'branches';
 /**
  * 需求详情页签：交付进展（默认，复用原「关联仓库」页签）/ 描述 / 子工作项 / 活动动态。
@@ -225,7 +234,9 @@ const isNullableId = (value: unknown): value is string | null =>
   value === null || isNonEmptyString(value);
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string');
-const SETTINGS_SECTIONS: SettingsSection[] = ['connection', 'trace', 'attribution', 'ci', 'security', 'ai', 'about'];
+const SETTINGS_SECTIONS: SettingsSection[] = [
+  'appearance', 'connection', 'trace', 'attribution', 'ci', 'security', 'ai', 'diagnostics', 'about',
+];
 const WORKSPACE_VIEWS: WorkspaceView[] = [
   'iteration', 'requirement', 'integration', 'overview', 'recents', 'full-settings', 'schedules',
 ];

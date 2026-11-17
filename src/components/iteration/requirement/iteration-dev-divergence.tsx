@@ -130,19 +130,27 @@ export function IterationDevDivergence({
     return null;
   }
 
+  const synced = status.state === 'ready' && status.aheadDev === 0;
   return (
-    <div className={cn('flex items-center justify-between gap-1.5 text-[11px]', className)}>
-      <div className="flex min-w-0 items-center gap-1.5 flex-1">
-        <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
-        <span className="text-muted-foreground shrink-0">主干同步:</span>
+    <div
+      className={cn(
+        'flex flex-wrap items-center justify-between gap-2 py-1 text-xs',
+        className,
+      )}
+    >
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 font-medium text-foreground">
+          <GitBranchIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          <span className="font-mono text-[11px]">{sourceBranch}</span>
+          <span className="text-muted-foreground">→ 迭代分支</span>
+        </div>
+        <span className="hidden h-3 w-px shrink-0 bg-border sm:block" aria-hidden="true" />
 
-        {status.state === 'loading' && (
-          <Skeleton className="h-4 w-20 rounded" />
-        )}
+        {status.state === 'loading' && <Skeleton className="h-4 w-20 rounded" />}
 
         {status.state === 'dev-missing' && (
           <Tooltip>
-            <TooltipTrigger render={<span className="rounded-sm truncate text-muted-foreground cursor-help" />}>
+            <TooltipTrigger render={<span className="min-w-0 cursor-help truncate text-muted-foreground" />}>
               无 {status.checkedDevBranch} 分支
             </TooltipTrigger>
             <TooltipContent>
@@ -152,7 +160,7 @@ export function IterationDevDivergence({
         )}
 
         {status.state === 'error' && (
-          <span className="inline-flex min-w-0 items-start gap-1 rounded-sm text-destructive">
+          <span className="inline-flex min-w-0 items-start gap-1 text-destructive">
             <AlertCircleIcon className="mt-px size-3 shrink-0" />
             <span className="min-w-0 break-words">
               比较失败{status.message ? `：${status.message}` : ''}
@@ -161,36 +169,22 @@ export function IterationDevDivergence({
         )}
 
         {status.state === 'ready' && (
-          <div className="flex min-w-0 items-center gap-1.5">
-            {status.aheadDev === 0 ? (
-              <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 font-medium text-success">
-                <CheckIcon className="size-3 shrink-0" />
-                <span>
-                  已合入 <span className="font-mono">{status.devBranch}</span>
-                </span>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 font-medium',
+                synced ? 'text-success' : 'text-warning',
+              )}
+            >
+              <span className="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
+              {synced ? <CheckIcon className="size-3 shrink-0" aria-hidden="true" /> : null}
+              <span className="font-mono tabular-nums">
+                {synced ? '已同步迭代分支' : `待同步 ${status.aheadDev} 条提交`}
               </span>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 font-medium text-warning cursor-help truncate" />
-                  }
-                >
-                  <span>
-                    待合入 <span className="font-mono">{status.devBranch}</span>{' '}
-                    (<span className="font-mono tabular-nums">{status.aheadDev}</span> 条)
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  迭代分支有 {status.aheadDev} 条提交尚未合入 {status.devBranch}
-                  {status.behindDev > 0 && `；同时落后 ${status.behindDev} 条提交`}
-                </TooltipContent>
-              </Tooltip>
-            )}
-
-            {status.behindDev > 0 && status.aheadDev === 0 && (
-              <span className="text-[10px] text-muted-foreground/80 font-mono tabular-nums">
-                落后 {status.behindDev}
+            </span>
+            {synced && status.behindDev > 0 && (
+              <span className="text-[11px] text-muted-foreground">
+                领先 <span className="font-mono tabular-nums">{status.behindDev}</span>
               </span>
             )}
           </div>
@@ -206,7 +200,7 @@ export function IterationDevDivergence({
               size="icon-xs"
               disabled={status.state === 'loading'}
               onPress={() => setRefreshKey((k) => k + 1)}
-              className="text-muted-foreground hover:text-foreground data-disabled:opacity-40 shrink-0"
+              className="data-disabled:opacity-40"
               aria-label="刷新与 dev/集成主干的差异检测"
             >
               <RefreshCwIcon className={cn('size-3', status.state === 'loading' && 'animate-spin text-primary')} />

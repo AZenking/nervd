@@ -373,7 +373,7 @@ export function QuickBuildTriggerForm({
                       setSelectedTargetId(record.id);
                       if (record.jobFullName) setSelectedJobFullName(record.jobFullName);
                     }}
-                    className={cn('min-w-0 justify-start gap-1.5 px-2 text-xs', isSelected && 'text-foreground')}
+                    className={cn('min-w-0 justify-start gap-1.5', isSelected && 'text-foreground')}
                   >
                     {record.type === 'flow' ? (
                       <WorkflowIcon className="size-3 shrink-0 text-primary" />

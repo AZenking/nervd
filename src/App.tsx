@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Shell } from './components/Shell';
 import { SettingsView } from './components/SettingsView';
+import { SETTINGS_SECTIONS } from './components/settings/sections';
 import { StartupSplash } from './components/StartupSplash';
 import { dismissSplashScreen } from './lib/splash';
 import { useApp } from './store/app';
@@ -147,7 +148,7 @@ export default function App() {
     });
     const unSettings = listen<string | undefined>('open-settings', (e) => {
       const section = e.payload;
-      const sections: SettingsSection[] = ['connection', 'trace', 'attribution', 'ci', 'security', 'ai', 'about'];
+      const sections = SETTINGS_SECTIONS.map((item) => item.value);
       useUi.getState().openSettings(sections.includes(section as SettingsSection) ? section as SettingsSection : 'connection');
     });
     const unCommand = listen('open-command', () => {

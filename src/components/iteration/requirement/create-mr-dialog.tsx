@@ -442,7 +442,7 @@ export function CreateMrDialog({
               variant="outline"
               disabled={aiGenerating || submitting || !sourceBranch.trim() || !targetBranch.trim() || sourceBranch === targetBranch}
               onPress={() => void runAiGenerate()}
-              className="h-6 text-xs text-primary border-primary/30 hover:bg-primary/10"
+              className="text-primary"
               title={bugContext
                 ? 'AI 生成 MR 修改说明与测试影响范围（创建成功后自动补充到缺陷动态）'
                 : '根据当前分支落差与工作项，AI 智能拟定 MR 标题与说明'}

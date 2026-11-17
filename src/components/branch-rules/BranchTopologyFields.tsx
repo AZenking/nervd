@@ -260,7 +260,7 @@ export function BranchTopologyFields({
       return;
     }
     if (readOnly) {
-      const text = '当前处于只读模式：保存子分支拓扑是写操作，请先在「设置 → 安全」开启写权限。';
+      const text = '当前处于只读模式：保存子分支拓扑是写操作，请先在「设置 → 安全与权限」开启写权限。';
       setError(text);
       useApp.getState().setToast({ kind: 'fail', text });
       return;
@@ -290,7 +290,7 @@ export function BranchTopologyFields({
 
   const saveBlocked = saving || loading || !loaded || Boolean(patternError) || readOnly;
   const saveBlockedReason = readOnly
-    ? '写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）'
+    ? '写操作已关闭：需在「设置 → 安全与权限」中开启（需写权限令牌）'
     : patternError
       ? patternError
       : saving
@@ -425,7 +425,7 @@ export function BranchTopologyFields({
           <div className="flex items-center justify-end gap-2">
             {readOnly && (
               <span className="mr-auto text-[11px] text-muted-foreground">
-                写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）。
+                写操作已关闭：需在「设置 → 安全与权限」中开启（需写权限令牌）。
               </span>
             )}
             <Tooltip>

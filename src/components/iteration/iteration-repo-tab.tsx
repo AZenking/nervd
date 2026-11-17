@@ -332,8 +332,8 @@ export function IterationRepoCard({
                   key={item.workitemId}
                   type="button"
                   variant="ghost"
-                  size="inline"
-                  className="gap-1.5 p-0 font-normal"
+                  size="bare"
+                  className="gap-1.5"
                   aria-label={`查看 ${item.identifier} 详情`}
                   onPress={() => onOpenDetail?.(item)}
                 >

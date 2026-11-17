@@ -8,6 +8,10 @@ describe('RepoCiBindingFields', () => {
   let host: HTMLDivElement;
   let root: Root;
 
+  /** HeroUI ComboBox 把选中值渲染在输入框 value 上（不在 textContent 里），按 aria-label 取输入框值 */
+  const comboValue = (label: string): string =>
+    host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)?.value ?? '';
+
   const mockPipelines: PipelineSummary[] = [
     { pipelineId: 101, pipelineName: 'trade-service-build' },
     { pipelineId: 102, pipelineName: 'nervd-desktop-release' },
@@ -51,7 +55,7 @@ describe('RepoCiBindingFields', () => {
 
     expect(host.textContent).toContain('关联 CI 流水线 (可选)');
     expect(host.textContent).toContain('CI 提供方');
-    expect(host.textContent).toContain('不关联 CI');
+    expect(comboValue('CI 提供方')).toBe('不关联 CI');
   });
 
   it('绑定为 Flow 时展示云效流水线并提示推荐', async () => {
@@ -76,9 +80,9 @@ describe('RepoCiBindingFields', () => {
       );
     });
 
-    expect(host.textContent).toContain('云效 Flow 流水线');
+    expect(comboValue('CI 提供方')).toBe('云效 Flow 流水线');
     expect(host.textContent).toContain('智能匹配');
-    expect(host.textContent).toContain('trade-service-build');
+    expect(comboValue('云效流水线')).toBe('★ trade-service-build (推荐)');
     expect(host.textContent).toContain('流水线包含完整仓库标识');
   });
 
@@ -102,10 +106,10 @@ describe('RepoCiBindingFields', () => {
       );
     });
 
-    expect(host.textContent).toContain('Jenkins 实例');
+    expect(comboValue('Jenkins 实例')).toBe('生产 Jenkins');
     expect(host.textContent).toContain('Job 全路径');
     const trigger = host.querySelector('[aria-label="Jenkins Job 全路径"]');
     expect(trigger).not.toBeNull();
-    expect(host.textContent).toContain('frontend/nervd');
+    expect(comboValue('Jenkins Job 全路径')).toBe('frontend/nervd');
   });
 });

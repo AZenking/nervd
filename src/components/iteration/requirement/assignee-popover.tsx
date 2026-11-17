@@ -92,7 +92,7 @@ export function SearchableAssigneePopover({
     if (nextOpen && checkWriteOps && !allowWriteOps) {
       toast.add({
         title: '当前处于只读模式',
-        description: '更改负责人需在「设置 → 安全」中开启写操作。',
+        description: '更改负责人需在「设置 → 安全与权限」中开启写操作。',
         type: 'warning',
         actionProps: {
           children: '前往设置',
@@ -112,7 +112,7 @@ export function SearchableAssigneePopover({
       // 关闭态 typeahead 等路径仍可能触发选择，此处兜底拦截；受控 value 不变自动回弹
       toast.add({
         title: '当前处于只读模式',
-        description: '更改负责人需在「设置 → 安全」中开启写操作。',
+        description: '更改负责人需在「设置 → 安全与权限」中开启写操作。',
         type: 'warning',
         actionProps: {
           children: '前往设置',

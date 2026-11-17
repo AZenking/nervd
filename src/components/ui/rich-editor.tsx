@@ -140,10 +140,9 @@ export function RichEditor({
         <div className="flex flex-wrap items-center gap-0.5 pb-2 mb-2 border-b border-border/60">
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('bold') ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleBold().run()}
-            className={cn(editor.isActive('bold') && 'bg-accent text-accent-foreground')}
             title="加粗 (⌘+B)"
             aria-label="加粗"
           >
@@ -151,10 +150,9 @@ export function RichEditor({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('italic') ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleItalic().run()}
-            className={cn(editor.isActive('italic') && 'bg-accent text-accent-foreground')}
             title="斜体 (⌘+I)"
             aria-label="斜体"
           >
@@ -162,10 +160,9 @@ export function RichEditor({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('strike') ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleStrike().run()}
-            className={cn(editor.isActive('strike') && 'bg-accent text-accent-foreground')}
             title="删除线"
             aria-label="删除线"
           >
@@ -173,10 +170,9 @@ export function RichEditor({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('code') ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleCode().run()}
-            className={cn(editor.isActive('code') && 'bg-accent text-accent-foreground')}
             title="行内代码"
             aria-label="行内代码"
           >
@@ -187,10 +183,9 @@ export function RichEditor({
 
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('heading', { level: 1 }) ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            className={cn(editor.isActive('heading', { level: 1 }) && 'bg-accent text-accent-foreground')}
             title="一级标题 (# + 空格)"
             aria-label="一级标题"
           >
@@ -198,10 +193,9 @@ export function RichEditor({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('heading', { level: 2 }) ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            className={cn(editor.isActive('heading', { level: 2 }) && 'bg-accent text-accent-foreground')}
             title="二级标题 (## + 空格)"
             aria-label="二级标题"
           >
@@ -209,10 +203,9 @@ export function RichEditor({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('heading', { level: 3 }) ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            className={cn(editor.isActive('heading', { level: 3 }) && 'bg-accent text-accent-foreground')}
             title="三级标题 (### + 空格)"
             aria-label="三级标题"
           >
@@ -223,10 +216,9 @@ export function RichEditor({
 
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('bulletList') ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleBulletList().run()}
-            className={cn(editor.isActive('bulletList') && 'bg-accent text-accent-foreground')}
             title="无序列表 (- + 空格)"
             aria-label="无序列表"
           >
@@ -234,10 +226,9 @@ export function RichEditor({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('orderedList') ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleOrderedList().run()}
-            className={cn(editor.isActive('orderedList') && 'bg-accent text-accent-foreground')}
             title="有序列表 (1. + 空格)"
             aria-label="有序列表"
           >
@@ -245,10 +236,9 @@ export function RichEditor({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant={editor.isActive('blockquote') ? 'secondary' : 'ghost'}
             size="icon-xs"
             onPress={() => editor.chain().focus().toggleBlockquote().run()}
-            className={cn(editor.isActive('blockquote') && 'bg-accent text-accent-foreground')}
             title="引用块 (> + 空格)"
             aria-label="引用块"
           >

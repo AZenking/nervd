@@ -169,8 +169,7 @@ export function CodeDiffViewer({
               variant="outline"
               size="xs"
               onPress={() => setVisibleLimit((v) => v + 30)}
-              className="text-xs"
-            >
+                          >
               加载更多文件 (还有 {diffs.length - visibleLimit} 个)
             </Button>
           </div>
@@ -206,8 +205,7 @@ export function CodeDiffViewer({
             <Button
               type="button"
               variant="ghost"
-              size="icon"
-              className="size-6 text-muted-foreground hover:text-foreground"
+              size="icon-xs"
               onPress={() => setIsSidebarOpen((v) => !v)}
               aria-label={isSidebarOpen ? '收起文件列表' : '展开文件列表'}
             >
@@ -292,8 +290,7 @@ export function CodeDiffViewer({
                 variant="outline"
                 size="xs"
                 onPress={() => setVisibleLimit((v) => v + 30)}
-                className="text-xs"
-              >
+                              >
                 加载更多文件 (还有 {diffs.length - visibleLimit} 个)
               </Button>
             </div>

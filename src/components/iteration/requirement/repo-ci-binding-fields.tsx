@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
+import { ComboBox } from '@/components/ui/combo-box';
+import { Input } from '@/components/ui/input';
+import { ListBox } from '@/components/ui/list-box';
 import { SectionHeader } from '@/components/section-header';
 import { getCachedJenkinsJobs, hasCachedJobs } from '@/lib/jenkins-cache';
 import { humanizeError } from '@/lib/error-format';
@@ -24,6 +25,67 @@ export interface RepoCiBindingFieldsProps {
   recommendedPipeline?: PipelineSummary | null;
   recommendReason?: string;
   disabled?: boolean;
+}
+
+export interface CiComboOption {
+  label: string;
+  value: string;
+  disabled?: boolean;
+}
+
+/**
+ * CI 配置区统一的 HeroUI ComboBox 字段：
+ * 提供方 / 流水线 / Jenkins 实例 / Job 全路径 四类控件同一外观（输入即过滤 + 下拉列表），
+ * 不再混用自绘 SearchableSelect 与 HeroUI Select —— 后者高度来自内距（36px），
+ * 与 ComboBox/Input 的 32px 字段密度并排时会出现「大小不一致」（2026-11-17 设计评审）。
+ */
+function CiComboBox({
+  label,
+  value,
+  onValueChange,
+  items,
+  placeholder,
+  disabled,
+  allowsCustomValue,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string | null) => void;
+  items: CiComboOption[];
+  placeholder: string;
+  disabled?: boolean;
+  allowsCustomValue?: boolean;
+}) {
+  return (
+    <ComboBox
+      className="w-full text-xs"
+      aria-label={label}
+      isDisabled={disabled}
+      selectedKey={value}
+      allowsCustomValue={allowsCustomValue}
+      onValueChange={onValueChange}
+    >
+      <ComboBox.InputGroup>
+        <Input placeholder={placeholder} aria-label={label} />
+        <ComboBox.Trigger />
+      </ComboBox.InputGroup>
+      <ComboBox.Popover>
+        <ListBox aria-label={label} className="max-h-64 overflow-y-auto">
+          {items.map((item) => (
+            <ListBox.Item
+              key={item.value}
+              id={item.value}
+              textValue={item.label}
+              isDisabled={item.disabled}
+            >
+              {item.label}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </ComboBox.Popover>
+    </ComboBox>
+  );
 }
 
 export function RepoCiBindingFields({
@@ -115,7 +177,7 @@ export function RepoCiBindingFields({
       }
     }
 
-    const options: SearchableSelectOption<string>[] = [
+    const options: CiComboOption[] = [
       { label: '选择或输入 Job 全路径', value: '__unset' },
     ];
 
@@ -187,22 +249,18 @@ export function RepoCiBindingFields({
           <div className="flex items-center h-5 mb-1.5">
             <FieldLabel className="mb-0">CI 提供方</FieldLabel>
           </div>
-          <Select
-            className="w-full text-xs"
-            aria-label="CI 提供方"
-            disabled={disabled}
+          <CiComboBox
+            label="CI 提供方"
             value={currentProvider}
-            onValueChange={(val) => handleProviderChange(val as any)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">不关联 CI</SelectItem>
-              <SelectItem value="flow">云效 Flow 流水线</SelectItem>
-              <SelectItem value="jenkins">Jenkins 任务</SelectItem>
-            </SelectContent>
-          </Select>
+            onValueChange={handleProviderChange}
+            placeholder="选择 CI 提供方"
+            disabled={disabled}
+            items={[
+              { label: '不关联 CI', value: 'none' },
+              { label: '云效 Flow 流水线', value: 'flow' },
+              { label: 'Jenkins 任务', value: 'jenkins' },
+            ]}
+          />
         </Field>
 
         {currentProvider === 'flow' && (
@@ -219,7 +277,7 @@ export function RepoCiBindingFields({
                         size="xs"
                         onPress={() => void handleRefresh()}
                         disabled={refreshing || loadingPipelines || disabled}
-                        className="gap-1 text-muted-foreground hover:text-foreground font-normal"
+                        className="gap-1"
                         aria-label="刷新云效流水线列表"
                       >
                         <RefreshCwIcon className={cn('size-3', (refreshing || loadingPipelines) && 'animate-spin')} />
@@ -231,15 +289,15 @@ export function RepoCiBindingFields({
                 </Tooltip>
               )}
             </div>
-            <SearchableSelect
-              className="text-xs"
-              ariaLabel="选择云效流水线"
-              disabled={disabled}
+            <CiComboBox
+              label="云效流水线"
               value={
                 binding?.provider === 'flow' && binding.pipelineId
                   ? String(binding.pipelineId)
                   : '__unset'
               }
+              disabled={disabled}
+              placeholder="搜索或选择流水线"
               onValueChange={(val) => {
                 if (!val || val === '__unset') {
                   onChange({ provider: 'flow', pipelineId: 0, pipelineName: '' });
@@ -254,7 +312,7 @@ export function RepoCiBindingFields({
               }}
               items={[
                 { label: '请选择云效流水线', value: '__unset' },
-                ...pipelines.map((p): SearchableSelectOption<string> => {
+                ...pipelines.map((p) => {
                   const isRec = recommendedPipeline?.pipelineId === p.pipelineId;
                   return {
                     label: isRec ? `★ ${p.pipelineName} (推荐)` : p.pipelineName,
@@ -262,7 +320,6 @@ export function RepoCiBindingFields({
                   };
                 }),
               ]}
-              placeholder="搜索或选择流水线"
             />
           </Field>
         )}
@@ -272,15 +329,15 @@ export function RepoCiBindingFields({
             <div className="flex items-center h-5 mb-1.5">
               <FieldLabel className="mb-0">Jenkins 实例</FieldLabel>
             </div>
-            <SearchableSelect
-              className="text-xs"
-              ariaLabel="Jenkins 实例"
-              disabled={disabled || jenkinsConnections.length === 0}
+            <CiComboBox
+              label="Jenkins 实例"
               value={
                 binding?.provider === 'jenkins' && binding.connectionId
                   ? binding.connectionId
                   : '__unset'
               }
+              disabled={disabled || jenkinsConnections.length === 0}
+              placeholder={jenkinsConnections.length === 0 ? '尚未配置实例' : '选择 Jenkins 实例'}
               onValueChange={(val) => {
                 if (binding?.provider === 'jenkins') {
                   onChange({
@@ -296,7 +353,6 @@ export function RepoCiBindingFields({
                   value: c.id,
                 })),
               ]}
-              placeholder={jenkinsConnections.length === 0 ? '尚未配置实例' : '选择 Jenkins 实例'}
             />
           </Field>
         )}
@@ -322,7 +378,7 @@ export function RepoCiBindingFields({
         jenkinsConnections.length === 0 ? (
           <div className="flex items-center gap-2 p-2.5 rounded-md bg-warning/10 text-warning text-xs">
             <ServerIcon className="size-4 shrink-0" />
-            <span>尚未配置 Jenkins 实例。请先在「系统设置 → CI 集成」添加并验证 Jenkins 连接凭据。</span>
+            <span>尚未配置 Jenkins 实例。请先在「系统设置 → 构建集成」添加并验证 Jenkins 连接凭据。</span>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -338,7 +394,7 @@ export function RepoCiBindingFields({
                         size="xs"
                         onPress={() => setJenkinsJobsRefresh((c) => c + 1)}
                         disabled={loadingJenkinsJobs || disabled || !selectedConnectionId}
-                        className="gap-1 text-muted-foreground hover:text-foreground font-normal"
+                        className="gap-1"
                         aria-label="刷新 Jenkins Job 列表"
                       >
                         <RefreshCwIcon className={cn('size-3', loadingJenkinsJobs && 'animate-spin')} />
@@ -349,16 +405,21 @@ export function RepoCiBindingFields({
                   <TooltipContent>刷新 Jenkins Job 列表</TooltipContent>
                 </Tooltip>
               </div>
-              <SearchableSelect
-                className="text-xs font-mono w-full"
-                ariaLabel="Jenkins Job 全路径"
-                disabled={disabled || loadingJenkinsJobs}
-                allowCustomValue
-                customValueLabel="使用路径"
+              <CiComboBox
+                label="Jenkins Job 全路径"
                 value={
                   binding?.provider === 'jenkins' && binding.jobFullName
                     ? binding.jobFullName
                     : '__unset'
+                }
+                disabled={disabled || loadingJenkinsJobs}
+                allowsCustomValue
+                placeholder={
+                  loadingJenkinsJobs
+                    ? '正在拉取 Jenkins Job…'
+                    : !selectedConnectionId
+                      ? '请先选择 Jenkins 实例'
+                      : '搜索或输入 Job 全路径'
                 }
                 onValueChange={(val) => {
                   if (binding?.provider === 'jenkins') {
@@ -369,13 +430,6 @@ export function RepoCiBindingFields({
                   }
                 }}
                 items={jenkinsJobOptions}
-                placeholder={
-                  loadingJenkinsJobs
-                    ? '正在拉取 Jenkins Job…'
-                    : !selectedConnectionId
-                      ? '请先选择 Jenkins 实例'
-                      : '搜索或输入 Job 全路径'
-                }
               />
             </Field>
 

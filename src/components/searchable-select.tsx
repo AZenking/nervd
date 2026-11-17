@@ -174,7 +174,7 @@ export function SearchableSelect<V extends string | number | null>({
   fuzzy?: boolean;
   id?: string;
   ariaLabel?: string;
-  /** 追加到触发器的样式（宽度/字号等），如 "w-full text-xs" */
+  /** 追加到 Autocomplete 根节点的样式（布局/字号等，字号会继承给触发器），如 "min-w-0 flex-1 text-xs" */
   className?: string;
   /** 追加到弹出层的样式 */
   popupClassName?: string;
@@ -232,8 +232,10 @@ export function SearchableSelect<V extends string | number | null>({
         id={id}
         aria-label={ariaLabel}
         // 视觉对齐 HeroUI 原生 field 触发器（rounded-field / bg-field / 悬停聚焦态由
-        // .autocomplete__trigger 提供），仅保留宽度与透传样式，严禁叠加 HeroUI 原生形态之外的样式。
-        className={cn('w-full', className)}
+        // .autocomplete__trigger 提供），这里只保留整宽；调用方的 className 只落在
+        // Autocomplete 根节点上——若同时透传给触发器，`flex-1` 这类布局类会在
+        // 纵向 flex 根节点上把触发器高度压成内容高度（与 32px 字段同档的密度失效）。
+        className="w-full"
       >
         {selected || showRawValue ? (
           <OverflowTooltip

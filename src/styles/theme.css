@@ -232,6 +232,9 @@
   --field-foreground: #26282d;
   --field-placeholder: #8a8f98;
   --field-border: #e8e9eb;
+  /* HeroUI 默认把输入/选择控件边框宽度设为 0（只靠背景区分）；在 Card 同色表面上
+     Select / Input 会失去可点击边界。nervd 统一恢复 1px hairline，颜色仍由 --field-border 控制。 */
+  --field-border-width: 1px;
   --success: #30a46c;
   --success-foreground: #ffffff;
   --warning: #d9730d;
@@ -329,10 +332,11 @@
   --default-foreground: #f7f8f8;
   --segment: #2a2a32;
   --segment-foreground: #ffffff;
-  --field-background: #18181c;
+  --field-background: #1e1e24;
   --field-foreground: #f7f8f8;
   --field-placeholder: #8a8f98;
-  --field-border: rgba(255, 255, 255, 0.08);
+  --field-border: rgba(255, 255, 255, 0.14);
+  --field-border-width: 1px;
   --success: #30a46c;
   --success-foreground: #ffffff;
   --warning: #d9730d;
@@ -616,7 +620,8 @@
 }
 
 /* ---------- Tabs / Accordion 形态纠正（统一收口在 components 层，分层见文件头注释） ----------
-   规范：DESIGN §2.2 拒绝胶囊、选项卡文字不换行；组件层不得再写 whitespace-nowrap / w-fit。
+   规范：选项卡文字不换行、选项卡集恒为内容宽度；组件层不得再写 whitespace-nowrap / w-fit。
+   圆角不在此覆写：Chip 与 Tabs 采用上游 HeroUI 默认胶囊形态（DESIGN §2.2 例外条款，2026-11-17 设计评审）。
    与上游同为 components 层且源码序在后，同权重即可生效，故不再使用 !important。 */
 @layer components {
   .tabs__tab,
@@ -654,13 +659,13 @@
 }
 
 /* ---------- 组件级圆角 / 密度统一（DESIGN §2.2 圆角刻度） ----------
-   上游 @heroui/styles 对 .card / .modal__dialog / .popover 用 min(32px, --radius-3xl)
-   （本项目 --radius-3xl=24px），在桌面高密度下等同胶囊；.menu-item 是 rounded-2xl + 36px 高。
-   规范值：卡片 / 面板 / 弹窗 8px、菜单项 6px / 32px 高、内联小徽标 4px、悬浮提示 6px。
+   上游 @heroui/styles 对 .card / .popover 用 min(32px, --radius-3xl)，桌面高密度下等同胶囊；
+   .menu-item 是 rounded-2xl + 36px 高。
+   规范值：卡片 / 面板 8px、菜单项 6px / 32px 高、悬浮提示 6px。
+   .modal__dialog 不在此列：按 2026-11-17 设计评审要求沿用上游默认圆角（见 §2.2 例外条款）。
    这些覆盖此前散落在 30+ 个调用点的 className 里，现统一收到事实源，组件层不得再重复声明。 */
 @layer components {
   .card,
-  .modal__dialog,
   .popover {
     border-radius: var(--radius-lg);
   }
@@ -705,6 +710,25 @@
 
   .label {
     font-size: 0.8125rem;
+  }
+
+  /* 选择类触发器与输入框同档：上游 .select__trigger / .autocomplete__trigger 是
+     min-h-9 + padding-block 8px + 14px 字（实测 38px），比 32px 的 .input / 按钮高出一档，
+     设置页同一行里的「选择 + 按钮」会高矮不齐。此处只收敛高度与字号（ui/select 与
+     ui/autocomplete 的 Trigger 会带 min-h-0，故用固定 block-size + 垂直居中），
+     边框 / 圆角 / 底色 / 阴影仍走上游 --field-* 契约。 */
+  .select__trigger,
+  .autocomplete__trigger {
+    block-size: 2rem;
+    align-items: center;
+    padding-block: 0;
+    font-size: 0.8125rem;
+  }
+
+  .select__value,
+  .autocomplete__value {
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
   }
 
   /* DESIGN §2.3：快捷键键帽一律等宽 */
@@ -800,22 +824,10 @@
   }
 }
 
-/* ---------- 选项卡与内联徽标圆角纠正（DESIGN.md §2.2：选项卡 6px、内联小徽标 4px，拒绝胶囊） ----------
-   上游 @heroui/styles 的 .tabs__tab / .tabs__indicator 默认 border-radius:1.5rem（24px），
-   .chip 默认 border-radius:1rem（16px），在紧凑桌面密度下等同胶囊。
-   注意保留 .tabs--secondary 的直角形态：其选择器权重更高（3 个类），此处不会覆盖。 */
-@layer components {
-  .tabs__list-container,
-  .tabs__list {
-    border-radius: var(--radius-md);
-  }
-
-  .tabs__tab,
-  .tabs__indicator {
-    border-radius: var(--radius-md);
-  }
-
-  .chip {
-    border-radius: var(--radius-sm);
-  }
-}
+/* ---------- 选项卡与内联徽标：采用上游默认胶囊形态（DESIGN.md §2.2 例外条款） ----------
+   2026-11-17 设计评审结论：Chip / Tabs 必须与 HeroUI 组件默认外观一致，
+   故不再把 .tabs__list-container / .tabs__tab / .tabs__indicator / .chip 压成 6px / 4px 直角档位，
+   直接沿用上游 .chip（rounded-2xl 16px）、.tabs__list-container（calc(--radius * 2.5)）、
+   .tabs__tab / .tabs__indicator（1.5rem 24px）。
+   保留 .tabs--secondary 的直角下划线形态：其选择器权重更高（3 个类），上游默认即直角色。
+   业务层仍不得自写 rounded-* 覆盖（DESIGN §2.7.4）。 */

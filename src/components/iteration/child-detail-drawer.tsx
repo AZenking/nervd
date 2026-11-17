@@ -7,6 +7,7 @@ import {
   ClockIcon,
   ExternalLinkIcon,
   FolderIcon,
+  KeyboardIcon,
   LayersIcon,
   Maximize2Icon,
   UserIcon,
@@ -47,6 +48,7 @@ import { OverflowTooltip } from '../overflow-tooltip';
 import { SectionHeader } from '../section-header';
 import { RichDescription } from './rich-description';
 import { ChangeTimeline } from './requirement/change-timeline';
+import { IconHint } from '@/components/ui/icon-hint';
 import { toast } from '@/components/ui/toast';
 import { useUi } from '@/store/ui';
 import { StartProcessingButton } from './start-processing';
@@ -230,7 +232,7 @@ export function ChildDetailDrawer({
   const notifyReadonlyStatus = () => {
     toast.add({
       title: '当前处于只读模式',
-      description: '子项状态流转是写操作。可在「设置 → 安全」中开启写权限后执行。',
+      description: '子项状态流转是写操作。可在「设置 → 安全与权限」中开启写权限后执行。',
       type: 'warning',
       actionProps: {
         children: '前往设置',
@@ -247,11 +249,11 @@ export function ChildDetailDrawer({
           <Button
             type="button"
             variant="ghost"
-            size="inline"
+            size="bare"
             aria-disabled="true"
             aria-label={`状态：${statusName || '未指定'}（只读，点击查看原因）`}
             onPress={notifyReadonlyStatus}
-            className={cn('cursor-not-allowed p-0', READONLY_BTN_CLASS)}
+            className={cn('cursor-not-allowed', READONLY_BTN_CLASS)}
           >
             <Chip size="sm" color={statusColor} variant="soft" className="opacity-80">
               <StatusIcon status={statusName} className="size-3.5 shrink-0" />
@@ -260,7 +262,7 @@ export function ChildDetailDrawer({
           </Button>
         }
       />
-      <TooltipContent>写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）</TooltipContent>
+      <TooltipContent>写操作已关闭：需在「设置 → 安全与权限」中开启（需写权限令牌）</TooltipContent>
     </Tooltip>
   ) : (
     <DropdownMenu
@@ -553,9 +555,11 @@ export function ChildDetailDrawer({
 
         {/* 底部操作条 */}
         <div className="flex items-center justify-between border-t border-border/70 px-5 py-3">
-          <span className="text-xs text-muted-foreground font-mono">
-            Esc 或点击外部关闭
-          </span>
+          <IconHint
+            icon={<KeyboardIcon className="size-3.5" />}
+            label="Esc 或点击外部关闭"
+            className="text-muted-foreground"
+          />
           <div className="flex items-center gap-2">
             {child && (
               <StartProcessingButton

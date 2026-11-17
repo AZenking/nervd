@@ -46,6 +46,8 @@ function Checkbox({
     onCheckedChange?.(selected)
   }
 
+  // children 直接放标签内容即可：本组件已内置 Content / Control / Indicator。
+  // 调用点不要再嵌套 <Checkbox.Content>，否则会再渲染一个勾选框。
   return (
     <HeroUICheckbox
       ref={ref}

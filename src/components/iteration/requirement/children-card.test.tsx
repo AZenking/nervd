@@ -112,21 +112,12 @@ afterEach(async () => {
   host.remove();
 });
 
-/** 打开区块标题右侧的「更多」菜单（AI 拆解 / 新建均收纳于此） */
-async function openMoreMenu() {
-  const trigger = host.querySelector<HTMLButtonElement>('[data-testid="children-card-more-trigger"]');
-  expect(trigger).not.toBeNull();
+/** 点击区块标题右侧 ButtonGroup 里的动作按钮（新建 / AI 拆解，均常驻、不再藏进「更多」菜单） */
+async function clickCardAction(testId: string) {
+  const button = host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
+  expect(button, `未找到动作按钮：${testId}`).not.toBeNull();
   await act(async () => {
-    trigger!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-  });
-}
-
-/** 点击「更多」菜单中的菜单项（菜单通过 Portal 渲染到 document.body） */
-async function clickMoreMenuItem(testId: string) {
-  const item = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
-  expect(item, `未找到菜单项：${testId}`).not.toBeNull();
-  await act(async () => {
-    item!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    button!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
   });
 }
 
@@ -142,7 +133,6 @@ describe('ChildrenCard Fast Create with Select Components', () => {
         <ChildrenCard
           title="缺陷"
           category="Bug"
-          description="挂载在该需求下的缺陷"
           items={[]}
           parentWorkitemId="req-1"
           parentIdentifier="REQ-101"
@@ -156,8 +146,7 @@ describe('ChildrenCard Fast Create with Select Components', () => {
     });
 
     // 从「更多」菜单选择「新建缺陷」打开快速创建行（AI 拆解已收纳进同一菜单）
-    await openMoreMenu();
-    await clickMoreMenuItem('children-card-more-add');
+    await clickCardAction('children-card-add');
 
     // 检查是否渲染了三个 Select / Tag
     const triggers = host.querySelectorAll('[data-slot="select-trigger"]');
@@ -200,7 +189,6 @@ describe('ChildrenCard 创建动态回写', () => {
         <ChildrenCard
           title="子任务"
           category="Task"
-          description="挂载在该需求下的子任务"
           items={items}
           parentWorkitemId="req-1"
           parentIdentifier="REQ-101"
@@ -215,8 +203,7 @@ describe('ChildrenCard 创建动态回写', () => {
   };
 
   const typeAndSubmit = async (text: string) => {
-    await openMoreMenu();
-    await clickMoreMenuItem('children-card-more-add');
+    await clickCardAction('children-card-add');
     const input = host.querySelector('input[placeholder^="输入子任务名称"]') as HTMLInputElement;
     expect(input).not.toBeNull();
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
@@ -272,8 +259,7 @@ describe('ChildrenCard 创建动态回写', () => {
 
   it('行内快速新建输入框在 IME 输入法选词与按键时阻止事件冒泡且不提前提交', async () => {
     await renderCard();
-    await openMoreMenu();
-    await clickMoreMenuItem('children-card-more-add');
+    await clickCardAction('children-card-add');
     const input = host.querySelector('input[placeholder^="输入子任务名称"]') as HTMLInputElement;
     expect(input).not.toBeNull();
 
@@ -324,7 +310,7 @@ describe('ChildrenCard 创建动态回写', () => {
   });
 });
 
-describe('ChildrenCard「更多」菜单收纳 AI 拆解与新建', () => {
+describe('ChildrenCard 区块动作 ButtonGroup（新建 / AI 拆解常驻）', () => {
   const renderCard = async (options: { category?: 'Task' | 'Bug'; allowWriteOps?: boolean } = {}) => {
     const { category = 'Task', allowWriteOps = true } = options;
     useApp.setState({
@@ -338,7 +324,6 @@ describe('ChildrenCard「更多」菜单收纳 AI 拆解与新建', () => {
         <ChildrenCard
           title={category === 'Bug' ? '缺陷' : '子任务'}
           category={category}
-          description="挂载在该需求下的子项"
           items={[]}
           parentWorkitemId="req-1"
           parentIdentifier="REQ-101"
@@ -355,40 +340,39 @@ describe('ChildrenCard「更多」菜单收纳 AI 拆解与新建', () => {
     vi.mocked(toast.add).mockClear();
   });
 
-  it('把 AI 智能拆解与新建收纳进「更多」菜单，而非区块常驻按钮', async () => {
+  it('AI 智能拆解与新建常驻在区块标题的 ButtonGroup 里，不再收进「更多」菜单', async () => {
     await renderCard();
 
-    // 菜单关闭时，区块标题区不再常驻展示这两个动作
-    expect(host.textContent).not.toContain('AI 智能拆解');
-    expect(host.textContent).not.toContain('新建子任务');
-    expect(host.querySelector('[data-testid="children-card-more-trigger"]')).not.toBeNull();
+    // 2026-11-17 设计评审：取消「更多」菜单，两个动作直接以 ButtonGroup 常驻
+    expect(host.querySelector('[data-testid="children-card-more-trigger"]')).toBeNull();
+    const group = host.querySelector('[aria-label="子任务操作"]');
+    expect(group?.getAttribute('data-slot')).toBe('button-group');
 
-    await openMoreMenu();
-    const aiItem = document.querySelector<HTMLElement>('[data-testid="ai-breakdown-menu-item"]');
-    const addItem = document.querySelector<HTMLElement>('[data-testid="children-card-more-add"]');
-    expect(aiItem?.textContent).toContain('AI 智能拆解');
-    expect(addItem?.textContent).toContain('新建子任务');
+    const addButton = host.querySelector<HTMLElement>('[data-testid="children-card-add"]');
+    const aiButton = host.querySelector<HTMLElement>('[data-testid="children-card-ai-breakdown"]');
+    // 文案超过四个字 → 只给图标，语义由 aria-label / Tooltip 承载
+    expect(addButton?.getAttribute('aria-label')).toBe('新建子任务');
+    expect(aiButton?.getAttribute('aria-label')).toBe('AI 智能拆解');
+    expect(addButton?.textContent ?? '').not.toContain('新建子任务');
   });
 
-  it('只读模式下菜单项保留可点击的 Toast 引导而不是静默失败', async () => {
+  it('只读模式下动作按钮保留可点击的 Toast 引导而不是静默失败', async () => {
     await renderCard({ allowWriteOps: false });
-    await openMoreMenu();
 
-    const aiItem = document.querySelector<HTMLElement>('[data-testid="ai-breakdown-menu-item"]');
-    expect(aiItem?.textContent).toContain('只读模式');
+    const aiButton = host.querySelector<HTMLElement>('[data-testid="children-card-ai-breakdown"]');
+    expect(aiButton?.getAttribute('aria-disabled')).toBe('true');
 
-    await clickMoreMenuItem('ai-breakdown-menu-item');
+    await clickCardAction('children-card-ai-breakdown');
     expect(toast.add).toHaveBeenCalledWith(
       expect.objectContaining({ title: '当前处于只读模式', type: 'warning' }),
     );
   });
 
-  it('缺陷区块不提供 AI 智能拆解菜单项（仅子任务支持）', async () => {
+  it('缺陷区块不提供 AI 智能拆解按钮（仅子任务支持）', async () => {
     await renderCard({ category: 'Bug' });
-    await openMoreMenu();
 
-    expect(document.querySelector('[data-testid="ai-breakdown-menu-item"]')).toBeNull();
-    expect(document.querySelector('[data-testid="children-card-more-add"]')?.textContent).toContain(
+    expect(host.querySelector('[data-testid="children-card-ai-breakdown"]')).toBeNull();
+    expect(host.querySelector('[data-testid="children-card-add"]')?.getAttribute('aria-label')).toBe(
       '新建缺陷',
     );
   });
@@ -413,7 +397,6 @@ describe('ChildrenCard Agent 联动（子任务行处理入口与状态）', () 
         <ChildrenCard
           title="子任务"
           category="Task"
-          description="挂载在该需求下的子任务"
           items={items}
           parentWorkitemId="req-1"
           parentIdentifier="REQ-101"

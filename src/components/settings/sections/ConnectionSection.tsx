@@ -8,13 +8,16 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StatusBadge, connectionStatus } from '@/components/StatusBadge';
-import { SettingsGroup, SettingsRow } from '../settings-group';
+import { SettingsGroup } from '../settings-group';
 import { OrgRow, PatRow, SpaceRow } from './connection-fields';
 
+/**
+ * 设置 → 云效连接（工作区）。
+ *
+ * 当前账号身份、令牌 / 组织 / 默认项目空间与连接测试。需求列表高亮与姓名匹配
+ * 属于个人偏好，已迁至「外观与交互」；这里不再重复。
+ */
 export function ConnectionSection() {
   const {
     settings,
@@ -22,8 +25,6 @@ export function ConnectionSection() {
     currentUser,
     loadingCurrentUser,
     loadCurrentUser,
-    workitemHighlight,
-    setWorkitemHighlight,
   } = useApp();
   const draft = useSettingsDraft();
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -47,26 +48,59 @@ export function ConnectionSection() {
     }
   };
 
-  // 原生 disabled 会吞掉 hover/focus，导致依赖说明不可达：改用 isDisabled + Tooltip 包裹
-  const customNameInput = (
-    <Input
-      id="custom-match-name"
-      isDisabled={!workitemHighlight.enabled}
-      value={workitemHighlight.customName ?? ''}
-      onChange={(e) => setWorkitemHighlight({ customName: e.target.value })}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.nativeEvent.isComposing) return;
-      }}
-      placeholder={currentUser?.name ? `默认匹配：${currentUser.name}` : '如：花名 / 别名'}
-    />
-  );
-
   return (
     <div className="flex flex-col gap-6">
       <SettingsGroup
+        title="当前账号"
+        description="基于已保存的访问令牌自动识别云效用户身份。"
+      >
+        <div className="flex flex-col gap-3 border-b border-border/50 p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar size="md" className="border border-border/60 shrink-0">
+              {currentUser?.avatarUrl && <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} />}
+              <AvatarFallback>
+                {currentUser?.name ? currentUser.name.charAt(0) : <UserCheckIcon className="size-4" />}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-semibold text-foreground" title={currentUser?.name}>
+                  {currentUser?.name || (loadingCurrentUser ? '正在识别云效用户…' : settings?.hasPat ? '未识别到用户' : '待配置访问令牌')}
+                </span>
+                {currentUser && (
+                  <Chip size="sm" variant="secondary" className="font-mono text-muted-foreground">
+                    {currentUser.id.slice(0, 8)}…
+                  </Chip>
+                )}
+              </div>
+              <span className="truncate text-xs text-muted-foreground" title={currentUser?.email}>
+                {currentUser?.email ? (
+                  currentUser.email
+                ) : settings?.hasPat ? (
+                  '已通过个人访问令牌 (PAT) 认证'
+                ) : (
+                  '在下方保存个人访问令牌后，将自动识别账号身份'
+                )}
+              </span>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            isDisabled={loadingCurrentUser || !settings?.hasPat}
+            onPress={() => void loadCurrentUser()}
+            className="shrink-0 self-start sm:self-auto gap-1.5"
+          >
+            <RefreshCwIcon className={cn('size-3.5', loadingCurrentUser && 'animate-spin')} />
+            <span>{loadingCurrentUser ? '识别中…' : '重新识别'}</span>
+          </Button>
+        </div>
+      </SettingsGroup>
+
+      <SettingsGroup
         title="令牌与组织"
-        description="令牌与组织信息，用于访问云效 DevOps API。"
+        description="令牌与组织信息仅保存在本机，用于访问云效 DevOps API。"
       >
         <PatRow />
 
@@ -94,154 +128,6 @@ export function ConnectionSection() {
             测试连接
           </Button>
         </div>
-      </SettingsGroup>
-
-      {/* 云效当前用户与需求列表高亮标记设置 */}
-      <SettingsGroup
-        title="当前用户与需求高亮标记"
-        description="基于当前访问令牌自动识别云效用户身份，并在需求列表中高亮处理人（我负责）与关联人（我参与）。"
-      >
-        {/* 用户身份识别卡片 */}
-        <div className="flex flex-col gap-3 p-4 border-b border-border/50 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <Avatar size="md" className="border border-border/60 shrink-0">
-              {currentUser?.avatarUrl && <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} />}
-              <AvatarFallback>
-                {currentUser?.name ? currentUser.name.charAt(0) : <UserCheckIcon className="size-4" />}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-semibold text-foreground" title={currentUser?.name}>
-                  {currentUser?.name || (loadingCurrentUser ? '正在识别云效用户…' : settings?.hasPat ? '未识别到用户' : '待配置访问令牌')}
-                </span>
-                {currentUser && (
-                  <Chip size="sm" variant="secondary" className="font-mono text-muted-foreground">
-                    {currentUser.id.slice(0, 8)}…
-                  </Chip>
-                )}
-              </div>
-              <span className="truncate text-xs text-muted-foreground" title={currentUser?.email}>
-                {currentUser?.email ? (
-                  currentUser.email
-                ) : settings?.hasPat ? (
-                  '已通过个人访问令牌 (PAT) 认证'
-                ) : (
-                  '在上方保存个人访问令牌后，将自动识别账号身份并激活高亮规则'
-                )}
-              </span>
-            </div>
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            isDisabled={loadingCurrentUser || !settings?.hasPat}
-            onPress={() => void loadCurrentUser()}
-            className="shrink-0 self-start sm:self-auto gap-1.5"
-          >
-            <RefreshCwIcon className={cn('size-3.5', loadingCurrentUser && 'animate-spin')} />
-            <span>{loadingCurrentUser ? '识别中…' : '重新识别'}</span>
-          </Button>
-        </div>
-
-        {/* 开关 1：开启需求列表高亮标记 */}
-        <SettingsRow
-          orientation="horizontal"
-          label="开启需求列表高亮标记"
-          description="在迭代工作台列表中根据当前用户身份视觉突出显示关联与负责的工作项。"
-          htmlFor="highlight-enabled"
-          control={(
-            <Switch
-              id="highlight-enabled"
-              aria-label="开启需求列表高亮标记"
-              size="md"
-              isSelected={workitemHighlight.enabled}
-              onChange={(checked) => setWorkitemHighlight({ enabled: checked })}
-            />
-          )}
-        />
-
-        {/* 开关 2：高亮我负责的需求（处理人） */}
-        <SettingsRow
-          orientation="horizontal"
-          label={(
-            <span className="flex items-center gap-2">
-              <span>高亮我负责的需求</span>
-              <Chip
-                size="sm"
-                variant="soft"
-                color="accent"
-                className="shrink-0 select-none"
-              >
-                我负责
-              </Chip>
-            </span>
-          )}
-          description="当您为需求处理人（Assignee）时，行首显示紫色标记与「我负责」徽标。"
-          htmlFor="highlight-assignee"
-          control={(
-            <Switch
-              id="highlight-assignee"
-              aria-label="高亮我负责的需求"
-              size="md"
-              isDisabled={!workitemHighlight.enabled}
-              isSelected={workitemHighlight.highlightAssignee}
-              onChange={(checked) => setWorkitemHighlight({ highlightAssignee: checked })}
-            />
-          )}
-        />
-
-        {/* 开关 3：高亮我参与的需求（关联人 / 参与人） */}
-        <SettingsRow
-          orientation="horizontal"
-          label={(
-            <span className="flex items-center gap-2">
-              <span>高亮我参与的需求</span>
-              <Chip
-                size="sm"
-                variant="soft"
-                color="warning"
-                className="shrink-0 select-none"
-              >
-                我参与
-              </Chip>
-            </span>
-          )}
-          description="当您在需求关联人 / 参与人（Participants）列表中时，行首显示琥珀色标记与「我参与」徽标。"
-          htmlFor="highlight-related"
-          control={(
-            <Switch
-              id="highlight-related"
-              aria-label="高亮我参与的需求"
-              size="md"
-              isDisabled={!workitemHighlight.enabled}
-              isSelected={workitemHighlight.highlightRelated}
-              onChange={(checked) => setWorkitemHighlight({ highlightRelated: checked })}
-            />
-          )}
-        />
-
-        {/* 输入项：自定义匹配姓名 */}
-        <SettingsRow
-          orientation="horizontal"
-          controlWidth="w-72"
-          label="自定义匹配姓名（可选）"
-          description="如果工作项中的处理人显示名与云效账号姓名存在差异或使用花名，可在此指定补充匹配姓名。"
-          htmlFor="custom-match-name"
-          control={
-            workitemHighlight.enabled ? customNameInput : (
-              <Tooltip>
-                <TooltipTrigger render={<span className="flex w-full cursor-not-allowed" />}>
-                  {customNameInput}
-                </TooltipTrigger>
-                <TooltipContent>
-                  需先开启上方「需求列表高亮标记」，才能填写自定义匹配姓名
-                </TooltipContent>
-              </Tooltip>
-            )
-          }
-        />
       </SettingsGroup>
     </div>
   );

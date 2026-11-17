@@ -71,7 +71,7 @@ export async function runTaskNow(
 
   // 只读安全防线校验
   if (isWriteOp && !allowWrite) {
-    const errorMsg = '写操作已拦截：客户端处于只读保护模式，请在「系统设置 → 安全」中开启允许写操作。';
+    const errorMsg = '写操作已拦截：客户端处于只读保护模式，请在「系统设置 → 安全与权限」中开启允许写操作。';
     const finishedIso = new Date().toISOString();
     useScheduleStore.getState().recordLog({
       taskId: task.id,

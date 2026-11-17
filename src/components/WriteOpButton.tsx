@@ -30,7 +30,9 @@ const INLINE_CONFIRM_TIMEOUT_MS = 4000;
 const READONLY_BTN_CLASS =
   // HeroUI 对 aria-disabled 按钮默认设了 pointer-events:none（会吞掉点击与 hover，
   // 导致"只读点击提示前往设置"这条路径失效）；这里用 !important 强制恢复指针事件。
-  'pointer-events-auto! bg-default text-muted-foreground border-border/60 shadow-none hover:bg-default hover:text-muted-foreground cursor-not-allowed opacity-80';
+  // 2026-11-17 设计评审：primary / ghost 变体本身没有边框，只读灰阶后看起来像纯文字；
+  // 补 1px 边框，让门控入口在任何变体下都仍是"按钮"。
+  'pointer-events-auto! border bg-default text-muted-foreground border-border/60 shadow-none hover:bg-default hover:text-muted-foreground cursor-not-allowed opacity-80';
 
 export { READONLY_BTN_CLASS };
 
@@ -53,7 +55,7 @@ export function WriteOpGatedTrigger({
   const handleClick = () => {
     toast.add({
       title: '当前处于只读模式',
-      description: `「${label}」是写操作。可在「设置 → 安全」中开启写权限后执行。`,
+      description: `「${label}」是写操作。可在「设置 → 安全与权限」中开启写权限后执行。`,
       type: 'warning',
       actionProps: {
         children: '前往设置',
@@ -79,7 +81,7 @@ export function WriteOpGatedTrigger({
           </Button>
         }
       />
-      <TooltipContent>写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）</TooltipContent>
+      <TooltipContent>写操作已关闭：需在「设置 → 安全与权限」中开启（需写权限令牌）</TooltipContent>
     </Tooltip>
   );
 }
@@ -118,7 +120,7 @@ export function WriteOpButton({
   }, []);
 
   const tip = blocked
-    ? '写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）'
+    ? '写操作已关闭：需在「设置 → 安全与权限」中开启（需写权限令牌）'
     : disabled
       ? disabledReason ?? title ?? label
       : title ?? label;
@@ -126,7 +128,7 @@ export function WriteOpButton({
   const notifyReadonly = () => {
     toast.add({
       title: '当前处于只读模式',
-      description: `「${label}」是写操作。可在「设置 → 安全」中开启写权限后执行。`,
+      description: `「${label}」是写操作。可在「设置 → 安全与权限」中开启写权限后执行。`,
       type: 'warning',
       actionProps: {
         children: '前往设置',

@@ -470,7 +470,7 @@ export function describeAttributionError(err: unknown, fallback = '请稍后重�
     return '后端变更归属能力尚未就绪，请更新应用后重试';
   }
   if (/not allowed|denied|permission|allow_?write|只读/i.test(message)) {
-    return '当前处于只读保护模式，请前往「设置 → 安全策略」开启写操作';
+    return '当前处于只读保护模式，请前往「设置 → 安全与权限策略」开启写操作';
   }
   return message;
 }

@@ -124,3 +124,110 @@ describe('BranchTemplatesManager 交付轨道拓扑预览', () => {
     expect(document.body.textContent).toContain('iteration/Sprint-2026/局点专版');
   });
 });
+
+describe('BranchTemplatesManager 面板布局与统一预览', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+
+  const setInput = async (index: number, value: string) => {
+    await act(async () => {
+      const inputs = [...document.body.querySelectorAll<HTMLInputElement>('[role="dialog"] input')];
+      const input = inputs[index];
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+
+  const previewText = () => {
+    const surface = [...document.body.querySelectorAll<HTMLElement>('[data-slot="surface"]')]
+      .find((element) => element.textContent?.includes('生成结果预览'));
+    return surface?.textContent ?? '';
+  };
+
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+  });
+
+  afterEach(async () => {
+    await act(() => root.unmount());
+    host.remove();
+    document.body.innerHTML = '';
+  });
+
+  const openNewDrawer = async () => {
+    await act(() => {
+      root.render(
+        <BranchTemplatesManager
+          templates={[]}
+          onSaveTemplates={vi.fn()}
+          scope="global"
+          iterationName="Sprint-2026"
+        />,
+      );
+    });
+    await act(async () => {
+      const add = [...host.querySelectorAll('button')].find((button) => button.textContent?.includes('新增模板'));
+      add?.click();
+    });
+  };
+
+  it('新增抽屉：Fieldset 分组 + 唯一预览区 + 预设无 Emoji', async () => {
+    await openNewDrawer();
+
+    const bodyText = document.body.textContent ?? '';
+    expect(bodyText).toContain('基础信息');
+    expect(bodyText).toContain('分支规则');
+    expect(bodyText).toContain('生成结果预览');
+    // 快速填充为纯文字（无 Emoji）
+    expect(bodyText).toContain('单主干直连');
+    expect(bodyText).toContain('迭代集成基线');
+    expect(bodyText).toContain('现场局点');
+    expect(/[\u{1F300}-\u{1FAFF}]/u.test(bodyText)).toBe(false);
+    // 预览区唯一
+    const previews = [...document.body.querySelectorAll('[data-slot="surface"]')]
+      .filter((element) => element.textContent?.includes('生成结果预览'));
+    expect(previews).toHaveLength(1);
+    // 字段级预览已移除
+    expect(document.body.querySelector('[data-testid="branch-pattern-preview"]')).toBeNull();
+  });
+
+  it('模板名称 / 示例需求编号统一进入预览；源分支与基准同名时提示直连', async () => {
+    await openNewDrawer();
+
+    await setInput(0, 'A 局点');
+    expect(previewText()).toContain('iteration/Sprint-2026/A-局点');
+
+    await setInput(4, 'MANT-24');
+    expect(previewText()).toContain('feature/MANT-24');
+
+    // 源分支改成展开后的基准分支 → 单主干直连
+    await setInput(1, 'iteration/Sprint-2026/A-局点');
+    await act(async () => { await Promise.resolve(); });
+    const text = previewText();
+    expect(text).toContain('直接使用该分支，不创建迭代基准');
+    // 基准节点不再重复出现
+    expect(text).not.toContain('迭代基准iteration/Sprint-2026/A-局点');
+  });
+
+  it('迭代上下文缺失时在预览区明确提示，不伪装成真实分支', async () => {
+    await act(() => {
+      root.render(
+        <BranchTemplatesManager
+          templates={[]}
+          onSaveTemplates={vi.fn()}
+          scope="iteration"
+          iterationId="it-1"
+        />,
+      );
+    });
+    await act(async () => {
+      const add = [...host.querySelectorAll('button')].find((button) => button.textContent?.includes('新增模板'));
+      add?.click();
+    });
+    expect(document.body.textContent).toContain('未获取到当前迭代上下文');
+  });
+});

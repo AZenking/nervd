@@ -26,14 +26,19 @@ const buttonVariants = tv(
         default: "h-8 px-3 text-[13px]",
         // 2xs：表格/徽标行内的微型图标或文字按钮（原调用点靠 h-5/h-6 + text-[11px] 手拼）
         "2xs": "h-5 px-1 text-[11px] gap-1 [&_svg:not([class*='size-'])]:size-3",
-        xs: "h-6 px-1.5 text-xs gap-1 in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-7 px-2.5 text-xs gap-1 in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
+        // 分组内圆角一律交回 theme.css 的 .button-group 规则（内角直角 / 只修外缘两角），
+        // 这里不得再写 in-data-[slot=button-group]:rounded-* —— 那会把每个按钮重新描成独立圆角块。
+        xs: "h-6 px-1.5 text-xs gap-1 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-7 px-2.5 text-xs gap-1 [&_svg:not([class*='size-'])]:size-3",
         lg: "h-9 px-4 gap-2",
         // inline：把状态徽标/文本当作按钮内容时不占固定行高（原调用点靠 h-auto py-1 手拼）
         inline: "h-auto px-1.5 py-1 font-normal",
+        // bare：按钮只作为「可点击容器」包住 Chip / 整行内容（零内距、零字重），
+        // 取代调用点手写 `p-0 font-normal` 这类覆盖
+        bare: "h-auto p-0 font-normal",
         icon: "size-8 p-0",
-        "icon-xs": "size-6 p-0 rounded-sm in-data-[slot=button-group]:rounded-sm [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-7 p-0 rounded-sm in-data-[slot=button-group]:rounded-sm",
+        "icon-xs": "size-6 p-0 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-7 p-0",
         "icon-lg": "size-9 p-0",
       },
     },

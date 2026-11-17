@@ -1,11 +1,10 @@
 import {
   GitBranchIcon,
-  GitPullRequestIcon,
   PlusIcon,
   RefreshCwIcon,
   WorkflowIcon,
 } from 'lucide-react';
-import type { MrSummary, RepoCiBinding } from '@/types';
+import type { RepoCiBinding } from '@/types';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
 import { BuildWorkbenchTrigger } from '@/components/build-workbench';
@@ -22,8 +21,6 @@ export interface LinkedRepoPrimaryActionProps {
   developerBranch: string;
   branchDisabledReason?: string;
   onCreateDeveloperBranch: () => void | Promise<void>;
-  targetActiveMr?: MrSummary;
-  onViewMr: (mr?: MrSummary) => void;
   onCreateMr: () => void;
   ciBinding?: RepoCiBinding;
   repoName: string;
@@ -44,8 +41,6 @@ export function LinkedRepoPrimaryAction({
   developerBranch,
   branchDisabledReason,
   onCreateDeveloperBranch,
-  targetActiveMr,
-  onViewMr,
   onCreateMr,
   ciBinding,
   repoName,
@@ -93,22 +88,19 @@ export function LinkedRepoPrimaryAction({
         />
       );
     case 'view-mr':
-      return (
-        <Button type="button" size="sm" variant="outline" onPress={() => onViewMr(targetActiveMr)}>
-          <GitPullRequestIcon data-icon="inline-start" />
-          查看 MR !{targetActiveMr?.localId}
-        </Button>
-      );
+      // 2026-11-17 布局评审：MR 编号只在摘要「合并请求」组里出现一次（可点击链接），
+      // 摘要行动作区不再重复渲染「查看 MR !编号」按钮。
+      return null;
     case 'create-mr':
       return (
         <>
           <WriteOpGatedTrigger
             label="创建 MR"
             icon={<PlusIcon data-icon="inline-start" />}
-            variant="default"
+            variant="secondary"
           />
           {allowWriteOps && (
-            <Button type="button" size="sm" variant="default" onPress={onCreateMr}>
+            <Button type="button" size="sm" variant="secondary" onPress={onCreateMr}>
               <PlusIcon data-icon="inline-start" />
               创建 MR
             </Button>

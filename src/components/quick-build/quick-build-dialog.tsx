@@ -236,12 +236,12 @@ export function QuickBuildDialog() {
             >
               <LockIcon className="size-3.5 shrink-0 text-warning" />
               <span className="min-w-0 flex-1">
-                当前为只读模式，触发构建前需在「设置 → 安全」开启写权限。
+                当前为只读模式，触发构建前需在「设置 → 安全与权限」开启写权限。
               </span>
               <Button
                 variant="link"
                 size="xs"
-                className="shrink-0 text-xs"
+                className="shrink-0"
                 onPress={() => openSettings('security')}
               >
                 前往设置

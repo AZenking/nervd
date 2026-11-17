@@ -225,6 +225,42 @@ describe('workspace navigation history', () => {
     expect(parseNavigationRecord(null).status).toBe('missing');
   });
 
+  it('accepts legacy and newly added settings sections when restoring navigation', () => {
+    const sectionRecord = (settingsSection: string) => ({
+      version: 1,
+      current: {
+        view: 'full-settings',
+        settingsSection,
+        iterationKey: 'Sprint-1',
+        category: 'Req',
+        filters: { assignees: [], related: [], statuses: [] },
+        selectedId: null,
+        chain: [],
+        listSearch: '',
+        listContext: {
+          pageIndex: 1,
+          cursorWorkitemId: null,
+          collapsedStatuses: [],
+          selectedWorkitemIds: [],
+          splitWorkitemId: null,
+          splitParentWorkitemId: null,
+          viewTab: 'workitems',
+        },
+        scrollTop: 0,
+      },
+      history: [],
+      forwardHistory: [],
+    });
+
+    for (const section of [
+      'connection', 'trace', 'attribution', 'ci', 'security', 'ai', 'about',
+      'appearance', 'diagnostics',
+    ]) {
+      expect(parseNavigationRecord(JSON.stringify(sectionRecord(section))).status).toBe('valid');
+    }
+    expect(parseNavigationRecord(JSON.stringify(sectionRecord('unknown-section'))).status).toBe('invalid');
+  });
+
   it('restores category before selected detail and is idempotent', async () => {
     const crumb = { workitemId: 'BUG-17', identifier: 'BUG-17', subject: 'Persisted detail' };
     localStorage.setItem('nervd-navigation', JSON.stringify({

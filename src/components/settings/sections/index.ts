@@ -1,8 +1,11 @@
+export { AppearanceSection } from './AppearanceSection';
 export { ConnectionSection } from './ConnectionSection';
 export { TraceSection } from './TraceSection';
+export { LocalReposSection } from './LocalReposSection';
 export { AttributionSection } from './AttributionSection';
 export { BranchRulesSection } from './BranchRulesSection';
 export { CiSection } from './CiSection';
 export { AiSection } from './AiSection';
 export { SecuritySection } from './SecuritySection';
+export { DiagnosticsSection } from './DiagnosticsSection';
 export { AboutSection } from './AboutSection';

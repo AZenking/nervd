@@ -10,9 +10,11 @@ import {
   GitBranchIcon,
   InfoIcon,
   LayoutDashboardIcon,
+  LifeBuoyIcon,
   LockIcon,
   MonitorIcon,
   MoonIcon,
+  PaletteIcon,
   RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
@@ -168,6 +170,24 @@ export function CommandMenu() {
         active: view === 'full-settings' && settingsSection === 'about',
         run: () => openSettings('about'),
       },
+      {
+        id: 'nav-appearance-settings',
+        group: '导航',
+        label: '外观与交互设置',
+        icon: <PaletteIcon className="size-4" />,
+        keywords: '外观 交互 主题 theme 高亮 姓名匹配 appearance',
+        active: view === 'full-settings' && settingsSection === 'appearance',
+        run: () => openSettings('appearance'),
+      },
+      {
+        id: 'nav-diagnostics-settings',
+        group: '导航',
+        label: '诊断与支持',
+        icon: <LifeBuoyIcon className="size-4" />,
+        keywords: '诊断 支持 排查 快照 gatekeeper 放行 diagnostics support help',
+        active: view === 'full-settings' && settingsSection === 'diagnostics',
+        run: () => openSettings('diagnostics'),
+      },
     ];
 
     const iterationEntries: CommandEntry[] = iterationsOrFallback(realIterations).map((it) => ({
@@ -266,7 +286,7 @@ export function CommandMenu() {
       {
         id: 'action-security',
         group: '操作',
-        label: '安全与写操作设置',
+        label: '安全与权限设置',
         icon: <LockIcon className="size-4" />,
         keywords: '安全 security 只读 写操作 只读模式',
         run: () => openSettings('security'),

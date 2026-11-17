@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  CheckIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, Loader2Icon,
+  CheckIcon, ChevronDownIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, Loader2Icon,
   Trash2Icon, ZapIcon,
 } from 'lucide-react';
 import {
@@ -14,6 +14,7 @@ import { toast } from '@/components/ui/toast';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import type { AiBreakdownMode, AiCustomPrompts, AiProvider, AiSettingsView, AiTestConnectionResult } from '@/types/ai';
 import { SettingsGroup, SettingsRow } from '../settings-group';
+import { Accordion } from '@/components/ui/accordion';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -49,6 +50,52 @@ const PROVIDER_PRESETS: Record<AiProvider, { name: string; baseUrl: string; defa
     hint: '兼容 OpenAI 格式的企业内部大模型网关、OneAPI、vLLM 或本地 Ollama 服务。',
   },
 };
+
+
+/** 场景提示词：默认收起，按使用场景逐条展开编辑 */
+const PROMPT_FIELDS: ReadonlyArray<{
+  key: keyof AiCustomPrompts;
+  id: string;
+  label: string;
+  description: string;
+  placeholder: string;
+}> = [
+  {
+    key: 'breakdown',
+    id: 'ai-prompt-breakdown',
+    label: '子任务拆解工程规范 (Breakdown Rules)',
+    description: '定义拆解子任务时的团队约束。例如：必须包含自测任务、后端需注明 RPC 接口、标题动宾结构等。',
+    placeholder: '例如：每个需求必须包含一个自测任务；后端任务注明涉及的 RPC 接口；标题严格在 25 字以内。',
+  },
+  {
+    key: 'commentSummary',
+    id: 'ai-prompt-comment-summary',
+    label: '评论讨论纪要规则 (Discussion Summary)',
+    description: '提炼需求讨论历史时的侧重偏好。例如：重点关注交付时间变更、明确阻塞项责任人等。',
+    placeholder: '例如：关注技术方案共识与对上线排期的影响，必须明确标出每个阻塞项的责任人。',
+  },
+  {
+    key: 'commentDraft',
+    id: 'ai-prompt-comment-draft',
+    label: '评论与提测/进度生成偏好 (Comment Generation)',
+    description: '定制自动生成研发进度同步、提测交付说明或评论润色时的语言风格与标准段落格式。',
+    placeholder: '例如：提测说明必须包含部署环境和测试账号说明；研发进度汇报按「已完成、进行中、风险项」排版。',
+  },
+  {
+    key: 'repoRecommendation',
+    id: 'ai-prompt-repo-recommendation',
+    label: '代码仓库架构背景说明 (Repo Recommendation Rules)',
+    description: '向 AI 提供团队组织的代码仓库命名习惯与业务域归属，帮助 AI 更精准推荐需求应关联的仓库。',
+    placeholder: '例如：trade-* 为交易履约核心服务，fed-* 为前端应用，crm-* 为客户中心，common-* 为公共底层库。',
+  },
+  {
+    key: 'mergeRequest',
+    id: 'ai-prompt-merge-request',
+    label: 'Merge Request 描述规范 (MR Rules)',
+    description: '生成 MR 标题与描述时的规范要求。例如：强制遵循 Conventional Commits、包含自测验证清单等。',
+    placeholder: '例如：标题强制遵循 Conventional Commits 规范；描述必须包含自测用例清单与回归检查点；跳过 WIP 提交。',
+  },
+];
 
 
 export function AiSection() {
@@ -413,10 +460,10 @@ export function AiSection() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 服务商与模型设置 */}
+      {/* 模型连接与凭据 */}
       <SettingsGroup
-        title="模型服务商与端点"
-        description="配置大模型兼容接口（OpenAI Chat Completions 协议），为需求拆解与 Git 交付助手提供大模型推理能力。"
+        title="模型连接"
+        description="配置大模型兼容接口（OpenAI Chat Completions 协议）与服务凭据，为需求拆解与 Git 交付助手提供推理能力；密钥只保存在本机 Keychain。"
         action={
           <div className="flex items-center gap-2">
             {testResult && (
@@ -540,13 +587,6 @@ export function AiSection() {
             />
           }
         />
-      </SettingsGroup>
-
-      {/* API Key 安全管理 */}
-      <SettingsGroup
-        title="API 凭据安全存储"
-        description="密钥加密保存在 macOS 系统的 Keychain 中，nervd 核心仅在发起请求时在内存中读取，绝不以明文落盘。"
-      >
         <SettingsRow
           orientation="vertical"
           htmlFor="ai-api-key"
@@ -674,100 +714,40 @@ export function AiSection() {
 
       </SettingsGroup>
 
-      {/* 场景上下文与提示词定制 */}
+      {/* 场景提示词：默认收起，展开后编辑 */}
       <SettingsGroup
-        title="场景上下文与 Prompt 规则定制"
-        description="为不同 AI 生成场景配置团队专属的工程规范、背景说明或提示词约束，大模型推理时将自动附加生效。"
+        title="场景提示词"
+        description="为不同 AI 生成场景配置团队专属的工程规范、背景说明或提示词约束；默认收起，展开对应场景后编辑，变更自动保存。"
       >
-        {/* 子任务拆解规则 */}
-        <SettingsRow
-          orientation="vertical"
-          htmlFor="ai-prompt-breakdown"
-          label="子任务拆解工程规范 (Breakdown Rules)"
-          description="定义拆解子任务时的团队约束。例如：必须包含自测任务、后端需注明 RPC 接口、标题动宾结构等。"
-          control={
-            <Textarea
-              id="ai-prompt-breakdown"
-              value={settings.customPrompts?.breakdown ?? ''}
-              onChange={(e) => handleUpdatePrompt('breakdown', e.target.value)}
-              onBlur={() => void commitPrompts()}
-              placeholder="例如：每个需求必须包含一个自测任务；后端任务注明涉及的 RPC 接口；标题严格在 25 字以内。"
-              rows={3}
-            />
-          }
-        />
-
-        {/* 讨论纪要提炼规则 */}
-        <SettingsRow
-          orientation="vertical"
-          htmlFor="ai-prompt-comment-summary"
-          label="评论讨论纪要规则 (Discussion Summary)"
-          description="提炼需求讨论历史时的侧重偏好。例如：重点关注交付时间变更、明确阻塞项责任人等。"
-          control={
-            <Textarea
-              id="ai-prompt-comment-summary"
-              value={settings.customPrompts?.commentSummary ?? ''}
-              onChange={(e) => handleUpdatePrompt('commentSummary', e.target.value)}
-              onBlur={() => void commitPrompts()}
-              placeholder="例如：关注技术方案共识与对上线排期的影响，必须明确标出每个阻塞项的责任人。"
-              rows={3}
-            />
-          }
-        />
-
-        {/* 评论与进度汇报模板 */}
-        <SettingsRow
-          orientation="vertical"
-          htmlFor="ai-prompt-comment-draft"
-          label="评论与提测/进度生成偏好 (Comment Generation)"
-          description="定制自动生成研发进度同步、提测交付说明或评论润色时的语言风格与标准段落格式。"
-          control={
-            <Textarea
-              id="ai-prompt-comment-draft"
-              value={settings.customPrompts?.commentDraft ?? ''}
-              onChange={(e) => handleUpdatePrompt('commentDraft', e.target.value)}
-              onBlur={() => void commitPrompts()}
-              placeholder="例如：提测说明必须包含部署环境和测试账号说明；研发进度汇报按「已完成、进行中、风险项」排版。"
-              rows={3}
-            />
-          }
-        />
-
-        {/* 关联仓库推荐规则 */}
-        <SettingsRow
-          orientation="vertical"
-          htmlFor="ai-prompt-repo-recommendation"
-          label="代码仓库架构背景说明 (Repo Recommendation Rules)"
-          description="向 AI 提供团队组织的代码仓库命名习惯与业务域归属，帮助 AI 更精准推荐需求应关联的仓库。"
-          control={
-            <Textarea
-              id="ai-prompt-repo-recommendation"
-              value={settings.customPrompts?.repoRecommendation ?? ''}
-              onChange={(e) => handleUpdatePrompt('repoRecommendation', e.target.value)}
-              onBlur={() => void commitPrompts()}
-              placeholder="例如：trade-* 为交易履约核心服务，fed-* 为前端应用，crm-* 为客户中心，common-* 为公共底层库。"
-              rows={3}
-            />
-          }
-        />
-
-        {/* Merge Request 规范 */}
-        <SettingsRow
-          orientation="vertical"
-          htmlFor="ai-prompt-merge-request"
-          label="Merge Request 描述规范 (MR Rules)"
-          description="生成 MR 标题与描述时的规范要求。例如：强制遵循 Conventional Commits、包含自测验证清单等。"
-          control={
-            <Textarea
-              id="ai-prompt-merge-request"
-              value={settings.customPrompts?.mergeRequest ?? ''}
-              onChange={(e) => handleUpdatePrompt('mergeRequest', e.target.value)}
-              onBlur={() => void commitPrompts()}
-              placeholder="例如：标题强制遵循 Conventional Commits 规范；描述必须包含自测用例清单与回归检查点；跳过 WIP 提交。"
-              rows={3}
-            />
-          }
-        />
+        <Accordion hideSeparator>
+          {PROMPT_FIELDS.map((field) => (
+            <Accordion.Item key={field.key} id={field.key}>
+              <Accordion.Heading>
+                <Accordion.Trigger>
+                  {field.label}
+                  <Accordion.Indicator>
+                    <ChevronDownIcon />
+                  </Accordion.Indicator>
+                </Accordion.Trigger>
+              </Accordion.Heading>
+              <Accordion.Panel>
+                <Accordion.Body>
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs leading-5 text-muted-foreground">{field.description}</p>
+                    <Textarea
+                      id={field.id}
+                      value={settings.customPrompts?.[field.key] ?? ''}
+                      onChange={(e) => handleUpdatePrompt(field.key, e.target.value)}
+                      onBlur={() => void commitPrompts()}
+                      placeholder={field.placeholder}
+                      rows={3}
+                    />
+                  </div>
+                </Accordion.Body>
+              </Accordion.Panel>
+            </Accordion.Item>
+          ))}
+        </Accordion>
       </SettingsGroup>
     </div>
   );

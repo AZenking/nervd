@@ -148,14 +148,15 @@ describe('LinkedRepoCard 交付进展摘要', () => {
   };
 
   const expandDetails = async () => {
-    const expandBtn = host.querySelector('button[aria-label="展开分支与交付详情"]');
-    expect(expandBtn).not.toBeNull();
+    // 摘要行的展开开关是动作组里的「查看详情」分段（2026-11-17 设计评审：从卡片底部上移到表头 ButtonGroup）
+    const expandBtn = host.querySelector('[data-testid="linked-repo-details-toggle"]') ?? undefined;
+    expect(expandBtn).not.toBeUndefined();
     await act(async () => {
       expandBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     });
   };
 
-  it('摘要默认可见：追溯状态、开发分支→目标分支、CI「仓库最新构建」与三个只读入口', async () => {
+  it('摘要默认可见：追溯状态、开发分支→目标分支、CI「仓库最新构建」与表头只读动作组', async () => {
     await renderCard();
     const text = host.textContent ?? '';
 
@@ -167,11 +168,12 @@ describe('LinkedRepoCard 交付进展摘要', () => {
     expect(text).toContain('追溯就绪');
     // CI：构建号 + 时间 + 无法确认归属时标「仓库最新构建」
     expect(text).toContain('Flow #105');
-    expect(text).toContain('仓库最新构建');
-    // 只读入口
-    expect(text).toContain('查看详情');
-    expect(text).toContain('查看差异');
-    expect(text).toContain('查看日志');
+    expect(text).toContain('仓库最新');
+    // 表头常驻只读入口：展开/收起开关 + 「⋯」菜单（刷新数据 / 构建记录收在菜单里）
+    expect(text).toContain('展开');
+    expect(host.querySelector('[data-testid="linked-repo-details-toggle"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="更多只读仓库操作"]')).not.toBeNull();
+    expect(text).not.toContain('查看日志');
   });
 
   it('摘要行不常驻写操作，展开交付详情后才出现创建 MR / 发起构建 / 取消关联', async () => {
@@ -179,15 +181,15 @@ describe('LinkedRepoCard 交付进展摘要', () => {
     const summaryText = host.querySelector('[data-testid="delivery-summary"]')?.textContent ?? '';
     expect(summaryText).not.toContain('创建 MR');
     expect(summaryText).not.toContain('发起构建');
-    expect(summaryText).not.toContain('取消关联');
-    // 有待执行的写操作时，摘要给出指引
-    expect(summaryText).toContain('展开交付详情执行');
+    // 摘要行不再挂「展开交付详情执行」等待处理文案：原地展开即可执行
+    expect(summaryText).not.toContain('待处理：');
 
     await expandDetails();
     const detailText = host.textContent ?? '';
     expect(detailText).toContain('创建 MR');
     expect(detailText).toContain('发起构建');
-    expect(detailText).toContain('取消关联');
+    // 取消关联已收进仓库「⋯」菜单（需要打开菜单才渲染），不再常驻详情面板
+    expect(detailText).not.toContain('取消关联');
   });
 
   it('未绑定 CI 时单独呈现「未关联 CI」，不渲染仓库最新构建标签', async () => {

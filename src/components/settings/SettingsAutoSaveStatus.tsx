@@ -82,10 +82,10 @@ export function SettingsAutoSaveStatus() {
         {!aiOnly && (
           <Button
             type="button"
-            variant="ghost"
-            size="sm"
+            variant="danger-soft"
+            size="2xs"
             onPress={() => void retrySave()}
-            className="h-5 gap-1 px-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+            className="gap-1"
             aria-label="重新尝试保存"
           >
             <RotateCcwIcon className="size-2.5" />
@@ -105,10 +105,10 @@ export function SettingsAutoSaveStatus() {
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
+                size="bare"
                 onPress={() => void flushAutoSave()}
                 aria-label="立即保存设置"
-                className="h-auto gap-1.5 px-0 text-xs font-normal text-muted-foreground hover:bg-transparent hover:text-foreground"
+                className="gap-1.5"
               />
             }
           >

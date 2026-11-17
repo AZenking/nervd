@@ -108,14 +108,6 @@ async function render() {
   });
 }
 
-async function openAiMenu() {
-  const trigger = host.querySelector<HTMLButtonElement>('[data-testid="activity-ai-menu-trigger"]');
-  expect(trigger).not.toBeNull();
-  await act(async () => {
-    trigger!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-  });
-}
-
 function menuItem(testId: string) {
   return document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
 }
@@ -130,24 +122,26 @@ describe('RequirementActivity AI 收纳', () => {
     expect(host.textContent).toContain('前端页面已提测');
   });
 
-  it('评论编辑区的 AI 动作收纳进「AI 辅助」下拉菜单，而不是并排常驻标签', async () => {
+  it('评论编辑区的 AI 动作常驻在同一个 ButtonGroup 里（不再收进下拉菜单）', async () => {
     await render();
 
-    // 菜单关闭时动作不可见
-    expect(host.querySelector('[data-testid="activity-ai-menu-trigger"]')).not.toBeNull();
-    expect(host.textContent).not.toContain('研发进度同步');
-    expect(host.textContent).not.toContain('提测交付说明');
-    expect(host.textContent).not.toContain('智能润色');
-
-    await openAiMenu();
-    expect(menuItem('ai-menu-progress')?.textContent).toContain('研发进度同步');
-    expect(menuItem('ai-menu-test-delivery')?.textContent).toContain('提测交付说明');
-    expect(menuItem('ai-menu-polish')?.textContent).toContain('智能润色');
+    const group = host.querySelector('[data-slot="button-group"][aria-label="AI 辅助"]');
+    expect(group).not.toBeNull();
+    expect(host.querySelector('[data-testid="activity-ai-menu-trigger"]')).toBeNull();
+    for (const [testId, label] of [
+      ['ai-menu-progress', '研发进度同步'],
+      ['ai-menu-test-delivery', '提测交付说明'],
+      ['ai-menu-polish', '智能润色'],
+    ] as const) {
+      const btn = menuItem(testId);
+      expect(btn).not.toBeNull();
+      expect(btn?.textContent).toContain(label);
+      expect(btn?.closest('[data-slot="button-group"]')).not.toBeNull();
+    }
   });
 
-  it('菜单项执行对应 AI 动作并携带动作类型', async () => {
+  it('点击 AI 动作按钮执行对应生成并携带动作类型', async () => {
     await render();
-    await openAiMenu();
 
     await act(async () => {
       menuItem('ai-menu-progress')!.dispatchEvent(
@@ -160,13 +154,12 @@ describe('RequirementActivity AI 收纳', () => {
     );
   });
 
-  it('智能润色在无输入时禁用并给出禁用原因，点击不触发生成', async () => {
+  it('智能润色在无输入时禁用（原生 disabled），点击不触发生成', async () => {
     await render();
-    await openAiMenu();
 
-    const polish = menuItem('ai-menu-polish');
-    expect(polish?.getAttribute('aria-disabled')).toBe('true');
-    expect(polish?.textContent).toContain('先输入要点');
+    const polish = menuItem('ai-menu-polish') as HTMLButtonElement | null;
+    expect(polish).not.toBeNull();
+    expect(polish?.disabled).toBe(true);
 
     await act(async () => {
       polish!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));

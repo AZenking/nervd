@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeftIcon, ChevronRightIcon, DatabaseIcon,
-  ExternalLinkIcon, GitBranchIcon, GitForkIcon, InboxIcon, LayersIcon, Loader2Icon, Maximize2Icon, MoreHorizontalIcon,
+  ExternalLinkIcon, GitBranchIcon, GitForkIcon, InboxIcon, InfoIcon, LayersIcon, LinkIcon, Loader2Icon,
+  Maximize2Icon, MoreHorizontalIcon,
   MousePointerClickIcon, PencilIcon, PlayIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, SparklesIcon, XIcon,
 } from 'lucide-react';
 import { findRemoteBranch } from '@/lib/iteration-branches';
@@ -26,11 +27,12 @@ import { useShallow } from 'zustand/react/shallow';
 import { CATEGORY_LABELS, type Category, type RepoCiBinding } from '@/types';
 import { matchPipelineForRepo } from '@/lib/pipeline-match';
 import { Tabs } from '@/components/ui/tabs';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { IconHint } from '@/components/ui/icon-hint';
 import { Surface } from '@/components/ui/surface';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
+import { ButtonGroup } from '@/components/ui/button-group';
 import { Chip } from '@/components/ui/chip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -63,7 +65,7 @@ import { LinkRepoModal } from './requirement/link-repo-modal';
 import { BranchStateDiagramModal } from './requirement/branch-state-diagram-modal';
 import { DetailAssigneePopover, DetailStatusPopover, RequirementProperties } from './requirement/requirement-properties';
 import { RequirementActivity } from './requirement/requirement-activity';
-import { workitemRepoOverride } from '@/lib/workitem-repos';
+import { workitemOwnsRepoConfig, workitemRepoOverride } from '@/lib/workitem-repos';
 import { StartProcessingButton } from './start-processing';
 import { useDetailTabState } from './requirement/use-detail-tab';
 
@@ -105,30 +107,6 @@ export interface RequirementDetailsTabControlProps {
   onDetailTabChange?: (tab: DetailTabKey) => void;
 }
 
-/** 页头「更多操作」菜单行：复用既有 HeroUI Button 视觉，不用原生菜单项嵌套可交互按钮。 */
-function MoreActionsMenuRow({
-  icon,
-  children,
-  onPress,
-}: {
-  icon: ReactNode;
-  children: ReactNode;
-  onPress: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className="w-full min-w-0 justify-start gap-2 font-normal"
-      onPress={onPress}
-    >
-      {icon}
-      <span className="min-w-0 truncate">{children}</span>
-    </Button>
-  );
-}
-
 /**
  * 页头「更多操作」：开始处理（复用 StartProcessingButton）/ 分支拓扑 / 云效直达。
  *
@@ -136,76 +114,77 @@ function MoreActionsMenuRow({
  * 弹窗打开时浮层关闭会连带卸载它自身；因此这里常驻挂载一个视觉隐藏的实例，
  * 菜单项只代理触发其按钮点击，弹窗状态始终存活。
  */
-function RequirementMoreActionsMenu({
-  workitemId,
-  category,
-  parentWorkitemId,
+/** 详情页头部快捷动作：开始处理 / 分支拓扑 / 云效直达。
+ *  2026-11-17 设计评审：不再收进「⋯」浮层，全部以图标分段常驻同一个 ButtonGroup，
+ *  文案交给 Tooltip；写操作门控仍由隐藏的 StartProcessingButton 内部承载。 */
+function RequirementQuickActions({
   activeRepoLabel,
   showBranchTopology,
+  onStartProcessing,
   onOpenBranchTopology,
   onOpenYunxiao,
 }: {
-  workitemId: string;
-  category: Category;
-  parentWorkitemId?: string;
   activeRepoLabel?: string;
   showBranchTopology: boolean;
+  onStartProcessing: () => void;
   onOpenBranchTopology: () => void;
   onOpenYunxiao: () => void;
 }) {
-  const startProcessingHolder = useRef<HTMLDivElement>(null);
+  const startLabel = activeRepoLabel ? `当前处理仓库 · ${activeRepoLabel}` : '开始处理';
   return (
     <>
-      {/* 常驻挂载（视觉隐藏）：开始处理的活动状态需要提前载入，菜单文案才能显示「当前处理仓库」；
-          同时避免浮层关闭时卸载它，导致「选择本地仓库」弹窗状态丢失。 */}
-      <div ref={startProcessingHolder} hidden aria-hidden="true">
-        <StartProcessingButton
-          workitemId={workitemId}
-          category={category}
-          parentWorkitemId={parentWorkitemId}
-          size="xs"
-        />
-      </div>
-      <Popover>
-        <PopoverTrigger
+      <Tooltip>
+        <TooltipTrigger
           render={(
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="更多操作"
-            >
-              <MoreHorizontalIcon className="size-4" />
-            </Button>
+              aria-label={startLabel}
+              onPress={onStartProcessing}
+            />
           )}
-        />
-        <PopoverContent
-          placement="bottom end"
-          aria-label="更多操作"
-          className="flex w-60 flex-col gap-0.5 p-1.5"
         >
-            <MoreActionsMenuRow
-              icon={<PlayIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
-              onPress={() => startProcessingHolder.current?.querySelector('button')?.click()}
-            >
-              {activeRepoLabel ? `当前处理仓库 · ${activeRepoLabel}` : '开始处理'}
-            </MoreActionsMenuRow>
-            {showBranchTopology && (
-              <MoreActionsMenuRow
-                icon={<GitForkIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
+          <PlayIcon className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent>{startLabel}</TooltipContent>
+      </Tooltip>
+
+      {showBranchTopology && (
+        <Tooltip>
+          <TooltipTrigger
+            render={(
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="分支拓扑"
                 onPress={onOpenBranchTopology}
-              >
-                分支拓扑
-              </MoreActionsMenuRow>
+              />
             )}
-            <MoreActionsMenuRow
-              icon={<ExternalLinkIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
+          >
+            <GitForkIcon className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>分支拓扑</TooltipContent>
+        </Tooltip>
+      )}
+
+      <Tooltip>
+        <TooltipTrigger
+          render={(
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="云效直达"
               onPress={onOpenYunxiao}
-            >
-              云效直达
-            </MoreActionsMenuRow>
-        </PopoverContent>
-      </Popover>
+            />
+          )}
+        >
+          <ExternalLinkIcon className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent>云效直达</TooltipContent>
+      </Tooltip>
     </>
   );
 }
@@ -276,6 +255,8 @@ export function RequirementDetails({
   const [refreshingCodeArea, setRefreshingCodeArea] = useState(false);
   const [codeAreaRefreshSignal, setCodeAreaRefreshSignal] = useState(0);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
+  /** 「开始处理」隐藏触发器：快捷动作按钮点击时转发到它（保留其活动状态与写操作门控）。 */
+  const startProcessingHolder = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsEditingDesc(false);
@@ -389,19 +370,28 @@ export function RequirementDetails({
     ?? (parent ? 'Task' : 'Req');
 
   const isRequirement = category === 'Req';
+  // 独立工作项（无父需求的 Bug/Task）自持关联仓库与分支模板：缺陷经常独立处理，
+  // 没有父需求就没有可继承的仓库，必须允许它自己关联，否则连建分支/发 MR 的入口都没有。
+  // 挂在需求下的子项仍只读继承父需求配置（增删/推荐/模板选择在需求页统一管理）。
+  const ownsRepoConfig = workitemOwnsRepoConfig(category, parent?.workitemId);
   // 类别大小写归一：后端已按检索类别回填，这里再兜一层脏数据（空/UUID 不会误入缺陷）
   const isBugChild = (c: WorkitemChild) => (c.category ?? '').trim().toLowerCase() === 'bug';
-  const subtasks = isRequirement ? children.filter((c) => !isBugChild(c)) : [];
-  const defects = isRequirement ? children.filter(isBugChild) : [];
+  // 2026-11-17：缺陷 / 子任务详情不再二次展示「子工作项」。
+  // 判定不只看 category（直开子项时 category 可能缺失而回落成 Req），
+  // 还看它是否挂在父项下（钻取面包屑 / store 的 parentIdOf 索引）。
+  const mountedParentId = parent?.workitemId ?? (selectedId ? parentIdOf(selectedId) : undefined);
+  const showChildrenTab = isRequirement && !mountedParentId;
+  const subtasks = showChildrenTab ? children.filter((c) => !isBugChild(c)) : [];
+  const defects = showChildrenTab ? children.filter(isBugChild) : [];
 
   // 页签顺序：交付进展（默认，复用原「关联仓库」页签）/ 描述 / 子工作项 / 活动动态。
   const [activeTab, setActiveTab] = useDetailTabState({ embedded, detailTab, onDetailTabChange });
 
   useEffect(() => {
-    if (!isRequirement && activeTab === 'children') {
+    if (!showChildrenTab && activeTab === 'children') {
       setActiveTab('description');
     }
-  }, [isRequirement, activeTab, setActiveTab]);
+  }, [showChildrenTab, activeTab, setActiveTab]);
 
   const statusName = (typeof wi.status === 'string' && wi.status)
     || (wi.status && typeof wi.status === 'object' && typeof (wi.status as any).name === 'string' ? (wi.status as any).name : '')
@@ -516,8 +506,8 @@ export function RequirementDetails({
 
   // 关联仓库上下文（方案 A）：展示与编辑只认「显式关联」；
   // 追溯/分支配置仍用扫描范围（显式关联优先，缺省回退默认云效仓库）。
-  // 任务/缺陷继承父需求的显式关联，且不向 settings 落盘子项键。
-  const repoContextId = isRequirement ? selectedId : parent?.workitemId;
+  // 任务/缺陷继承父需求的显式关联；独立工作项以自身为上下文，向 settings 落盘自己的键。
+  const repoContextId = isRequirement ? selectedId : (parent?.workitemId ?? selectedId);
   const repoOverride = useMemo(
     () => (settings && repoContextId
       ? workitemRepoOverride(
@@ -582,7 +572,8 @@ export function RequirementDetails({
   const fusedTemplates = useFusedBranchTemplates(iterationId);
   // 分支规则上下文：需求取自身；任务/缺陷以父需求为模板查找键（显式覆盖与方案 A 自动继承均生效），
   // {identifier} 用子项自身编号展开 → rule.workitemBranch 即子项开发分支。
-  const branchRuleContextId = isRequirement ? selectedId : parent?.workitemId;
+  // 独立工作项没有父需求，模板查找键回退自身，这样「自己选择分支模板」对它同样成立。
+  const branchRuleContextId = ownsRepoConfig ? selectedId : parent?.workitemId;
   const repoBranchRules: Record<number, ResolvedRepoBranchRule> = useMemo(
     () => (iterationId && branchRuleContextId
       ? Object.fromEntries(explicitRepoIds.flatMap((repoId) => {
@@ -923,7 +914,7 @@ export function RequirementDetails({
     setSavingRepos(true);
     let repoLinked = false;
     try {
-      await saveWorkitemRepos(selectedId, repoOverride ? [...explicitRepoIds, repo.id] : [repo.id]);
+      await saveWorkitemRepos(selectedId, [...explicitRepoIds, repo.id]);
       repoLinked = true;
       if (iterationId && templateId) {
         await saveWorkitemRepoBranchTemplate(selectedId, repo.id, templateId);
@@ -1039,7 +1030,7 @@ export function RequirementDetails({
     setSavingRepos(true);
     let repoLinked = false;
     try {
-      await saveWorkitemRepos(selectedId, repoOverride ? [...explicitRepoIds, repo.id] : [repo.id]);
+      await saveWorkitemRepos(selectedId, [...explicitRepoIds, repo.id]);
       repoLinked = true;
       const tId = fusedTemplates[0]?.id;
       if (iterationId && tId) {
@@ -1074,7 +1065,7 @@ export function RequirementDetails({
     if (!selectedId) return;
     try {
       await saveWorkitemRepoBranchTemplate(selectedId, repoId, templateId);
-      setToast({ text: templateId ? '已为此需求仓库应用分支模板' : '已清除此需求仓库的分支模板', kind: 'ok' });
+      setToast({ text: templateId ? '已为此工作项仓库应用分支模板' : '已清除此工作项仓库的分支模板', kind: 'ok' });
       setBaselineRetry((value) => value + 1);
     } catch (error) {
       errorLog('branch-template-save', error);
@@ -1095,7 +1086,7 @@ export function RequirementDetails({
       .finally(() => setSavingRepos(false));
   };
 
-  /** 恢复使用设置中的默认云效仓库（清除本需求的单独覆盖） */
+  /** 恢复使用设置中的默认云效仓库（清除本工作项的单独覆盖） */
   const handleResetRepos = () => {
     if (!selectedId) return;
     setSavingRepos(true);
@@ -1122,7 +1113,7 @@ export function RequirementDetails({
                     variant="ghost"
                     size="xs"
                     data-testid="back-to-list"
-                    className="shrink-0 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    className="shrink-0 gap-1"
                     onPress={onBackToList}
                     title="返回列表 (Esc)"
                     aria-label="返回列表"
@@ -1151,67 +1142,101 @@ export function RequirementDetails({
           ) : undefined}
           title={(
             <span className="flex min-w-0 items-center gap-2.5">
-              <StatusIcon status={statusName} className="size-4 shrink-0" />
+              {/* 2026-11-17 设计评审：编号前不再重复状态图标（状态已由下方元数据条的可交互状态徽标承载），
+                  复制编号入口从编号右侧移到标题行末尾，避免图标挤压标题起始位置 */}
               {identifier && (
-                <span className="inline-flex shrink-0 items-center gap-0.5">
-                  <Chip size="sm" variant="secondary" className="font-mono gap-1">
-                    <Chip.Label>{identifier}</Chip.Label>
-                  </Chip>
-                  <CopyButton text={identifier} label="复制编号" />
-                </span>
+                <Chip size="sm" variant="secondary" className="shrink-0 font-mono gap-1">
+                  <Chip.Label>{identifier}</Chip.Label>
+                </Chip>
               )}
               <OverflowTooltip
                 text={subject}
                 className="min-w-0 truncate text-base font-semibold text-foreground"
               />
+              {identifier && <CopyButton text={identifier} label="复制编号" />}
             </span>
           )}
           titleClassName="flex min-w-0 items-center gap-2.5 select-text cursor-text"
           actions={(
-            /* 常驻图标操作：刷新 / 全屏 / 关闭；写操作与低频动作收进「更多操作」 */
-            <div className="flex shrink-0 items-center gap-1">
+            /* 常驻图标操作：刷新 / 全屏 / 关闭，收成一个 HeroUI ButtonGroup（相邻操作不再各占独立间距）；
+               写操作与低频动作收进「更多操作」。图标按钮一律「只给图标 + Tooltip 文案」，
+               不把长文案塞进页头（DESIGN §F.1 / 2026-11-17 设计评审）。 */
+            <div className="flex shrink-0 items-center gap-1.5">
+              {/* 开始处理的活动状态需要提前载入（按钮文案 / 当前处理仓库），视觉隐藏挂载在组外，
+                  避免额外节点破坏 ButtonGroup 的首尾圆角规则。 */}
               {selectedId && (
-                <RequirementMoreActionsMenu
-                  workitemId={selectedId}
-                  category={category}
-                  parentWorkitemId={parent?.workitemId}
-                  activeRepoLabel={activeRepoName}
-                  showBranchTopology={isRequirement}
-                  onOpenBranchTopology={() => setIsBranchDiagramModalOpen(true)}
-                  onOpenYunxiao={handleOpenInYunxiao}
-                />
+                <div ref={startProcessingHolder} hidden aria-hidden="true">
+                  <StartProcessingButton
+                    workitemId={selectedId}
+                    category={category}
+                    parentWorkitemId={parent?.workitemId}
+                    size="xs"
+                  />
+                </div>
               )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onPress={() => void handleRefreshDetail()}
-                aria-label="刷新工作项及追溯"
-              >
-                <RefreshCwIcon className={cn('size-4', refreshing && 'animate-spin')} />
-              </Button>
-              {onOpenWorkbench && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onPress={onOpenWorkbench}
-                  aria-label="在工作台全屏打开"
-                >
-                  <Maximize2Icon className="size-4" />
-                </Button>
-              )}
-              {onClose && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onPress={onClose}
-                  aria-label="关闭分栏 (Esc)"
-                >
-                  <XIcon className="size-4" />
-                </Button>
-              )}
+              <ButtonGroup variant="ghost" className="shrink-0" aria-label="需求详情页操作">
+                {selectedId && (
+                  <RequirementQuickActions
+                    activeRepoLabel={activeRepoName}
+                    showBranchTopology={isRequirement}
+                    onStartProcessing={() => startProcessingHolder.current?.querySelector('button')?.click()}
+                    onOpenBranchTopology={() => setIsBranchDiagramModalOpen(true)}
+                    onOpenYunxiao={handleOpenInYunxiao}
+                  />
+                )}
+                <Tooltip>
+                  <TooltipTrigger
+                    render={(
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onPress={() => void handleRefreshDetail()}
+                        aria-label="刷新工作项及追溯"
+                      />
+                    )}
+                  >
+                    <RefreshCwIcon className={cn('size-4', refreshing && 'animate-spin')} />
+                  </TooltipTrigger>
+                  <TooltipContent>刷新工作项及追溯</TooltipContent>
+                </Tooltip>
+                {onOpenWorkbench && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={(
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onPress={onOpenWorkbench}
+                          aria-label="在工作台全屏打开"
+                        />
+                      )}
+                    >
+                      <Maximize2Icon className="size-4" />
+                    </TooltipTrigger>
+                    <TooltipContent>在工作台全屏打开</TooltipContent>
+                  </Tooltip>
+                )}
+                {onClose && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={(
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onPress={onClose}
+                          aria-label="关闭分栏 (Esc)"
+                        />
+                      )}
+                    >
+                      <XIcon className="size-4" />
+                    </TooltipTrigger>
+                    <TooltipContent>关闭分栏 (Esc)</TooltipContent>
+                  </Tooltip>
+                )}
+              </ButtonGroup>
             </div>
           )}
           toolbar={(
@@ -1247,8 +1272,8 @@ export function RequirementDetails({
               <Button
                 type="button"
                 variant="ghost"
-                size="inline"
-                className="gap-1.5 p-0 font-normal"
+                size="bare"
+                className="gap-1.5"
                 aria-label={`已关联 ${explicitRepoIds.length} 个代码仓库，点击切换至关联仓库标签页`}
                 onPress={() => {
                   setActiveTab('repos');
@@ -1267,8 +1292,8 @@ export function RequirementDetails({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="inline"
-                  className="gap-1.5 p-0 font-normal"
+                  size="bare"
+                  className="gap-1.5"
                   aria-label={`所属父需求：${parent.identifier} ${parent.subject || ''}`}
                   onPress={() => {
                     if (onSelectParent) onSelectParent(parent.workitemId);
@@ -1310,25 +1335,30 @@ export function RequirementDetails({
           actions={(
             <div className="flex items-center gap-1.5">
               {selectedId && (
-                <RequirementMoreActionsMenu
-                  workitemId={selectedId}
-                  category={category}
-                  parentWorkitemId={parent?.workitemId}
-                  activeRepoLabel={activeRepoName}
-                  showBranchTopology={isRequirement}
-                  onOpenBranchTopology={() => setIsBranchDiagramModalOpen(true)}
-                  onOpenYunxiao={handleOpenInYunxiao}
-                />
+                <div ref={startProcessingHolder} hidden aria-hidden="true">
+                  <StartProcessingButton
+                    workitemId={selectedId}
+                    category={category}
+                    parentWorkitemId={parent?.workitemId}
+                    size="xs"
+                  />
+                </div>
               )}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onPress={() => void handleRefreshDetail()}
-                aria-label="刷新详情"
-                title="刷新工作项及追溯"
-              >
-                <RefreshCwIcon className={cn('size-4', refreshing && 'animate-spin')} />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={(
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onPress={() => void handleRefreshDetail()}
+                      aria-label="刷新详情"
+                    />
+                  )}
+                >
+                  <RefreshCwIcon className={cn('size-4', refreshing && 'animate-spin')} />
+                </TooltipTrigger>
+                <TooltipContent>刷新工作项及追溯</TooltipContent>
+              </Tooltip>
             </div>
           )}
           className={STICKY_PAGE_HEADER_CLASS}
@@ -1418,7 +1448,7 @@ export function RequirementDetails({
                     <span>描述</span>
                     <Tabs.Indicator />
                   </Tabs.Tab>
-                  {isRequirement && (
+                  {showChildrenTab && (
                     <Tabs.Tab id="children">
                       <span className="flex items-center gap-1.5">
                         <span>子工作项</span>
@@ -1489,83 +1519,85 @@ export function RequirementDetails({
 
             {/* 标签页 2：关联云效仓库与代码操作 */}
             <Tabs.Panel id="repos" className="p-0 outline-none focus-visible:ring-1 focus-visible:ring-ring">
-              <section id="linked-repos-section" className="flex flex-col gap-3">
-            {/* 交付进展：常驻 刷新全部 / 关联仓库入口；AI 推荐仓库与恢复默认仓库收进「更多」菜单 */}
+              <section id="linked-repos-section" className="flex flex-col gap-4">
+            {/* 关联仓库：常驻唯一入口「关联仓库」，刷新 / AI 推荐 / 恢复默认等低频动作收进「⋯」菜单 */}
             <SectionHeader
-              title="交付进展"
+              title="关联仓库"
               count={`· ${explicitRepoIds.length}`}
               action={(
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   {/* 子项关联仓库继承父需求：增删/推荐/轨道配置在需求页管理，子项只读继承 */}
                   {!isRequirement && parent && (
+                    <IconHint
+                      icon={<LinkIcon className="size-3" />}
+                      label={`关联仓库继承自父需求 ${parent.identifier}${parent.subject ? ` · ${parent.subject}` : ''}`}
+                      ariaLabel="关联仓库继承自父需求"
+                    />
+                  )}
+                  {/* 独立缺陷/任务：没有可继承的父需求，允许自己关联仓库并选分支模板 */}
+                  {!isRequirement && !parent && (
                     <span
-                      className="truncate font-mono text-[11px] text-muted-foreground"
-                      title={`关联仓库继承自父需求：${parent.identifier} ${parent.subject || ''}`}
+                      className="truncate text-[11px] text-muted-foreground"
+                      title="该工作项没有父需求，不继承任何需求的关联仓库；可在此独立关联仓库并选择分支模板"
                     >
-                      继承自父需求 {parent.identifier}
+                      独立工作项 · 自持关联
                     </span>
                   )}
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={(
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          disabled={refreshingCodeArea || traceLoading}
-                          onPress={() => void handleRefreshCodeArea()}
-                          aria-label="刷新全部关联仓库"
-                        />
-                      )}
-                    >
-                      <RefreshCwIcon
-                        className={cn(
-                          'size-3.5',
-                          (refreshingCodeArea || traceLoading) && 'animate-spin text-primary',
-                        )}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent>刷新全部关联仓库</TooltipContent>
-                  </Tooltip>
-                  {isRequirement && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 cursor-pointer"
-                      onPress={() => setIsLinkRepoModalOpen(true)}
-                    >
-                      <PlusIcon data-icon="inline-start" />
-                      <span>关联仓库</span>
-                    </Button>
-                  )}
-                  {isRequirement && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label="交付进展更多操作" />}>
-                        <MoreHorizontalIcon className="size-3.5" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem
-                          disabled={recommendingRepos}
-                          title="让 AI 依据需求文本与提交历史，智能推荐关联仓库"
-                          onPress={() => void handleRecommendRepos()}
-                        >
-                          {recommendingRepos
-                            ? <Loader2Icon className="size-3.5 mr-2 animate-spin" />
-                            : <SparklesIcon className="size-3.5 mr-2" />}
-                          <span>{recommendingRepos ? 'AI 推荐中…' : 'AI 推荐仓库'}</span>
-                        </DropdownMenuItem>
-                        {hasRepoOverride && (
+                  <ButtonGroup variant="secondary" className="shrink-0" aria-label="关联仓库操作">
+                    {ownsRepoConfig && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="gap-1.5 cursor-pointer"
+                        onPress={() => setIsLinkRepoModalOpen(true)}
+                      >
+                        <PlusIcon data-icon="inline-start" />
+                        <span>关联仓库</span>
+                      </Button>
+                    )}
+                    {ownsRepoConfig && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger render={<Button variant="secondary" size="icon-sm" aria-label="关联仓库更多操作" />}>
+                          <MoreHorizontalIcon className="size-3.5" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
                           <DropdownMenuItem
-                            disabled={savingRepos}
-                            title="清除本需求的仓库覆盖，恢复使用设置中的默认云效仓库"
-                            onClick={handleResetRepos}
+                            disabled={refreshingCodeArea || traceLoading}
+                            title="刷新列表内全部关联仓库的分支、提交与合并请求"
+                            onSelect={() => void handleRefreshCodeArea()}
                           >
-                            <RotateCcwIcon className="size-3.5 mr-2" />
-                            <span>恢复默认仓库</span>
+                            <RefreshCwIcon
+                              className={cn(
+                                'size-3.5 mr-2',
+                                (refreshingCodeArea || traceLoading) && 'animate-spin text-primary',
+                              )}
+                            />
+                            <span>{refreshingCodeArea || traceLoading ? '刷新中…' : '刷新全部仓库'}</span>
                           </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                          <DropdownMenuItem
+                            disabled={recommendingRepos}
+                            title="让 AI 依据工作项文本与提交历史，智能推荐关联仓库"
+                            onSelect={() => void handleRecommendRepos()}
+                          >
+                            {recommendingRepos
+                              ? <Loader2Icon className="size-3.5 mr-2 animate-spin" />
+                              : <SparklesIcon className="size-3.5 mr-2" />}
+                            <span>{recommendingRepos ? 'AI 推荐中…' : 'AI 推荐仓库'}</span>
+                          </DropdownMenuItem>
+                          {hasRepoOverride && (
+                            <DropdownMenuItem
+                              disabled={savingRepos}
+                              title="清除本工作项的仓库覆盖，恢复使用设置中的默认云效仓库"
+                              onSelect={handleResetRepos}
+                            >
+                              <RotateCcwIcon className="size-3.5 mr-2" />
+                              <span>恢复默认仓库</span>
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </ButtonGroup>
                 </div>
               )}
             />
@@ -1577,7 +1609,7 @@ export function RequirementDetails({
               effectiveRepoIds={explicitRepoIds}
               fusedTemplates={fusedTemplates}
               iterationId={iterationId}
-              isRequirement={isRequirement}
+              templatePickerEnabled={ownsRepoConfig}
               savingRepos={savingRepos}
               recommendingRepos={recommendingRepos}
               recommendedRepos={recommendedRepos}
@@ -1654,7 +1686,7 @@ export function RequirementDetails({
                         traceAvailable={branchesByRepoId.has(repo.id)}
                         templateId={branchRuleContextId ? settings?.workitemRepoBranchTemplates?.[branchRuleContextId]?.[String(repo.id)] : undefined}
                         templates={fusedTemplates}
-                        templateEnabled={Boolean(isRequirement && iterationId)}
+                        templateEnabled={Boolean(ownsRepoConfig && iterationId)}
                         baselineBranch={rule?.baselineBranch}
                         baselineState={rule
                           ? baselineCheck?.branch === (isDirectConnectRule(rule)
@@ -1666,7 +1698,7 @@ export function RequirementDetails({
                         refreshSignal={codeAreaRefreshSignal}
                         onRetryBaseline={() => setBaselineRetry((value) => value + 1)}
                         onTemplateChange={(templateId) => void saveRepoTemplate(repo.id, templateId)}
-                        onUnlinkRepo={isRequirement && explicitRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}
+                        onUnlinkRepo={ownsRepoConfig && explicitRepoIds.length > 0 ? (repoId) => unlinkRepo(repoId) : undefined}
                         operationBaseBranchOverride={!isRequirement && category === 'Bug' ? bugMrTargetByRepo[repo.id] : undefined}
                         bugMrContext={!isRequirement && category === 'Bug' && parent && selectedId ? {
                           bugWorkitemId: selectedId,
@@ -1705,15 +1737,21 @@ export function RequirementDetails({
                     ? (hasRepoOverride
                       ? '该需求显式关联为空，追溯不会扫描仓库；可从上方「关联仓库」重新选择，或在「更多」中恢复默认仓库。'
                       : `尚未显式关联仓库；追溯默认扫描 ${scanRepoIds.length} 个云效仓库（团队默认池）。关联后只追溯你挑选的仓库。`)
-                    : (hasRepoOverride
-                      ? `父需求${parent ? `（${parent.identifier}）` : ''}显式关联为空，子项不再追溯任何仓库；请在父需求详情页重新配置。`
-                      : `关联仓库继承自父需求${parent ? `（${parent.identifier}）` : ''}：父需求未显式关联时沿用其默认扫描池，请在父需求详情页配置。`)
+                    : parent
+                      ? (hasRepoOverride
+                        ? `父需求（${parent.identifier}）显式关联为空，子项不再追溯任何仓库；请在父需求详情页重新配置。`
+                        : `关联仓库继承自父需求（${parent.identifier}）：父需求未显式关联时沿用其默认扫描池，请在父需求详情页配置。`)
+                      : (hasRepoOverride
+                        ? '该工作项显式关联为空，追溯不会扫描仓库；可从上方「关联仓库」重新选择，或在「更多」中恢复默认仓库。'
+                        : `该工作项没有父需求，可独立关联仓库并选择分支模板；未关联时追溯默认扫描 ${scanRepoIds.length} 个云效仓库（团队默认池）。`)
                 }
                 className="rounded-xl border border-dashed py-8"
-                action={isRequirement ? (
+                action={ownsRepoConfig ? (
                   <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                    {/* 空态两个入口走 HeroUI 语义变体：secondary（AI 推荐，实心备选主路径）+ outline（手动选择，描边次要路径），
+                        不再混用 outline/ghost 两套「看起来像文字」的弱样式（2026-11-17 设计评审） */}
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       disabled={recommendingRepos}
                       onPress={() => void handleRecommendRepos()}
@@ -1727,10 +1765,10 @@ export function RequirementDetails({
                       <span>{recommendingRepos ? 'AI 正在智能分析推荐…' : 'AI 智能推荐关联仓库'}</span>
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onPress={() => setIsLinkRepoModalOpen(true)}
-                      className="gap-1 cursor-pointer"
+                      className="gap-1.5 cursor-pointer"
                     >
                       <PlusIcon className="size-3.5" />
                       <span>手动选择仓库</span>
@@ -1738,7 +1776,7 @@ export function RequirementDetails({
                   </div>
                 ) : undefined}
               />
-              {isRequirement && !hasRepoOverride && scanRepoIds.length > 0 && (
+              {ownsRepoConfig && !hasRepoOverride && scanRepoIds.length > 0 && (
                 <div className="flex flex-col gap-2 rounded-lg border border-border/60 px-3 py-2.5">
                   <Collapsible open={showDefaultPool} onOpenChange={setShowDefaultPool}>
                     <CollapsibleTrigger className="flex cursor-pointer items-center gap-1.5 self-start text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
@@ -1854,8 +1892,8 @@ export function RequirementDetails({
         </Tabs.Panel>
 
 
-        {/* 标签页 4：子工作项与缺陷 */}
-        {isRequirement && (
+        {/* 标签页 4：子工作项与缺陷（仅需求本身展示，缺陷/子任务详情不再重复） */}
+        {showChildrenTab && (
           <Tabs.Panel id="children" className="p-0 outline-none focus-visible:ring-1 focus-visible:ring-ring">
             {(() => {
               const openChild = (child: WorkitemChild) => {
@@ -1871,14 +1909,16 @@ export function RequirementDetails({
               return (
                 <div className="flex flex-col gap-6">
                   {childrenTruncated && (
-                    <p className="text-[11px] text-muted-foreground" data-testid="children-truncated-hint">
-                      仅显示最近的子项，可能还有更多
-                    </p>
+                    <span className="flex items-center gap-1" data-testid="children-truncated-hint">
+                      <IconHint
+                        icon={<InfoIcon className="size-3" />}
+                        label="仅显示最近的子项，可能还有更多"
+                      />
+                    </span>
                   )}
                   <ChildrenCard
                     title="子任务"
                     category="Task"
-                    description="挂载在该需求下的子任务"
                     items={subtasks}
                     error={childrenError}
                     debug={childrenDebug}
@@ -1897,7 +1937,6 @@ export function RequirementDetails({
                   <ChildrenCard
                     title="缺陷"
                     category="Bug"
-                    description="挂载在该需求下的缺陷"
                     items={defects}
                     error={childrenError}
                     debug={childrenDebug}

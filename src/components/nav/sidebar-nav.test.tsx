@@ -83,7 +83,7 @@ describe('侧栏导航收敛', () => {
     root = null;
   });
 
-  it('主导航顺序为 当前迭代 → 总览 → 迭代列表 → 工具，且不含「高级模式」开关', async () => {
+  it('主导航顺序为 当前迭代 → 总览 → 定时任务 → 迭代列表 → 工具，且不含「高级模式」开关', async () => {
     await render(
       <SidebarProvider defaultOpen={true}>
         <AppSidebar />
@@ -93,11 +93,19 @@ describe('侧栏导航收敛', () => {
     const nav = container?.querySelector('nav[aria-label="主导航"]');
     expect(nav).toBeTruthy();
 
-    // 前两个主入口：当前迭代（第一项）、总览
+    // 主入口：当前迭代 → 总览 → 定时任务（定时任务从工具分组上提，紧跟总览）
     const mainGroup = nav?.querySelector('[data-nav-group="main"]') as HTMLElement;
     expect(mainGroup).toBeTruthy();
-    expect(menuButtonLabels(mainGroup)).toEqual(['当前迭代', '总览']);
+    expect(menuButtonLabels(mainGroup)).toEqual(['当前迭代', '总览', '定时任务']);
     expect(nav?.querySelector('[data-sidebar="menu-button"]')?.textContent).toContain('当前迭代');
+
+    const schedulesButton = [...(mainGroup.querySelectorAll<HTMLButtonElement>('[data-sidebar="menu-button"]') ?? [])].find(
+      (el) => (el.textContent ?? '').includes('定时任务'),
+    ) as HTMLButtonElement;
+    await act(async () => {
+      schedulesButton.click();
+    });
+    expect(useUi.getState().view).toBe('schedules');
 
     const iterationsTrigger = nav?.querySelector('[data-slot="accordion-trigger"]') as HTMLElement;
     const toolsGroup = nav?.querySelector('[data-nav-group="tools"]') as HTMLElement;
@@ -112,7 +120,7 @@ describe('侧栏导航收敛', () => {
     expect(container?.textContent).not.toContain('高级模式');
   });
 
-  it('工具分组默认收起；点击展开后 4 个入口分别映射到对应视图/设置分区', async () => {
+  it('工具分组使用 HeroUI Accordion：默认收起；点击展开后 2 个入口分别映射到对应视图', async () => {
     await render(
       <SidebarProvider defaultOpen={true}>
         <NavTools />
@@ -120,7 +128,7 @@ describe('侧栏导航收敛', () => {
     );
 
     const trigger = container?.querySelector('[data-nav-tools-trigger]') as HTMLButtonElement;
-    const panel = container?.querySelector('[data-slot="collapsible-content"]') as HTMLElement;
+    const panel = container?.querySelector('[data-slot="accordion-panel"]') as HTMLElement;
     expect(trigger).toBeTruthy();
     expect(panel).toBeTruthy();
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
@@ -135,8 +143,6 @@ describe('侧栏导航收敛', () => {
     expect(menuButtonLabels(container!)).toEqual([
       '最近查看',
       '集成分支',
-      '定时任务',
-      '本地仓库与 Agent',
     ]);
 
     const buttonByLabel = (label: string) =>
@@ -154,16 +160,6 @@ describe('侧栏导航收敛', () => {
     });
     expect(useUi.getState().view).toBe('integration');
 
-    await act(async () => {
-      buttonByLabel('定时任务').click();
-    });
-    expect(useUi.getState().view).toBe('schedules');
-
-    await act(async () => {
-      buttonByLabel('本地仓库与 Agent').click();
-    });
-    expect(useUi.getState().view).toBe('full-settings');
-    expect(useUi.getState().settingsSection).toBe('attribution');
   });
 
   it('键盘 Enter / Space 均可开合工具分组，aria-expanded 同步', async () => {
@@ -208,7 +204,7 @@ describe('侧栏导航收敛', () => {
     expect(active?.textContent).toContain('集成分支');
   });
 
-  it('折叠为纯图标模式时工具内 4 个条目仍以图标按钮到达（无分组标题）', async () => {
+  it('折叠为纯图标模式时工具内条目仍以图标按钮到达（无分组标题）', async () => {
     await render(
       <SidebarProvider defaultOpen={false}>
         <AppSidebar />
@@ -223,13 +219,11 @@ describe('侧栏导航收敛', () => {
     const buttons = [
       ...toolsGroup.querySelectorAll<HTMLButtonElement>('[data-sidebar="menu-button"]'),
     ];
-    expect(buttons).toHaveLength(4);
+    expect(buttons).toHaveLength(2);
     // 折叠态不依赖文字可见：SidebarMenuButton 用 tooltip 文本补 aria-label
     expect(buttons.map((el) => el.getAttribute('aria-label'))).toEqual([
       '最近查看',
       '集成分支',
-      '定时任务',
-      '本地仓库与 Agent',
     ]);
     // 全部不在隐藏容器内，点击可达
     expect(buttons.every((el) => el.closest('[hidden]') === null)).toBe(true);
@@ -238,13 +232,9 @@ describe('侧栏导航收敛', () => {
   it('定时任务徽标展示已启用任务数量，0 时不展示', async () => {
     await render(
       <SidebarProvider defaultOpen={true}>
-        <NavTools />
+        <AppSidebar />
       </SidebarProvider>,
     );
-    const trigger = container?.querySelector('[data-nav-tools-trigger]') as HTMLButtonElement;
-    await act(async () => {
-      trigger.click();
-    });
 
     const schedulesButton = () =>
       [...container!.querySelectorAll<HTMLButtonElement>('[data-sidebar="menu-button"]')].find((el) =>
@@ -265,5 +255,88 @@ describe('侧栏导航收敛', () => {
       } as never);
     });
     expect(schedulesButton().textContent).toBe('定时任务2');
+  });
+
+  it('设置模式：侧栏按「个人偏好 / 工作区 / 应用」分组，分组标题不可点击并直达 9 个页面', async () => {
+    useUi.setState({ view: 'full-settings', settingsSection: 'connection' });
+    await render(
+      <SidebarProvider defaultOpen={true}>
+        <AppSidebar />
+      </SidebarProvider>,
+    );
+
+    const nav = container?.querySelector('nav[aria-label="设置导航"]');
+    expect(nav).toBeTruthy();
+    const groups = [...(nav?.querySelectorAll<HTMLElement>('[data-settings-group]') ?? [])];
+    expect(groups.map((group) => group.getAttribute('data-settings-group'))).toEqual([
+      '个人偏好',
+      '工作区',
+      '应用',
+    ]);
+
+    // 分组标题为不可点击文本，不是菜单项
+    expect(groups[0].textContent).toContain('个人偏好');
+    expect(groups[0].querySelector('[data-sidebar="menu-button"]')?.textContent).not.toContain('个人偏好');
+
+    // 返回工作区不再占据导航顶部，而是固定在侧栏底部
+    expect(nav?.textContent).not.toContain('返回工作区');
+    expect(
+      container?.querySelector('[data-slot="sidebar-footer"] [data-sidebar="menu-button"]')?.textContent,
+    ).toContain('返回工作区');
+
+    const settingsLabels = [
+      ...(nav?.querySelectorAll<HTMLElement>('[data-sidebar="menu-button"]') ?? []),
+    ]
+      .map((el) => (el.textContent ?? '').trim())
+      .filter((label) => label !== '返回工作区');
+    expect(settingsLabels).toEqual([
+      '外观与交互',
+      '云效连接',
+      '仓库与分支',
+      '构建集成',
+      '变更追溯',
+      'AI 助手',
+      '安全与权限',
+      '诊断与支持',
+      '关于 nervd',
+    ]);
+
+    const appearance = [...(nav?.querySelectorAll<HTMLElement>('[data-sidebar="menu-button"]') ?? [])].find(
+      (el) => (el.textContent ?? '').includes('外观与交互'),
+    ) as HTMLElement;
+    await act(async () => {
+      appearance.click();
+    });
+    expect(useUi.getState().settingsSection).toBe('appearance');
+    expect(useUi.getState().view).toBe('full-settings');
+  });
+
+  it('设置模式折叠为图标时保留全部入口，分组标题让位', async () => {
+    useUi.setState({ view: 'full-settings', settingsSection: 'trace' });
+    await render(
+      <SidebarProvider defaultOpen={false}>
+        <AppSidebar />
+      </SidebarProvider>,
+    );
+
+    const groups = [...(container?.querySelectorAll<HTMLElement>('[data-settings-group]') ?? [])];
+    expect(groups).toHaveLength(3);
+    // 折叠态隐藏分组标题（ClassName 由侧栏 group-data 控制），页面按钮仍可达
+    const labels = [...(container?.querySelectorAll<HTMLElement>('[data-settings-group-label]') ?? [])];
+    expect(labels).toHaveLength(3);
+    expect(
+      labels.every((label) => label.className.includes('group-data-[collapsible=icon]:hidden')),
+    ).toBe(true);
+
+    const buttons = [
+      ...(container?.querySelectorAll<HTMLElement>('nav[aria-label="设置导航"] [data-sidebar="menu-button"]') ?? []),
+    ];
+    expect(buttons).toHaveLength(9);
+    expect(buttons.every((el) => el.closest('[hidden]') === null)).toBe(true);
+    // 折叠态下返回工作区仍固定在底部，以图标按钮到达
+    const footerButton = container?.querySelector<HTMLElement>(
+      '[data-slot="sidebar-footer"] [data-sidebar="menu-button"]',
+    );
+    expect(footerButton?.getAttribute('aria-label')).toBe('返回工作区');
   });
 });

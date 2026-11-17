@@ -153,7 +153,7 @@ export function StartProcessingButton({
       description: `${label} 的 commit-msg 钩子不可用，后续提交不会自动补 Refs；请安装钩子，或使用 ${AGENT_COMMIT_COMMAND} 提交。${branchTip} 已生成 .nervd/agent-task.md 与 .nervd/scripts/。`,
       actionProps: {
         children: '前往安装',
-        onClick: () => openSettings('attribution'),
+        onClick: () => openSettings('trace'),
       },
     });
   };
@@ -164,7 +164,7 @@ export function StartProcessingButton({
       toast.add({
         type: 'warning',
         title: '当前处于只读模式',
-        description: '「开始处理」会写入本地工作项上下文。可在「设置 → 安全」中开启写权限后执行。',
+        description: '「开始处理」会写入本地工作项上下文。可在「设置 → 安全与权限」中开启写权限后执行。',
         actionProps: {
           children: '前往设置',
           onClick: () => openSettings('security'),
@@ -181,10 +181,10 @@ export function StartProcessingButton({
         toast.add({
           type: 'warning',
           title: '尚未绑定本地仓库',
-          description: '请先在「设置 → 变更归属」中绑定本地仓库，再开始处理。',
+          description: '请先在「设置 → 仓库与分支」中绑定本地仓库，再开始处理。',
           actionProps: {
             children: '前往设置',
-            onClick: () => openSettings('attribution'),
+            onClick: () => openSettings('trace'),
           },
         });
         return;
@@ -214,7 +214,7 @@ export function StartProcessingButton({
 
   const label = isProcessing ? `正在处理 · ${repoLabel(current.repoId)}` : '开始处理';
   const tooltip = !allowWrite
-    ? '写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）'
+    ? '写操作已关闭：需在「设置 → 安全与权限」中开启（需写权限令牌）'
     : isProcessing
       ? `当前已在 ${repoLabel(current.repoId)} 处理 ${workitemId}；点击可切换仓库`
       : '设为当前工作项，供后续提交填写任务归属';
@@ -301,7 +301,7 @@ export function StartProcessingButton({
                     title={
                       hookReady
                         ? `该仓库的 commit-msg 钩子已安装并启用（${binding.hookMode}）：提交时自动补充 Refs`
-                        : '该仓库的 commit-msg 钩子未安装或已关闭：提交不会自动补充 Refs，可到「设置 → 变更归属」安装，或使用 agent-commit.sh'
+                        : '该仓库的 commit-msg 钩子未安装或已关闭：提交不会自动补充 Refs，可到「设置 → 仓库与分支」安装，或使用 agent-commit.sh'
                     }
                   >
                     {hookReady ? '钩子已启用' : '钩子未启用'}

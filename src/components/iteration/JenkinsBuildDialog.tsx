@@ -545,7 +545,7 @@ export function JenkinsBuildParameters({
             <Alert.Indicator />
             <Alert.Content>
               <Alert.Title>未配置 Jenkins 实例</Alert.Title>
-              <Alert.Description>请先在「设置 → CI 集成」中配置 Jenkins 实例并保存 API Token。</Alert.Description>
+              <Alert.Description>请先在「设置 → 构建集成」中配置 Jenkins 实例并保存 API Token。</Alert.Description>
             </Alert.Content>
           </Alert>
         ) : (

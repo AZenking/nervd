@@ -157,7 +157,7 @@ export function QuickBuildConsole() {
         <EmptyHint
           icon={ZapIcon}
           title="尚未绑定构建流水线"
-          description="在「设置 → CI 集成」中为仓库绑定云效 Flow 流水线或 Jenkins Job，即可在此就地触发构建。"
+          description="在「设置 → 构建集成」中为仓库绑定云效 Flow 流水线或 Jenkins Job，即可在此就地触发构建。"
           action={
             <Button size="sm" variant="secondary" onPress={() => openSettings('ci')}>
               去绑定流水线

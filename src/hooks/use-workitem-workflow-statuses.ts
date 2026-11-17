@@ -55,7 +55,7 @@ export function useWorkitemWorkflowStatuses(options: UseWorkitemWorkflowStatuses
       if (!allowWriteOps) {
         toast.add({
           title: '当前处于只读模式',
-          description: '更新状态需在「设置 → 安全」中开启写操作。',
+          description: '更新状态需在「设置 → 安全与权限」中开启写操作。',
           type: 'warning',
           actionProps: {
             children: '前往设置',

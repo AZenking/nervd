@@ -3,10 +3,9 @@ import { ArrowRightIcon, MonitorIcon, MoonIcon, SparklesIcon, SunIcon } from 'lu
 import { useApp } from '../store/app';
 import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type SettingsSection } from '../store/ui';
-import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { SETTINGS_SECTIONS } from './settings/sections';
+import { getSettingsSectionMeta } from './settings/sections';
 import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { PageHeader } from './page-header';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -15,14 +14,15 @@ import { SettingsAutoSaveStatus } from './settings/SettingsAutoSaveStatus';
 import { Stepper } from './ui/stepper';
 import { OrgRow, PatRow, SpaceRow } from './settings/sections/connection-fields';
 import {
-  ConnectionSection,
-  TraceSection,
-  AttributionSection,
-  BranchRulesSection,
-  CiSection,
-  AiSection,
-  SecuritySection,
   AboutSection,
+  AiSection,
+  AppearanceSection,
+  AttributionSection,
+  CiSection,
+  ConnectionSection,
+  DiagnosticsSection,
+  SecuritySection,
+  TraceSection,
 } from './settings/sections/index';
 
 /** 首启就绪向导的三步元数据（就绪状态在渲染时按 settings 计算） */
@@ -93,27 +93,24 @@ export function SettingsView({
 
   // 分区内容映射表
   const sectionContent: Record<SettingsSection, React.ReactNode> = {
+    appearance: <AppearanceSection />,
     connection: <ConnectionSection />,
-    trace: (
-      <div className="flex flex-col gap-6">
-        <TraceSection />
-        <BranchRulesSection />
-      </div>
-    ),
+    trace: <TraceSection />,
     attribution: <AttributionSection />,
     ci: <CiSection />,
     ai: <AiSection />,
     security: <SecuritySection />,
+    diagnostics: <DiagnosticsSection />,
     about: <AboutSection />,
   };
 
-  const activeSection =
-    SETTINGS_SECTIONS.find((s) => s.value === settingsSection) ?? SETTINGS_SECTIONS[0];
+  const activeSection = getSettingsSectionMeta(settingsSection);
   const canEnterWorkbench = Boolean(settings?.hasPat && settings?.organizationId);
 
   if (embedded) {
     // 工作区设置：页头与主页（总览）保持一致——sticky 全宽单行 + 统一 h1（26px）标题 + 右上角自动保存状态；
-    // 分区导航在左侧栏（设置菜单），分区功能说明下沉正文首行，内容列仍按 Linear 版式居中展示
+    // 分区导航在左侧栏（设置菜单），内容列按 Linear 版式居中展示；页面不再插入顶部说明段，
+    // 各分组说明收进标题后的 info 图标 Tooltip（见 settings-group）
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
@@ -125,15 +122,6 @@ export function SettingsView({
           actions={<SettingsAutoSaveStatus />}
         />
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-20">
-          {/* 分区功能说明（自页头下移正文首行，随内容滚动；HeroUI Alert default 呈现） */}
-          <Alert status="default">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Description className="text-xs leading-5 text-muted-foreground">
-                {activeSection.description}
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
           {sectionContent[settingsSection]}
         </div>
       </div>

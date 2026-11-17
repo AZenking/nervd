@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   workitemExplicitRepoIds,
+  workitemOwnsRepoConfig,
   workitemRepoOverride,
   workitemScanRepoIds,
 } from './workitem-repos';
@@ -35,6 +36,29 @@ describe('显式关联：只有配置过的键才算关联', () => {
     const settings = { ...base, workitemRepos: { 'task-9': [99] } };
     expect(workitemExplicitRepoIds('Task', 'task-9', settings, 'req-1')).toEqual([]);
   });
+
+  it('独立 Bug（无父需求）：自身键生效，不再只能靠默认池', () => {
+    const settings = { ...base, workitemRepos: { 'bug-9': [7, 8] } };
+    expect(workitemRepoOverride('Bug', 'bug-9', settings)).toEqual([7, 8]);
+    expect(workitemExplicitRepoIds('Bug', 'bug-9', settings)).toEqual([7, 8]);
+    expect(workitemScanRepoIds('Bug', 'bug-9', settings)).toEqual([7, 8]);
+  });
+
+  it('独立 Bug：空数组表示显式不关联（区别于未设置）', () => {
+    const settings = { ...base, workitemRepos: { 'bug-9': [] } };
+    expect(workitemRepoOverride('Bug', 'bug-9', settings)).toEqual([]);
+    expect(workitemScanRepoIds('Bug', 'bug-9', settings)).toEqual([]);
+  });
+
+  it('独立 Bug：没有自身键时仍未关联（扫描回退默认池）', () => {
+    expect(workitemRepoOverride('Bug', 'bug-9', base)).toBeNull();
+    expect(workitemScanRepoIds('Bug', 'bug-9', base)).toEqual([1, 2, 3]);
+  });
+
+  it('挂到需求下的缺陷以父需求为准，自身历史键被忽略', () => {
+    const settings = { ...base, workitemRepos: { 'req-1': [7], 'bug-9': [99] } };
+    expect(workitemExplicitRepoIds('Bug', 'bug-9', settings, 'req-1')).toEqual([7]);
+  });
 });
 
 describe('扫描范围：显式关联优先，缺省回退默认云效仓库', () => {
@@ -53,5 +77,18 @@ describe('扫描范围：显式关联优先，缺省回退默认云效仓库', (
     expect(workitemScanRepoIds('Task', 'task-9', settings, 'req-1')).toEqual([7, 8]);
     expect(workitemScanRepoIds('Task', 'task-9', base, 'req-1')).toEqual([1, 2, 3]);
     expect(workitemScanRepoIds('Bug', 'bug-9', base, undefined)).toEqual([1, 2, 3]);
+  });
+});
+describe('仓库配置归属：需求恒自持，子项只读继承', () => {
+  it('需求自持；挂在需求下的 Task/Bug 只读继承', () => {
+    expect(workitemOwnsRepoConfig('Req', undefined)).toBe(true);
+    expect(workitemOwnsRepoConfig('Req', 'req-1')).toBe(true);
+    expect(workitemOwnsRepoConfig('Task', 'req-1')).toBe(false);
+    expect(workitemOwnsRepoConfig('Bug', 'req-1')).toBe(false);
+  });
+
+  it('独立缺陷/任务（无父需求）自持关联与分支模板', () => {
+    expect(workitemOwnsRepoConfig('Bug', undefined)).toBe(true);
+    expect(workitemOwnsRepoConfig('Task', '')).toBe(true);
   });
 });

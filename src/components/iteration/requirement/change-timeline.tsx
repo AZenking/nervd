@@ -213,7 +213,7 @@ export function ChangeTimeline({
             aria-label="立即同步代码变更"
             aria-disabled={syncing}
             className={cn(
-              'gap-1 text-xs text-muted-foreground hover:text-foreground',
+              'gap-1',
               syncing && 'cursor-wait',
             )}
             onPress={() => {
@@ -311,7 +311,7 @@ export function ChangeTimeline({
                 variant="ghost"
                 aria-disabled={loading}
                 className={cn(
-                  'gap-1.5 text-xs text-muted-foreground hover:text-foreground',
+                  'gap-1.5',
                   loading && 'cursor-wait',
                 )}
                 onPress={() => {

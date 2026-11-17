@@ -1,6 +1,6 @@
 import { NavMain } from './nav-main';
 import { NavProjects } from './nav-projects';
-import { NavTools } from './nav-tools';
+import { NavCountBadge, NavTools } from './nav-tools';
 import { NavUser } from './nav-user';
 import {
   Sidebar,
@@ -10,22 +10,24 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import {
   ArrowLeftIcon,
+  CalendarClockIcon,
   CalendarDaysIcon,
   LayoutDashboardIcon,
   SearchIcon,
   ZapIcon,
 } from 'lucide-react';
 import { useApp } from '@/store/app';
+import { useScheduleStore } from '@/store/schedule';
 import { useUi } from '@/store/ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Kbd } from '@/components/ui/kbd';
 import { useSettingsDraft } from '@/store/settings-draft';
-import { SETTINGS_SECTIONS, getSectionErrorCount } from '../settings/sections';
+import { SETTINGS_GROUPS, SETTINGS_SECTIONS, getSectionErrorCount } from '../settings/sections';
 import { cn } from '@/lib/utils';
 
 /**
@@ -35,6 +37,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { view, settingsSection, setSettingsSection, setView, openSettings, setQuickBuildOpen } = useUi();
   const { settings, currentUser } = useApp();
   const fieldErrors = useSettingsDraft((s) => s.fieldErrors);
+  const activeScheduleCount = useScheduleStore(
+    (s) => s.tasks.filter((task) => task.enabled).length,
+  );
   const inSettings = view === 'full-settings';
 
   const displayName = currentUser?.name || 'Kate Moore';
@@ -90,32 +95,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </div>
           </button>
 
-          {/* 只读安全模式徽标：展开态为可见文字徽标，折叠态收敛为头像右下角圆点；
+          {/* 只读安全模式徽标（HeroUI Chip）：展开态为语义徽标，折叠态收敛为头像右下角圆点；
               点击直达「安全」设置分区（AGENTS.md §2.5），不再让只读原因不可见 */}
           {!settings?.allowWriteOps && (
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <Button
+                  <button
                     type="button"
                     data-no-drag
-                    aria-label="只读安全模式"
-                    variant="outline"
-                    size="xs"
-                    onPress={() => openSettings('security')}
+                    aria-label="只读"
+                    onClick={() => openSettings('security')}
                     className={cn(
-                      'shrink-0 border-warning/30 font-medium text-warning hover:bg-warning/15',
-                      'group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:bottom-0 group-data-[collapsible=icon]:right-0 group-data-[collapsible=icon]:z-10 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:size-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0',
+                      'shrink-0 cursor-pointer rounded-full bg-transparent p-0',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+                      'group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:bottom-0 group-data-[collapsible=icon]:right-0 group-data-[collapsible=icon]:z-10 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:size-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center',
                     )}
-                  />
+                  >
+                    <Chip
+                      size="sm"
+                      variant="soft"
+                      color="warning"
+                      className="group-data-[collapsible=icon]:hidden"
+                    >
+                      只读
+                    </Chip>
+                    <span
+                      aria-hidden="true"
+                      className="hidden size-2.5 rounded-full bg-warning ring-2 ring-sidebar group-data-[collapsible=icon]:block"
+                    />
+                  </button>
                 }
-              >
-                <span className="group-data-[collapsible=icon]:hidden">只读</span>
-                <span
-                  aria-hidden="true"
-                  className="hidden size-2.5 rounded-full bg-warning ring-2 ring-sidebar group-data-[collapsible=icon]:block"
-                />
-              </TooltipTrigger>
+              />
               <TooltipContent side="right">只读安全模式 · 点击前往安全设置</TooltipContent>
             </Tooltip>
           )}
@@ -179,51 +190,58 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       {inSettings ? (
-        // 设置模式：左侧栏即设置菜单，顶部为返回工作区，下方直列各个设置分区
+        // 设置模式：左侧栏即设置菜单，直列各个设置分区；返回工作区固定在侧栏底部
         <SidebarContent className="gap-1 px-3 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center">
           <nav aria-label="设置导航" className="flex w-full flex-col gap-1 group-data-[collapsible=icon]:items-center">
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="返回工作区" onClick={() => setView('iteration')}>
-                  <ArrowLeftIcon />
-                  <span className="group-data-[collapsible=icon]:hidden">返回工作区</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-
-            <SidebarSeparator className="my-1.5" />
-
-            {/* 设置分区列表 */}
-            <SidebarMenu>
-              {SETTINGS_SECTIONS.map((section) => {
-                const errorCount = getSectionErrorCount(section.value, fieldErrors);
-                return (
-                  <SidebarMenuItem key={section.value}>
-                    <SidebarMenuButton
-                      tooltip={section.label}
-                      isActive={settingsSection === section.value}
-                      aria-current={settingsSection === section.value ? 'page' : undefined}
-                      onClick={() => setSettingsSection(section.value)}
-                    >
-                      <section.icon />
-                      <span className="flex-1 font-medium group-data-[collapsible=icon]:hidden">{section.label}</span>
-                      {errorCount > 0 && (
-                        <>
-                          <span className="size-2 rounded-full bg-destructive shrink-0" aria-hidden="true" />
-                          <span className="sr-only">{section.label}有待修正项</span>
-                        </>
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            {/* 设置分区列表：按「个人偏好 / 工作区 / 应用」分组，分组标题不可点击 */}
+            {SETTINGS_GROUPS.map((group) => {
+              const sections = SETTINGS_SECTIONS.filter((section) => section.group === group);
+              if (!sections.length) return null;
+              return (
+                <div
+                  key={group}
+                  data-settings-group={group}
+                  className="flex w-full flex-col gap-1 group-data-[collapsible=icon]:items-center"
+                >
+                  <div
+                    data-settings-group-label={group}
+                    className="px-2 pb-0.5 pt-2 text-[11px] font-medium leading-4 text-muted-foreground group-data-[collapsible=icon]:hidden"
+                  >
+                    {group}
+                  </div>
+                  <SidebarMenu>
+                    {sections.map((section) => {
+                      const errorCount = getSectionErrorCount(section.value, fieldErrors);
+                      return (
+                        <SidebarMenuItem key={section.value}>
+                          <SidebarMenuButton
+                            tooltip={section.label}
+                            isActive={settingsSection === section.value}
+                            aria-current={settingsSection === section.value ? 'page' : undefined}
+                            onClick={() => setSettingsSection(section.value)}
+                          >
+                            <section.icon />
+                            <span className="flex-1 font-medium group-data-[collapsible=icon]:hidden">{section.label}</span>
+                            {errorCount > 0 && (
+                              <>
+                                <span className="size-2 rounded-full bg-destructive shrink-0" aria-hidden="true" />
+                                <span className="sr-only">{section.label}有待修正项</span>
+                              </>
+                            )}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </div>
+              );
+            })}
           </nav>
         </SidebarContent>
       ) : (
         <SidebarContent className="gap-1.5 px-3 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center">
           <nav aria-label="主导航" className="flex w-full flex-col gap-1.5 group-data-[collapsible=icon]:items-center">
-            {/* 主导航（导航收敛：当前迭代 / 总览 为主入口；迭代列表与工具分组依次收在其后） */}
+            {/* 主导航（导航收敛：当前迭代 / 总览 / 定时任务 为主入口；迭代列表与工具分组依次收在其后） */}
             <NavMain
               items={[
                 {
@@ -236,18 +254,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   icon: <LayoutDashboardIcon />,
                   view: 'overview',
                 },
+                {
+                  title: '定时任务',
+                  icon: <CalendarClockIcon />,
+                  view: 'schedules',
+                  badge: activeScheduleCount > 0 ? <NavCountBadge count={activeScheduleCount} /> : null,
+                },
               ]}
             />
             {/* 迭代列表：保留原「迭代」分组的 NavProjects Accordion 切换方式 */}
             <NavProjects />
-            {/* 工具菜单：最近查看 / 集成分支 / 定时任务 / 本地仓库与 Agent（折叠态平铺为图标入口） */}
+            {/* 工具菜单：最近查看 / 集成分支（折叠态平铺为图标入口） */}
             <NavTools />
           </nav>
         </SidebarContent>
       )}
 
       <SidebarFooter className="border-t border-sidebar-border/70 p-3 pt-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center">
-        {!inSettings && <NavUser />}
+        {inSettings ? (
+          // 返回工作区固定在设置侧栏底部（与普通工作区的用户区同位）
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="返回工作区" onClick={() => setView('iteration')}>
+                <ArrowLeftIcon />
+                <span className="group-data-[collapsible=icon]:hidden">返回工作区</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        ) : (
+          <NavUser />
+        )}
       </SidebarFooter>
     </Sidebar>
   );

@@ -64,3 +64,5 @@ src-tauri/gen/
 
 # 变更归属本地状态（active workitem / 本地仓库缓存）
 .nervd/
+
+artifacts/

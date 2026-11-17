@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -7,6 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { getCustomDevBranch, setCustomDevBranch } from '@/lib/dev-branch-settings';
 import { SettingsGroup, SettingsRow, SettingsRowError } from '../settings-group';
+import { BranchRulesSection } from './BranchRulesSection';
+import { LocalReposSection } from './LocalReposSection';
 
 type SettingsDraftState = ReturnType<typeof useSettingsDraft.getState>;
 
@@ -42,59 +44,65 @@ export function TraceSection() {
   };
 
   return (
-    <SettingsGroup
-      title="关联规则与默认仓库"
-      description="仓库从云效组织获取。这里选择需求未单独关联云效仓库时参与扫描的默认仓库。"
-    >
-      <SettingsRow
-        orientation="horizontal"
-        controlWidth="w-72"
-        label="关联正则"
-        description="命中后自动关联对应工作项，如 (?:REQ|BUG|TASK)[-_]?(\d+)。用于从分支名、Commit 记录与 MR 标题中识别需求。"
-        htmlFor="pattern"
-        error={patternError ? <SettingsRowError>{patternError}</SettingsRowError> : undefined}
-        control={(
-          <Input
-            id="pattern"
-            className="font-mono"
-            value={draft.draft?.linkPattern ?? ''}
-            aria-invalid={Boolean(patternError)}
-            aria-describedby={patternError ? 'pattern-error' : undefined}
-            onChange={(e) => {
-              if (patternError) setPatternError(null);
-              draft.update({ linkPattern: e.target.value });
-            }}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.nativeEvent.isComposing) return;
-            }}
-            onBlur={() => {
-              validatePattern();
-              void draft.flushAutoSave();
-            }}
-          />
-        )}
-      />
+    <div className="flex flex-col gap-6">
+      <SettingsGroup
+        title="关联规则与默认扫描仓库"
+        description="仓库从云效组织获取。这里选择需求未单独关联云效仓库时参与扫描的默认仓库；规则保存在本机。"
+      >
+        <SettingsRow
+          orientation="horizontal"
+          controlWidth="w-72"
+          label="关联正则"
+          description="命中后自动关联对应工作项，如 (?:REQ|BUG|TASK)[-_]?(\d+)。用于从分支名、Commit 记录与 MR 标题中识别需求。"
+          htmlFor="pattern"
+          error={patternError ? <SettingsRowError>{patternError}</SettingsRowError> : undefined}
+          control={(
+            <Input
+              id="pattern"
+              className="font-mono"
+              value={draft.draft?.linkPattern ?? ''}
+              aria-invalid={Boolean(patternError)}
+              aria-describedby={patternError ? 'pattern-error' : undefined}
+              onChange={(e) => {
+                if (patternError) setPatternError(null);
+                draft.update({ linkPattern: e.target.value });
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.nativeEvent.isComposing) return;
+              }}
+              onBlur={() => {
+                validatePattern();
+                void draft.flushAutoSave();
+              }}
+            />
+          )}
+        />
 
-      <SettingsRow
-        orientation="horizontal"
-        controlWidth="w-72"
-        label="默认集成分支模式"
-        description="集成分支视图默认扫描 release/*、integration/*、temp/*、hotfix/* 交付分支，并依据上方关联正则提取需求编号计算双向落差。"
-        control={(
-          <div className="flex flex-wrap gap-1 font-mono text-xs text-muted-foreground">
-            <Chip size="sm" variant="soft">release/*</Chip>
-            <Chip size="sm" variant="soft">integration/*</Chip>
-            <Chip size="sm" variant="soft">temp/*</Chip>
-            <Chip size="sm" variant="soft">hotfix/*</Chip>
-          </div>
-        )}
-      />
+        <SettingsRow
+          orientation="horizontal"
+          controlWidth="w-72"
+          label="默认集成分支模式"
+          description="集成分支视图默认扫描 release/*、integration/*、temp/*、hotfix/* 交付分支，并依据上方关联正则提取需求编号计算双向落差。"
+          control={(
+            <div className="flex flex-wrap gap-1 font-mono text-xs text-muted-foreground">
+              <Chip size="sm" variant="soft">release/*</Chip>
+              <Chip size="sm" variant="soft">integration/*</Chip>
+              <Chip size="sm" variant="soft">temp/*</Chip>
+              <Chip size="sm" variant="soft">hotfix/*</Chip>
+            </div>
+          )}
+        />
 
-      <DevBranchSettingRow />
+        <DevBranchSettingRow />
 
-      <RepoChecklist />
-    </SettingsGroup>
+        <RepoChecklist />
+      </SettingsGroup>
+
+      <BranchRulesSection />
+
+      <LocalReposSection />
+    </div>
   );
 }
 
@@ -188,16 +196,28 @@ function RepoChecklist() {
   const hasPat = useApp((s) => s.settings?.hasPat);
   const watched = useSettingsDraft((s) => s.draft?.watchedRepos ?? []);
   const update = useSettingsDraft((s) => s.update);
+  // 组织仓库可能上千：过滤输入用延迟值，避免每次按键都同步重排整份清单
+  const deferredFilter = useDeferredValue(filter);
 
   const archivedCount = repositories.filter((r) => r.archived).length;
   // 已勾选的归档仓库仍显示，否则用户无法取消勾选
   const scoped = showArchived
     ? repositories
     : repositories.filter((r) => !r.archived || watched.includes(r.id));
-  const keyword = filter.trim().toLowerCase();
-  const visibleRepos = keyword
+  const keyword = deferredFilter.trim().toLowerCase();
+  const matchedRepos = keyword
     ? scoped.filter((r) => (r.pathWithNamespace || r.name).toLowerCase().includes(keyword))
     : scoped;
+  // 首屏只挂载有限行（已勾选项始终保留）；其余靠名称过滤定位，避免一次创建上千个 Checkbox
+  const renderLimit = keyword ? 120 : 80;
+  const selectedRepos = matchedRepos.filter((r) => watched.includes(r.id));
+  const selectedVisible = selectedRepos.slice(0, renderLimit);
+  const unselectedVisible = matchedRepos
+    .filter((r) => !watched.includes(r.id))
+    .slice(0, Math.max(0, renderLimit - selectedVisible.length));
+  const visibleIds = new Set([...selectedVisible, ...unselectedVisible].map((r) => r.id));
+  const visibleRepos = matchedRepos.filter((r) => visibleIds.has(r.id));
+  const hiddenCount = matchedRepos.length - visibleRepos.length;
 
   const toggleRepo = (id: number) => {
     update(
@@ -241,12 +261,7 @@ function RepoChecklist() {
               onChange={(v) => setShowArchived(v)}
               className="cursor-pointer text-muted-foreground"
             >
-              <Checkbox.Content>
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                显示已归档（{archivedCount}）
-              </Checkbox.Content>
+              显示已归档（{archivedCount}）
             </Checkbox>
           )}
           <ScrollArea className="h-48 rounded-lg border border-border/60 bg-background/50">
@@ -256,16 +271,21 @@ function RepoChecklist() {
                   key={r.id}
                   isSelected={watched.includes(r.id)}
                   onChange={() => toggleRepo(r.id)}
-                  className="cursor-pointer rounded-md px-2 py-1.5 font-normal text-foreground hover:bg-surface-secondary"
+                  className="w-full cursor-pointer rounded-md px-2 py-1.5 font-normal text-foreground hover:bg-surface-secondary"
                 >
-                  <Checkbox.Content>
-                    <Checkbox.Control>
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
-                    <span className="font-mono text-xs truncate" title={r.pathWithNamespace || r.name}>{r.pathWithNamespace || r.name}</span>
-                  </Checkbox.Content>
+                  <span
+                    className="min-w-0 flex-1 truncate font-mono text-xs"
+                    title={r.pathWithNamespace || r.name}
+                  >
+                    {r.pathWithNamespace || r.name}
+                  </span>
                 </Checkbox>
               ))}
+              {hiddenCount > 0 && (
+                <div className="px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
+                  还有 {hiddenCount} 个仓库未显示，输入名称过滤可快速定位。
+                </div>
+              )}
               {!visibleRepos.length && (
                 <div className="p-2 text-sm text-muted-foreground">
                   {repositories.length

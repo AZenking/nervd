@@ -22,16 +22,49 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
+import { ComboBox } from '@/components/ui/combo-box';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ListBox } from '@/components/ui/list-box';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SectionHeader } from '@/components/section-header';
 import { TrackTopologyDiagram } from '@/components/branch-rules/track-topology-diagram';
+
+/** 下拉候选渲染上限：几百个仓库时避免一次性挂载全部 option（有输入后由 ComboBox 过滤全量） */
+export const REPO_OPTION_LIMIT = 100;
+
+/** 仓库的展示 / 取值键：优先 codeup 全路径，回退仓库名 */
+function repoPathOf(repo: RepoSummary): string {
+  return repo.pathWithNamespace || repo.name;
+}
+
+/**
+ * 计算仓库下拉实际渲染的候选项。
+ *
+ * - 有输入：交回全量集合，由 ComboBox 的 `contains` 过滤后只渲染命中项（通常个位数）；
+ * - 无输入：只取前 `limit` 条，避免几百个 option 一次性挂载造成展开掉帧；
+ * - 已选仓库若不在前 `limit` 条内，补进列表，保证选中态文案能正常回显。
+ *
+ * @returns `items` 为本次渲染的候选项，`hiddenCount` 为未渲染的条数（用于"还有 N 个"提示）
+ */
+export function selectVisibleRepos(
+  repos: RepoSummary[],
+  query: string,
+  selectedPath: string,
+  limit: number = REPO_OPTION_LIMIT,
+): { items: RepoSummary[]; hiddenCount: number } {
+  if (query.trim().length > 0) return { items: repos, hiddenCount: 0 };
+  const items = repos.slice(0, limit);
+  if (selectedPath && !items.some((repo) => repoPathOf(repo) === selectedPath)) {
+    const selected = repos.find((repo) => repoPathOf(repo) === selectedPath);
+    if (selected) items.push(selected);
+  }
+  return { items, hiddenCount: Math.max(0, repos.length - items.length) };
+}
 
 export interface LinkRepoModalProps {
   open: boolean;
@@ -40,7 +73,8 @@ export interface LinkRepoModalProps {
   effectiveRepoIds: number[];
   fusedTemplates: ScopedBranchRuleTemplate[];
   iterationId?: string;
-  isRequirement?: boolean;
+  /** 是否展示「应用分支模板」选择：需求与无父需求的独立工作项都需要 */
+  templatePickerEnabled?: boolean;
   savingRepos: boolean;
   recommendingRepos: boolean;
   recommendedRepos: AiRepoRecommendation[];
@@ -84,7 +118,7 @@ export function LinkRepoModal({
   effectiveRepoIds,
   fusedTemplates,
   iterationId,
-  isRequirement,
+  templatePickerEnabled,
   savingRepos,
   recommendingRepos,
   recommendedRepos,
@@ -110,11 +144,12 @@ export function LinkRepoModal({
     })),
   );
   const [selectedRepoPath, setSelectedRepoPath] = useState('');
+  const [repoQuery, setRepoQuery] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [selectedCiBinding, setSelectedCiBinding] = useState<RepoCiBinding | null>(null);
 
   const selectedRepo = useMemo(
-    () => repositories.find((r) => (r.pathWithNamespace || r.name) === selectedRepoPath),
+    () => repositories.find((r) => repoPathOf(r) === selectedRepoPath),
     [repositories, selectedRepoPath],
   );
 
@@ -126,6 +161,7 @@ export function LinkRepoModal({
   useEffect(() => {
     if (!open) {
       setSelectedRepoPath('');
+      setRepoQuery('');
       setSelectedTemplateId('');
       setSelectedCiBinding(null);
     }
@@ -151,7 +187,16 @@ export function LinkRepoModal({
     }
   }, [selectedRepo?.id, settings?.repoCiBindings]);
 
-  const availableRepos = repositories.filter((r) => !effectiveRepoIds.includes(r.id));
+  const availableRepos = useMemo(
+    () => repositories.filter((repo) => !effectiveRepoIds.includes(repo.id)),
+    [repositories, effectiveRepoIds],
+  );
+
+  // 候选渲染窗口：无输入时只铺前 N 条，输入后由 ComboBox 过滤全量（见 selectVisibleRepos）
+  const visibleRepos = useMemo(
+    () => selectVisibleRepos(availableRepos, repoQuery, selectedRepoPath),
+    [availableRepos, repoQuery, selectedRepoPath],
+  );
 
   // 分支链路预览上下文：identifier 取当前选中工作项（弹窗上下文），无则示例 REQ-101
   const previewContext = useMemo(
@@ -181,15 +226,12 @@ export function LinkRepoModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-6 gap-5">
+      <DialogContent className="sm:max-w-2xl gap-5">
         <DialogHeader className="shrink-0 text-left">
           <DialogTitle className="text-base font-semibold text-foreground flex items-center gap-2">
             <GitBranchIcon className="size-4.5 text-primary" />
             <span>关联云效代码仓库</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground mt-1">
-            为当前需求绑定代码仓库，支持自动化推导需求分支、查看 MR 状态以及触发流水线构建。
-          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 min-h-0 pr-1 flex flex-col gap-6">
@@ -218,11 +260,11 @@ export function LinkRepoModal({
                     </Button>
                   )}
                   <Button
-                    variant="outline"
-                    size="xs"
+                    variant="secondary"
+                    size="sm"
                     disabled={recommendingRepos}
                     onPress={() => void onRecommendRepos()}
-                    className="h-7 text-xs border-primary/30 bg-background hover:bg-primary/10 text-primary gap-1.5 cursor-pointer"
+                    className="gap-1.5 cursor-pointer"
                   >
                     {recommendingRepos ? (
                       <Loader2Icon className="size-3.5 animate-spin" />
@@ -332,43 +374,90 @@ export function LinkRepoModal({
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field className="min-w-0">
-                <FieldLabel>云效代码仓库 *</FieldLabel>
-                <SearchableSelect
-                  value={selectedRepoPath || null}
-                  onValueChange={(v) => setSelectedRepoPath(v ?? '')}
-                  items={availableRepos.map((r): SearchableSelectOption<string> => ({
-                    label: r.pathWithNamespace || r.name,
-                    value: r.pathWithNamespace || r.name,
-                  }))}
-                  placeholder="搜索并选择云效代码仓库"
-                />
-              </Field>
+              <ComboBox
+                fullWidth
+                selectedKey={selectedRepoPath || null}
+                onValueChange={(v) => setSelectedRepoPath(v ?? '')}
+                inputValue={repoQuery}
+                onInputChange={setRepoQuery}
+                isDisabled={savingRepos}
+              >
+                <Label>云效代码仓库 *</Label>
+                <ComboBox.InputGroup>
+                  <Input placeholder="搜索并选择云效代码仓库" />
+                  <ComboBox.Trigger />
+                </ComboBox.InputGroup>
+                <ComboBox.Popover>
+                  <ListBox
+                    aria-label="云效代码仓库"
+                    className="max-h-64 overflow-y-auto"
+                    items={visibleRepos.items}
+                    renderEmptyState={() => (
+                      <p className="px-2 py-3 text-xs text-muted-foreground">没有匹配的代码仓库</p>
+                    )}
+                  >
+                    {(repo: RepoSummary) => {
+                      const repoPath = repoPathOf(repo);
+                      return (
+                        <ListBox.Item key={repoPath} id={repoPath} textValue={repoPath}>
+                          {repoPath}
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                      );
+                    }}
+                  </ListBox>
+                  {visibleRepos.hiddenCount > 0 && (
+                    <p className="px-2.5 pb-2 pt-1 text-[11px] leading-snug text-muted-foreground">
+                      还有 {visibleRepos.hiddenCount} 个仓库未显示，输入关键词继续筛选
+                    </p>
+                  )}
+                </ComboBox.Popover>
+              </ComboBox>
 
-              {isRequirement && iterationId ? (
-                <Field className="min-w-0">
-                  <FieldLabel>应用分支模板 (可选)</FieldLabel>
-                  <SearchableSelect
-                    value={selectedTemplateId || '__none'}
+              {templatePickerEnabled && iterationId ? (
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <ComboBox
+                    fullWidth
+                    selectedKey={selectedTemplateId || '__none'}
                     onValueChange={(val) => setSelectedTemplateId(val && val !== '__none' ? val : '')}
-                    items={[
-                      { label: '不应用分支模板', value: '__none' },
-                      ...fusedTemplates.map((template): SearchableSelectOption<string> => {
-                        const scopeTag = template.scope === 'iteration' ? ' (迭代专属)' : ' (全局)';
-                        return {
-                          label: `${template.name}${scopeTag}`,
-                          value: template.id,
-                        };
-                      }),
-                    ]}
-                    placeholder="选择分支模板"
-                  />
+                    isDisabled={savingRepos}
+                  >
+                    <Label>应用分支模板 (可选)</Label>
+                    <ComboBox.InputGroup>
+                      <Input placeholder="选择分支模板" />
+                      <ComboBox.Trigger />
+                    </ComboBox.InputGroup>
+                    <ComboBox.Popover>
+                      <ListBox
+                        aria-label="应用分支模板"
+                        className="max-h-64 overflow-y-auto"
+                        renderEmptyState={() => (
+                          <p className="px-2 py-3 text-xs text-muted-foreground">没有匹配的分支模板</p>
+                        )}
+                      >
+                        <ListBox.Item id="__none" textValue="不应用分支模板">
+                          不应用分支模板
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                        {fusedTemplates.map((template) => {
+                          const scopeTag = template.scope === 'iteration' ? ' (迭代专属)' : ' (全局)';
+                          const label = `${template.name}${scopeTag}`;
+                          return (
+                            <ListBox.Item key={template.id} id={template.id} textValue={label}>
+                              {label}
+                              <ListBox.ItemIndicator />
+                            </ListBox.Item>
+                          );
+                        })}
+                      </ListBox>
+                    </ComboBox.Popover>
+                  </ComboBox>
                   {!fusedTemplates.length && (
-                    <p className="text-[11px] text-muted-foreground mt-1">
+                    <p className="text-[11px] text-muted-foreground">
                       暂无可用分支模板，可在全局设置或迭代工作台创建。
                     </p>
                   )}
-                </Field>
+                </div>
               ) : null}
             </div>
 
@@ -408,8 +497,7 @@ export function LinkRepoModal({
         <DialogFooter className="shrink-0 flex items-center justify-end gap-2 pt-3 border-t border-border/70">
           <Button
             type="button"
-            variant="ghost"
-            size="sm"
+            variant="secondary"
             onPress={() => onOpenChange(false)}
             disabled={savingRepos}
           >
