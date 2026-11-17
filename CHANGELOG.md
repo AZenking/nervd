@@ -10,6 +10,10 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 - *(attribution)* Implement change attribution engine and branch topology backend ([9dc1b93](https://github.com/AZenking/nervd/commit/9dc1b934d32f84c12419462d96113aeaedc4406d))
 - *(workbench)* Refine overview layout, detail tab flow and attribution sync ([d9d8d75](https://github.com/AZenking/nervd/commit/d9d8d758840ab50d69efff398260c56d6386522a))
 
+### 🐛 Bug Fixes
+
+- *(test)* Resolve timezone mismatch in activity-summary test for UTC runners ([9e75630](https://github.com/AZenking/nervd/commit/9e7563069ae86e03b4f0d8fcaf0b8d02197e1d52))
+
 ### ♻️ Refactor
 
 - *(ui)* Align design system and components with HeroUI v3 and DESIGN.md v2 ([85f10ea](https://github.com/AZenking/nervd/commit/85f10ea2732b727b9bf64c08c36b111b888f39e5))
