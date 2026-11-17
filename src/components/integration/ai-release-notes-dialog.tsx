@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Surface } from '@heroui/react';
+import { Surface } from '@/components/ui/surface';
 import {
   CheckIcon, CopyIcon, FileTextIcon, Loader2Icon, RefreshCwIcon,
 } from 'lucide-react';

@@ -17,7 +17,12 @@ import {
   XIcon,
   type LucideIcon,
 } from 'lucide-react';
-import { Alert, Chip, RadioGroup, Radio, TagGroup, Tag, TimeField } from '@heroui/react';
+// RadioGroup / Radio / TagGroup / Tag / TimeField 上游暂无 ui 出口（需 lead 补 ui/radio-group、ui/tag-group、ui/time-field），暂留直连
+import { RadioGroup, Radio } from '@/components/ui/radio-group';
+import { TagGroup, Tag } from '@/components/ui/tag-group';
+import { TimeField } from '@/components/ui/time-field';
+import { Alert } from '@/components/ui/alert';
+import { Chip } from '@/components/ui/chip';
 import type { TimeValue } from 'react-aria-components';
 import * as api from '@/lib/api';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
@@ -29,6 +34,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -49,7 +55,6 @@ import type {
   ScheduleActionType,
   ScheduledTask,
 } from '@/types/schedule';
-import { cn } from '@/lib/utils';
 
 export interface ScheduleEditorDrawerProps {
   open: boolean;
@@ -608,7 +613,7 @@ export function ScheduleEditorDrawer({
                 </Card.Header>
                 <Card.Content className="flex flex-col gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="schedule-name" className="text-xs text-muted-foreground">
+                    <Label htmlFor="schedule-name" className="text-muted-foreground">
                       任务名称 <span className="text-destructive">*</span>
                     </Label>
                     <Input
@@ -629,7 +634,7 @@ export function ScheduleEditorDrawer({
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="schedule-description" className="text-xs text-muted-foreground">任务描述</Label>
+                    <Label htmlFor="schedule-description" className="text-muted-foreground">任务描述</Label>
                     <Textarea
                       id="schedule-description"
                       value={description}
@@ -696,7 +701,7 @@ export function ScheduleEditorDrawer({
                         </span>
                       </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="schedule-repo" className="text-xs text-muted-foreground">目标代码仓库</Label>
+                      <Label htmlFor="schedule-repo" className="text-muted-foreground">目标代码仓库</Label>
                       <SearchableSelect
                         id="schedule-repo"
                         ariaLabel="目标代码仓库"
@@ -714,7 +719,7 @@ export function ScheduleEditorDrawer({
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="flex min-w-0 flex-col gap-1.5">
                         <div className="flex items-center justify-between">
-                          <Label htmlFor="schedule-source-branch" className="text-xs text-muted-foreground">源分支 (Source)</Label>
+                          <Label htmlFor="schedule-source-branch" className="text-muted-foreground">源分支 (Source)</Label>
                           {branchesLoading && (
                             <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
                               <Loader2Icon className="size-2.5 animate-spin" />
@@ -735,7 +740,7 @@ export function ScheduleEditorDrawer({
                       </div>
                       <div className="flex min-w-0 flex-col gap-1.5">
                         <div className="flex items-center justify-between">
-                          <Label htmlFor="schedule-target-branch" className="text-xs text-muted-foreground">目标分支 (Target)</Label>
+                          <Label htmlFor="schedule-target-branch" className="text-muted-foreground">目标分支 (Target)</Label>
                           {branchesLoading && (
                             <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
                               <Loader2Icon className="size-2.5 animate-spin" />
@@ -758,7 +763,7 @@ export function ScheduleEditorDrawer({
 
                     {/* 核心策略选择：谨慎 vs 激进 */}
                     <div className="flex flex-col gap-2 border-t border-border/50 pt-3">
-                      <Label className="text-xs text-muted-foreground">合并冲突策略</Label>
+                      <span className="text-xs text-muted-foreground">合并冲突策略</span>
                       <RadioGroup
                         aria-label="合并冲突策略"
                         value={strategy}
@@ -801,7 +806,7 @@ export function ScheduleEditorDrawer({
                       {strategy === 'aggressive' && (
                         <div className="flex flex-col gap-2 rounded-md border border-border/70 bg-surface-secondary p-3">
                           <div className="flex flex-wrap items-center justify-between gap-1">
-                            <Label className="text-xs text-muted-foreground">冲突自动裁决偏好</Label>
+                            <span className="text-xs text-muted-foreground">冲突自动裁决偏好</span>
                             <span className="text-[11px] text-muted-foreground">
                               同一行代码两端冲突时的裁决策略
                             </span>
@@ -882,7 +887,7 @@ export function ScheduleEditorDrawer({
                       </span>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label className="text-xs text-muted-foreground">Jenkins 实例连接</Label>
+                      <span className="text-xs text-muted-foreground">Jenkins 实例连接</span>
                       <Select
                         value={jenkinsConnId || ''}
                         onValueChange={(val) => setJenkinsConnId(val || '')}
@@ -902,7 +907,7 @@ export function ScheduleEditorDrawer({
                       </Select>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="schedule-jenkins-job" className="text-xs text-muted-foreground">Job 全名 / 路径 (FullName)</Label>
+                      <Label htmlFor="schedule-jenkins-job" className="text-muted-foreground">Job 全名 / 路径 (FullName)</Label>
                       <Input
                         id="schedule-jenkins-job"
                         value={jenkinsJobName}
@@ -933,7 +938,7 @@ export function ScheduleEditorDrawer({
                       </span>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="schedule-pipeline-id" className="text-xs text-muted-foreground">流水线 ID (Pipeline ID)</Label>
+                      <Label htmlFor="schedule-pipeline-id" className="text-muted-foreground">流水线 ID (Pipeline ID)</Label>
                       <Input
                         id="schedule-pipeline-id"
                         type="number"
@@ -954,7 +959,7 @@ export function ScheduleEditorDrawer({
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="schedule-pipeline-name" className="text-xs text-muted-foreground">流水线名称备注 (选填)</Label>
+                      <Label htmlFor="schedule-pipeline-name" className="text-muted-foreground">流水线名称备注 (选填)</Label>
                       <Input
                         id="schedule-pipeline-name"
                         value={pipelineName}
@@ -1220,29 +1225,32 @@ export function ScheduleEditorDrawer({
                             * 代表任意，*/N 代表步长
                           </span>
                         </div>
-                        <Input
-                          id="schedule-cron"
-                          aria-label="Cron 表达式"
-                          aria-invalid={cronValidation.valid ? undefined : true}
-                          aria-describedby={cronValidation.valid ? undefined : 'schedule-cron-error'}
-                          value={cron}
-                          onChange={(e) => {
-                            setCron(e.target.value);
-                            setPreset('custom');
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key !== 'Escape' && e.key !== 'Tab') {
-                              e.stopPropagation();
-                            }
-                          }}
-                          onKeyUp={(e) => {
-                            if (e.key !== 'Escape' && e.key !== 'Tab') {
-                              e.stopPropagation();
-                            }
-                          }}
-                          placeholder="例如: 0 2 * * *"
-                          className={cn('font-mono', !cronValidation.valid && 'border-destructive')}
-                        />
+                        {/* invalid 走 Field 的 isInvalid 上下文（.input[data-invalid]），不再手写 border-destructive */}
+                        <Field isInvalid={!cronValidation.valid}>
+                          <Input
+                            id="schedule-cron"
+                            aria-label="Cron 表达式"
+                            aria-invalid={cronValidation.valid ? undefined : true}
+                            aria-describedby={cronValidation.valid ? undefined : 'schedule-cron-error'}
+                            value={cron}
+                            onChange={(e) => {
+                              setCron(e.target.value);
+                              setPreset('custom');
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key !== 'Escape' && e.key !== 'Tab') {
+                                e.stopPropagation();
+                              }
+                            }}
+                            onKeyUp={(e) => {
+                              if (e.key !== 'Escape' && e.key !== 'Tab') {
+                                e.stopPropagation();
+                              }
+                            }}
+                            placeholder="例如: 0 2 * * *"
+                            className="font-mono"
+                          />
+                        </Field>
                         {!cronValidation.valid && (
                           <p
                             id="schedule-cron-error"

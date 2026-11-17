@@ -301,6 +301,7 @@ pub fn run() {
             commands::get_workitem,
             commands::list_workitem_comments,
             commands::create_workitem_comment,
+            commands::update_workitem_comment,
             commands::list_workitem_children,
             commands::get_workitem_workflow_statuses,
             commands::update_workitem,

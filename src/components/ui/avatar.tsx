@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Avatar as HeroAvatar, AvatarGroup as HeroAvatarGroup } from "@heroui/react"
+import { Avatar as HeroAvatar } from "@heroui/react"
 import { UserIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
@@ -44,10 +44,9 @@ function Avatar({
       data-slot="avatar"
       data-size={size}
       size={heroSize}
-      className={cn(
-        "group/avatar relative flex size-8 shrink-0 rounded-full select-none overflow-hidden",
-        className
-      )}
+      // 尺寸 / 圆形 / 裁剪全部交回 HeroUI `.avatar`（size 变体 sm|md|lg），
+      // 调用点不再写 size-8 把变体盖死（DESIGN「Don't hardcode when a token exists」）
+      className={cn("group/avatar shrink-0 select-none", className)}
       {...props}
     >
       {children}
@@ -62,10 +61,7 @@ function AvatarImage({
   return (
     <HeroAvatar.Image
       data-slot="avatar-image"
-      className={cn(
-        "aspect-square size-full rounded-full object-cover",
-        className
-      )}
+      className={cn("object-cover", className)}
       {...props}
     />
   )
@@ -79,62 +75,12 @@ function AvatarFallback({
   return (
     <HeroAvatar.Fallback
       data-slot="avatar-fallback"
-      className={cn(
-        "flex size-full items-center justify-center rounded-full bg-surface-secondary text-sm font-medium text-foreground/90 group-data-[size=sm]/avatar:text-xs",
-        className
-      )}
+      // 底色 / 字号由 `.avatar__fallback` 提供；身份色（getAvatarColorClass）由调用方注入
+      className={cn("flex items-center justify-center font-medium", className)}
       {...props}
     >
       {children}
     </HeroAvatar.Fallback>
-  )
-}
-
-function AvatarBadge({ className, ...props }: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="avatar-badge"
-      className={cn(
-        "absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground bg-blend-color ring-2 ring-background select-none",
-        "group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden",
-        "group-data-[size=default]/avatar:size-2.5 group-data-[size=default]/avatar:[&>svg]:size-2",
-        "group-data-[size=lg]/avatar:size-3 group-data-[size=lg]/avatar:[&>svg]:size-2",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function AvatarGroup({
-  className,
-  ...props
-}: React.ComponentPropsWithRef<typeof HeroAvatarGroup>) {
-  return (
-    <HeroAvatarGroup
-      data-slot="avatar-group"
-      className={cn(
-        "group/avatar-group flex -space-x-2 *:data-[slot=avatar]:ring-2 *:data-[slot=avatar]:ring-background",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function AvatarGroupCount({
-  className,
-  ...props
-}: React.ComponentPropsWithRef<typeof HeroAvatarGroup.Count>) {
-  return (
-    <HeroAvatarGroup.Count
-      data-slot="avatar-group-count"
-      className={cn(
-        "relative flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-secondary text-sm text-muted-foreground ring-2 ring-background group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3",
-        className
-      )}
-      {...props}
-    />
   )
 }
 
@@ -247,15 +193,4 @@ export function UserAvatar({
 
 Avatar.Image = AvatarImage
 Avatar.Fallback = AvatarFallback
-Avatar.Badge = AvatarBadge
-Avatar.Group = AvatarGroup
-Avatar.GroupCount = AvatarGroupCount
-
-export {
-  Avatar,
-  AvatarImage,
-  AvatarFallback,
-  AvatarGroup,
-  AvatarGroupCount,
-  AvatarBadge,
-}
+export { Avatar, AvatarImage, AvatarFallback }

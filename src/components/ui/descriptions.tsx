@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent, type Key, type ReactNode } from 'react';
 import { CheckIcon, PencilIcon, XIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -84,8 +85,16 @@ function resolveText(item: DescriptionsItem): string {
 
 // 24px 触达尺寸（DESIGN §Interaction：icon-only 需足够大且带可访问名）；
 // hover 底色用 surface-secondary —— --muted 是 supporting text 文字色，不作背景（DESIGN §2.1）
-const ACTION_BUTTON_CLASS =
-  'flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50';
+/**
+ * 值操作位（复制 / 编辑 / 保存 / 取消）统一用 `Button size="icon-xs"`：
+ * 24px 触达尺寸、圆角与 focus 环由原语提供，不再自绘 button + 手写灰阶类。
+ * 编辑态保存中走 `aria-disabled`（保留可见性与 tooltip，不吞 hover/focus）。
+ */
+const ACTION_BUTTON_PROPS = {
+  variant: 'ghost' as const,
+  size: 'icon-xs' as const,
+  className: 'shrink-0 text-muted-foreground hover:text-foreground',
+};
 
 /** 行内编辑态（antd Typography editable 交互：Enter 保存 / Esc 取消），替换值区域展示 */
 function EditControl({
@@ -141,14 +150,26 @@ function EditControl({
         onFocus={(event) => event.target.select()}
         autoFocus
         aria-label={`编辑${label}`}
-        className="h-7 flex-1 text-sm"
+        className="flex-1"
       />
-      <button type="button" aria-label="保存" aria-disabled={saving} title="保存（Enter）" className={ACTION_BUTTON_CLASS} onClick={() => void commit()}>
+      <Button
+        {...ACTION_BUTTON_PROPS}
+        aria-label="保存"
+        aria-disabled={saving}
+        title="保存（Enter）"
+        onPress={() => { if (!savingRef.current) void commit(); }}
+      >
         <CheckIcon className="size-3.5" />
-      </button>
-      <button type="button" aria-label="取消" aria-disabled={saving} title="取消（Esc）" className={ACTION_BUTTON_CLASS} onClick={() => { if (!savingRef.current) onCancel(); }}>
+      </Button>
+      <Button
+        {...ACTION_BUTTON_PROPS}
+        aria-label="取消"
+        aria-disabled={saving}
+        title="取消（Esc）"
+        onPress={() => { if (!savingRef.current) onCancel(); }}
+      >
         <XIcon className="size-3.5" />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -179,16 +200,15 @@ function DescriptionCell({
     <span className="ml-0.5 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
       {showCopy && <CopyButton text={copySource} />}
       {showEdit && (
-        <button
+        <Button
+          {...ACTION_BUTTON_PROPS}
           ref={editButtonRef}
-          type="button"
           aria-label="编辑"
           title="编辑"
-          className={ACTION_BUTTON_CLASS}
-          onClick={() => setEditing(true)}
+          onPress={() => setEditing(true)}
         >
           <PencilIcon className="size-3.5" />
-        </button>
+        </Button>
       )}
     </span>
   ) : null;

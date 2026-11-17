@@ -8,6 +8,7 @@ import { useUi } from '@/store/ui';
 import { useAppUpdate } from '@/hooks/use-app-update';
 import { APP_VERSION } from '@/lib/app-info';
 import { Kbd } from '@/components/ui/kbd';
+import { Chip } from '@/components/ui/chip';
 
 /** 侧栏底部操作区：对齐现代 SaaS 风格底部（帮助与信息、界面主题切换、系统设置） */
 export function NavUser() {
@@ -36,9 +37,9 @@ export function NavUser() {
           <HelpCircleIcon className="size-[18px] shrink-0" />
           <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">帮助与信息</span>
           {hasUpdate ? (
-            <span className="ml-auto rounded-sm bg-primary/10 border border-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary group-data-[collapsible=icon]:hidden animate-pulse leading-none">
+            <Chip size="sm" variant="soft" color="accent" className="ml-auto group-data-[collapsible=icon]:hidden">
               新版本
-            </span>
+            </Chip>
           ) : (
             <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground/60 group-data-[collapsible=icon]:hidden leading-none">
               v{APP_VERSION}
@@ -66,7 +67,7 @@ export function NavUser() {
         >
           <SettingsIcon className="size-[18px] shrink-0" />
           <span className="truncate text-[13.5px] font-medium group-data-[collapsible=icon]:hidden">系统设置</span>
-          <Kbd className="ml-auto h-5! px-1.5! font-mono! text-[10px]! leading-none! group-data-[collapsible=icon]:hidden">
+          <Kbd className="ml-auto h-5! px-1.5! text-[10px]! leading-none! group-data-[collapsible=icon]:hidden">
             g s
           </Kbd>
         </SidebarMenuButton>

@@ -58,7 +58,7 @@ export function CodeDiffDrawer({
                     className="block max-w-full truncate"
                   />
                 </DrawerTitle>
-                <Chip size="sm" variant="soft" className="font-mono text-[10px]">
+                <Chip size="sm" variant="soft" className="font-mono">
                   {diffs.length} 个文件变动
                 </Chip>
               </div>
@@ -87,8 +87,8 @@ export function CodeDiffDrawer({
                       <Button
                         type="button"
                         variant="outline"
-                        size="xs"
-                        className="gap-1 text-xs h-7 px-2"
+                        size="sm"
+                        className="gap-1"
                         onPress={() => onOpenExternal(mrUrl)}
                         aria-label="在云效中查看"
                       >
@@ -107,8 +107,8 @@ export function CodeDiffDrawer({
                     <Button
                       type="button"
                       variant="ghost"
-                      size="icon"
-                      className="size-7 text-muted-foreground hover:text-foreground rounded-sm"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-foreground"
                       onPress={() => onOpenChange(false)}
                       aria-label="关闭 (Esc)"
                     >

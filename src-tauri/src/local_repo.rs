@@ -861,6 +861,171 @@ pub fn clear_active_workitem(repo_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Agent 脚手架（开始处理时生成到绑定仓库的 .nervd 目录）
+// ---------------------------------------------------------------------------
+
+// 内嵌随二进制分发的脚本副本：保证工程内脚本与当前 nervd 版本一致。
+const AGENT_SCRIPT_LIB: &str = include_str!("../../scripts/lib-attribution.sh");
+const AGENT_SCRIPT_COMMIT: &str = include_str!("../../scripts/agent-commit.sh");
+const AGENT_SCRIPT_READ_ACTIVE: &str = include_str!("../../scripts/read-active-workitem.sh");
+const AGENT_SCRIPT_CHECK_ATTRIBUTION: &str = include_str!("../../scripts/check-commit-attribution.sh");
+
+fn format_local_time(timestamp: i64) -> String {
+    match chrono::DateTime::from_timestamp(timestamp, 0) {
+        Some(datetime) => datetime
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string(),
+        None => timestamp.to_string(),
+    }
+}
+
+/// 渲染 `.nervd/agent-task.md`：任务上下文快照 + 推荐命令 + 归属规则。
+fn render_agent_task_markdown(
+    workitem: &ActiveWorkitem,
+    subject: Option<&str>,
+    info: Option<&LocalRepoInfo>,
+) -> String {
+    let parent_line = match (&workitem.parent_identifier, &workitem.parent_workitem_id) {
+        (Some(identifier), Some(id)) => format!("{identifier}（{id}）"),
+        (Some(identifier), None) => identifier.clone(),
+        (None, Some(id)) => id.clone(),
+        (None, None) => "—".to_string(),
+    };
+    let commit_args = match &workitem.parent_identifier {
+        Some(parent) => format!("--workitem {} --req {}", workitem.identifier, parent),
+        None => format!("--workitem {}", workitem.identifier),
+    };
+    let branch_line = info
+        .and_then(|value| value.current_branch.clone())
+        .unwrap_or_else(|| "（游离 HEAD 或无法读取）".to_string());
+    let head_line = info
+        .and_then(|value| value.head_sha.clone())
+        .map(|sha| sha.chars().take(12).collect::<String>())
+        .unwrap_or_else(|| "—".to_string());
+    let dirty_line = match info {
+        Some(value) if value.dirty => "有未提交修改",
+        Some(_) => "干净",
+        None => "无法读取",
+    };
+    let remote_line = info
+        .and_then(|value| value.remote_url.clone())
+        .unwrap_or_else(|| "—".to_string());
+    let task_line = subject
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("（未取得工作项标题，请以云效工作项编号为准）");
+    let generated_at = format_local_time(workitem.updated_at);
+
+    format!(
+        r#"# Agent 任务说明 · {identifier}
+
+> 由 nervd 在「开始处理」时自动生成并覆盖（{generated_at}）。仅本机使用，`.nervd/` 已被局部 .gitignore 忽略，请勿提交。
+
+## 任务
+
+- {task_line}
+
+## 当前工作项
+
+| 字段 | 值 |
+| --- | --- |
+| 编号 | {identifier} |
+| 内部 ID | {workitem_id} |
+| 类别 | {category} |
+| 父需求 | {parent_line} |
+| 仓库本地路径 | {repo_path} |
+| 云效 repoId | {repo_id} |
+| 本地分支 | {branch_line} |
+| HEAD | {head_line} |
+| 工作区 | {dirty_line} |
+| 远程地址 | {remote_line} |
+
+## 推荐命令（在仓库根目录执行）
+
+```bash
+./.nervd/scripts/read-active-workitem.sh
+./.nervd/scripts/agent-commit.sh {commit_args} -m "<type>(<scope>): <subject>"
+./.nervd/scripts/check-commit-attribution.sh origin/master...HEAD
+```
+
+## 归属规则
+
+- 提交标题必须符合 Conventional Commits；每个 commit 必须带行首 `Refs: {identifier}`。
+- 默认分支不是 master 时，把校验命令里的 `origin/master` 换成 `origin/<默认分支>`。
+- commit-msg 钩子：`fill` 自动补全，`enforce` 拒绝缺少归属的提交；不要使用 `git commit --no-verify`。
+- `.nervd/` 为本地状态，不要提交；本文件与 scripts/ 每次「开始处理」都会重新生成。
+- 构建事件暂未接入：流水线 / Jenkins 构建结果不会自动归属或回写。
+"#,
+        identifier = workitem.identifier,
+        workitem_id = workitem.workitem_id,
+        category = workitem.category,
+        parent_line = parent_line,
+        repo_path = info.map(|value| value.path.as_str()).unwrap_or("—"),
+        repo_id = workitem.repo_id,
+        branch_line = branch_line,
+        head_line = head_line,
+        dirty_line = dirty_line,
+        remote_line = remote_line,
+        task_line = task_line,
+        commit_args = commit_args,
+        generated_at = generated_at,
+    )
+}
+
+#[cfg(unix)]
+fn make_script_executable(path: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let permissions = fs::metadata(path)
+        .map_err(|e| format!("读取 {} 权限失败: {e}", path.display()))?
+        .permissions();
+    let mut permissions = permissions;
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions)
+        .map_err(|e| format!("设置 {} 可执行权限失败: {e}", path.display()))
+}
+
+#[cfg(not(unix))]
+fn make_script_executable(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+/// 生成 `<repo-root>/.nervd/agent-task.md`、`.nervd/scripts/*` 与局部 `.nervd/.gitignore`。
+///
+/// 供「开始处理」在写入 active-workitem 后调用；调用方按「尽力而为」处理错误，不阻断主流程。
+pub fn write_agent_scaffold(
+    repo_path: &str,
+    workitem: &ActiveWorkitem,
+    subject: Option<&str>,
+) -> Result<(), String> {
+    let root = repo_root(repo_path)?;
+    let nervd_dir = Path::new(&root).join(".nervd");
+    let scripts_dir = nervd_dir.join("scripts");
+    fs::create_dir_all(&scripts_dir)
+        .map_err(|e| format!("创建 {} 失败: {e}", scripts_dir.display()))?;
+
+    // 只忽略 .nervd 目录自身，避免污染业务仓库，也不改动项目根 .gitignore。
+    atomic_write(&nervd_dir.join(".gitignore"), "*\n")?;
+
+    let scripts = [
+        ("lib-attribution.sh", AGENT_SCRIPT_LIB),
+        ("agent-commit.sh", AGENT_SCRIPT_COMMIT),
+        ("read-active-workitem.sh", AGENT_SCRIPT_READ_ACTIVE),
+        ("check-commit-attribution.sh", AGENT_SCRIPT_CHECK_ATTRIBUTION),
+    ];
+    for (name, content) in scripts {
+        let path = scripts_dir.join(name);
+        atomic_write(&path, content)?;
+        make_script_executable(&path)?;
+    }
+
+    let info = inspect_local_repo(&root).ok();
+    let markdown = render_agent_task_markdown(workitem, subject, info.as_ref());
+    atomic_write(&nervd_dir.join("agent-task.md"), &markdown)?;
+    Ok(())
+}
+
 /// 从 `workitem_identifiers` 缓存恢复工作项上下文（网络不可用时兜底）。
 #[allow(clippy::type_complexity)]
 pub fn cached_workitem_context(
@@ -1885,4 +2050,65 @@ mod tests {
         assert!(normalize_hook_mode(Some("nonsense")).is_err());
         assert!(inspect_local_repo("/definitely/not/a/repo").is_err());
     }
+
+    #[test]
+    fn agent_scaffold_generates_task_markdown_and_scripts() {
+        if !git_available() {
+            eprintln!("skip: 当前环境没有 git");
+            return;
+        }
+        let dir = init_repo();
+        commit_file(dir.path(), "a.txt", "a\n", "chore: init");
+        let repo = canonical(dir.path());
+        let active = ActiveWorkitem {
+            repo_id: 101,
+            workitem_id: "wi-task-101".into(),
+            identifier: "TASK-101".into(),
+            category: "Task".into(),
+            parent_workitem_id: Some("wi-req-100".into()),
+            parent_identifier: Some("REQ-100".into()),
+            updated_at: 1_700_000_000,
+        };
+        write_agent_scaffold(&repo, &active, Some("完成交付摘要联调")).expect("生成脚手架失败");
+
+        let nervd = dir.path().join(".nervd");
+        assert_eq!(
+            fs::read_to_string(nervd.join(".gitignore")).expect("读 .gitignore 失败"),
+            "*\n"
+        );
+        let markdown = fs::read_to_string(nervd.join("agent-task.md")).expect("读 agent-task 失败");
+        assert!(markdown.contains("TASK-101"), "缺少工作项编号");
+        assert!(markdown.contains("REQ-100"), "缺少父需求编号");
+        assert!(markdown.contains("完成交付摘要联调"), "缺少任务标题");
+        assert!(
+            markdown.contains("./.nervd/scripts/agent-commit.sh --workitem TASK-101 --req REQ-100"),
+            "缺少推荐提交命令"
+        );
+        for name in [
+            "lib-attribution.sh",
+            "agent-commit.sh",
+            "read-active-workitem.sh",
+            "check-commit-attribution.sh",
+        ] {
+            let path = nervd.join("scripts").join(name);
+            assert!(path.is_file(), "缺少脚本 {name}");
+            assert!(
+                fs::metadata(&path)
+                    .expect("读脚本元数据失败")
+                    .len()
+                    > 0,
+                "脚本为空: {name}"
+            );
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = fs::metadata(&path)
+                    .expect("读脚本权限失败")
+                    .permissions()
+                    .mode();
+                assert_eq!(mode & 0o111, 0o111, "脚本应可执行: {name}");
+            }
+        }
+    }
+
 }

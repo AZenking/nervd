@@ -1,5 +1,6 @@
 import { NavMain } from './nav-main';
 import { NavProjects } from './nav-projects';
+import { NavTools } from './nav-tools';
 import { NavUser } from './nav-user';
 import {
   Sidebar,
@@ -13,18 +14,15 @@ import {
 } from '@/components/ui/sidebar';
 import {
   ArrowLeftIcon,
-  CalendarClockIcon,
   CalendarDaysIcon,
-  ClockIcon,
   LayoutDashboardIcon,
   SearchIcon,
   ZapIcon,
 } from 'lucide-react';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
-import { useRecentWorkitems } from '@/store/recent-workitems';
-import { useScheduleStore } from '@/store/schedule';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { SETTINGS_SECTIONS, getSectionErrorCount } from '../settings/sections';
@@ -37,10 +35,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { view, settingsSection, setSettingsSection, setView, openSettings, setQuickBuildOpen } = useUi();
   const { settings, currentUser } = useApp();
   const fieldErrors = useSettingsDraft((s) => s.fieldErrors);
-  const recentCount = useRecentWorkitems((s) => s.items.length);
-  const activeScheduleCount = useScheduleStore(
-    (s) => s.tasks.filter((t) => t.enabled).length,
-  );
   const inSettings = view === 'full-settings';
 
   const displayName = currentUser?.name || 'Kate Moore';
@@ -102,13 +96,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <button
+                  <Button
                     type="button"
                     data-no-drag
                     aria-label="只读安全模式"
-                    onClick={() => openSettings('security')}
+                    variant="outline"
+                    size="xs"
+                    onPress={() => openSettings('security')}
                     className={cn(
-                      'shrink-0 cursor-pointer rounded-sm border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning transition-colors hover:bg-warning/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+                      'shrink-0 border-warning/30 font-medium text-warning hover:bg-warning/15',
                       'group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:bottom-0 group-data-[collapsible=icon]:right-0 group-data-[collapsible=icon]:z-10 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:size-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0',
                     )}
                   />
@@ -136,7 +132,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               >
                 <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate text-left">搜索、跳转或执行命令…</span>
-                <Kbd className="shrink-0 h-5! px-1.5! font-mono! text-[10px]! leading-none!">
+                <Kbd className="shrink-0 h-5! px-1.5! text-[10px]! leading-none!">
                   ⌘K
                 </Kbd>
               </button>
@@ -146,11 +142,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => useUi.getState().setCommandOpen(true)}
+                      variant="ghost"
+                      size="icon"
                       aria-label="搜索、跳转或执行命令 (⌘K)"
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-sidebar-accent/70 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                      onPress={() => useUi.getState().setCommandOpen(true)}
+                      className="text-muted-foreground hover:text-foreground"
                     />
                   }
                 >
@@ -161,11 +159,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => setQuickBuildOpen(true)}
+                      variant="ghost"
+                      size="icon"
                       aria-label="快速构建 (⌘B)"
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-xl bg-sidebar-accent/70 text-warning hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                      onPress={() => setQuickBuildOpen(true)}
+                      className="text-warning"
                     />
                   }
                 >
@@ -208,10 +208,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       <section.icon />
                       <span className="flex-1 font-medium group-data-[collapsible=icon]:hidden">{section.label}</span>
                       {errorCount > 0 && (
-                        <span
-                          className="size-2 rounded-full bg-destructive shrink-0"
-                          title={`${section.label}有待修正项`}
-                        />
+                        <>
+                          <span className="size-2 rounded-full bg-destructive shrink-0" aria-hidden="true" />
+                          <span className="sr-only">{section.label}有待修正项</span>
+                        </>
                       )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -223,43 +223,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ) : (
         <SidebarContent className="gap-1.5 px-3 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:items-center">
           <nav aria-label="主导航" className="flex w-full flex-col gap-1.5 group-data-[collapsible=icon]:items-center">
-            {/* 主导航：对齐图片菜单序列（Dashboard, Orders, Tracker [New], Analytics, etc.） */}
+            {/* 主导航（导航收敛：当前迭代 / 总览 为主入口；迭代列表与工具分组依次收在其后） */}
             <NavMain
               items={[
-                {
-                  title: '总览',
-                  icon: <LayoutDashboardIcon />,
-                  view: 'overview',
-                },
                 {
                   title: '当前迭代',
                   icon: <CalendarDaysIcon />,
                   view: 'iteration',
                 },
                 {
-                  title: '定时任务',
-                  icon: <CalendarClockIcon />,
-                  view: 'schedules',
-                  badge: activeScheduleCount > 0 ? (
-                    <span className="ml-auto rounded-sm bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10px] font-medium leading-none tabular-nums group-data-[collapsible=icon]:hidden">
-                      {activeScheduleCount}
-                    </span>
-                  ) : null,
-                },
-                {
-                  title: '最近查看',
-                  icon: <ClockIcon />,
-                  view: 'recents',
-                  badge: recentCount > 0 ? (
-                    <span className="ml-auto rounded-sm bg-sidebar-accent text-muted-foreground px-2 py-0.5 font-mono text-[10px] font-medium leading-none tabular-nums group-data-[collapsible=icon]:hidden">
-                      {recentCount}
-                    </span>
-                  ) : null,
+                  title: '总览',
+                  icon: <LayoutDashboardIcon />,
+                  view: 'overview',
                 },
               ]}
             />
-            {/* 迭代分组：真实迭代列表（单选切换视图） */}
+            {/* 迭代列表：保留原「迭代」分组的 NavProjects Accordion 切换方式 */}
             <NavProjects />
+            {/* 工具菜单：最近查看 / 集成分支 / 定时任务 / 本地仓库与 Agent（折叠态平铺为图标入口） */}
+            <NavTools />
           </nav>
         </SidebarContent>
       )}

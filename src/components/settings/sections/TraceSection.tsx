@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
-import { Checkbox, Chip, ScrollShadow } from '@heroui/react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Chip } from '@/components/ui/chip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { getCustomDevBranch, setCustomDevBranch } from '@/lib/dev-branch-settings';
 import { SettingsGroup, SettingsRow, SettingsRowError } from '../settings-group';
@@ -151,7 +153,7 @@ function DevBranchSettingRow() {
       control={(
         <Input
           id="dev-branch-input"
-          className="font-mono text-xs"
+          className="font-mono"
           placeholder="dev"
           value={val}
           onChange={(e) => {
@@ -225,7 +227,6 @@ function RepoChecklist() {
         <div className="flex flex-col gap-2">
           <Input
             id="repo-filter-input"
-            className="h-8 text-xs"
             placeholder="输入名称过滤…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -238,7 +239,7 @@ function RepoChecklist() {
             <Checkbox
               isSelected={showArchived}
               onChange={(v) => setShowArchived(v)}
-              className="cursor-pointer text-xs font-normal text-muted-foreground"
+              className="cursor-pointer text-muted-foreground"
             >
               <Checkbox.Content>
                 <Checkbox.Control>
@@ -248,7 +249,7 @@ function RepoChecklist() {
               </Checkbox.Content>
             </Checkbox>
           )}
-          <ScrollShadow className="h-48 rounded-md border border-border/60 bg-background/50 overflow-y-auto overscroll-contain">
+          <ScrollArea className="h-48 rounded-lg border border-border/60 bg-background/50">
             <div className="flex flex-col gap-0.5 p-1.5">
               {visibleRepos.map((r) => (
                 <Checkbox
@@ -275,7 +276,7 @@ function RepoChecklist() {
                 </div>
               )}
             </div>
-          </ScrollShadow>
+          </ScrollArea>
         </div>
       )}
     />

@@ -569,7 +569,7 @@ export function OverflowTooltip({
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={handleMouseLeave}
           className={cn(
-            'max-w-md break-words whitespace-normal text-xs leading-relaxed font-normal',
+            'max-w-md break-words whitespace-normal leading-relaxed font-normal',
             contentClassName,
           )}
         >

@@ -16,7 +16,9 @@ function Separator({
       data-horizontal={orientation === "horizontal" ? "" : undefined}
       data-vertical={orientation === "vertical" ? "" : undefined}
       className={cn(
-        "shrink-0 bg-border data-horizontal:h-px data-horizontal:w-full data-vertical:w-px data-vertical:self-stretch",
+        // 底色 / 粗细交回上游 `.separator`（theme.css 已把 --separator 对齐 hairline），
+        // 这里只保留主轴自适应的结构性约束
+        "shrink-0 data-vertical:self-stretch",
         className
       )}
       {...props}

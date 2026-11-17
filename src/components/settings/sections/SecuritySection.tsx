@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSettingsDraft } from '@/store/settings-draft';
-import { Alert, Chip } from '@heroui/react';
+import { Alert } from '@/components/ui/alert';
+import { Chip } from '@/components/ui/chip';
 import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,

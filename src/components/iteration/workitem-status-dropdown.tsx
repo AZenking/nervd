@@ -1,9 +1,10 @@
 import { CheckIcon } from 'lucide-react';
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { StatusIcon } from '@/components/status-icon';
 import { statusMeta, type StatusTone } from '../StatusBadge';
 import { Chip } from '@/components/ui/chip';
+import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from '@/components/ui/toast';
@@ -18,6 +19,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+export { toneToChipColor };
+
 export const WORKITEM_STATUS_OPTIONS = [
   { name: '待办', label: '待办' },
   { name: '进行中', label: '进行中' },
@@ -25,6 +28,18 @@ export const WORKITEM_STATUS_OPTIONS = [
   { name: '已完成', label: '已完成' },
   { name: '已关闭', label: '已关闭' },
 ] as const;
+
+/** 语义 tone → Chip color：iteration 内状态徽标/计数的唯一映射入口（避免各文件再写一份） */
+const TONE_TO_CHIP_COLOR: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
+  ok: 'success',
+  run: 'warning',
+  fail: 'danger',
+  idle: 'default',
+};
+
+function toneToChipColor(tone: StatusTone): 'success' | 'warning' | 'danger' | 'default' {
+  return TONE_TO_CHIP_COLOR[tone] ?? 'default';
+}
 
 export interface WorkitemStatusDropdownProps {
   workitemId?: string;
@@ -69,13 +84,7 @@ export function WorkitemStatusDropdown({
   };
 
   const meta = statusMeta(status);
-  const colorMap: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
-    ok: 'success',
-    run: 'warning',
-    fail: 'danger',
-    idle: 'default',
-  };
-  const chipColor = colorMap[meta.tone] ?? 'default';
+  const chipColor = toneToChipColor(meta.tone);
 
   const notifyReadonly = () => {
     toast.add({
@@ -93,53 +102,52 @@ export function WorkitemStatusDropdown({
   // 触发器保留 aria-disabled + 灰阶样式 + Tooltip，点击给 Toast 引导，不展开菜单、不发写请求。
   if (!allowWrite) {
     const readonlyReason = '写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）';
-    const handleReadonlyClick = (e: MouseEvent) => {
-      e.stopPropagation();
-      notifyReadonly();
-    };
+    const handleReadonlyClick = () => notifyReadonly();
     const readonlyTrigger = variant === 'icon' ? (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-xs"
         data-testid="row-status-trigger"
         data-status={status || ''}
         aria-disabled="true"
         aria-label={`状态：${status || '未指定'}（只读，点击查看原因）`}
-        onClick={handleReadonlyClick}
-        className={cn(
-          'flex size-6 shrink-0 items-center justify-center rounded-sm border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-          READONLY_BTN_CLASS,
-          className,
-        )}
+        onClick={(e) => e.stopPropagation()}
+        onPress={handleReadonlyClick}
+        className={cn('shrink-0 border', READONLY_BTN_CLASS, className)}
       >
         <StatusIcon status={status} className="size-3.5 shrink-0" />
-      </button>
+      </Button>
     ) : variant === 'badge' ? (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="inline"
         aria-disabled="true"
         aria-label={`状态：${status || '未知状态'}（只读，点击查看原因）`}
-        onClick={handleReadonlyClick}
-        className="cursor-not-allowed rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        onClick={(e) => e.stopPropagation()}
+        onPress={handleReadonlyClick}
+        className={cn('cursor-not-allowed p-0', READONLY_BTN_CLASS)}
       >
         <Chip size="sm" color={chipColor} variant="soft" className={cn('grayscale opacity-80', className)}>
           <StatusIcon status={status} className="size-3 shrink-0" />
           <Chip.Label>{status || '未知状态'}</Chip.Label>
         </Chip>
-      </button>
+      </Button>
     ) : (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="xs"
         aria-disabled="true"
         aria-label={`状态：${status || '未知状态'}（只读，点击查看原因）`}
-        onClick={handleReadonlyClick}
-        className={cn(
-          'inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-xs font-medium text-muted-foreground cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-          className,
-        )}
+        onClick={(e) => e.stopPropagation()}
+        onPress={handleReadonlyClick}
+        className={cn('gap-1.5 font-medium text-muted-foreground cursor-not-allowed', className)}
       >
         <StatusIcon status={status} className="size-3.5 shrink-0" />
         <span>{status || '未知状态'}</span>
-      </button>
+      </Button>
     );
 
     return (
@@ -209,7 +217,7 @@ export function WorkitemStatusDropdown({
       {renderTrigger()}
       <DropdownMenuContent
         align="start"
-        className="w-36 p-1 z-50 bg-popover/95 backdrop-blur-md border border-border shadow-level-2"
+        className="w-36"
         onClick={(e) => e.stopPropagation()}
         header={
           <>

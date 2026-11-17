@@ -96,6 +96,70 @@ pub struct AttributionStatus {
     pub repos: Vec<AttributionRepoStatus>,
 }
 
+/// 工作项相关人员（负责人 / 协同人 / 创建人）。
+///
+/// 仅用于本地写回范围判定（`attribution` 内部），不进入 IPC 输出：
+/// 前端只依赖 `ResolvedWorkitemRef` 原有字段，避免扩大冻结契约。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkitemPerson {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+impl WorkitemPerson {
+    pub fn is_empty(&self) -> bool {
+        self.id.as_deref().unwrap_or("").trim().is_empty()
+            && self.name.as_deref().unwrap_or("").trim().is_empty()
+    }
+}
+
+/// 「我」的身份：写回只处理负责人是我的工作项。
+///
+/// - `id`：云效平台用户 ID（`assignedTo.id`）
+/// - `name`：姓名 / 花名（`assignedTo.name`）
+/// - `aliases`：用户在设置里声明的别名（`workitemHighlight.customName`），只在姓名匹配时生效
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewerIdentity {
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub aliases: Vec<String>,
+}
+
+impl ViewerIdentity {
+    /// 既没有 ID 也没有姓名时无法判定「我的」，写回必须 fail-closed。
+    pub fn is_effective(&self) -> bool {
+        let id = self.id.as_deref().unwrap_or("").trim();
+        let name = self.name.as_deref().unwrap_or("").trim();
+        !id.is_empty() || !name.is_empty()
+    }
+
+    /// 用于 SQL `IN (...)` 的姓名候选：姓名 + 最多 4 个别名（去空、去重）。
+    pub fn name_candidates(&self) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        if let Some(name) = self.name.as_deref() {
+            let name = name.trim();
+            if !name.is_empty() {
+                names.push(name.to_string());
+            }
+        }
+        for alias in &self.aliases {
+            let alias = alias.trim();
+            if !alias.is_empty() && !names.iter().any(|existing| existing == alias) {
+                names.push(alias.to_string());
+            }
+        }
+        names.truncate(5);
+        names
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedWorkitemRef {
@@ -112,6 +176,15 @@ pub struct ResolvedWorkitemRef {
     pub parent_identifier: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// 负责人（写回范围判定用；不进入 IPC 输出）
+    #[serde(default, skip_serializing)]
+    pub assigned_to: Option<WorkitemPerson>,
+    /// 创建人（父需求「与我相关」判定用；不进入 IPC 输出）
+    #[serde(default, skip_serializing)]
+    pub creator: Option<WorkitemPerson>,
+    /// 协同人（父需求「与我相关」判定用；不进入 IPC 输出）
+    #[serde(default, skip_serializing)]
+    pub participants: Vec<WorkitemPerson>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

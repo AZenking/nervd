@@ -1,21 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Accordion } from '@/components/ui/accordion';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ListBox } from '@/components/ui/list-box';
+import { Select } from '@/components/ui/select';
 import {
-  Accordion,
-  Button,
-  Card,
-  Chip,
-  Input,
-  Label,
-  ListBox,
-  Select,
-} from '@heroui/react';
-import {
-  AlertTriangleIcon,
   ClockIcon,
   GitBranchIcon,
   Loader2Icon,
-  PlayIcon,
-  RefreshCwIcon,
   SlidersHorizontalIcon,
   TerminalIcon,
   WorkflowIcon,
@@ -32,8 +27,7 @@ import {
 import { isBranchParameterName, isEnvironmentParameterName } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary } from '@/types';
 import { fetchJobEstimate } from '@/lib/build-estimate';
-import { WriteOpGatedTrigger } from '@/components/WriteOpButton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { WriteOpButton } from '@/components/WriteOpButton';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { RefreshButton } from './refresh-button';
 
@@ -49,7 +43,6 @@ export function QuickBuildTriggerForm({
   onSuccess,
 }: QuickBuildTriggerFormProps) {
   const pipelines = useApp((s) => s.pipelines);
-  const allowWriteOps = useApp((s) => s.settings?.allowWriteOps ?? false);
   const history = useQuickBuild((s) => s.history);
   const isTriggering = useQuickBuild((s) => s.isTriggering);
   const triggerQuickBuild = useQuickBuild((s) => s.triggerQuickBuild);
@@ -234,58 +227,17 @@ export function QuickBuildTriggerForm({
     return jobParams.filter((p) => p.name !== branchParamName && p.name !== envParam?.name);
   }, [jobParams, branchParamName, envParam]);
 
-  const [confirmArmed, setConfirmArmed] = useState(false);
-  const armTimer = useRef<number | null>(null);
-  // 「最近执行」行内重跑：与主触发一致的两段式确认（4s 无操作复位），避免单击即触发远端构建
-  const [rerunArmedKey, setRerunArmedKey] = useState<string | null>(null);
-  const rerunTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (armTimer.current) window.clearTimeout(armTimer.current);
-      if (rerunTimer.current) window.clearTimeout(rerunTimer.current);
-    };
-  }, []);
-
   const currentKey = currentTarget ? (currentTarget.targetKey || currentTarget.id) : '';
   const isCurrentTriggering = currentKey ? isTriggering(currentKey) : false;
 
-  const handleTriggerClick = async () => {
-    if (!allowWriteOps) {
-      useApp.getState().setToast({
-        text: '当前处于只读保护模式，无法触发构建。可在「设置 → 安全策略」开启写操作。',
-        kind: 'fail',
-      });
-      return;
-    }
-    if (!confirmArmed) {
-      setConfirmArmed(true);
-      if (armTimer.current) window.clearTimeout(armTimer.current);
-      armTimer.current = window.setTimeout(() => setConfirmArmed(false), 4000);
-      return;
-    }
-    if (armTimer.current) window.clearTimeout(armTimer.current);
-    setConfirmArmed(false);
+  // 两段式确认（4s 复位）统一由 WriteOpButton confirm="inline" 承担，
+  // 本组件不再维护 confirmArmed / rerunArmedKey 两套计时器。
+  const handleTrigger = async () => {
     if (!currentTarget) return;
     const res = await triggerQuickBuild(currentTarget, params);
     if (res) {
       onSuccess?.();
     }
-  };
-
-  /** 「最近执行」行内重跑：第一次点击进入待确认态，第二次点击才真正触发（4s 超时复位）。 */
-  const handleRecentRerun = async (record: QuickBuildTarget) => {
-    const key = record.targetKey || record.id;
-    if (isTriggering(key)) return;
-    if (rerunArmedKey !== key) {
-      setRerunArmedKey(key);
-      if (rerunTimer.current) window.clearTimeout(rerunTimer.current);
-      rerunTimer.current = window.setTimeout(() => setRerunArmedKey(null), 4000);
-      return;
-    }
-    if (rerunTimer.current) window.clearTimeout(rerunTimer.current);
-    setRerunArmedKey(null);
-    await triggerQuickBuild(record, record.parameters);
   };
 
   return (
@@ -300,9 +252,9 @@ export function QuickBuildTriggerForm({
             onSelectionChange={(key) => {
               if (key) setSelectedTargetId(String(key));
             }}
-            className="w-full text-xs"
+            className="w-full"
           >
-            <Select.Trigger className="h-8 min-h-8 w-full text-xs">
+            <Select.Trigger>
               <Select.Value />
               <Select.Indicator />
             </Select.Trigger>
@@ -331,9 +283,9 @@ export function QuickBuildTriggerForm({
                 onSelectionChange={(key) => {
                   if (key) setSelectedJobFullName(String(key));
                 }}
-                className="min-w-0 flex-1 text-xs"
+                className="min-w-0 flex-1"
               >
-                <Select.Trigger className="h-8 min-h-8 w-full text-xs">
+                <Select.Trigger>
                   <Select.Value />
                   <Select.Indicator />
                 </Select.Trigger>
@@ -375,9 +327,9 @@ export function QuickBuildTriggerForm({
                 const found = pipelines.find((p) => p.pipelineName === key);
                 if (found) setSelectedTargetId(`flow:${found.pipelineId}`);
               }}
-              className="w-full text-xs"
+              className="w-full"
             >
-              <Select.Trigger className="h-8 min-h-8 w-full text-xs">
+              <Select.Trigger>
                 <Select.Value />
                 <Select.Indicator />
               </Select.Trigger>
@@ -442,52 +394,19 @@ export function QuickBuildTriggerForm({
                       />
                     )}
                   </Button>
-                  {allowWriteOps ? (
-                    <Tooltip delay={0}>
-                      <TooltipTrigger
-                        render={(
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            isIconOnly
-                            aria-disabled={isTriggering(record.targetKey || record.id) || undefined}
-                            onPress={() => void handleRecentRerun(record)}
-                            className={cn(
-                              'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors',
-                              rerunArmedKey === (record.targetKey || record.id)
-                                ? 'bg-warning/15 text-warning'
-                                : 'text-muted-foreground hover:bg-surface-secondary hover:text-foreground',
-                              isTriggering(record.targetKey || record.id) && 'animate-spin',
-                            )}
-                            aria-label={
-                              rerunArmedKey === (record.targetKey || record.id)
-                                ? `再次点击确认重跑 ${record.repoName} 构建`
-                                : `重跑 ${record.repoName} 构建`
-                            }
-                          >
-                            {rerunArmedKey === (record.targetKey || record.id) ? (
-                              <AlertTriangleIcon className="size-2.5" />
-                            ) : (
-                              <PlayIcon className="size-2.5 fill-current" />
-                            )}
-                          </Button>
-                        )}
-                      />
-                      <TooltipContent>
-                        {rerunArmedKey === (record.targetKey || record.id)
-                          ? '再次点击确认重跑（4s 内有效）'
-                          : '点击后需二次确认，再按上次参数重跑'}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    /* 只读门控：aria-disabled + 灰阶 + Tooltip 说明，点击引导前往设置 */
-                    <WriteOpGatedTrigger
-                      label="重跑"
-                      icon={<PlayIcon className="size-2.5 fill-current" />}
-                      variant="ghost"
-                    />
-                  )}
+                  {/* 重跑：只读门控 + 两段式确认（4s 复位）由 WriteOpButton 统一承担 */}
+                  <WriteOpButton
+                    label="重跑"
+                    title={`重跑 ${record.repoName} 构建`}
+                    confirmLabel="确认重跑"
+                    confirm="inline"
+                    variant="ghost"
+                    disabled={isTriggering(record.targetKey || record.id)}
+                    disabledReason="构建触发中，请稍候"
+                    onAction={async () => {
+                      await triggerQuickBuild(record, record.parameters);
+                    }}
+                  />
                 </div>
               );
             })}
@@ -525,7 +444,7 @@ export function QuickBuildTriggerForm({
                   if (e.nativeEvent.isComposing) return;
                 }}
                 placeholder="填写构建分支（如 master、feature/xxx）"
-                className="h-8 min-w-0 flex-1 font-mono text-xs"
+                className="min-w-0 flex-1 font-mono"
               />
               {loadingBranches ? (
                 <Chip size="sm" variant="soft" color="default" className="h-8 shrink-0 gap-1 text-[11px]">
@@ -546,9 +465,9 @@ export function QuickBuildTriggerForm({
                       }));
                     }
                   }}
-                  className="w-28 shrink-0 text-xs"
+                  className="w-28 shrink-0"
                 >
-                  <Select.Trigger className="h-8 min-h-8 w-28 px-2 text-xs">
+                  <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
                   </Select.Trigger>
@@ -578,9 +497,9 @@ export function QuickBuildTriggerForm({
                 onSelectionChange={(key) => {
                   setParams((prev) => ({ ...prev, [envParam.name]: key ? String(key) : '' }));
                 }}
-                className="w-full text-xs"
+                className="w-full"
               >
-                <Select.Trigger className="h-8 min-h-8 w-full text-xs">
+                <Select.Trigger>
                   <Select.Value />
                   <Select.Indicator />
                 </Select.Trigger>
@@ -623,9 +542,9 @@ export function QuickBuildTriggerForm({
                           aria-label={p.name}
                           selectedKey={params[p.name] ?? p.defaultValue ?? null}
                           onSelectionChange={(val) => setParams((prev) => ({ ...prev, [p.name]: val ? String(val) : '' }))}
-                          className="w-full text-xs"
+                          className="w-full"
                         >
-                          <Select.Trigger className="h-8 min-h-8 w-full text-xs">
+                          <Select.Trigger>
                             <Select.Value />
                             <Select.Indicator />
                           </Select.Trigger>
@@ -649,7 +568,7 @@ export function QuickBuildTriggerForm({
                             e.stopPropagation();
                             if (e.nativeEvent.isComposing) return;
                           }}
-                          className="h-8 font-mono text-xs"
+                          className="font-mono"
                         />
                       )}
                     </div>
@@ -695,43 +614,17 @@ export function QuickBuildTriggerForm({
           </div>
 
           <div className="flex shrink-0 items-center justify-end">
-            {!allowWriteOps ? (
-              /* 只读门控：aria-disabled 落在 Button 本身（不写在 Tooltip 触发器上），并带灰阶与说明 */
-              <WriteOpGatedTrigger
-                label="立即触发构建"
-                icon={<PlayIcon className="size-3 fill-current" />}
-                variant="primary"
-              />
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                variant={confirmArmed ? 'secondary' : 'primary'}
-                isDisabled={isCurrentTriggering}
-                onPress={() => void handleTriggerClick()}
-                className={cn(
-                  'h-8 w-full gap-1.5 px-4 text-xs font-medium transition-all sm:w-auto',
-                  confirmArmed && 'bg-(--warning-soft) text-(--warning-soft-foreground) ring-1 ring-warning/40 animate-pulse hover:bg-(--warning-soft-hover)',
-                )}
-              >
-                {isCurrentTriggering ? (
-                  <>
-                    <RefreshCwIcon className="size-3.5 animate-spin" />
-                    <span>正在触发…</span>
-                  </>
-                ) : confirmArmed ? (
-                  <>
-                    <AlertTriangleIcon className="size-3.5" />
-                    <span>确认触发构建 (4s)</span>
-                  </>
-                ) : (
-                  <>
-                    <PlayIcon className="size-3 fill-current" />
-                    <span>立即触发构建</span>
-                  </>
-                )}
-              </Button>
-            )}
+            {/* 只读门控 + 两段式确认（4s 复位）统一由 WriteOpButton 承担，不再在调用点重画确认态 */}
+            <WriteOpButton
+              label="立即触发构建"
+              title="触发当前流水线构建"
+              confirmLabel="确认触发构建 (4s)"
+              confirm="inline"
+              variant="primary"
+              disabled={isCurrentTriggering}
+              disabledReason="正在触发…"
+              onAction={handleTrigger}
+            />
           </div>
         </div>
       )}

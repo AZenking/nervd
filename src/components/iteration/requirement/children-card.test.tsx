@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChildrenCard } from './children-card';
 import { useApp } from '@/store/app';
 import * as api from '@/lib/api';
+import { toast } from '@/components/ui/toast';
 import type { WorkitemChild } from '@/lib/api';
 
 vi.mock('@/lib/api', () => ({
@@ -26,6 +27,42 @@ vi.mock('@/lib/api', () => ({
 vi.mock('@/lib/ai-api', () => ({
   getAiSettings: vi.fn().mockResolvedValue({ hasApiKey: false, breakdownMode: 'review', defaultBreakdownTags: [] }),
   aiBreakdownRequirement: vi.fn(),
+}));
+
+vi.mock('@/components/ui/toast', () => ({
+  toast: { add: vi.fn() },
+}));
+
+// Agent 联动：本地仓库绑定 / 当前工作项 / 剪贴板均用内存桩，避免测试触达 Tauri IPC。
+const attributionMock = vi.hoisted(() => ({
+  bindings: [] as Array<{
+    repoId: number;
+    path: string;
+    hookInstalled: boolean;
+    hookMode: 'fill' | 'enforce' | 'off';
+    updatedAt: number;
+  }>,
+  activeWorkitems: {} as Record<number, {
+    repoId: number;
+    workitemId: string;
+    identifier: string;
+    category: 'Req' | 'Bug' | 'Task';
+    parentWorkitemId?: string;
+    parentIdentifier?: string;
+    updatedAt: number;
+  }>,
+  loadBindings: vi.fn(async () => []),
+  loadActiveWorkitems: vi.fn(async () => ({})),
+  setActive: vi.fn(async () => true),
+}));
+
+vi.mock('@/store/attribution', () => ({
+  useAttribution: (selector: (state: typeof attributionMock) => unknown) => selector(attributionMock),
+}));
+
+const copyMock = vi.hoisted(() => vi.fn(async (_text?: string) => true));
+vi.mock('@/hooks/use-clipboard', () => ({
+  useClipboard: () => ({ copy: copyMock, copied: false }),
 }));
 
 let host: HTMLDivElement;
@@ -62,12 +99,36 @@ beforeEach(() => {
       hasPat: true,
     },
   });
+  attributionMock.bindings = [];
+  attributionMock.activeWorkitems = {};
+  attributionMock.loadBindings.mockClear();
+  attributionMock.loadActiveWorkitems.mockClear();
+  copyMock.mockClear();
+  vi.mocked(toast.add).mockClear();
 });
 
 afterEach(async () => {
   await act(() => root.unmount());
   host.remove();
 });
+
+/** 打开区块标题右侧的「更多」菜单（AI 拆解 / 新建均收纳于此） */
+async function openMoreMenu() {
+  const trigger = host.querySelector<HTMLButtonElement>('[data-testid="children-card-more-trigger"]');
+  expect(trigger).not.toBeNull();
+  await act(async () => {
+    trigger!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
+}
+
+/** 点击「更多」菜单中的菜单项（菜单通过 Portal 渲染到 document.body） */
+async function clickMoreMenuItem(testId: string) {
+  const item = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+  expect(item, `未找到菜单项：${testId}`).not.toBeNull();
+  await act(async () => {
+    item!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
+}
 
 describe('ChildrenCard Fast Create with Select Components', () => {
   it('opens fast create inline row and renders Select components for severity and assignee', async () => {
@@ -94,15 +155,9 @@ describe('ChildrenCard Fast Create with Select Components', () => {
       );
     });
 
-    // 点击 "+ 新建缺陷" 打开快速创建行
-    const addBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('新建缺陷'),
-    );
-    expect(addBtn).not.toBeUndefined();
-
-    await act(async () => {
-      addBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    });
+    // 从「更多」菜单选择「新建缺陷」打开快速创建行（AI 拆解已收纳进同一菜单）
+    await openMoreMenu();
+    await clickMoreMenuItem('children-card-more-add');
 
     // 检查是否渲染了三个 Select / Tag
     const triggers = host.querySelectorAll('[data-slot="select-trigger"]');
@@ -160,12 +215,8 @@ describe('ChildrenCard 创建动态回写', () => {
   };
 
   const typeAndSubmit = async (text: string) => {
-    const addBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('新建子任务'),
-    );
-    await act(async () => {
-      addBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    });
+    await openMoreMenu();
+    await clickMoreMenuItem('children-card-more-add');
     const input = host.querySelector('input[placeholder^="输入子任务名称"]') as HTMLInputElement;
     expect(input).not.toBeNull();
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
@@ -221,12 +272,8 @@ describe('ChildrenCard 创建动态回写', () => {
 
   it('行内快速新建输入框在 IME 输入法选词与按键时阻止事件冒泡且不提前提交', async () => {
     await renderCard();
-    const addBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('新建子任务'),
-    );
-    await act(async () => {
-      addBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    });
+    await openMoreMenu();
+    await clickMoreMenuItem('children-card-more-add');
     const input = host.querySelector('input[placeholder^="输入子任务名称"]') as HTMLInputElement;
     expect(input).not.toBeNull();
 
@@ -274,5 +321,159 @@ describe('ChildrenCard 创建动态回写', () => {
     const idSpan = row.querySelector('span.font-mono') as HTMLElement;
     expect(idSpan).not.toBeNull();
     expect(idSpan.getAttribute('title')).toBe('TASK-100');
+  });
+});
+
+describe('ChildrenCard「更多」菜单收纳 AI 拆解与新建', () => {
+  const renderCard = async (options: { category?: 'Task' | 'Bug'; allowWriteOps?: boolean } = {}) => {
+    const { category = 'Task', allowWriteOps = true } = options;
+    useApp.setState({
+      settings: {
+        ...(useApp.getState().settings as unknown as Record<string, unknown>),
+        allowWriteOps,
+      } as never,
+    });
+    await act(async () => {
+      root.render(
+        <ChildrenCard
+          title={category === 'Bug' ? '缺陷' : '子任务'}
+          category={category}
+          description="挂载在该需求下的子项"
+          items={[]}
+          parentWorkitemId="req-1"
+          parentIdentifier="REQ-101"
+          parentSubject="需求标题"
+          parentAssigneeId="u1"
+          parentAssigneeName="林益生"
+          onSelect={vi.fn()}
+        />,
+      );
+    });
+  };
+
+  beforeEach(() => {
+    vi.mocked(toast.add).mockClear();
+  });
+
+  it('把 AI 智能拆解与新建收纳进「更多」菜单，而非区块常驻按钮', async () => {
+    await renderCard();
+
+    // 菜单关闭时，区块标题区不再常驻展示这两个动作
+    expect(host.textContent).not.toContain('AI 智能拆解');
+    expect(host.textContent).not.toContain('新建子任务');
+    expect(host.querySelector('[data-testid="children-card-more-trigger"]')).not.toBeNull();
+
+    await openMoreMenu();
+    const aiItem = document.querySelector<HTMLElement>('[data-testid="ai-breakdown-menu-item"]');
+    const addItem = document.querySelector<HTMLElement>('[data-testid="children-card-more-add"]');
+    expect(aiItem?.textContent).toContain('AI 智能拆解');
+    expect(addItem?.textContent).toContain('新建子任务');
+  });
+
+  it('只读模式下菜单项保留可点击的 Toast 引导而不是静默失败', async () => {
+    await renderCard({ allowWriteOps: false });
+    await openMoreMenu();
+
+    const aiItem = document.querySelector<HTMLElement>('[data-testid="ai-breakdown-menu-item"]');
+    expect(aiItem?.textContent).toContain('只读模式');
+
+    await clickMoreMenuItem('ai-breakdown-menu-item');
+    expect(toast.add).toHaveBeenCalledWith(
+      expect.objectContaining({ title: '当前处于只读模式', type: 'warning' }),
+    );
+  });
+
+  it('缺陷区块不提供 AI 智能拆解菜单项（仅子任务支持）', async () => {
+    await renderCard({ category: 'Bug' });
+    await openMoreMenu();
+
+    expect(document.querySelector('[data-testid="ai-breakdown-menu-item"]')).toBeNull();
+    expect(document.querySelector('[data-testid="children-card-more-add"]')?.textContent).toContain(
+      '新建缺陷',
+    );
+  });
+});
+
+
+describe('ChildrenCard Agent 联动（子任务行处理入口与状态）', () => {
+  const items: WorkitemChild[] = [
+    { workitemId: 'task-1', identifier: 'TASK-101', subject: '前端联调', category: 'Task', status: '待办' },
+    { workitemId: 'task-2', identifier: 'TASK-102', subject: '后端联调', category: 'Task', status: '待办' },
+  ];
+
+  const renderCard = async () => {
+    useApp.setState({
+      repositories: [
+        { id: 101, name: 'nervd-web', pathWithNamespace: 'codeup/nervd-web' },
+        { id: 102, name: 'nervd-core', pathWithNamespace: 'codeup/nervd-core' },
+      ] as never,
+    });
+    await act(async () => {
+      root.render(
+        <ChildrenCard
+          title="子任务"
+          category="Task"
+          description="挂载在该需求下的子任务"
+          items={items}
+          parentWorkitemId="req-1"
+          parentIdentifier="REQ-101"
+          parentSubject="需求标题"
+          candidateAssignees={[{ id: 'u1', name: '林益生', role: '需求负责人' }]}
+          onSelect={vi.fn()}
+        />,
+      );
+    });
+  };
+
+  it('每行都有处理入口；当前处理中的子任务透出仓库状态；可复制 Codex 命令', async () => {
+    attributionMock.bindings = [
+      { repoId: 101, path: '/tmp/nervd-web', hookInstalled: true, hookMode: 'fill', updatedAt: 1 },
+    ];
+    attributionMock.activeWorkitems = {
+      101: {
+        repoId: 101,
+        workitemId: 'task-1',
+        identifier: 'TASK-101',
+        category: 'Task',
+        parentWorkitemId: 'req-1',
+        updatedAt: 2,
+      },
+    };
+    await renderCard();
+
+    // 行内处理按钮：每行一个
+    expect(host.querySelectorAll('[data-testid="child-agent-start"]')).toHaveLength(2);
+    // 状态透出：仅处理中的子任务显示仓库 chip
+    expect(host.textContent).toContain('处理中 · nervd-web');
+
+    // Codex 命令复制：使用该子任务当前所在仓库 + 显式 --workitem/--req
+    const codexButtons = host.querySelectorAll<HTMLElement>('[data-testid="child-codex-copy"]');
+    expect(codexButtons).toHaveLength(2);
+    await act(async () => {
+      codexButtons[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(copyMock).toHaveBeenCalledTimes(1);
+    const command = copyMock.mock.calls[0][0] as string;
+    expect(command).toContain("cd '/tmp/nervd-web' && codex '");
+    expect(command).toContain('--workitem TASK-101');
+    expect(command).toContain('--req REQ-101');
+  });
+
+  it('未确定仓库且存在多个绑定时，给出先点「处理」的提示且不复制命令', async () => {
+    attributionMock.bindings = [
+      { repoId: 101, path: '/tmp/nervd-web', hookInstalled: true, hookMode: 'fill', updatedAt: 1 },
+      { repoId: 102, path: '/tmp/nervd-core', hookInstalled: true, hookMode: 'fill', updatedAt: 1 },
+    ];
+    attributionMock.activeWorkitems = {};
+    await renderCard();
+
+    expect(host.textContent).not.toContain('处理中 ·');
+    const codexButton = host.querySelector<HTMLElement>('[data-testid="child-codex-copy"]');
+    expect(codexButton).not.toBeNull();
+    await act(async () => {
+      codexButton!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(copyMock).not.toHaveBeenCalled();
+    expect(toast.add).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning' }));
   });
 });

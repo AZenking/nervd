@@ -1,5 +1,5 @@
-import { useMemo, useRef, type ReactNode } from 'react';
-import { Description, Label, TextField } from '@heroui/react';
+import { useId, useMemo, useRef, type ReactNode } from 'react';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -82,19 +82,40 @@ export function BranchPatternField({
     });
   };
 
+  const baseId = useId();
+  const descriptionId = `${baseId}-description`;
+  const previewId = `${baseId}-preview`;
+  const errorId = `${baseId}-error`;
+  const unknownId = `${baseId}-unknown`;
+  const missingId = `${baseId}-missing`;
+  const hasError = Boolean(error) || missing.length > 0;
+  const describedBy = [
+    description ? descriptionId : null,
+    previewId,
+    unknown.length > 0 ? unknownId : null,
+    (error || missing.length > 0) ? errorId : null,
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={cn('flex flex-col gap-2', className)} data-testid="branch-pattern-field">
-      <TextField isRequired={required} value={value} onChange={onChange}>
-        <Label>{label}</Label>
-        <Input
-          id={id}
-          ref={inputRef}
-          className="font-mono"
-          placeholder={placeholder}
-          data-testid="branch-pattern-input"
-        />
-        {description ? <Description>{description}</Description> : null}
-      </TextField>
+    <Field
+      isRequired={required}
+      isInvalid={hasError}
+      value={value}
+      onChange={onChange}
+      data-testid="branch-pattern-field"
+      className={cn('gap-2', className)}
+    >
+      <FieldLabel>{label}</FieldLabel>
+      <Input
+        id={id}
+        ref={inputRef}
+        className="font-mono"
+        placeholder={placeholder}
+        aria-invalid={hasError || undefined}
+        aria-describedby={describedBy}
+        data-testid="branch-pattern-input"
+      />
+      {description ? <FieldDescription id={descriptionId}>{description}</FieldDescription> : null}
 
       <div className="flex flex-wrap items-center gap-1.5" aria-label={`${label} 可用变量`}>
         <span className="shrink-0 text-[11px] text-muted-foreground">插入变量：</span>
@@ -104,7 +125,7 @@ export function BranchPatternField({
             type="button"
             variant="outline"
             size="xs"
-            className="h-6 rounded-md px-1.5 font-mono text-[10px] font-normal text-muted-foreground hover:text-foreground"
+            className="font-mono text-[10px] font-normal"
             title={variable.description ?? variable.label}
             aria-label={`插入 ${variable.token}`}
             data-testid={`branch-pattern-chip-${variable.token.replace(/[{}]/g, '')}`}
@@ -115,25 +136,25 @@ export function BranchPatternField({
         ))}
       </div>
 
-      <p className="truncate font-mono text-[11px] text-muted-foreground" data-testid="branch-pattern-preview">
+      <p id={previewId} className="truncate font-mono text-[11px] text-muted-foreground" data-testid="branch-pattern-preview">
         预览：{preview || '—'}
       </p>
 
       {error ? (
-        <p role="alert" className="text-[11px] text-danger">
+        <FieldError id={errorId}>
           {error}
-        </p>
+        </FieldError>
       ) : null}
       {unknown.length > 0 ? (
-        <p role="alert" className="text-[11px] text-warning">
+        <FieldError id={unknownId} className="text-warning">
           未知变量：{unknown.join('、')}，不会被展开
-        </p>
+        </FieldError>
       ) : null}
       {missing.length > 0 ? (
-        <p role="alert" className="text-[11px] text-danger">
+        <FieldError id={missingId}>
           缺少必需变量：{missing.join('、')}
-        </p>
+        </FieldError>
       ) : null}
-    </div>
+    </Field>
   );
 }

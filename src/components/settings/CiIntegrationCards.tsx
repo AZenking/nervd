@@ -8,15 +8,14 @@ import { useSettingsDraft } from '@/store/settings-draft';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { cn } from '@/lib/utils';
 import type { JenkinsConnection, RepoCiBinding } from '@/types';
-import {
-  Button,
-  Checkbox,
-  Chip,
-  ListBox,
-  Select,
-  Tabs,
-} from '@heroui/react';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Chip } from '@/components/ui/chip';
+import { ListBox } from '@/components/ui/list-box';
+import { Select } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { EmptyHint } from '@/components/empty-hint';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { SearchableSelect } from '../searchable-select';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
@@ -184,7 +183,7 @@ export function JenkinsInstancesCard() {
         );
       })}
       {!connections.length && (
-        <div className="px-4 py-8 text-center text-xs text-muted-foreground">尚未添加 Jenkins 实例</div>
+        <EmptyHint compact title="尚未添加 Jenkins 实例" />
       )}
     </SettingsGroup>
   );
@@ -248,7 +247,7 @@ export function RepoCiBindingsCard() {
         <div className="flex flex-wrap items-center gap-2 border-b border-border/50 px-4 py-3">
           <Input
             aria-label="按仓库名称过滤"
-            className="h-8 min-w-40 flex-1 text-xs"
+            className="min-w-40 flex-1"
             placeholder="输入名称过滤…"
             value={repoFilter}
             onChange={(e) => setRepoFilter(e.target.value)}
@@ -261,7 +260,7 @@ export function RepoCiBindingsCard() {
             <Checkbox
               isSelected={showArchived}
               onChange={(v) => setShowArchived(v)}
-              className="cursor-pointer text-xs font-normal text-muted-foreground"
+              className="cursor-pointer text-muted-foreground"
             >
               <Checkbox.Content>
                 <Checkbox.Control>
@@ -272,23 +271,19 @@ export function RepoCiBindingsCard() {
             </Checkbox>
           )}
           <Tabs
-            selectedKey={boundOnly ? 'bound' : 'all'}
-            onSelectionChange={(key) => {
+            value={boundOnly ? 'bound' : 'all'}
+            onValueChange={(key) => {
               if (key) setBoundOnly(key === 'bound');
             }}
           >
-            <Tabs.ListContainer className="w-fit overflow-x-auto">
-              <Tabs.List aria-label="仓库过滤">
-                <Tabs.Tab id="bound">
-                  已绑定 <span className="font-mono tabular-nums">{boundCount}</span>
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-                <Tabs.Tab id="all">
-                  全部 <span className="font-mono tabular-nums">{scoped.length}</span>
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs.ListContainer>
+            <TabsList aria-label="仓库过滤" containerClassName="overflow-x-auto">
+              <TabsTrigger value="bound">
+                已绑定 <span className="font-mono tabular-nums">{boundCount}</span>
+              </TabsTrigger>
+              <TabsTrigger value="all">
+                全部 <span className="font-mono tabular-nums">{scoped.length}</span>
+              </TabsTrigger>
+            </TabsList>
           </Tabs>
         </div>
       )}
@@ -314,7 +309,7 @@ export function RepoCiBindingsCard() {
                 {binding ? '已绑定' : '未绑定'}
               </Chip>
               <Select
-                className="w-32 text-xs"
+                className="w-32"
                 aria-label={`${label} CI 提供方`}
                 selectedKey={binding?.provider ?? 'none'}
                 onSelectionChange={(key) => {
@@ -328,7 +323,7 @@ export function RepoCiBindingsCard() {
                   }
                 }}
               >
-                <Select.Trigger className="h-7 text-xs">
+                <Select.Trigger>
                   <Select.Value />
                   <Select.Indicator />
                 </Select.Trigger>
@@ -423,11 +418,11 @@ export function RepoCiBindingsCard() {
         );
       })}
       {!visibleRepos.length && (
-        <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-          {scoped.length
-            ? '无匹配仓库'
-            : '仓库列表为空，请先在「设置 → 云效连接」配置并保存云效连接'}
-        </div>
+        <EmptyHint
+          compact
+          title={scoped.length ? '无匹配仓库' : '仓库列表为空'}
+          description={scoped.length ? undefined : '请先在「设置 → 云效连接」配置并保存云效连接'}
+        />
       )}
     </SettingsGroup>
   );

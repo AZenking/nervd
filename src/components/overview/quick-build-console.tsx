@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Chip } from '@heroui/react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
 import {
   ChevronDownIcon,
   GitBranchIcon,
@@ -98,9 +100,10 @@ export function QuickBuildConsole() {
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Card.Title className="text-sm font-semibold tracking-tight text-foreground">
+              <Card.Title>
                 快捷构建控制台
               </Card.Title>
+              {/* 活跃构建数在此统一呈现（原总览 KPI 卡的同名统计已合并到此，不再重复渲染） */}
               {activeBuilds.length > 0 ? (
                 <Chip size="sm" color="warning" variant="soft" className="gap-1.5 font-mono tabular-nums">
                   <span className="relative flex size-1.5">
@@ -108,6 +111,10 @@ export function QuickBuildConsole() {
                     <span className="relative inline-flex size-1.5 rounded-full bg-warning" />
                   </span>
                   <Chip.Label>活跃构建中 · {activeBuilds.length}</Chip.Label>
+                </Chip>
+              ) : !isEmpty ? (
+                <Chip size="sm" color="default" variant="soft" className="font-mono tabular-nums">
+                  <Chip.Label>就绪待命</Chip.Label>
                 </Chip>
               ) : null}
             </div>

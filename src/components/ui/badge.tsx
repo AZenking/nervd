@@ -69,6 +69,4 @@ function Badge({
   )
 }
 
-const badgeVariants = () => ""
-
-export { Badge, badgeVariants }
+export { Badge }

@@ -1,5 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import { Button, Card, Chip, Table } from '@heroui/react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
+import { Table } from '@/components/ui/table';
 import { ExternalLinkIcon, FileTextIcon, GitBranchIcon, XIcon } from 'lucide-react';
 import { StatusIcon } from '@/components/status-icon';
 import { statusMeta } from '@/components/StatusBadge';
@@ -503,47 +506,35 @@ export function QuickBuildActiveTable({
       ) : (
         <Table variant="secondary" className="w-full">
           <Table.ScrollContainer className="max-h-72 overflow-y-auto overscroll-contain">
-            <Table.Content aria-label="活跃构建列表" className="text-xs">
-              <Table.Header className="border-b border-border/60 bg-transparent text-xs text-muted">
-                <Table.Column isRowHeader className="w-36 px-4 py-2 text-start text-xs font-medium text-muted">
+            <Table.Content aria-label="活跃构建列表">
+              <Table.Header>
+                <Table.Column isRowHeader className="w-36">
                   状态 / 平台
                 </Table.Column>
-                <Table.Column className="px-3 py-2 text-start text-xs font-medium text-muted">
-                  构建目标
-                </Table.Column>
-                <Table.Column className="w-24 px-3 py-2 text-start font-mono text-xs font-medium text-muted">
-                  运行号
-                </Table.Column>
-                <Table.Column className="min-w-56 px-3 py-2 text-start text-xs font-medium text-muted">
-                  运行时长 & 预估进度
-                </Table.Column>
-                <Table.Column className="w-32 px-4 py-2 text-end text-xs font-medium text-muted">
-                  操作
-                </Table.Column>
+                <Table.Column>构建目标</Table.Column>
+                <Table.Column className="w-24">运行号</Table.Column>
+                <Table.Column className="min-w-56">运行时长 & 预估进度</Table.Column>
+                <Table.Column className="w-32 text-end">操作</Table.Column>
               </Table.Header>
 
               <Table.Body>
                 {activeBuilds.map((item) => (
-                  <Table.Row
-                    key={item.id}
-                    id={item.id}
-                    className="border-b border-border/60 transition-colors last:border-b-0 hover:bg-surface-secondary"
-                  >
-                    <Table.Cell className="px-4 py-2">
+                  <Table.Row key={item.id} id={item.id}>
+                    <Table.Cell>
                       <BuildStatusIndicator item={item} />
                     </Table.Cell>
-                    <Table.Cell className="px-3 py-2 font-medium text-foreground">
+                    <Table.Cell>
                       <BuildTargetDetails item={item} />
                     </Table.Cell>
-                    <Table.Cell className="px-3 py-2">
+                    <Table.Cell>
                       <span className="font-mono text-xs font-semibold text-foreground">
                         {formatBuildRunId(item.runId)}
                       </span>
                     </Table.Cell>
-                    <Table.Cell className="px-3 py-2">
+                    <Table.Cell>
                       <BuildProgressCell item={item} />
                     </Table.Cell>
-                    <Table.Cell className="px-4 py-2 text-end">
+                    <Table.Cell className="text-end">
                       <BuildActions
                         item={item}
                         onOpenLogs={onOpenLogs}

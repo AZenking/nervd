@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AlertCircleIcon, CheckIcon, FileCodeIcon, GitCompareIcon, RefreshCwIcon } from 'lucide-react';
-import { Surface } from '@heroui/react';
+import { Surface } from '@/components/ui/surface';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -152,7 +153,7 @@ export function BranchDivergenceCheck({
     return (
       <span className="flex items-center gap-1 text-xs text-muted-foreground">
         基准查询失败
-        <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={onRetryBaseline}>
+        <Button type="button" variant="ghost" size="xs" onPress={onRetryBaseline}>
           重试
         </Button>
       </span>
@@ -172,7 +173,7 @@ export function BranchDivergenceCheck({
   const aligned = ready && check.developmentOnly === 0 && check.baselineOnly === 0;
 
   return (
-    <Surface variant="secondary" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/40 px-2.5 py-1.5 text-xs text-muted-foreground">
+    <Surface variant="secondary" className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 text-xs text-muted-foreground">
       <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
         <div className="flex items-center gap-1 font-medium text-foreground shrink-0">
           <GitCompareIcon className="size-3 text-muted-foreground" />
@@ -194,13 +195,16 @@ export function BranchDivergenceCheck({
         {ready && (
           <div className="flex flex-wrap items-center gap-1.5">
             {aligned ? (
-              <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-[11px] font-medium text-success">
-                <CheckIcon className="size-3" />已同步迭代分支
-              </span>
+              <Chip size="sm" variant="soft" color="success" className="gap-1">
+                <CheckIcon className="size-3" />
+                <Chip.Label>已同步迭代分支</Chip.Label>
+              </Chip>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning">
-                有落差 (开发独有 <span className="font-mono tabular-nums">{check.developmentOnly}</span> · 迭代独有 <span className="font-mono tabular-nums">{check.baselineOnly}</span>)
-              </span>
+              <Chip size="sm" variant="soft" color="warning" className="gap-1">
+                <Chip.Label>
+                  有落差 (开发独有 <span className="font-mono tabular-nums">{check.developmentOnly}</span> · 迭代独有 <span className="font-mono tabular-nums">{check.baselineOnly}</span>)
+                </Chip.Label>
+              </Chip>
             )}
 
             {!aligned && diffs.length > 0 && (
@@ -210,9 +214,9 @@ export function BranchDivergenceCheck({
                     <Button
                       type="button"
                       variant="ghost"
-                      size="xs"
-                      className="h-5 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1"
-                      onClick={() => setDiffDrawerOpen(true)}
+                      size="2xs"
+                      className="text-muted-foreground hover:text-foreground gap-1"
+                      onPress={() => setDiffDrawerOpen(true)}
                     >
                       <FileCodeIcon className="size-3 text-primary" />
                       <span>差异 (<span className="font-mono tabular-nums">{diffs.length}</span>)</span>
@@ -238,11 +242,11 @@ export function BranchDivergenceCheck({
                 size="icon-xs"
                 aria-disabled={check.status === 'loading' || undefined}
                 aria-label={`重新检查 ${developmentBranch} 与 ${baseline} 的落差`}
-                onClick={() => {
+                onPress={() => {
                   if (check.status === 'loading') return;
                   refetch();
                 }}
-                className="size-6 text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               >
                 <RefreshCwIcon className={cn('size-3', check.status === 'loading' && 'animate-spin text-primary')} />
               </Button>

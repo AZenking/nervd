@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
 import { ExternalLinkIcon, FileTextIcon, SearchIcon, XIcon } from 'lucide-react';
-import { Button, Card, Chip, Input, Table } from '@heroui/react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
+import { Input } from '@/components/ui/input';
+import { Table } from '@/components/ui/table';
 import type { WorkitemRow } from '@/lib/api';
 import { StatusIcon } from '@/components/status-icon';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
@@ -51,7 +55,7 @@ export function WorkitemsDataTable({
       <Card.Header className="flex flex-col gap-2.5 border-b border-border/60 pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
-            <Card.Title className="text-sm font-semibold tracking-tight text-foreground">
+            <Card.Title>
               工作项速览 · {categoryLabel}
             </Card.Title>
             <Chip size="sm" variant="soft" color="default" className="text-xs font-mono tabular-nums">
@@ -65,26 +69,22 @@ export function WorkitemsDataTable({
 
           <div className="relative w-full sm:w-64">
             <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            {/* IME 冒泡守卫已由 ui/input 统一承担，这里不再手写 stopPropagation 补丁 */}
             <Input
               aria-label="搜索工作项"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.nativeEvent.isComposing) return;
-              }}
               placeholder="搜索工作项编号或标题..."
               autoComplete="off"
               spellCheck={false}
-              className="h-8 pl-8 pr-7 text-xs"
+              className="pl-8 pr-7"
             />
             {search && (
               <Button
-                isIconOnly
                 variant="ghost"
-                size="sm"
+                size="icon-xs"
                 onPress={() => setSearch('')}
-                className="absolute right-1 top-1/2 size-6 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 aria-label="清空搜索"
               >
                 <XIcon className="size-3" />
@@ -93,7 +93,7 @@ export function WorkitemsDataTable({
           </div>
         </div>
         {/* 交互提示下沉至 Description 槽：数据完整时引导点击查看，分页未完时明确数据口径 */}
-        <Card.Description className="text-[11px] text-muted-foreground">
+        <Card.Description>
           {complete
             ? '点击最近更新条目就地查看详情，亦可在抽屉中全屏打开工作台'
             : '仅展示当前已加载范围，不推断未加载数据'}
@@ -136,23 +136,15 @@ export function WorkitemsDataTable({
         ) : (
           <Table variant="secondary" className="w-full">
             <Table.ScrollContainer className="max-h-96 overflow-y-auto overscroll-contain">
-              <Table.Content aria-label="工作项列表" className="text-xs">
-                <Table.Header className="border-b border-border/60 bg-transparent text-[11px] text-muted-foreground">
-                  <Table.Column isRowHeader className="w-28 px-4 py-2.5 text-start font-mono text-[11px] font-medium text-muted-foreground">
+              <Table.Content aria-label="工作项列表">
+                <Table.Header>
+                  <Table.Column isRowHeader className="w-28">
                     工作项编号
                   </Table.Column>
-                  <Table.Column className="min-w-64 px-3 py-2.5 text-start text-[11px] font-medium text-muted-foreground">
-                    工作项标题
-                  </Table.Column>
-                  <Table.Column className="w-28 px-3 py-2.5 text-start text-[11px] font-medium text-muted-foreground">
-                    当前状态
-                  </Table.Column>
-                  <Table.Column className="w-28 px-3 py-2.5 text-start font-mono text-[11px] font-medium text-muted-foreground">
-                    更新时间
-                  </Table.Column>
-                  <Table.Column className="w-28 px-4 py-2.5 text-end text-[11px] font-medium text-muted-foreground">
-                    操作
-                  </Table.Column>
+                  <Table.Column className="min-w-64">工作项标题</Table.Column>
+                  <Table.Column className="w-28">当前状态</Table.Column>
+                  <Table.Column className="w-28">更新时间</Table.Column>
+                  <Table.Column className="w-28 text-end">操作</Table.Column>
                 </Table.Header>
 
                 <Table.Body>
@@ -162,70 +154,45 @@ export function WorkitemsDataTable({
                       <Table.Row
                         key={item.workitemId || item.identifier}
                         id={item.workitemId || item.identifier}
+                        // 选中态只表达一次（accent-soft 底），单元格内不再逐格手写 accent-foreground 反色补丁
                         className={cn(
-                          'border-b border-border/40 transition-colors cursor-pointer',
-                          // 激活态配方统一：实色 accent 底 + accent-foreground 前景（DESIGN §3.3.1）
-                          isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-surface-secondary',
+                          'cursor-pointer transition-colors',
+                          isSelected ? 'bg-accent-soft' : 'hover:bg-surface-secondary',
                         )}
                         onAction={() => onOpenDetail(item)}
                       >
-                        <Table.Cell className="px-4 py-2.5">
-                          <span
-                            className={cn('font-mono text-xs font-semibold', isSelected ? 'text-accent-foreground' : 'text-foreground')}
-                          >
-                            {item.identifier}
-                          </span>
+                        <Table.Cell>
+                          <span className="font-mono text-xs font-semibold">{item.identifier}</span>
                         </Table.Cell>
 
-                        <Table.Cell className="px-3 py-2.5 font-medium">
-                          <OverflowTooltip
-                            text={item.subject}
-                            className={cn(
-                              'max-w-md truncate text-xs',
-                              isSelected ? 'text-accent-foreground' : 'text-foreground',
-                            )}
-                          />
+                        <Table.Cell>
+                          <OverflowTooltip text={item.subject} className="max-w-md truncate text-xs" />
                         </Table.Cell>
 
-                        <Table.Cell className="px-3 py-2.5">
+                        <Table.Cell>
                           <div className="flex items-center gap-1.5">
                             <StatusIcon status={item.status} className="size-3.5 shrink-0" />
-                            <span
-                              className={cn('text-xs', isSelected ? 'text-accent-foreground/85' : 'text-muted-foreground')}
-                            >
-                              {item.status}
-                            </span>
+                            <span className="text-xs text-muted-foreground">{item.status}</span>
                           </div>
                         </Table.Cell>
 
-                        <Table.Cell className={cn('px-3 py-2.5 font-mono text-[11px]', isSelected ? 'text-accent-foreground/85' : 'text-muted-foreground')}>
-                          {item.updatedAt?.slice(0, 10) ?? '—'}
+                        <Table.Cell>
+                          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                            {item.updatedAt?.slice(0, 10) ?? '—'}
+                          </span>
                         </Table.Cell>
 
-                        <Table.Cell className="px-4 py-2.5 text-end">
+                        <Table.Cell className="text-end">
                           <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onPress={() => onOpenDetail(item)}
-                              className={cn(
-                                'h-7 gap-1 px-2 text-[11px]',
-                                isSelected && 'text-accent-foreground hover:bg-accent-foreground/15 hover:text-accent-foreground',
-                              )}
-                            >
+                            <Button variant="ghost" size="xs" onPress={() => onOpenDetail(item)}>
                               <FileTextIcon className="size-3" />
                               <span>详情</span>
                             </Button>
                             {onOpenWorkbench && (
                               <Button
                                 variant="ghost"
-                                size="sm"
-                                isIconOnly
+                                size="icon-xs"
                                 onPress={() => onOpenWorkbench(item.workitemId, item.identifier ?? '', item.subject ?? '')}
-                                className={cn(
-                                  'size-7',
-                                  isSelected && 'text-accent-foreground hover:bg-accent-foreground/15 hover:text-accent-foreground',
-                                )}
                                 aria-label="在全屏工作台打开"
                               >
                                 <ExternalLinkIcon className="size-3" />

@@ -18,6 +18,7 @@ import { GitFork, Maximize2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
+import { SectionHeader } from '@/components/section-header';
 import { cn } from '@/lib/utils';
 import { expandBranchPattern } from '@/components/iteration/requirement/types';
 
@@ -466,38 +467,43 @@ export function TrackTopologyDiagram({
       <Card
         data-testid="track-topology"
         data-form={graph.direct ? 'direct' : 'three-node'}
+        variant="secondary"
         className={cn(
           // 静态容器不加 hover 反馈（Part 1：不要让静态内容看起来可交互）；放大入口只由按钮承载
-          'relative flex flex-col gap-2 rounded-lg border border-border bg-surface-secondary/35 p-3.5',
+          'relative flex flex-col gap-2 p-3.5',
           className,
         )}
       >
-        <div className="flex items-center justify-between gap-2 px-0.5">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-foreground/85">
-            <GitFork className="size-3.5 text-primary" aria-hidden="true" />
-            <span>交付轨道拓扑</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {graph.direct && (
-              <Chip size="sm" variant="soft" color="accent" className="h-5 px-1.5 text-[10px] font-medium">
-                <Chip.Label>{TRACK_TOPOLOGY_LABELS.directBadge}</Chip.Label>
-              </Chip>
-            )}
-            {allowModal && !isModalView && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
-                onPress={handleOpenModal}
-                aria-label="在弹窗中放大查看交付轨道拓扑"
-              >
-                <Maximize2 className="size-3" aria-hidden="true" />
-                <span>放大查看</span>
-              </Button>
-            )}
-          </div>
-        </div>
+        <SectionHeader
+          level="h3"
+          title={
+            <span className="flex items-center gap-1.5">
+              <GitFork className="size-3.5 text-primary" aria-hidden="true" />
+              交付轨道拓扑
+            </span>
+          }
+          action={
+            <>
+              {graph.direct && (
+                <Chip size="sm" variant="soft" color="accent">
+                  <Chip.Label>{TRACK_TOPOLOGY_LABELS.directBadge}</Chip.Label>
+                </Chip>
+              )}
+              {allowModal && !isModalView && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onPress={handleOpenModal}
+                  aria-label="在弹窗中放大查看交付轨道拓扑"
+                >
+                  <Maximize2 className="size-3" aria-hidden="true" />
+                  <span>放大查看</span>
+                </Button>
+              )}
+            </>
+          }
+        />
         <div className={cn(isExpanded ? 'h-[180px]' : 'h-[144px]', 'w-full')}>
           <ReactFlow
             nodes={graph.nodes}

@@ -1,7 +1,9 @@
 import { useId, useMemo } from 'react';
 import type { WorkitemRow } from '@/lib/api';
 import { toUpdateActivityData } from '@/lib/overview-metrics';
-import { Card } from '@heroui/react';
+import { ChartColumnIcon } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { EmptyHint } from '@/components/empty-hint';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -39,7 +41,7 @@ export function WorkitemUpdateActivityChart({
     <Card className={cn('min-w-0 flex-1', className)}>
       <Card.Header className="flex flex-row items-center justify-between gap-3 pb-0">
         <div className="min-w-0">
-          <Card.Title id={titleId} className="text-[13px] font-semibold tracking-tight text-foreground">
+          <Card.Title id={titleId}>
             {title}
           </Card.Title>
           <p className="mt-1 text-[11px] text-muted-foreground">
@@ -64,10 +66,13 @@ export function WorkitemUpdateActivityChart({
             ))}
           </div>
         ) : visibleRows.length === 0 ? (
-          <div className="py-8 text-center text-xs text-muted-foreground">
-            暂无可用更新时间
-            {missingCount > 0 && <span className="ml-1">（{missingCount} 项缺失更新时间）</span>}
-          </div>
+          <EmptyHint
+            icon={ChartColumnIcon}
+            title="暂无可用更新时间"
+            description={missingCount > 0 ? `另有 ${missingCount} 项缺失更新时间` : undefined}
+            compact
+            className="border-0 bg-transparent py-8"
+          />
         ) : (
           <div role="img" aria-labelledby={titleId} aria-describedby={summaryId} className="pt-1">
             <div className="flex flex-col gap-2.5">

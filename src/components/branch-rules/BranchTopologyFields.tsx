@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ListBox, Select } from '@heroui/react';
 import { GitForkIcon, SaveIcon } from 'lucide-react';
 import * as attributionApi from '@/lib/attribution-api';
 import { useApp } from '@/store/app';
 import { humanizeError } from '@/lib/error-format';
 import { BranchPatternField, type BranchPatternVariable } from './BranchPatternField';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Descriptions } from '@/components/ui/descriptions';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { ListBox } from '@/components/ui/list-box';
+import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { OverflowTooltip } from '@/components/overflow-tooltip';
+import { SectionHeader } from '@/components/section-header';
+import { READONLY_BTN_CLASS } from '@/components/WriteOpButton';
 import { expandBranchPattern } from '@/components/iteration/requirement/types';
 import type {
   BranchTrackTopology,
@@ -73,10 +81,9 @@ function FieldSelect<T extends string>({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <span className="text-xs font-medium text-foreground">{label}</span>
+    <Field className="min-w-0 gap-1.5">
+      <FieldLabel>{label}</FieldLabel>
       <Select
-        className="w-full text-xs"
         aria-label={label}
         selectedKey={value}
         isDisabled={disabled}
@@ -84,7 +91,7 @@ function FieldSelect<T extends string>({
           if (key != null) onChange(String(key) as T);
         }}
       >
-        <Select.Trigger className="h-8 text-xs">
+        <Select.Trigger>
           <Select.Value />
           <Select.Indicator />
         </Select.Trigger>
@@ -99,18 +106,7 @@ function FieldSelect<T extends string>({
           </ListBox>
         </Select.Popover>
       </Select>
-    </div>
-  );
-}
-
-function PreviewLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex min-w-0 items-baseline gap-2">
-      <span className="w-16 shrink-0 text-[11px] text-muted-foreground">{label}</span>
-      <span className="min-w-0 truncate font-mono text-[11px] text-foreground/90" title={value}>
-        {value || '—'}
-      </span>
-    </div>
+    </Field>
   );
 }
 
@@ -292,25 +288,40 @@ export function BranchTopologyFields({
     }
   };
 
+  const saveBlocked = saving || loading || !loaded || Boolean(patternError) || readOnly;
+  const saveBlockedReason = readOnly
+    ? '写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）'
+    : patternError
+      ? patternError
+      : saving
+        ? '正在保存子分支拓扑…'
+        : !loaded
+          ? '正在读取子分支拓扑，请稍候'
+          : '保存子分支拓扑';
+
   return (
     <section
       data-testid="branch-topology-fields"
       className="flex flex-col gap-3 rounded-lg border border-border/60 bg-surface-secondary/25 p-3.5"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+      <SectionHeader
+        level="h3"
+        title={
+          <span className="flex items-center gap-1.5">
             <GitForkIcon className="size-3.5 text-primary" aria-hidden="true" />
             子分支拓扑
           </span>
-          <p className="text-[11px] leading-5 text-muted-foreground">
-            控制缺陷 / 子任务从哪条分支切出、MR 合回哪里；保存后对新建子分支生效。
-          </p>
-        </div>
-        <span className="shrink-0 font-mono text-[10px] text-muted-foreground/80" title={trackId}>
-          {trackId.slice(0, 8)}
-        </span>
-      </div>
+        }
+        hint="控制缺陷 / 子任务从哪条分支切出、MR 合回哪里；保存后对新建子分支生效。"
+        action={
+          <OverflowTooltip
+            text={trackId}
+            className="max-w-24 font-mono text-[10px] text-muted-foreground/80"
+          >
+            {trackId.slice(0, 8)}
+          </OverflowTooltip>
+        }
+      />
 
       {loading ? (
         <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
@@ -364,43 +375,52 @@ export function BranchTopologyFields({
             />
           </div>
 
-          <div
-            data-testid="branch-topology-preview"
-            className="flex flex-col gap-1 rounded-md border border-border/50 bg-background/60 px-3 py-2.5"
-          >
-            <span className="mb-0.5 text-xs font-semibold text-muted-foreground">
-              分支预览
-            </span>
-            <div data-line="baseline">
-              <PreviewLine label="迭代基准" value={baselineBranch} />
-            </div>
-            <div data-line="parent">
-              <PreviewLine label="需求分支" value={parentBranch} />
-            </div>
-            <div data-line="child">
-              <PreviewLine
-                label="子分支"
-                value={mode === 'none' ? `${childBranch}（共用需求分支）` : childBranch}
-              />
-            </div>
+          <div data-testid="branch-topology-preview" className="flex flex-col gap-1">
+            <SectionHeader level="h3" title="分支预览" />
+            <Descriptions
+              variant="plain"
+              items={[
+                {
+                  key: 'baseline',
+                  label: '迭代基准',
+                  children: (
+                    <span data-line="baseline" className="min-w-0 truncate font-mono text-[11px] text-foreground/90">
+                      {baselineBranch || '—'}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'parent',
+                  label: '需求分支',
+                  children: (
+                    <span data-line="parent" className="min-w-0 truncate font-mono text-[11px] text-foreground/90">
+                      {parentBranch || '—'}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'child',
+                  label: '子分支',
+                  children: (
+                    <span data-line="child" className="min-w-0 truncate font-mono text-[11px] text-foreground/90">
+                      {mode === 'none' ? `${childBranch}（共用需求分支）` : childBranch || '—'}
+                    </span>
+                  ),
+                },
+              ]}
+            />
           </div>
 
           {warning && (
-            <Alert status="warning" className="rounded-md px-2.5 py-2 shadow-none">
+            <Alert status="warning">
               <Alert.Indicator />
               <Alert.Content>
-                <Alert.Description className="text-[11px] leading-5">
-                  {warning}
-                </Alert.Description>
+                <Alert.Description>{warning}</Alert.Description>
               </Alert.Content>
             </Alert>
           )}
 
-          {(patternError || error) && (
-            <p className="text-xs text-destructive" role="alert">
-              {patternError ?? error}
-            </p>
-          )}
+          {error && !patternError && <FieldError>{error}</FieldError>}
 
           <div className="flex items-center justify-end gap-2">
             {readOnly && (
@@ -408,18 +428,27 @@ export function BranchTopologyFields({
                 写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）。
               </span>
             )}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={saving || loading || !loaded || Boolean(patternError)}
-              aria-disabled={readOnly || undefined}
-              title={readOnly ? '写操作已关闭：需在「设置 → 安全」中开启' : undefined}
-              onClick={() => void save()}
-            >
-              {saving ? <Spinner className="size-3.5" /> : <SaveIcon className="size-3.5" />}
-              {saving ? '保存中…' : '保存子分支拓扑'}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    aria-disabled={saveBlocked || undefined}
+                    className={readOnly ? READONLY_BTN_CLASS : saveBlocked ? 'opacity-60' : undefined}
+                    onClick={() => {
+                      if (saving || loading || !loaded || patternError) return;
+                      void save();
+                    }}
+                  >
+                    {saving ? <Spinner className="size-3.5" /> : <SaveIcon className="size-3.5" />}
+                    {saving ? '保存中…' : '保存子分支拓扑'}
+                  </Button>
+                }
+              />
+              <TooltipContent>{saveBlockedReason}</TooltipContent>
+            </Tooltip>
           </div>
         </>
       )}

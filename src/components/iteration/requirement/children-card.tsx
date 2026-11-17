@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Dropdown, Surface, Select, ListBox } from '@heroui/react';
+import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from 'react';
 import {
-  BugIcon, ChevronRightIcon, InboxIcon, PencilIcon, PlusIcon, ShieldCheckIcon, SparklesIcon, UserIcon,
+  BugIcon, ChevronRightIcon, InboxIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, ShieldCheckIcon, SparklesIcon,
+  TerminalIcon, UserIcon,
 } from 'lucide-react';
 import * as api from '@/lib/api';
 import { getAiSettings, aiBreakdownRequirement } from '@/lib/ai-api';
 import { postChildCreationActivity } from '@/lib/child-activity';
 import type { AiSettingsView, BreakdownContext } from '@/types/ai';
+import type { RepoSummary } from '@/types';
 import { extractBreakdownKeywords } from '@/lib/breakdown-keywords';
 import { AiBreakdownDialog } from './ai-breakdown-dialog';
 import { BreakdownRepoPicker } from './breakdown-repo-picker';
@@ -15,10 +16,19 @@ import type { WorkitemChild, WorkitemTypeOption } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
+import { useAttribution } from '@/store/attribution';
+import { useClipboard } from '@/hooks/use-clipboard';
+import { workitemScanRepoIds } from '@/lib/workitem-repos';
+import { buildCodexLaunchCommand } from '@/lib/agent-launch';
+import { StartProcessingButton } from '../start-processing';
 import { useWorkitemWorkflowStatuses, type WorkflowStatusItem } from '@/hooks/use-workitem-workflow-statuses';
 import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ListBox } from '@/components/ui/list-box';
+import { Select } from '@/components/ui/select';
+import { Surface } from '@/components/ui/surface';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -30,8 +40,16 @@ import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SectionHeader } from '@/components/section-header';
 import { StatusIcon } from '@/components/status-icon';
 import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
-import { READONLY_BTN_CLASS, WriteOpGatedTrigger } from '@/components/WriteOpButton';
+import { READONLY_BTN_CLASS } from '@/components/WriteOpButton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SearchableAssigneePopover, type AssigneeOption } from './assignee-popover';
+
+const EMPTY_REPOS: RepoSummary[] = [];
 
 const SEVERITY_OPTIONS = [
   { label: '致命', color: 'bg-danger' },
@@ -88,7 +106,7 @@ export function InlineStatusDropdown({
       onKeyDown={(e) => e.stopPropagation()}
       className="shrink-0"
     >
-      <Dropdown
+      <DropdownMenu
         isOpen={open}
         onOpenChange={(v) => {
           // 状态更新中：保留可聚焦与 hover 说明，但不允许再次展开菜单
@@ -97,64 +115,62 @@ export function InlineStatusDropdown({
           if (v) void fetchStatuses();
         }}
       >
-        <Dropdown.Trigger
-          type="button"
-          aria-disabled={updatingStatus || undefined}
-          className={cn(
-            'group/status h-6 gap-1.5 px-1.5 text-xs font-medium inline-flex items-center rounded-sm transition-colors hover:bg-surface-secondary',
-            updatingStatus && READONLY_BTN_CLASS,
-          )}
-          aria-label={updatingStatus ? '正在更新状态…' : '点击快速更改状态'}
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              aria-disabled={updatingStatus || undefined}
+              className={cn(
+                'group/status gap-1.5 font-medium hover:bg-surface-secondary',
+                updatingStatus && READONLY_BTN_CLASS,
+              )}
+              aria-label={updatingStatus ? '正在更新状态…' : '点击快速更改状态'}
+            />
+          }
         >
           {updatingStatus ? (
             <Spinner className="size-3.5" />
           ) : (
             <StatusIcon status={displayStatus} className="size-3.5 shrink-0" />
           )}
-          <span className="text-[12px] text-muted-foreground group-hover/status:text-foreground">
+          <span className="text-muted-foreground group-hover/status:text-foreground">
             {displayStatus || '未指定'}
           </span>
-        </Dropdown.Trigger>
-        <Dropdown.Popover className="min-w-36">
-          <Dropdown.Menu
-            aria-label="流转状态"
-            onAction={(key) => {
-              const s = statuses.find((item) => item.id === String(key) || item.name === String(key));
-              if (s) void handleSelectStatus(s);
-            }}
-          >
-            {loadingStatuses ? (
-              <Dropdown.Item id="__loading" isDisabled textValue="读取状态流程…">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Spinner className="size-3" />
-                  <span>读取状态流程…</span>
-                </div>
-              </Dropdown.Item>
-            ) : statuses.length === 0 ? (
-              <Dropdown.Item id="__empty" isDisabled textValue="暂无可流转状态">
-                <span className="text-xs text-muted-foreground">暂无可流转状态</span>
-              </Dropdown.Item>
-            ) : (
-              statuses.map((s) => {
-                const isCurrent = s.id === localStatus.id || s.name === localStatus.name;
-                return (
-                  <Dropdown.Item
-                    key={s.id}
-                    id={s.id}
-                    textValue={s.name}
-                    className={cn('flex cursor-pointer items-center justify-between text-xs', isCurrent && 'font-medium text-primary')}
-                  >
-                    <div className="flex items-center gap-2">
-                      <StatusIcon status={s.name} className="size-3" />
-                      <span>{s.name}</span>
-                    </div>
-                  </Dropdown.Item>
-                );
-              })
-            )}
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" aria-label="流转状态" className="min-w-36">
+          {loadingStatuses ? (
+            <DropdownMenuItem disabled textValue="读取状态流程…">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Spinner className="size-3" />
+                <span>读取状态流程…</span>
+              </div>
+            </DropdownMenuItem>
+          ) : statuses.length === 0 ? (
+            <DropdownMenuItem disabled textValue="暂无可流转状态">
+              <span className="text-muted-foreground">暂无可流转状态</span>
+            </DropdownMenuItem>
+          ) : (
+            statuses.map((s) => {
+              const isCurrent = s.id === localStatus.id || s.name === localStatus.name;
+              return (
+                <DropdownMenuItem
+                  key={s.id}
+                  textValue={s.name}
+                  onSelect={() => void handleSelectStatus(s)}
+                  className={cn('justify-between', isCurrent && 'font-medium text-primary')}
+                >
+                  <div className="flex items-center gap-2">
+                    <StatusIcon status={s.name} className="size-3" />
+                    <span>{s.name}</span>
+                  </div>
+                </DropdownMenuItem>
+              );
+            })
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -236,8 +252,75 @@ export function ChildrenCard({
   const addOptimisticChild = useApp((s) => s.addOptimisticChild);
   const reloadComments = useApp((s) => s.reloadComments);
   const openSettings = useUi((s) => s.openSettings);
-  const repositories = useApp((s) => s.repositories) ?? [];
+  const repositories = useApp((s) => s.repositories) ?? EMPTY_REPOS;
   const allowWriteOps = settings?.allowWriteOps ?? false;
+
+  // Agent 联动（纯前端）：子任务行共享父级加载的本地仓库绑定与 active-workitem 状态，
+  // 行内「处理」写入上下文，行尾 chip 透出「处理中 · 仓库」，并支持复制 Codex 启动命令。
+  const iterationName = useUi((s) => s.iterationKey);
+  const loadBindings = useAttribution((s) => s.loadBindings);
+  const loadActiveWorkitems = useAttribution((s) => s.loadActiveWorkitems);
+  const bindings = useAttribution((s) => s.bindings);
+  const activeWorkitems = useAttribution((s) => s.activeWorkitems);
+  const { copy } = useClipboard();
+
+  useEffect(() => {
+    // 每行一个「处理」实例会跳过各自的自动加载，这里统一加载一次（本地 IPC，失败静默）。
+    void loadBindings({ silent: true });
+    void loadActiveWorkitems({ silent: true });
+  }, [loadBindings, loadActiveWorkitems]);
+
+  /** 每个子任务当前所在本地仓库（同一工作项多仓库时以最后一次写入的记录为准） */
+  const activeChildContext = useMemo(() => {
+    const map = new Map<string, { repoId: number; repoName: string; path: string }>();
+    for (const [repoIdText, item] of Object.entries(activeWorkitems)) {
+      if (!item?.workitemId) continue;
+      const repoId = Number(repoIdText);
+      if (!Number.isFinite(repoId)) continue;
+      const binding = bindings.find((entry) => entry.repoId === repoId);
+      if (!binding) continue;
+      const repoName = repositories.find((repo) => repo.id === repoId)?.name || `#${repoId}`;
+      map.set(item.workitemId, { repoId, repoName, path: binding.path });
+    }
+    return map;
+  }, [activeWorkitems, bindings, repositories]);
+
+  /**
+   * 复制 Codex 启动命令：优先使用该子任务当前所在仓库；否则在「父需求关联 ∩ 已绑定」的唯一候选上生成；
+   * 多候选 / 无绑定则引导先点「处理」或在设置中绑定。
+   */
+  const copyCodexCommand = useCallback((task: WorkitemChild) => {
+    const childCategory = (task.category ?? category).toLowerCase() === 'bug' ? 'Bug' : 'Task';
+    const active = activeChildContext.get(task.workitemId);
+    let binding = active ? bindings.find((entry) => entry.repoId === active.repoId) : undefined;
+
+    if (!binding && settings) {
+      const scanIds = workitemScanRepoIds(childCategory, task.workitemId, settings, parentWorkitemId);
+      const candidates = bindings.filter((entry) => scanIds.includes(entry.repoId));
+      if (candidates.length === 1) binding = candidates[0];
+      else if (candidates.length === 0 && bindings.length === 1) binding = bindings[0];
+    }
+
+    if (!binding) {
+      toast.add({
+        title: '尚未确定本地仓库',
+        description: '先在子任务行点「处理」选择要使用的本地仓库，再复制 Codex 启动命令。',
+        type: 'warning',
+        actionProps: { children: '前往设置', onClick: () => openSettings('attribution') },
+      });
+      return;
+    }
+
+    const command = buildCodexLaunchCommand(binding.path, {
+      identifier: task.identifier || task.workitemId,
+      subject: task.subject,
+      category: childCategory,
+      parentIdentifier,
+      parentSubject,
+      iterationName,
+    });
+    void copy(command, `已复制 Codex 启动命令（${binding.path}）`);
+  }, [activeChildContext, bindings, category, copy, iterationName, openSettings, parentIdentifier, parentSubject, parentWorkitemId, settings]);
 
   const breakdownKeywords = useMemo(
     () => extractBreakdownKeywords(parentSubject || title, parentDescription || ''),
@@ -504,17 +587,11 @@ export function ChildrenCard({
       <span className="font-mono text-xs tabular-nums text-muted-foreground">{items.length}</span>
       {isBug ? (
         openDefectsCount > 0 ? (
-          <Badge
-            variant="outline"
-            className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[11px] font-medium text-destructive"
-          >
+          <Badge variant="soft" color="danger" size="sm" className="font-medium">
             <span className="font-mono tabular-nums">{openDefectsCount}</span> 待修复
           </Badge>
         ) : (
-          <Badge
-            variant="outline"
-            className="border-success/30 bg-success/10 px-1.5 py-0 text-[11px] font-normal text-success"
-          >
+          <Badge variant="soft" color="success" size="sm">
             全部已解决
           </Badge>
         )
@@ -579,7 +656,7 @@ export function ChildrenCard({
             if (key !== null) setTypeId(String(key));
           }}
         >
-          <Select.Trigger className="h-7 min-h-7 gap-1.5 rounded-md px-2 text-xs font-medium">
+          <Select.Trigger className="gap-1.5 font-medium">
             <Select.Value>
               {({ state }) => {
                 const currentType = types.find((t) => t.id === state.selectedItems[0]?.key) || types[0];
@@ -609,7 +686,7 @@ export function ChildrenCard({
           </Select.Popover>
         </Select>
       ) : (
-        <div className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2 text-xs font-medium text-foreground">
+        <div className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2 text-xs font-medium text-foreground">
           {isBug ? <BugIcon className="size-3 text-destructive/70 shrink-0" /> : <PlusIcon className="size-3 text-primary shrink-0" />}
           <span>{types[0]?.name || (isBug ? '缺陷' : '子任务')}</span>
         </div>
@@ -626,7 +703,7 @@ export function ChildrenCard({
             if (key !== null) setSelectedSeverity(String(key));
           }}
         >
-          <Select.Trigger className="h-7 min-h-7 gap-1.5 rounded-md px-2 text-xs font-medium">
+          <Select.Trigger className="gap-1.5 font-medium">
             <Select.Value>
               {({ state }) => {
                 const sev = SEVERITY_OPTIONS.find((s) => s.label === state.selectedItems[0]?.key) || SEVERITY_OPTIONS[2];
@@ -670,7 +747,7 @@ export function ChildrenCard({
           }
         }}
       >
-        <Select.Trigger className="h-7 min-h-7 gap-1.5 rounded-md px-2 text-xs font-medium">
+        <Select.Trigger className="gap-1.5 font-medium">
           <Select.Value>
             {({ state }) => {
               const item = assigneeCandidates.find((c) => c.id === state.selectedItems[0]?.key);
@@ -725,7 +802,7 @@ export function ChildrenCard({
         maxLength={500}
         autoFocus
         placeholder={isBug ? '输入缺陷描述，按 ↵ 快速创建…' : '输入子任务名称，按 ↵ 快速创建…'}
-        className="h-7 rounded-md border-border/70 text-xs flex-1 min-w-44 bg-background"
+        className="border-border/70 flex-1 min-w-44 bg-background"
         disabled={submitting}
         onKeyDown={(e) => {
           if (e.key !== 'Tab') {
@@ -751,19 +828,19 @@ export function ChildrenCard({
 
       <div className="flex items-center gap-1 shrink-0">
         <Button
-          size="xs"
+          size="sm"
           disabled={submitting || !newSubject.trim()}
           onPress={() => void handleCreate()}
-          className="h-7 rounded-md px-2.5 text-xs font-medium"
+          className="font-medium"
         >
           {submitting ? '创建中…' : '创建'}
         </Button>
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           disabled={submitting}
           onPress={cancelAdding}
-          className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground"
         >
           取消
         </Button>
@@ -779,43 +856,56 @@ export function ChildrenCard({
         hint={description}
         action={(
           <div className="flex items-center gap-1.5">
-            {!isBug && (
-              allowWriteOps ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={aiDirectLoading}
-                  onPress={() => void handleAiBreakdown()}
-                  className="text-primary hover:text-primary hover:bg-primary/10"
-                  title="根据需求描述一键智能拆解前端、后端与自测子任务"
+            {/* AI 拆解与新建按使用场景收纳进「更多」，避免常驻按钮抢占区块标题 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                data-testid="children-card-more-trigger"
+                render={(
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`更多${title}操作`}
+                    className="gap-1 text-muted-foreground hover:text-foreground"
+                  />
+                )}
+              >
+                <MoreHorizontalIcon className="size-3.5" />
+                <span>更多</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" aria-label={`${title}更多操作`} className="w-56">
+                <DropdownMenuItem
+                  data-testid="children-card-more-add"
+                  aria-disabled={!allowWriteOps || undefined}
+                  onPress={startAdding}
+                  className={cn('gap-2', !allowWriteOps && 'text-muted-foreground')}
                 >
-                  {aiDirectLoading ? (
-                    <Spinner className="size-3.5 mr-1" />
-                  ) : (
-                    <SparklesIcon className="size-3.5 mr-1 text-primary" />
+                  <PlusIcon className="size-3.5" />
+                  <span>新建{title}</span>
+                  {!allowWriteOps && (
+                    <span className="ml-auto text-[10px] text-muted-foreground">只读模式</span>
                   )}
-                  {aiDirectLoading ? 'AI 拆解生成中…' : 'AI 智能拆解'}
-                </Button>
-              ) : (
-                <WriteOpGatedTrigger
-                  label="AI 智能拆解"
-                  icon={<SparklesIcon className="size-3.5" />}
-                  variant="ghost"
-                />
-              )
-            )}
-            {allowWriteOps ? (
-              <Button variant="ghost" size="sm" onPress={startAdding}>
-                <PlusIcon data-icon="inline-start" />
-                新建{title}
-              </Button>
-            ) : (
-              <WriteOpGatedTrigger
-                label={`新建${title}`}
-                icon={<PlusIcon />}
-                variant="ghost"
-              />
-            )}
+                </DropdownMenuItem>
+                {!isBug && (
+                  <DropdownMenuItem
+                    data-testid="ai-breakdown-menu-item"
+                    disabled={aiDirectLoading}
+                    aria-disabled={!allowWriteOps || undefined}
+                    onPress={() => void handleAiBreakdown()}
+                    className={cn('gap-2', !allowWriteOps && 'text-muted-foreground')}
+                  >
+                    {aiDirectLoading ? (
+                      <Spinner className="size-3.5" />
+                    ) : (
+                      <SparklesIcon className={cn('size-3.5', allowWriteOps ? 'text-primary' : 'text-muted-foreground')} />
+                    )}
+                    <span>{aiDirectLoading ? 'AI 拆解生成中…' : 'AI 智能拆解'}</span>
+                    {!allowWriteOps && !aiDirectLoading && (
+                      <span className="ml-auto text-[10px] text-muted-foreground">只读模式</span>
+                    )}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       />
@@ -825,6 +915,7 @@ export function ChildrenCard({
           {items.map((task) => {
             const isCompleted = /完成|已解决|已关闭|已发布|已合并|已修复/.test(task.status || '');
             const isSelected = selectedChildId === task.workitemId;
+            const activeContext = activeChildContext.get(task.workitemId);
             return (
               <div
                 key={task.workitemId}
@@ -844,8 +935,8 @@ export function ChildrenCard({
                   type="button"
                   data-testid="child-row-open"
                   onClick={() => onSelect(task)}
-                  aria-label={`查看 ${task.identifier ?? ''} ${task.subject ?? ''}`.trim()}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  aria-label={`打开 ${task.identifier ?? ''} ${task.subject ?? ''} 详情`.trim()}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {/* 编号：Task 浅蓝/默认，Bug 浅红标识 */}
                   <div className="flex w-24 shrink-0 items-center gap-1">
@@ -865,6 +956,35 @@ export function ChildrenCard({
                   />
                 </button>
 
+                {/* Agent 联动：处理中状态（常驻）+ 开始处理入口（写入 .nervd/active-workitem.json） */}
+                <div
+                  className="flex shrink-0 items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  {activeContext && (
+                    <Chip
+                      size="sm"
+                      variant="soft"
+                      color="accent"
+                      className="max-w-28 shrink-0"
+                      title={`当前处理仓库：${activeContext.path}`}
+                    >
+                      <Chip.Label className="truncate">处理中 · {activeContext.repoName}</Chip.Label>
+                    </Chip>
+                  )}
+                  <span data-testid="child-agent-start" className="inline-flex">
+                    <StartProcessingButton
+                      workitemId={task.workitemId}
+                      category={task.category?.toLowerCase() === 'bug' ? 'Bug' : 'Task'}
+                      parentWorkitemId={parentWorkitemId}
+                      size="xs"
+                      iconOnly
+                      disableAutoLoad
+                    />
+                  </span>
+                </div>
+
                 {/* 处理人下拉切换 */}
                 <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                   <InlineAssigneeDropdown task={task} candidateAssignees={candidateAssignees} />
@@ -872,6 +992,31 @@ export function ChildrenCard({
 
                 {/* 悬停快捷动作条 */}
                 <div className="flex items-center gap-1">
+                  {/* 复制 Agent 启动命令：纯前端生成 cd + codex prompt，粘贴到终端即可开始 */}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          data-testid="child-codex-copy"
+                          className={cn(
+                            'text-muted-foreground transition-opacity hover:text-foreground',
+                            // 已开始处理的子任务常驻展示「复制 Codex 命令」，让下一步动作可发现
+                            activeContext ? 'opacity-100' : 'opacity-0 group-hover/row:opacity-100',
+                          )}
+                          aria-label="复制 Codex 启动命令"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyCodexCommand(task);
+                          }}
+                        />
+                      }
+                    >
+                      <TerminalIcon className="size-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent>复制 Codex 启动命令（含该子任务上下文）</TooltipContent>
+                  </Tooltip>
                   <div
                     onClick={(e) => e.stopPropagation()}
                     className="opacity-0 transition-opacity group-hover/row:opacity-100"
@@ -884,7 +1029,7 @@ export function ChildrenCard({
                         <Button
                           variant="ghost"
                           size="icon-xs"
-                          className="size-6 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/row:opacity-100"
+                          className="text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/row:opacity-100"
                           aria-label="在详情抽屉中查看与编辑"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -908,8 +1053,8 @@ export function ChildrenCard({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
-              className="w-full justify-start rounded-none border-t border-border/40 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground h-8 font-normal"
+              size="default"
+              className="w-full justify-start rounded-none border-t border-border/40 text-muted-foreground hover:text-foreground font-normal"
               onPress={startAdding}
             >
               <PlusIcon className="size-3.5 shrink-0" />

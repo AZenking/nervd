@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ProgressBar } from '@heroui/react';
+import { ProgressBar } from '@/components/ui/progress-bar';
 import { formatElapsedTime } from '@/hooks/use-elapsed-time';
 import { cn } from '@/lib/utils';
 

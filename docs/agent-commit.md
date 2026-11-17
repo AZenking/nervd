@@ -148,6 +148,26 @@ legacy 文件位于当前 worktree 的 git dir（linked worktree 下是
 `.git/worktrees/<name>/`），不会跨 worktree 共享；并行 Agent 请优先使用
 每 worktree 自己的 `.nervd/active-workitem.json`。
 
+### 3.3 开始处理生成的脚手架
+
+在 nervd 中点击「开始处理」后，除 `.nervd/active-workitem.json` 外还会生成
+（每次覆盖）：
+
+```text
+<repo-root>/.nervd/
+├── agent-task.md                 # 任务上下文、本地分支/HEAD/工作区、推荐命令、归属规则
+├── .gitignore                    # 内容为 *，仅忽略 .nervd 自身
+├── active-workitem.json
+└── scripts/
+    ├── lib-attribution.sh
+    ├── agent-commit.sh
+    ├── read-active-workitem.sh
+    └── check-commit-attribution.sh
+```
+
+Agent 可直接执行 `./.nervd/scripts/agent-commit.sh ...`；脚本由 nervd 二进制内嵌，
+随应用版本更新。生成失败只记日志，不影响当前工作项写入。
+
 ### 3.3 路径与仓库根
 
 ```bash

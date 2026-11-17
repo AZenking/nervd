@@ -366,4 +366,18 @@ describe('AttributionSection 设置分区', () => {
     expect(document.body.textContent).toContain('./scripts/agent-commit.sh -m');
     expect(document.body.textContent).toContain('.nervd/active-workitem.json');
   });
+
+  it('明确标注构建事件暂未接入（同步说明 / 状态行 / 回写策略），避免误以为构建归属已生效', async () => {
+    await render();
+    const text = document.body.textContent ?? '';
+
+    // 同步分组说明与状态行：只接入 commit / MR
+    expect(text).toContain('构建事件暂未接入');
+    expect(text).toContain('同步范围仅包含 commit / MR');
+    // 回写策略中提及「构建失败」的位置同步澄清
+    expect(text).toContain('构建失败回写依赖构建事件归属');
+    // 不破坏原有七个分区：回写策略与同步状态仍在
+    expect(text).toContain('回写策略');
+    expect(text).toContain('同步状态');
+  });
 });

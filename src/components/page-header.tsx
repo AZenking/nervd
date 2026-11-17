@@ -93,7 +93,7 @@ function PageHeaderSecondaryActions({ items }: { items: PageHeaderSecondaryActio
         {items.map((item) => (
           <span key={item.key} className="flex items-center">
             {item.render ?? (
-              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onPress={item.onSelect}>
+              <Button variant="ghost" size="sm" className="gap-1.5" onPress={item.onSelect}>
                 {item.icon}
                 <span>{item.label}</span>
               </Button>

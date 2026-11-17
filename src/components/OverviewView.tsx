@@ -1,28 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, ProgressBar } from '@heroui/react';
+import { ProgressBar } from '@/components/ui/progress-bar';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useShallow } from 'zustand/react/shallow';
 import { useApp } from '../store/app';
-import { useUi, UNPLANNED_ITERATION, visibleIterations } from '../store/ui';
+import { useUi, UNPLANNED_ITERATION, visibleIterations, type DetailTabKey } from '../store/ui';
 import type { Category } from '../types';
 import { CATEGORY_LABELS } from '../types';
 import { cn } from '@/lib/utils';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { PageHeader } from './page-header';
-import { StatusBadge, connectionStatus, statusMeta } from './StatusBadge';
+import { StatusBadge, connectionStatus } from './StatusBadge';
 import { StatusIcon } from './status-icon';
 import { WorkitemPeekDrawer } from './workitem-peek-drawer';
 import { ciStatusInfo } from '@/lib/ci';
-import { calculateSprintRemaining } from '@/lib/iteration-period';
 import { scopeOverviewItems, sortRecentOverviewItems } from '@/lib/overview-metrics';
 import { CycleHeaderBanner } from './overview/cycle-header-banner';
-import { KpiCardsGrid } from './overview/kpi-cards-grid';
 import { QuickBuildConsole } from './overview/quick-build-console';
-import { WorkitemStatusChart } from './overview/workitem-status-chart';
-import { WorkitemUpdateActivityChart } from './overview/workitem-update-activity-chart';
 import { RepoCiSummary, FlowPipelineSummary } from './overview/delivery-status';
 import { WorkitemsDataTable } from './overview/workitems-data-table';
+import { IterationStatsSection } from './overview/iteration-stats-section';
 import { RefreshButton } from './overview/refresh-button';
 
 const OVERVIEW_CATEGORIES: Category[] = ['Req', 'Bug', 'Task'];
@@ -128,6 +129,7 @@ export function OverviewView() {
     [iterationItems],
   );
 
+  // 需要关注 = 失败构建 + CI 查询失败 + 未绑定 CI（异常总数原在 KPI 卡里重复出现，现统一收敛到本区块标题）。
   const attention = useMemo(() => {
     const failedBuilds = [
       ...pipelines.map((pipeline) => runsByPipeline[pipeline.pipelineId]?.[0]?.status),
@@ -140,6 +142,8 @@ export function OverviewView() {
     const unboundCi = watchedRepos.filter((repoId) => !settings?.repoCiBindings?.[String(repoId)]).length;
     return { failedBuilds, ciErrors, unboundCi };
   }, [pipelines, repoCiByRepo, runsByPipeline, settings?.repoCiBindings, watchedRepos]);
+
+  const attentionTotal = attention.failedBuilds + attention.ciErrors + attention.unboundCi;
 
   const refresh = () => {
     void loadOverviewIterations({ refresh: true });
@@ -155,28 +159,16 @@ export function OverviewView() {
     void useApp.getState().select(item.workitemId);
   };
 
-  const openInWorkbench = (id: string, identifier: string, subject: string) => {
+  const openInWorkbench = (id: string, identifier: string, subject: string, detailTab?: DetailTabKey) => {
     setDrawerWorkitemId(null);
-    openWorkitem(id, { workitemId: id, identifier, subject });
+    // 分栏（Peek）转全屏时携带当前页签：缺省由 openWorkitem 重置为「交付进展」。
+    openWorkitem(id, { workitemId: id, identifier, subject }, undefined, detailTab ? { detailTab } : undefined);
   };
 
   const iterationLoading = overviewIterations.status === 'loading';
   const categoryLoading = activeCategoryState.status === 'loading' || activeCategoryState.status === 'refreshing';
   const showWorkitemContent = overviewIterations.status === 'success' && Boolean(currentIteration);
-  const remaining = calculateSprintRemaining(currentIteration?.endDate);
-
-  const activeBuildCount = useMemo(() => {
-    let count = 0;
-    for (const entry of Object.values(repoCiByRepo)) {
-      const status = entry?.snapshot?.status || entry?.snapshot?.runs?.[0]?.status;
-      if (statusMeta(status).tone === 'run') count += 1;
-    }
-    for (const pipeline of pipelines) {
-      const latest = runsByPipeline[pipeline.pipelineId]?.[0];
-      if (latest && statusMeta(latest.status).tone === 'run') count += 1;
-    }
-    return count;
-  }, [pipelines, repoCiByRepo, runsByPipeline]);
+  // 活跃构建数由 QuickBuildConsole 的活跃任务列表统一呈现（原 KPI 自算口径与其重复，已移除）。
 
   // DESIGN §F.3：工作区 < 760px 时页头切 compact（宽度由 Shell 统一测量）
   const compact = useWorkspaceCompact();
@@ -212,7 +204,7 @@ export function OverviewView() {
                 if (OVERVIEW_CATEGORIES.includes(key as Category)) setActiveCategory(key as Category);
               }}
             >
-              <TabsList size="sm">
+              <TabsList>
                 {OVERVIEW_CATEGORIES.map((category) => (
                   <TabsTrigger key={category} value={category}>
                     {CATEGORY_LABELS[category]}
@@ -243,38 +235,29 @@ export function OverviewView() {
           />
         )}
 
-        {overviewIterations.status === 'error' && (
-          <Alert status="danger">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>迭代加载失败</Alert.Title>
-              <Alert.Description className="flex flex-wrap items-center gap-2">
-                <span>{overviewIterations.error || '无法取得真实迭代列表。'}</span>
-                <Button size="sm" variant="secondary" onPress={() => void loadOverviewIterations({ refresh: true })}>
-                  重试
-                </Button>
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
-        )}
-
-        {overviewIterations.status === 'success' && !currentIteration && (
-          <Alert status="warning">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>暂无可用迭代</Alert.Title>
-              <Alert.Description>真实迭代列表为空或当前没有进行中、未开始的迭代。</Alert.Description>
-            </Alert.Content>
-          </Alert>
-        )}
-
-        {/* 需要关注卡片：Header=标题+说明；Content=三项异常细分（CI 配置类问题可直达设置处理） */}
-        <Card>
-          <Card.Header className="gap-1">
-            <Card.Title className="text-[13px] font-semibold tracking-tight text-foreground">需要关注</Card.Title>
-            <Card.Description className="text-xs text-muted-foreground">
-              构建失败与 CI 配置异常的细分汇总，与下方「需要关注」KPI 联动
-            </Card.Description>
+        {/* 1. 需要关注：失败构建 / CI 查询失败 / 未绑定 CI（异常总数并入标题，替代原 KPI 重复统计） */}
+        <Card aria-label="需要关注">
+          <Card.Header className="flex flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Card.Title>需要关注</Card.Title>
+              <Card.Description className="mt-1 text-xs text-muted-foreground">
+                构建失败、CI 查询失败与未绑定 CI 的细分汇总，优先处理异常后再回到下方监控定位。
+              </Card.Description>
+            </div>
+            <Chip
+              size="sm"
+              variant="soft"
+              color={
+                attention.failedBuilds > 0
+                  ? 'danger'
+                  : attentionTotal > 0
+                    ? 'warning'
+                    : 'success'
+              }
+              className="shrink-0 font-mono tabular-nums"
+            >
+              {attentionTotal > 0 ? `共 ${attentionTotal} 处待处理` : '一切正常'}
+            </Chip>
           </Card.Header>
           <Card.Content className="grid gap-3 sm:grid-cols-3">
             <div className="flex items-center gap-2 text-xs">
@@ -303,9 +286,9 @@ export function OverviewView() {
               {attention.ciErrors > 0 && (
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="xs"
                   onPress={() => useUi.getState().openSettings('ci')}
-                  className="h-6 shrink-0 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                  className="shrink-0"
                 >
                   前往设置
                 </Button>
@@ -326,9 +309,9 @@ export function OverviewView() {
               {attention.unboundCi > 0 && (
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="xs"
                   onPress={() => useUi.getState().openSettings('ci')}
-                  className="h-6 shrink-0 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                  className="shrink-0"
                 >
                   前往设置
                 </Button>
@@ -337,113 +320,127 @@ export function OverviewView() {
           </Card.Content>
         </Card>
 
-        <KpiCardsGrid
-          categoryLabel={CATEGORY_LABELS[activeCategory]}
-          itemCount={iterationItems.length}
-          dataComplete={activeCategoryState.complete}
-          remainingLabel={remaining.label}
-          remainingTone={remaining.tone}
-          activeBuildCount={activeBuildCount}
-          failedCount={attention.failedBuilds}
-          ciErrorCount={attention.ciErrors}
-          unboundCiCount={attention.unboundCi}
-          repoCount={watchedRepos.length}
-          pipelineCount={pipelines.length}
-          loading={categoryLoading}
-        />
+        {/* 2. 活跃构建：QuickBuildConsole 自带运行状态 / 耗时进度 / 日志入口与「触发构建」工具栏按钮 */}
+        <section aria-label="活跃构建">
+          <QuickBuildConsole />
+        </section>
 
-        {currentIteration && overviewIterations.status === 'success' && (
-          <CycleHeaderBanner
-            iteration={currentIteration}
-            iterations={availableIterations}
-            itemCount={iterationItems.length}
-            dataComplete={activeCategoryState.complete}
-            onOpenIterationWorkbench={(name) => setIteration(name)}
-            onSelectIteration={(id) => {
-              setSelectedIterationId(id);
-              const selected = availableIterations.find((iteration) => iteration.id === id);
-              if (selected) setIterationKey(selected.name);
-            }}
-          />
-        )}
+        {/* 3. 当前迭代：周期、已加载范围、进入迭代工作台入口与工作项列表 */}
+        <section aria-label="当前迭代" className="flex flex-col gap-4">
+          {overviewIterations.status === 'error' && (
+            <Alert status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>迭代加载失败</Alert.Title>
+                <Alert.Description className="flex flex-wrap items-center gap-2">
+                  <span>{overviewIterations.error || '无法取得真实迭代列表。'}</span>
+                  <Button size="sm" variant="secondary" onPress={() => void loadOverviewIterations({ refresh: true })}>
+                    重试
+                  </Button>
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
 
-        <QuickBuildConsole />
+          {overviewIterations.status === 'success' && !currentIteration && (
+            <Alert status="warning">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>暂无可用迭代</Alert.Title>
+                <Alert.Description>真实迭代列表为空或当前没有进行中、未开始的迭代。</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
 
-        {/* 交付状态：两张子卡内部 Header 已含标题与说明（重点仓库 CI / 组织级 Flow），不再外挂区块标题 */}
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]" aria-label="交付状态">
+          {currentIteration && overviewIterations.status === 'success' && (
+            <CycleHeaderBanner
+              iteration={currentIteration}
+              iterations={availableIterations}
+              itemCount={iterationItems.length}
+              dataComplete={activeCategoryState.complete}
+              onOpenIterationWorkbench={(name) => setIteration(name)}
+              onSelectIteration={(id) => {
+                setSelectedIterationId(id);
+                const selected = availableIterations.find((iteration) => iteration.id === id);
+                if (selected) setIterationKey(selected.name);
+              }}
+            />
+          )}
+
+          {showWorkitemContent && (
+            <>
+              {activeCategoryState.status === 'partial' && (
+                <Alert status="warning">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>工作项只加载了部分页面</Alert.Title>
+                    <Alert.Description className="flex flex-wrap items-center gap-2">
+                      <span>
+                        已加载{' '}
+                        <span className="font-mono tabular-nums">{activeCategoryState.loadedCount}</span> 项；
+                        图表不会推断未加载数据。
+                        {activeCategoryState.error ? ` ${activeCategoryState.error}` : ''}
+                      </span>
+                      <Button size="sm" variant="secondary" onPress={() => void loadOverviewCategory(activeCategory, { refresh: true })}>
+                        重试分页
+                      </Button>
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+              {activeCategoryState.status === 'error' && (
+                <Alert status="danger">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>工作项加载失败</Alert.Title>
+                    <Alert.Description className="flex flex-wrap items-center gap-2">
+                      <span>{activeCategoryState.error || '无法取得当前类别的工作项。'}</span>
+                      <Button size="sm" variant="secondary" onPress={() => void loadOverviewCategory(activeCategory, { refresh: true })}>
+                        重试
+                      </Button>
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+              <WorkitemsDataTable
+                categoryLabel={CATEGORY_LABELS[activeCategory]}
+                items={recentItems}
+                complete={activeCategoryState.complete}
+                loading={categoryLoading}
+                selectedWorkitemId={drawerWorkitemId}
+                onOpenDetail={openDetail}
+                onOpenWorkbench={(id, identifier, subject) => openInWorkbench(id, identifier, subject)}
+                onRefresh={() => void loadOverviewCategory(activeCategory, { refresh: true })}
+              />
+            </>
+          )}
+        </section>
+
+        {/* 4. 仓库与 Flow 状态：两张子卡内部 Header 已含标题与说明（重点仓库 CI / 组织级 Flow） */}
+        <section
+          className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]"
+          aria-label="仓库与 Flow 状态"
+        >
           <RepoCiSummary />
           <FlowPipelineSummary />
-        </div>
+        </section>
 
+        {/* 5. 迭代统计：状态/更新时间分布收进默认折叠区，展开状态仅当前会话 useState */}
         {showWorkitemContent && (
-          <section className="flex flex-col gap-4" aria-label="工作项速览">
-            {/* 区块标题已由 WorkitemsDataTable 卡片自身 Header（Card.Title + 计数 + Description）承载，不再外挂 */}
-            {activeCategoryState.status === 'partial' && (
-              <Alert status="warning">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>工作项只加载了部分页面</Alert.Title>
-                  <Alert.Description className="flex flex-wrap items-center gap-2">
-                    <span>
-                      已加载{' '}
-                      <span className="font-mono tabular-nums">{activeCategoryState.loadedCount}</span> 项；
-                      图表不会推断未加载数据。
-                      {activeCategoryState.error ? ` ${activeCategoryState.error}` : ''}
-                    </span>
-                    <Button size="sm" variant="secondary" onPress={() => void loadOverviewCategory(activeCategory, { refresh: true })}>
-                      重试分页
-                    </Button>
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-            {activeCategoryState.status === 'error' && (
-              <Alert status="danger">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>工作项加载失败</Alert.Title>
-                  <Alert.Description className="flex flex-wrap items-center gap-2">
-                    <span>{activeCategoryState.error || '无法取得当前类别的工作项。'}</span>
-                    <Button size="sm" variant="secondary" onPress={() => void loadOverviewCategory(activeCategory, { refresh: true })}>
-                      重试
-                    </Button>
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-            <div className="flex flex-col gap-4 lg:flex-row">
-              <WorkitemStatusChart
-                items={iterationItems}
-                complete={activeCategoryState.complete}
-                loading={categoryLoading}
-                title={currentIteration ? `状态分布 · ${currentIteration.name}` : '状态分布'}
-              />
-              <WorkitemUpdateActivityChart
-                items={iterationItems}
-                complete={activeCategoryState.complete}
-                loading={categoryLoading}
-              />
-            </div>
-
-            <WorkitemsDataTable
-              categoryLabel={CATEGORY_LABELS[activeCategory]}
-              items={recentItems}
-              complete={activeCategoryState.complete}
-              loading={categoryLoading}
-              selectedWorkitemId={drawerWorkitemId}
-              onOpenDetail={openDetail}
-              onOpenWorkbench={(id, identifier, subject) => openInWorkbench(id, identifier, subject)}
-              onRefresh={() => void loadOverviewCategory(activeCategory, { refresh: true })}
-            />
-          </section>
+          <IterationStatsSection
+            items={iterationItems}
+            complete={activeCategoryState.complete}
+            loading={categoryLoading}
+            iterationName={currentIteration?.name}
+          />
         )}
       </div>
 
       <WorkitemPeekDrawer
         workitemId={drawerWorkitemId}
         onClose={() => setDrawerWorkitemId(null)}
-        onOpenWorkbench={(id, identifier, subject) => {
-          openInWorkbench(id, identifier ?? '', subject ?? '');
+        onOpenWorkbench={(id, identifier, subject, detailTab) => {
+          openInWorkbench(id, identifier ?? '', subject ?? '', detailTab);
         }}
       />
     </div>

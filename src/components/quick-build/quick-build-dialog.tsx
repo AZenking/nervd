@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal } from '@heroui/react';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   AlertTriangleIcon,
   ClockIcon,
@@ -193,17 +194,25 @@ export function QuickBuildDialog() {
   };
 
   return (
-    <Modal isOpen={open} onOpenChange={setOpen}>
-      <Modal.Backdrop>
-        <Modal.Container placement="top" size="lg">
-          <Modal.Dialog className="relative p-0 overflow-hidden sm:max-w-[640px] mt-[12vh]">
-            <Modal.CloseTrigger aria-label="关闭快速构建" />
-            <Modal.Heading className="sr-only">快速构建</Modal.Heading>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent
+        placement="top"
+        size="lg"
+        showCloseButton={false}
+        aria-label="快速构建"
+        className="overflow-hidden p-0 sm:max-w-[640px]"
+      >
+        <DialogClose
+          aria-label="关闭快速构建"
+          className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+        />
+        <DialogTitle className="sr-only">快速构建</DialogTitle>
 
             {/* 顶栏：搜索输入与快捷键提示（右侧预留关闭 X 的绝对定位空间） */}
-          <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4 pr-11">
-            <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
-            <input
+          <div className="flex shrink-0 items-center gap-2.5 border-b border-border px-4 py-2 pr-11">
+            <SearchIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            {/* 统一走 ui/input：IME 组合态冒泡守卫、focus ring 由原语承担，不再手绘 */}
+            <Input
               ref={inputRef}
               value={query}
               onChange={(e) => {
@@ -215,7 +224,7 @@ export function QuickBuildDialog() {
               aria-label="搜索快速构建目标"
               autoComplete="off"
               spellCheck={false}
-              className="h-full w-full rounded-sm bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="border-0 bg-transparent px-0 shadow-none"
             />
           </div>
 
@@ -506,9 +515,7 @@ export function QuickBuildDialog() {
             </div>
             <span className="text-[11px] font-mono text-muted-foreground">⌘B 随时呼出</span>
           </div>
-        </Modal.Dialog>
-      </Modal.Container>
-    </Modal.Backdrop>
-  </Modal>
+      </DialogContent>
+    </Dialog>
 );
 }

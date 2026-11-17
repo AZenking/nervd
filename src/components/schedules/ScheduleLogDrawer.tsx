@@ -1,11 +1,18 @@
 import { useMemo } from 'react';
-import { Button, Chip, Disclosure, Surface, Tooltip } from '@heroui/react';
+// Disclosure 暂留直连：ui/collapsible 只出口 Root/Trigger/Content，缺 Heading/Indicator/Body 槽位
+import { Disclosure } from '@heroui/react';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Surface } from '@/components/ui/surface';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
   ClockIcon,
   GitCommitIcon,
   GitMergeIcon,
+  SendIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
   Trash2Icon,
@@ -71,7 +78,7 @@ export function ScheduleLogDrawer({
                     size="sm"
                     variant="soft"
                     color="default"
-                    className="font-mono text-[10px] h-4.5 px-1.5"
+                    className="font-mono"
                   >
                     {filteredLogs.length} 条记录
                   </Chip>
@@ -105,19 +112,21 @@ export function ScheduleLogDrawer({
                 </ConfirmButton>
               )}
               <Tooltip>
-                <Tooltip.Trigger>
-                  <Button
-                    isIconOnly
-                    variant="ghost"
-                    size="sm"
-                    className="size-8 text-muted-foreground hover:text-foreground"
-                    onPress={() => onOpenChange(false)}
-                    aria-label="关闭抽屉"
-                  >
-                    <XIcon className="size-4" />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content className="text-xs">关闭 (Esc)</Tooltip.Content>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      isIconOnly
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-foreground"
+                      onPress={() => onOpenChange(false)}
+                      aria-label="关闭抽屉"
+                    >
+                      <XIcon className="size-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>关闭 (Esc)</TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -149,6 +158,10 @@ export function ScheduleLogDrawer({
 
 function LogCard({ log }: { log: ScheduleExecutionLog }) {
   const isSuccess = log.status === 'success';
+  // 构建类（jenkins / pipeline）成功日志只代表「触发提交成功」：当次执行未轮询构建终态。
+  // 分支合并 / 同步类任务语义不变，仍是完整执行成功。
+  const isBuildTriggerSuccess =
+    isSuccess && (log.actionType === 'jenkins' || log.actionType === 'pipeline');
   const isManual = log.triggerMode === 'manual';
   const durationText =
     typeof log.durationMs === 'number'
@@ -163,7 +176,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
     <Surface
       variant="default"
       className={cn(
-        'rounded-xl border border-border/70 p-4 transition-all hover:border-border text-xs space-y-3',
+        'rounded-lg border border-border/70 p-4 transition-colors hover:border-border text-xs space-y-3',
         !isSuccess && 'border-destructive/30 bg-destructive/5',
       )}
     >
@@ -179,11 +192,23 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
             size="sm"
             variant="soft"
             color={isManual ? 'accent' : 'default'}
-            className="font-mono text-[11px] h-5 px-1.5"
+            className="font-mono"
           >
             {isManual ? '手动执行' : 'Cron 定时'}
           </Chip>
           <ActionTypeTag type={log.actionType} />
+          {isBuildTriggerSuccess && (
+            <Chip
+              size="sm"
+              variant="soft"
+              color="warning"
+              data-testid="build-trigger-success-chip"
+              className="gap-1 font-medium"
+            >
+              <SendIcon className="size-3" />
+              <Chip.Label>触发提交成功</Chip.Label>
+            </Chip>
+          )}
         </div>
 
         <div className="flex items-center gap-2.5 font-mono text-[11px] tabular-nums text-muted-foreground shrink-0">
@@ -202,6 +227,23 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
         {log.details || log.error || (isSuccess ? '执行成功，无额外输出' : '执行失败')}
       </div>
 
+      {/* 构建类成功日志：明确「触发提交成功」≠「最终构建成功」 */}
+      {isBuildTriggerSuccess && (
+        <Alert
+          status="warning"
+          data-testid="build-trigger-unconfirmed-hint"
+        >
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description className="text-xs leading-relaxed">
+              「触发提交成功」仅表示已向 CI 提交构建触发，不代表构建已通过；本次执行没有轮询构建终态，
+              <span className="text-foreground">最终构建成功未确认</span>
+              ，请在 Jenkins / 云效 Flow 中查看实际构建结果。
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+
       {/* 分支合并特殊详情 (谨慎 / 激进) */}
       {log.mergeResult && (
         <Surface
@@ -214,12 +256,12 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
               <span>分支同步与合并详情</span>
             </div>
             {log.mergeResult.strategy === 'aggressive' ? (
-              <Chip size="sm" variant="soft" color="warning" className="gap-1 h-5 text-[11px]">
+              <Chip size="sm" variant="soft" color="warning" className="gap-1">
                 <ShieldCheckIcon className="size-3" />
                 <Chip.Label>激进策略 · 零污染影子分支</Chip.Label>
               </Chip>
             ) : (
-              <Chip size="sm" variant="soft" color="accent" className="gap-1 h-5 text-[11px]">
+              <Chip size="sm" variant="soft" color="accent" className="gap-1">
                 <ShieldAlertIcon className="size-3" />
                 <Chip.Label>谨慎策略 · 遇冲突终止</Chip.Label>
               </Chip>
@@ -230,11 +272,11 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
             {/* 分支流动 */}
             <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
               <span className="text-muted-foreground shrink-0 font-sans text-xs">分支流动:</span>
-              <Chip size="sm" variant="secondary" className="font-mono text-[11px] h-5.5 px-2">
+              <Chip size="sm" variant="secondary" className="font-mono">
                 {log.mergeResult.sourceBranch}
               </Chip>
               <ArrowRightIcon className="size-3 text-muted-foreground shrink-0" />
-              <Chip size="sm" variant="secondary" color="accent" className="font-mono text-[11px] h-5.5 px-2">
+              <Chip size="sm" variant="secondary" color="accent" className="font-mono">
                 {log.mergeResult.targetBranch}
               </Chip>
             </div>
@@ -243,19 +285,19 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted-foreground text-xs">冲突检测:</span>
               {log.mergeResult.conflictDetected ? (
-                <Chip size="sm" variant="soft" color="danger" className="gap-1 h-5.5 text-[11px] font-medium">
+                <Chip size="sm" variant="soft" color="danger" className="gap-1 font-medium">
                   <AlertTriangleIcon className="size-3" />
                   <Chip.Label>检测到代码冲突</Chip.Label>
                 </Chip>
               ) : (
-                <Chip size="sm" variant="soft" color="success" className="gap-1 h-5.5 text-[11px] font-medium">
+                <Chip size="sm" variant="soft" color="success" className="gap-1 font-medium">
                   <StatusIcon status="success" className="size-3" decorative />
                   <Chip.Label>无代码冲突</Chip.Label>
                 </Chip>
               )}
 
               {log.mergeResult.mrId && (
-                <Chip size="sm" variant="soft" color="accent" className="font-mono text-[11px] h-5.5">
+                <Chip size="sm" variant="soft" color="accent" className="font-mono">
                   MR #{log.mergeResult.mrId}
                 </Chip>
               )}
@@ -264,7 +306,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
             {log.mergeResult.shadowBranch && (
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5 font-mono text-[11px]">
                 <span className="text-muted-foreground font-sans text-xs shrink-0">零污染隔离分支:</span>
-                <Chip size="sm" variant="soft" color="warning" className="font-mono text-[11px] h-5.5 select-all">
+                <Chip size="sm" variant="soft" color="warning" className="font-mono select-all">
                   {log.mergeResult.shadowBranch}
                 </Chip>
                 <CopyButton text={log.mergeResult.shadowBranch} label="复制影子分支名" />
@@ -294,7 +336,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
                         </code>
                         <span className="truncate text-foreground/90">{c.title}</span>
                         {c.workitems?.map((wi) => (
-                          <Chip key={wi} size="sm" variant="soft" color="accent" className="h-4 px-1 text-[10px] font-mono shrink-0">
+                          <Chip key={wi} size="sm" variant="soft" color="accent" className="font-mono shrink-0">
                             {wi}
                           </Chip>
                         ))}
@@ -314,10 +356,14 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
             )}
 
             {log.error && (
-              <div className="flex items-start gap-1.5 rounded-md border border-destructive/30 bg-destructive/8 p-2 text-destructive text-[11px]">
-                <AlertTriangleIcon className="size-3.5 shrink-0 mt-0.5" />
-                <span>终止原因：{log.error}</span>
-              </div>
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Description className="text-xs leading-relaxed">
+                    终止原因：{log.error}
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
             )}
           </div>
         </Surface>
@@ -327,7 +373,7 @@ function LogCard({ log }: { log: ScheduleExecutionLog }) {
       {log.details && (
         <Disclosure className="text-xs">
           <Disclosure.Heading>
-            <Disclosure.Trigger className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground outline-none">
+            <Disclosure.Trigger className="flex items-center gap-1.5 rounded-md py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
               <span className="font-mono text-[11px]">查看原始输出</span>
               <Disclosure.Indicator className="size-3.5 text-muted-foreground" />
             </Disclosure.Trigger>

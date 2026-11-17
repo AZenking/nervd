@@ -29,7 +29,6 @@ export interface LinkedRepoMrStatusProps {
   hasMatchingMergedMr: boolean;
   divergence: ReturnType<typeof useBranchDivergence>;
   onViewMr: (mr?: MrSummary | { localId: number }) => void;
-  onCreateMr: () => void;
 }
 
 export function LinkedRepoMrStatus({
@@ -41,15 +40,15 @@ export function LinkedRepoMrStatus({
   hasMatchingMergedMr,
   divergence,
   onViewMr,
-  onCreateMr,
 }: LinkedRepoMrStatusProps) {
-  const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
+  // 摘要行只读：「发起 MR / 创建 MR」等写操作只在展开后的交付详情（合并请求区块）中提供。
   // 1. 存在进行中的合并请求 (Active MR)
   if (targetActiveMr) {
     const statusInfo = getMrStatusInfo(
       targetActiveMr.state,
       (targetActiveMr as { hasConflict?: boolean }).hasConflict,
     );
+    const mergeTarget = targetActiveMr.targetBranch || operationBaseBranch;
     return (
       <Tooltip>
         <TooltipTrigger
@@ -60,23 +59,29 @@ export function LinkedRepoMrStatus({
               size="xs"
               onPress={() => onViewMr(targetActiveMr)}
               className="group h-auto p-1 gap-1.5 text-xs text-left cursor-pointer max-w-full font-normal"
-              aria-label={`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label}`}
+              aria-label={`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label} · 合入目标：${mergeTarget}`}
             >
-              <Chip size="sm" color="accent" variant="soft" className="font-mono text-[11px] font-semibold shrink-0">
+              <Chip size="sm" color="accent" variant="soft" className="font-mono font-semibold shrink-0">
                 !{targetActiveMr.localId}
               </Chip>
               <Chip
                 size="sm"
                 variant="soft"
                 color={MR_TONE_CHIP_COLOR[statusInfo.tone]}
-                className="text-[11px] font-medium shrink-0"
+                className="font-medium shrink-0"
               >
                 {statusInfo.label}
               </Chip>
+              <span
+                className="min-w-0 truncate font-mono text-[11px] text-muted-foreground"
+                title={`合入目标：${mergeTarget}`}
+              >
+                → {mergeTarget}
+              </span>
             </Button>
           }
         />
-        <TooltipContent>{`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label}`}</TooltipContent>
+        <TooltipContent>{`查看合并请求 !${targetActiveMr.localId} · 状态：${statusInfo.label} · 合入目标：${mergeTarget}`}</TooltipContent>
       </Tooltip>
     );
   }
@@ -86,30 +91,19 @@ export function LinkedRepoMrStatus({
   // 2. 无活跃 MR，但存在未合入的提交（分支超前基准）
   if (developerBranchState === 'exists' && devOnly > 0) {
     return (
-      <div className="flex items-center gap-1.5 text-xs">
-        <Chip size="sm" variant="soft" color="warning" className="text-[11px] font-medium shrink-0">
+      <div className="flex min-w-0 items-center gap-1.5 text-xs">
+        <Chip size="sm" variant="soft" color="warning" className="font-medium shrink-0">
           待合入 ({devOnly} 提交)
         </Chip>
-        <WriteOpGatedTrigger label="发起 MR" variant="link" />
-        {allowWriteOps && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="link"
-                  size="xs"
-                  onPress={onCreateMr}
-                  className="h-auto p-0 text-[11px] text-primary shrink-0"
-                  aria-label="代码已就绪，点击发起 MR 合入基准分支"
-                >
-                  发起 MR
-                </Button>
-              }
-            />
-            <TooltipContent>代码已就绪，点击发起 MR 合入基准分支</TooltipContent>
-          </Tooltip>
-        )}
+        <span
+          className="min-w-0 truncate font-mono text-[11px] text-muted-foreground"
+          title={`合入目标：${operationBaseBranch}`}
+        >
+          → {operationBaseBranch}
+        </span>
+        <span className="shrink-0 truncate text-[11px] text-muted-foreground">
+          在交付详情中操作
+        </span>
       </div>
     );
   }
@@ -123,6 +117,7 @@ export function LinkedRepoMrStatus({
       mr.targetBranch === operationBaseBranch,
   );
   if (matchingMergedMr) {
+    const mergeTarget = matchingMergedMr.targetBranch || operationBaseBranch;
     return (
       <Tooltip>
         <TooltipTrigger
@@ -133,25 +128,31 @@ export function LinkedRepoMrStatus({
               size="xs"
               onPress={() => onViewMr(matchingMergedMr)}
               className="group h-auto p-1 gap-1.5 text-xs text-left cursor-pointer max-w-full font-normal"
-              aria-label={`历史合并请求 !${matchingMergedMr.localId} 已成功合入，点击查看详情`}
+              aria-label={`历史合并请求 !${matchingMergedMr.localId} 已成功合入 ${mergeTarget}，点击查看详情`}
             >
-              <Chip size="sm" color="success" variant="soft" className="font-mono text-[11px] font-medium shrink-0">
+              <Chip size="sm" color="success" variant="soft" className="font-mono font-medium shrink-0">
                 !{matchingMergedMr.localId}
               </Chip>
-              <Chip size="sm" variant="soft" color="success" className="text-[11px] font-medium shrink-0">
+              <Chip size="sm" variant="soft" color="success" className="font-medium shrink-0">
                 已合入
               </Chip>
+              <span
+                className="min-w-0 truncate font-mono text-[11px] text-muted-foreground"
+                title={`合入目标：${mergeTarget}`}
+              >
+                → {mergeTarget}
+              </span>
             </Button>
           }
         />
-        <TooltipContent>{`历史合并请求 !${matchingMergedMr.localId} 已成功合入，点击查看详情`}</TooltipContent>
+        <TooltipContent>{`历史合并请求 !${matchingMergedMr.localId} 已成功合入 ${mergeTarget}，点击查看详情`}</TooltipContent>
       </Tooltip>
     );
   }
   if (hasMatchingMergedMr) {
     return (
       <div className="inline-flex items-center gap-1 text-xs text-success">
-        <Chip size="sm" variant="soft" color="success" className="font-mono text-[11px] font-medium shrink-0">
+        <Chip size="sm" variant="soft" color="success" className="font-mono font-medium shrink-0">
           已合入
         </Chip>
       </div>
@@ -162,7 +163,7 @@ export function LinkedRepoMrStatus({
   if (developerBranchState === 'exists') {
     return (
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Chip size="sm" variant="tertiary" className="text-[11px] font-medium shrink-0">
+        <Chip size="sm" variant="tertiary" className="font-medium shrink-0">
           已对齐
         </Chip>
         <span className="text-[11px] text-muted-foreground truncate">暂无待合变动</span>
@@ -226,7 +227,7 @@ export function LinkedRepoMrList({
                   type="button"
                   variant="ghost"
                   size="xs"
-                  className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                  className="text-muted-foreground hover:text-foreground gap-1"
                   onPress={onCreateMr}
                 >
                   <PlusIcon className="size-3" />

@@ -1,4 +1,5 @@
-import { Accordion } from '@heroui/react';
+import { Accordion } from '@/components/ui/accordion';
+import { Chip } from '@/components/ui/chip';
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -40,7 +41,7 @@ export function NavProjects() {
       <Accordion.Item id="iterations" className="border-none">
         <Accordion.Heading className="group-data-[collapsible=icon]:hidden">
           <Accordion.Trigger className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground">
-            <span>迭代（<span className="font-mono tabular-nums">{loadingIterations ? '…' : iterations.length}</span>）</span>
+            <span>迭代列表（<span className="font-mono tabular-nums">{loadingIterations ? '…' : iterations.length}</span>）</span>
             <Accordion.Indicator />
           </Accordion.Trigger>
         </Accordion.Heading>
@@ -69,9 +70,14 @@ export function NavProjects() {
                       <StatusIcon status={effectiveStatus} />
                       <IterationName name={iteration.name} showOverflowTooltip={!useSidebarTooltip} />
                       {isOngoing && (
-                        <span className="ml-auto rounded-sm bg-success/10 text-success border border-success/20 text-[10px] font-semibold px-2 py-0.5 leading-none group-data-[collapsible=icon]:hidden">
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          color="success"
+                          className="ml-auto group-data-[collapsible=icon]:hidden"
+                        >
                           当前
-                        </span>
+                        </Chip>
                       )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>

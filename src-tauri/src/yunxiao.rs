@@ -98,6 +98,18 @@ impl YunxiaoClient {
     pub async fn put(&self, path: &str, query: &[(&str, String)], body: Value) -> Result<Value, String> {
         self.req(BASE, Method::PUT, path, query, Some(body)).await
     }
+
+    /// ROA 2021-06-25 族 POST（devops.{region}.aliyuncs.com，PAT 走 accessToken 查询参数）。
+    pub async fn post_roa(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+        body: Value,
+    ) -> Result<Value, String> {
+        let mut q: Vec<(&str, String)> = query.to_vec();
+        q.push(("accessToken", self.pat.clone()));
+        self.req(ROA_BASE, Method::POST, path, &q, Some(body)).await
+    }
 }
 
 /// UTF-8 安全截断

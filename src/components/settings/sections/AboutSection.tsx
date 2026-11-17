@@ -14,7 +14,11 @@ import {
   SunIcon,
   TerminalIcon,
 } from 'lucide-react';
-import { Button, Chip, ToggleButton, ToggleButtonGroup } from '@heroui/react';
+// ToggleButton（分段项）上游尚未有 ui 出口，暂留直连；ToggleButtonGroup 走 ui 出口
+import { ToggleButton } from '@/components/ui/toggle-button';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { ToggleButtonGroup } from '@/components/ui/toggle-button-group';
 import { Kbd } from '@/components/ui/kbd';
 import { CopyButton } from '@/components/ui/copy-button';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
@@ -62,10 +66,10 @@ export function AboutSection() {
                 <span className="text-base font-semibold tracking-tight text-foreground">
                   {APP_NAME}
                 </span>
-                <Chip size="sm" variant="secondary" className="font-mono text-xs font-medium">
+                <Chip size="sm" variant="secondary" className="font-mono font-medium">
                   v{APP_VERSION}
                 </Chip>
-                <Chip size="sm" variant="soft" className="text-[11px] font-normal text-muted-foreground">
+                <Chip size="sm" variant="soft" className="font-normal text-muted-foreground">
                   {APP_BUILD_CHANNEL}
                 </Chip>
               </div>
@@ -77,7 +81,7 @@ export function AboutSection() {
               variant="secondary"
               size="sm"
               onPress={() => setAboutOpen(true)}
-              className="gap-1.5 text-xs"
+              className="gap-1.5"
             >
               <InfoIcon className="size-3.5 text-muted-foreground" />
               <span>打开关于卡片</span>
@@ -91,7 +95,7 @@ export function AboutSection() {
               <div className="flex items-center gap-1.5 font-medium text-foreground">
                 <SparklesIcon className="size-3.5 text-primary" />
                 <span>发现新版本 v{updateInfo.latestVersion}</span>
-                <Chip size="sm" color="accent" variant="soft" className="text-[10px]">
+                <Chip size="sm" color="accent" variant="soft">
                   可更新
                 </Chip>
               </div>
@@ -103,7 +107,7 @@ export function AboutSection() {
               variant="primary"
               size="sm"
               onPress={() => void openDownload()}
-              className="h-7 shrink-0 gap-1.5 text-xs font-medium cursor-pointer"
+              className="shrink-0 gap-1.5 font-medium"
             >
               <DownloadIcon className="size-3.5" />
               <span>下载更新</span>
@@ -144,7 +148,7 @@ export function AboutSection() {
                 size="sm"
                 isDisabled={isChecking}
                 onPress={() => void checkForUpdates(false)}
-                className="gap-1.5 text-xs cursor-pointer"
+                className="gap-1.5"
               >
                 <RefreshCwIcon className={`size-3.5 ${isChecking ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
                 <span>
@@ -229,12 +233,12 @@ export function AboutSection() {
           control={(
             <div className="flex items-center gap-2">
               {allowWriteOps ? (
-                <Chip size="sm" color="danger" variant="soft" className="gap-1 h-5 px-1.5 text-[11px] font-normal">
+                <Chip size="sm" color="danger" variant="soft" className="gap-1 font-normal">
                   <ShieldAlertIcon className="size-3" />
                   写操作已开启
                 </Chip>
               ) : (
-                <Chip size="sm" variant="soft" className="gap-1 h-5 px-1.5 text-[11px] font-normal text-muted-foreground">
+                <Chip size="sm" variant="soft" className="gap-1 font-normal text-muted-foreground">
                   <ShieldCheckIcon className="size-3 text-success" />
                   只读保护中
                 </Chip>
@@ -243,7 +247,7 @@ export function AboutSection() {
                 variant="ghost"
                 size="sm"
                 onPress={() => openSettings('security')}
-                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground"
               >
                 管理
               </Button>
@@ -340,7 +344,7 @@ export function AboutSection() {
               variant="secondary"
               size="sm"
               onPress={() => void copyDiagnosticSnapshot(settings, allowWriteOps)}
-              className="gap-1.5 text-xs"
+              className="gap-1.5"
             >
               <CopyIcon className="size-3.5 text-muted-foreground" />
               <span>复制诊断快照</span>
@@ -357,7 +361,7 @@ export function AboutSection() {
               variant="secondary"
               size="sm"
               onPress={() => void copyQuarantineCommand()}
-              className="gap-1.5 text-xs cursor-pointer font-mono"
+              className="gap-1.5 font-mono"
             >
               <TerminalIcon className="size-3.5 text-muted-foreground" />
               <span>复制放行命令</span>
@@ -374,9 +378,9 @@ export function AboutSection() {
               variant="secondary"
               size="sm"
               onPress={() => setShortcutsOpen(true)}
-              className="gap-1.5 text-xs"
+              className="gap-1.5"
             >
-              <Kbd variant="light" className="h-5! px-1.5! text-[11px]!">?</Kbd>
+              <Kbd variant="light">?</Kbd>
               <span>查看速查表</span>
             </Button>
           )}
@@ -392,7 +396,7 @@ export function AboutSection() {
                 variant="ghost"
                 size="sm"
                 onPress={() => void openExternal(REPO_URL)}
-                className="gap-1 text-xs text-muted-foreground hover:text-foreground"
+                className="gap-1 text-muted-foreground hover:text-foreground"
               >
                 <span>GitHub</span>
                 <ExternalLinkIcon className="size-3" />
@@ -401,7 +405,7 @@ export function AboutSection() {
                 variant="ghost"
                 size="sm"
                 onPress={() => void openExternal(DOCS_URL)}
-                className="gap-1 text-xs text-muted-foreground hover:text-foreground"
+                className="gap-1 text-muted-foreground hover:text-foreground"
               >
                 <span>云效平台</span>
                 <ExternalLinkIcon className="size-3" />

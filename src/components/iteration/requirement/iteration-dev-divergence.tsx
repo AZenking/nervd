@@ -206,7 +206,7 @@ export function IterationDevDivergence({
               size="icon-xs"
               disabled={status.state === 'loading'}
               onPress={() => setRefreshKey((k) => k + 1)}
-              className="size-5 text-muted-foreground hover:text-foreground data-disabled:opacity-40 p-0 shrink-0"
+              className="text-muted-foreground hover:text-foreground data-disabled:opacity-40 shrink-0"
               aria-label="刷新与 dev/集成主干的差异检测"
             >
               <RefreshCwIcon className={cn('size-3', status.state === 'loading' && 'animate-spin text-primary')} />

@@ -86,7 +86,7 @@ export function BreakdownRepoPicker({
               event.stopPropagation();
             }}
             placeholder="搜索仓库名或路径…"
-            className="h-8 pl-8 text-xs"
+            className="pl-8"
             aria-label="搜索上下文仓库"
           />
         </div>
@@ -107,27 +107,21 @@ export function BreakdownRepoPicker({
                 const label = repo.pathWithNamespace || repo.name;
                 const checked = selected.includes(repo.id);
                 return (
-                  <div
+                  <Checkbox
                     key={repo.id}
-                    role="checkbox"
-                    aria-checked={checked}
-                    tabIndex={0}
-                    onClick={() => toggle(repo.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        toggle(repo.id);
-                      }
-                    }}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    isSelected={checked}
+                    onChange={() => toggle(repo.id)}
+                    className="w-full cursor-pointer rounded-md px-2 py-1.5 text-xs font-normal hover:bg-surface-secondary"
                   >
-                    <span onClick={(event) => event.stopPropagation()}>
-                      <Checkbox checked={checked} onCheckedChange={() => toggle(repo.id)} />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-mono" title={label}>
-                      {compactFsPath(label, 4)}
-                    </span>
-                  </div>
+                    <Checkbox.Content>
+                      <Checkbox.Control>
+                        <Checkbox.Indicator />
+                      </Checkbox.Control>
+                      <span className="min-w-0 flex-1 truncate font-mono" title={label}>
+                        {compactFsPath(label, 4)}
+                      </span>
+                    </Checkbox.Content>
+                  </Checkbox>
                 );
               })
             )}

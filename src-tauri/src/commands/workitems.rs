@@ -298,6 +298,103 @@ pub async fn update_workitem(
         .await
 }
 
+/// 更新（编辑）既有工作项评论。
+///
+/// 依次尝试三种端点，兼容「中心版 oapi/v1 代理」与旧 ROA 接口：
+/// 1. `PUT /oapi/v1/projex/organizations/{org}/workitems/{id}/comments/{commentId}`
+/// 2. `POST /oapi/v1/projex/organizations/{org}/workitems/commentUpdate`
+/// 3. `POST {ROA_BASE}/organization/{org}/workitems/commentUpdate`（PAT 走 accessToken）
+#[tauri::command]
+pub async fn update_workitem_comment(
+    state: State<'_, AppState>,
+    workitem_id: String,
+    comment_id: String,
+    content: String,
+    format_type: Option<String>,
+) -> Result<Value, String> {
+    ensure_write(&state)?;
+    let workitem_id = workitem_id.trim();
+    let comment_id = comment_id.trim();
+    if workitem_id.is_empty() {
+        return Err("工作项 ID 不能为空".into());
+    }
+    if comment_id.is_empty() {
+        return Err("评论 ID 不能为空".into());
+    }
+    let content = content.trim();
+    if content.is_empty() {
+        return Err("评论内容不能为空".into());
+    }
+    let client = client_of(&state)?;
+    let org = org_of(&state)?;
+    let ft = format_type.unwrap_or_else(|| "RICHTEXT".to_string());
+
+    let mut errors: Vec<String> = Vec::new();
+
+    // 1) 中心版 REST 代理（与创建评论同一 oapi/v1 基座）。
+    let body = json!({ "content": content, "formatType": ft });
+    match client
+        .put(
+            &format!(
+                "/oapi/v1/projex/organizations/{org}/workitems/{workitem_id}/comments/{comment_id}"
+            ),
+            &[],
+            body,
+        )
+        .await
+    {
+        Ok(value) => return Ok(value),
+        Err(error) => errors.push(format!("PUT comments/{{id}}: {error}")),
+    }
+
+    // 2) 中心版 commentUpdate 代理。
+    let body_center = json!({
+        "content": content,
+        "formatType": ft,
+        "workitemIdentifier": workitem_id,
+        "commentId": comment_id,
+    });
+    match client
+        .post(
+            &format!("/oapi/v1/projex/organizations/{org}/workitems/commentUpdate"),
+            &[],
+            body_center,
+        )
+        .await
+    {
+        Ok(value) => return Ok(value),
+        Err(error) => errors.push(format!("POST commentUpdate: {error}")),
+    }
+
+    // 3) 旧 ROA 接口（PAT 通过 accessToken 查询参数鉴权）。
+    let comment_id_value = comment_id
+        .parse::<i64>()
+        .map(Value::from)
+        .unwrap_or_else(|_| json!(comment_id));
+    let body_roa = json!({
+        "content": content,
+        "formatType": ft,
+        "workitemIdentifier": workitem_id,
+        "commentId": comment_id_value,
+    });
+    match client
+        .post_roa(
+            &format!("/organization/{org}/workitems/commentUpdate"),
+            &[],
+            body_roa,
+        )
+        .await
+    {
+        Ok(value) => return Ok(value),
+        Err(error) => errors.push(format!("ROA commentUpdate: {error}")),
+    }
+
+    Err(format!(
+        "更新工作项评论失败（已尝试 3 种端点）：{}",
+        errors.join("；")
+    ))
+}
+
 #[tauri::command]
 pub async fn create_workitem_comment(
     state: State<'_, AppState>,

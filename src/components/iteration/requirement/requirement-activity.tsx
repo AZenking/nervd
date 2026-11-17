@@ -6,7 +6,12 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { TagGroup, Tag } from '@heroui/react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Kbd } from '@/components/ui/kbd';
 import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -202,6 +207,9 @@ export function RequirementActivity({
     }
   };
 
+  // 润色入口的可用性以纯文本为准：富文本空段落（如 <p></p>）不算已有输入
+  const draftPlainText = commentDraft.replace(/<[^>]*>/g, '').trim();
+
   return (
     <section className={cn('flex flex-col gap-4', className)}>
       <div className="flex items-center justify-between">
@@ -231,7 +239,7 @@ export function RequirementActivity({
 
       {/* AI 纪要面板 */}
       {summary && (
-        <Card className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 text-xs flex flex-col gap-2.5 transition-all">
+        <Card variant="secondary" className="p-3.5 text-xs flex flex-col gap-2.5 transition-all">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 font-semibold text-primary">
               <SparklesIcon className="size-3.5" />
@@ -371,7 +379,7 @@ export function RequirementActivity({
                       type="button"
                       variant="link"
                       size="xs"
-                      className="mt-0.5 h-6 px-0 text-[11px] text-muted-foreground hover:text-foreground"
+                      className="mt-0.5 text-muted-foreground hover:text-foreground"
                       onPress={() => toggleCommentExpanded(i)}
                       aria-expanded={expanded}
                     >
@@ -390,55 +398,86 @@ export function RequirementActivity({
       {/* 底部 Linear 风格评论快速发表框 */}
       {workitemId && (
         <div className="mt-2 flex flex-col gap-2 rounded-md border border-border/80 bg-background/50 p-3 focus-within:border-primary/50 transition-colors">
-          {/* AI 快捷生成助手：TagGroup 快捷动作（RAC Tag 自带 hover/禁用态） */}
+          {/* AI 辅助：按使用场景收纳的快捷生成菜单（图标 + 加载态 + 禁用原因） */}
           <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b border-border/50">
-            <span className="text-[11px] text-muted-foreground mr-1 flex items-center gap-1">
-              <SparklesIcon className="size-3 text-primary" />
-              AI 助手:
-            </span>
-            <TagGroup aria-label="AI 评论文案快捷生成" size="sm">
-              <TagGroup.List>
-                <Tag
-                  id="progress"
-                  textValue="研发进度同步"
-                  isDisabled={Boolean(generatingDraft)}
-                  onAction={() => void handleGenerateDraft('progress')}
-                >
-                  {generatingDraft === 'progress' ? <Loader2Icon className="size-3 animate-spin" /> : <RocketIcon className="size-3" />}
-                  <span>研发进度同步</span>
-                </Tag>
-                <Tag
-                  id="test_delivery"
-                  textValue="提测交付说明"
-                  isDisabled={Boolean(generatingDraft)}
-                  onAction={() => void handleGenerateDraft('test_delivery')}
-                >
-                  {generatingDraft === 'test_delivery' ? <Loader2Icon className="size-3 animate-spin" /> : <FlaskConicalIcon className="size-3" />}
-                  <span>提测交付说明</span>
-                </Tag>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={(
-                      <Tag
-                        id="polish"
-                        textValue="智能润色"
-                        isDisabled={Boolean(generatingDraft) || !commentDraft.trim()}
-                        onAction={() => void handleGenerateDraft('polish')}
-                        className={cn(
-                          commentDraft.trim() && 'text-primary hover:bg-primary/10',
-                        )}
-                      >
-                        {generatingDraft === 'polish' ? <Loader2Icon className="size-3 animate-spin" /> : <Wand2Icon className="size-3" />}
-                        <span>智能润色</span>
-                      </Tag>
-                    )}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={(
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="tertiary"
+                    aria-label="打开 AI 辅助菜单"
+                    data-testid="activity-ai-menu-trigger"
+                    className="gap-1"
                   />
-                  <TooltipContent>
-                    {commentDraft.trim() ? '将当前输入框内容整理润色为专业评论' : '先输入要点后再点击润色'}
-                  </TooltipContent>
-                </Tooltip>
-              </TagGroup.List>
-            </TagGroup>
+                )}
+              >
+                <SparklesIcon className="size-3.5" />
+                <span>AI 辅助</span>
+                <ChevronDownIcon className="size-3 text-muted-foreground" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                aria-label="AI 辅助"
+                className="w-64"
+                header={(
+                  <div className="px-2 pt-1.5 pb-1">
+                    <div className="text-[11px] font-medium text-foreground">AI 辅助 · 评论文案</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      基于需求当前状态与输入生成评论文案
+                    </div>
+                  </div>
+                )}
+              >
+                <DropdownMenuItem
+                  data-testid="ai-menu-progress"
+                  disabled={Boolean(generatingDraft)}
+                  onPress={() => void handleGenerateDraft('progress')}
+                  className="gap-2"
+                >
+                  {generatingDraft === 'progress'
+                    ? <Loader2Icon className="size-3.5 animate-spin" />
+                    : <RocketIcon className="size-3.5" />}
+                  <span>研发进度同步</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    {generatingDraft === 'progress' ? '生成中…' : '状态播报'}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid="ai-menu-test-delivery"
+                  disabled={Boolean(generatingDraft)}
+                  onPress={() => void handleGenerateDraft('test_delivery')}
+                  className="gap-2"
+                >
+                  {generatingDraft === 'test_delivery'
+                    ? <Loader2Icon className="size-3.5 animate-spin" />
+                    : <FlaskConicalIcon className="size-3.5" />}
+                  <span>提测交付说明</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    {generatingDraft === 'test_delivery' ? '生成中…' : '提测说明'}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid="ai-menu-polish"
+                  disabled={Boolean(generatingDraft) || !draftPlainText}
+                  onPress={() => void handleGenerateDraft('polish')}
+                  className={cn('gap-2', !draftPlainText && 'text-muted-foreground')}
+                >
+                  {generatingDraft === 'polish'
+                    ? <Loader2Icon className="size-3.5 animate-spin" />
+                    : <Wand2Icon className="size-3.5" />}
+                  <span>智能润色</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    {generatingDraft === 'polish'
+                      ? '生成中…'
+                      : draftPlainText
+                        ? '润色当前输入'
+                        : '先输入要点'}
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <RichEditor

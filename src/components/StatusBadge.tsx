@@ -17,7 +17,8 @@ export interface StatusMeta {
   label: string;
 }
 
-const TONE_TO_COLOR: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
+/** 状态分组 → HeroUI Chip 语义色（全仓唯一映射，禁止在调用点另写 tone→颜色分支） */
+export const TONE_TO_COLOR: Record<StatusTone, 'success' | 'warning' | 'danger' | 'default'> = {
   ok: 'success',
   run: 'warning',
   fail: 'danger',

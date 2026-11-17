@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Surface } from '@heroui/react';
+import { Surface } from '@/components/ui/surface';
 import {
   ArrowUpRightIcon,
   BugIcon,
   CheckIcon,
   ClockIcon,
-  CopyIcon,
   ExternalLinkIcon,
   FolderIcon,
   LayersIcon,
@@ -42,7 +41,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 import { errorLog } from '@/lib/error-format';
 import { useApp } from '@/store/app';
-import { useClipboard } from '@/hooks/use-clipboard';
 import { useWorkitemWorkflowStatuses } from '@/hooks/use-workitem-workflow-statuses';
 import { StatusIcon } from '../status-icon';
 import { OverflowTooltip } from '../overflow-tooltip';
@@ -52,6 +50,8 @@ import { ChangeTimeline } from './requirement/change-timeline';
 import { toast } from '@/components/ui/toast';
 import { useUi } from '@/store/ui';
 import { StartProcessingButton } from './start-processing';
+import { CopyButton } from '@/components/ui/copy-button';
+import { READONLY_BTN_CLASS } from '../WriteOpButton';
 
 export interface ChildDetailDrawerProps {
   child: WorkitemChild | null;
@@ -93,10 +93,6 @@ export function ChildDetailDrawer({
 
   const [rawDetail, setRawDetail] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
-  const { copy: copyText, copied } = useClipboard({
-    successMessage: (id) => `已复制编号 ${id}`,
-  });
-
   const handleOpenInYunxiao = () => {
     if (!child) return;
     const wi = (rawDetail?.workitem ?? rawDetail ?? {}) as Record<string, unknown>;
@@ -223,11 +219,6 @@ export function ChildDetailDrawer({
     || child?.gmtModified
     || '';
 
-  // 复制编号
-  const copyIdentifier = () => {
-    if (child?.identifier) void copyText(child.identifier);
-  };
-
   // 就地执行流转状态
   const handleSelectStatus = async (status: { id: string; name: string }) => {
     await changeStatus(status);
@@ -253,18 +244,20 @@ export function ChildDetailDrawer({
     <Tooltip>
       <TooltipTrigger
         render={
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="inline"
             aria-disabled="true"
             aria-label={`状态：${statusName || '未指定'}（只读，点击查看原因）`}
-            onClick={notifyReadonlyStatus}
-            className="cursor-not-allowed rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            onPress={notifyReadonlyStatus}
+            className={cn('cursor-not-allowed p-0', READONLY_BTN_CLASS)}
           >
             <Chip size="sm" color={statusColor} variant="soft" className="opacity-80">
               <StatusIcon status={statusName} className="size-3.5 shrink-0" />
               <Chip.Label>{statusName || '未指定'}</Chip.Label>
             </Chip>
-          </button>
+          </Button>
         }
       />
       <TooltipContent>写操作已关闭：需在「设置 → 安全」中开启（需写权限令牌）</TooltipContent>
@@ -439,21 +432,12 @@ export function ChildDetailDrawer({
               </Chip>
 
               {child?.identifier && (
-                <button
-                  type="button"
-                  className="inline-flex cursor-pointer rounded-sm shrink-0 transition-colors hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  onClick={copyIdentifier}
-                  title="点击复制编号"
-                >
+                <span className="inline-flex shrink-0 items-center gap-0.5">
                   <Chip size="sm" variant="secondary" className="font-mono gap-1">
                     <Chip.Label>{child.identifier}</Chip.Label>
-                    {copied ? (
-                      <CheckIcon className="size-3 text-sig-ok shrink-0" />
-                    ) : (
-                      <CopyIcon className="size-3 text-muted-foreground group-hover:text-foreground shrink-0" />
-                    )}
                   </Chip>
-                </button>
+                  <CopyButton text={child.identifier} label="复制编号" />
+                </span>
               )}
             </div>
 
@@ -528,7 +512,7 @@ export function ChildDetailDrawer({
           {/* 属性列表：对齐 Linear 裸行规范（区块标题统一走 SectionHeader，DESIGN 第三部分 B） */}
           <section className="flex flex-col gap-2">
             <SectionHeader level="h3" title="属性" />
-            <Surface variant="secondary" className="rounded-lg border border-border/50 p-2">
+            <Surface variant="secondary" className="p-2">
               <Descriptions variant="plain" items={attributeItems} />
             </Surface>
           </section>
@@ -543,7 +527,7 @@ export function ChildDetailDrawer({
                 <Skeleton className="h-4 w-2/3" />
               </div>
             ) : (
-              <Surface variant="secondary" className="rounded-lg border border-border/50 p-3.5 text-sm leading-relaxed text-foreground/90">
+              <Surface variant="secondary" className="p-3.5 text-sm leading-relaxed text-foreground/90">
                 <RichDescription
                   raw={wi.description ?? wi.content}
                   workitemId={child?.workitemId}

@@ -18,8 +18,11 @@ export interface LinkedRepoStatusStripProps {
   historyMrs: MrSummary[];
   hasMatchingMergedMr: boolean;
   onViewMr: (mr?: MrSummary | { localId: number }) => void;
-  onCreateMr: () => void;
   loadingCi?: boolean;
+  /** CI 查询失败（保留上次快照时也显式呈现，不静默）。 */
+  ciError?: boolean;
+  /** 无法确认最近构建属于需求分支 → 摘要标注「仓库最新构建」，不据此判定需求构建通过。 */
+  repoLatestBuild?: boolean;
   ciBinding?: RepoCiBinding;
   latestRun?: CiRunSummary;
   snapshot?: RepoCiSnapshot | null;
@@ -38,8 +41,9 @@ export function LinkedRepoStatusStrip({
   historyMrs,
   hasMatchingMergedMr,
   onViewMr,
-  onCreateMr,
   loadingCi,
+  ciError,
+  repoLatestBuild,
   ciBinding,
   latestRun,
   snapshot,
@@ -76,7 +80,6 @@ export function LinkedRepoStatusStrip({
               hasMatchingMergedMr={hasMatchingMergedMr}
               divergence={divergence}
               onViewMr={onViewMr}
-              onCreateMr={onCreateMr}
             />
           </div>
         </div>
@@ -87,6 +90,8 @@ export function LinkedRepoStatusStrip({
           <div className="min-w-0 flex-1">
             <LinkedRepoCiStatus
               loading={loadingCi}
+              error={ciError}
+              repoLatestBuild={repoLatestBuild}
               ciBinding={ciBinding}
               latestRun={latestRun}
               snapshot={snapshot}

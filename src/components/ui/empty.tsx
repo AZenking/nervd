@@ -1,15 +1,21 @@
 import { createTV, type VariantProps } from "tailwind-variants"
+import { EmptyState } from "@heroui/react"
 import { cn } from "@/lib/utils"
 
 /** 关闭 tv 内置 merge 引擎，保持与 cva 一致的纯拼接；去重仍由 cn(tailwind-merge) 承担 */
 const tv = createTV({ twMerge: false })
 
-function Empty({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * 空态根节点：以 HeroUI `EmptyState` 为基座（DESIGN 第一部分：优先组合上游组件），
+ * `EmptyHeader / EmptyMedia / EmptyTitle / EmptyDescription / EmptyContent` 只是布局槽位。
+ * 业务侧统一消费 `EmptyHint`，不要各处自绘空态。
+ */
+function Empty({ className, ...props }: React.ComponentProps<typeof EmptyState>) {
   return (
-    <div
+    <EmptyState
       data-slot="empty"
       className={cn(
-        "flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-lg border-dashed p-6 text-center text-balance",
+        "flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-lg p-6 text-center text-balance",
         className
       )}
       {...props}

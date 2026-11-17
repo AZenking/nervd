@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Surface } from '@heroui/react';
+import { Surface } from '@/components/ui/surface';
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -20,6 +20,7 @@ import { parseFileDiffs, type FileDiffItem } from './diff-utils';
 import { CodeDiffViewer } from './code-diff-viewer';
 import { CodeDiffDrawer } from './code-diff-drawer';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Spinner } from '@/components/ui/spinner';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,6 +30,18 @@ import { useApp } from '@/store/app';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { getMrStatusInfo } from './types';
+
+/**
+ * MR 状态 tone → HeroUI Chip 语义色。与 `linked-repo-mr-list.tsx` 的同一映射保持同构
+ * （单一事实源待收敛到 `./types`）。
+ */
+const MR_TONE_CHIP_COLOR = {
+  rose: 'danger',
+  emerald: 'success',
+  muted: 'default',
+  sky: 'accent',
+  amber: 'warning',
+} as const;
 
 export interface MrInlineItemProps {
   mr: MrSummary;
@@ -163,26 +176,19 @@ export function MrInlineItem({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onToggle();
-    }
-  };
-
   return (
     <div
       id={`mr-item-${mr.localId}`}
       className="flex min-w-0 flex-col border-b border-border/40 transition-colors last:border-b-0"
     >
-      {/* 紧凑列表标题行：支持点击/键盘展开折叠 */}
-      <div
-        role="button"
-        tabIndex={0}
+      {/* 紧凑列表标题行：整行可展开/折叠，保留原生 button（BRIEF §1.3 行级可点击豁免），
+          原生元素自带 Enter/Space 语义与 focus-visible 环，不再手写 role="button" 键盘补丁。 */}
+      <button
+        type="button"
         onClick={onToggle}
-        onKeyDown={handleKeyDown}
         aria-expanded={isExpanded}
-        className="flex cursor-pointer items-center justify-between gap-2 rounded-sm px-2.5 py-2 text-xs select-none transition-colors hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`${isExpanded ? '收起' : '展开'}合并请求 !${mr.localId} ${mr.title}`.trim()}
+        className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-sm px-2.5 py-2 text-left text-xs select-none transition-colors hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="font-mono font-bold text-primary shrink-0">
@@ -195,11 +201,16 @@ export function MrInlineItem({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className={cn('inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] font-medium border', statusInfo.badgeClass)}>
-            {statusInfo.tone === 'emerald' && <CheckIcon className="size-3" />}
-            {statusInfo.tone === 'amber' && <GitPullRequestIcon className="size-3" />}
-            {statusInfo.label}
-          </span>
+          <Chip
+            size="sm"
+            variant="soft"
+            color={MR_TONE_CHIP_COLOR[statusInfo.tone]}
+            className="shrink-0 gap-1 font-medium"
+          >
+            {statusInfo.tone === 'emerald' && <CheckIcon className="size-3" aria-hidden="true" />}
+            {statusInfo.tone === 'amber' && <GitPullRequestIcon className="size-3" aria-hidden="true" />}
+            <Chip.Label>{statusInfo.label}</Chip.Label>
+          </Chip>
           <ChevronDownIcon
             className={cn(
               'size-3.5 text-muted-foreground transition-transform duration-200',
@@ -207,13 +218,13 @@ export function MrInlineItem({
             )}
           />
         </div>
-      </div>
+      </button>
 
       {/* 就地展开的闭环检视面板 */}
       {isExpanded && (
         <Surface variant="default" className="flex flex-col gap-2.5 border-t border-border/40 px-3 py-2.5 text-xs">
           {/* 分支流向与基本元数据 */}
-          <Surface variant="tertiary" className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border/30 px-2 py-1.5 text-[11px] font-mono">
+          <Surface variant="tertiary" className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 font-mono text-[11px]">
             <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
               <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
               <OverflowTooltip
@@ -250,8 +261,8 @@ export function MrInlineItem({
               <Button
                 type="button"
                 variant="ghost"
-                size="xs"
-                className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground gap-1"
+                size="2xs"
+                className="text-muted-foreground hover:text-foreground gap-1"
                 disabled={loadingDiff}
                 onPress={fetchDivergence}
                 title="重新比较两分支最新状态"
@@ -272,8 +283,7 @@ export function MrInlineItem({
                 <Button
                   type="button"
                   variant="outline"
-                  size="xs"
-                  className="h-5 px-1.5 text-[10px]"
+                  size="2xs"
                   onPress={fetchDivergence}
                 >
                   重试
@@ -291,7 +301,7 @@ export function MrInlineItem({
                       variant="link"
                       size="xs"
                       onPress={() => void openExternal(mrUrl)}
-                      className="inline p-0 h-auto ml-1 text-primary hover:underline cursor-pointer align-baseline"
+                      className="inline ml-1 text-primary hover:underline cursor-pointer align-baseline"
                     >
                       「云效直达」
                     </Button>
@@ -346,8 +356,8 @@ export function MrInlineItem({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="xs"
-                    className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                    size="2xs"
+                    className="text-muted-foreground hover:text-foreground"
                     onPress={() => setInlineDiffOpen((v) => !v)}
                   >
                     {inlineDiffOpen ? '收起改动' : '展开改动'}
@@ -355,8 +365,8 @@ export function MrInlineItem({
                   <Button
                     type="button"
                     variant="outline"
-                    size="xs"
-                    className="h-5 px-1.5 text-[10px] gap-1"
+                    size="2xs"
+                    className="gap-1"
                     onPress={() => setDiffDrawerOpen(true)}
                   >
                     <span>抽屉检视</span>
@@ -380,7 +390,7 @@ export function MrInlineItem({
                 type="button"
                 variant="ghost"
                 size="xs"
-                className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5"
+                className="gap-1 text-muted-foreground hover:text-foreground"
                 onPress={() => void openExternal(mrUrl)}
                 title="在云效 Codeup 中查看完整讨论、历史评审与原始 Diff"
               >
@@ -393,7 +403,7 @@ export function MrInlineItem({
                   type="button"
                   variant="ghost"
                   size="xs"
-                  className="gap-1 text-muted-foreground hover:text-foreground h-6 px-1.5 text-xs"
+                  className="gap-1 text-muted-foreground hover:text-foreground"
                   onPress={() => setDiffDrawerOpen(true)}
                   title="在本地抽屉中完整查看当前分支差异"
                 >
@@ -425,7 +435,6 @@ export function MrInlineItem({
                       type="button"
                       variant="default"
                       size="xs"
-                      className="h-6 px-2 text-xs"
                       onPress={onCreateMr}
                     >
                       创建新 MR
@@ -465,8 +474,7 @@ export function MrInlineItem({
                 <Button
                   type="button"
                   variant="default"
-                  size="xs"
-                  className="h-7 px-2.5 text-xs"
+                  size="sm"
                   onPress={() => {
                     setDiffDrawerOpen(false);
                     onCreateMr();

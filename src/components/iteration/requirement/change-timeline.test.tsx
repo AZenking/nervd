@@ -19,11 +19,6 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/attribution-api', () => apiMocks);
 
-// 时间线测试聚焦本组件；待归属队列由 unattributed-changes.test.tsx 覆盖。
-vi.mock('./unattributed-changes', () => ({
-  UnattributedChanges: () => <div data-testid="unattributed-stub" />,
-}));
-
 const ATTRIBUTION_INITIAL = {
   timelineByWorkitem: {},
   loadingTimeline: {},
@@ -343,14 +338,4 @@ describe('ChangeTimeline', () => {
     expect(apiMocks.syncAttribution).toHaveBeenCalledTimes(1);
   });
 
-  it('compact 形态不渲染待归属队列，只保留一行计数', async () => {
-    useAttribution.setState({
-      unassigned: [change('commit:1:abc')],
-    });
-    await render(<ChangeTimeline workitemId="wi-1" compact />);
-
-    expect(host.querySelector('[data-testid="unattributed-stub"]')).toBeNull();
-    expect(host.textContent).toContain('1 条变更待归属');
-    expect(host.textContent).toContain('暂无代码变更');
-  });
 });

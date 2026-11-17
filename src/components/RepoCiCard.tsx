@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Surface } from '@heroui/react';
 import { useApp } from '../store/app';
 import { formatDateTime, formatDuration } from '../lib/format';
 import { humanizeError } from '@/lib/error-format';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Surface } from '@/components/ui/surface';
 import { RefreshCwIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { EmptyHint } from './empty-hint';
 import { StatusBadge } from './StatusBadge';
 import { BuildWorkbenchTrigger, openRepoBuildLogs } from './build-workbench';
 import { OverflowTooltip } from './overflow-tooltip';
@@ -56,19 +58,35 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
                 variant="outline"
                 size="icon-sm"
                 aria-label="刷新 CI 状态"
-                disabled={refreshing || entry?.loading}
-                onPress={() => void refresh()}
+                aria-disabled={refreshing || entry?.loading || undefined}
+                className={refreshing || entry?.loading ? 'pointer-events-auto cursor-not-allowed opacity-60' : undefined}
+                onPress={() => {
+                  if (refreshing || entry?.loading) return;
+                  void refresh();
+                }}
               />
             }
           >
             <RefreshCwIcon className={refreshing || entry?.loading ? 'animate-spin' : undefined} />
           </TooltipTrigger>
-          <TooltipContent>刷新 CI 状态</TooltipContent>
+          <TooltipContent>
+            {refreshing || entry?.loading ? '正在刷新 CI 状态…' : '刷新 CI 状态'}
+          </TooltipContent>
         </Tooltip>
       </div>
 
       {entry?.error ? (
-        <div className="mt-3 rounded-md border border-sig-fail/20 bg-sig-fail/8 px-3 py-2 text-xs text-sig-fail">CI 查询失败：{humanizeError(entry.error, '未能获取 CI 状态，请稍后重试')}</div>
+        <div className="mt-3">
+          <Alert status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>CI 查询失败</Alert.Title>
+              <Alert.Description>
+                {humanizeError(entry.error, '未能获取 CI 状态，请稍后重试')}
+              </Alert.Description>
+            </Alert.Content>
+          </Alert>
+        </div>
       ) : !snapshot && entry?.loading ? (
         <div className="mt-3 flex flex-col gap-2" aria-hidden>
           <Skeleton className="h-4 w-3/4 rounded" />
@@ -83,7 +101,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
               最近构建 · 仓库 Job 历史
             </div>
             {snapshot.runs.map((run) => (
-              <Surface key={run.runId} variant="secondary" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/50 px-2.5 py-2 text-xs">
+              <Surface key={run.runId} variant="secondary" className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-2 text-xs">
                 <StatusBadge status={run.status} size="sm" />
                 <span className="font-mono tabular-nums text-foreground">#{run.runId}</span>
                 <span className="ml-auto text-muted-foreground">{when(run.startTime)}</span>
@@ -93,7 +111,7 @@ export function RepoCiCard({ repoId, repoName }: { repoId: number; repoName: str
                 </Button>
               </Surface>
             ))}
-            {!snapshot.runs.length && <p className="px-2 py-2 text-xs text-muted-foreground">此 Job 尚无构建记录。</p>}
+            {!snapshot.runs.length && <EmptyHint compact className="mt-1" title="此 Job 尚无构建记录" />}
           </div>
           {runTrigger()}
         </>

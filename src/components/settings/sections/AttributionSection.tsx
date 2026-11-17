@@ -1,22 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CopyIcon,
   FolderOpenIcon,
   GitBranchIcon,
   RefreshCwIcon,
   ShieldAlertIcon,
   TerminalIcon,
 } from 'lucide-react';
-import { Alert, Chip, ListBox, Select } from '@heroui/react';
+import { Alert } from '@/components/ui/alert';
+import { Chip } from '@/components/ui/chip';
+import { ListBox } from '@/components/ui/list-box';
+import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { CopyButton } from '@/components/ui/copy-button';
+import { EmptyHint } from '@/components/empty-hint';
 import { useApp } from '@/store/app';
 import { useAttribution } from '@/store/attribution';
 import { useSettingsDraft } from '@/store/settings-draft';
 import * as attributionApi from '@/lib/attribution-api';
-import { useClipboard } from '@/hooks/use-clipboard';
 import { humanizeError } from '@/lib/error-format';
 import { compactFsPath } from '@/lib/utils';
 import { useUi } from '@/store/ui';
+import { isWritebackPaused, setWritebackPaused, subscribeWritebackPause } from '@/lib/writeback-pause';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
@@ -102,14 +106,14 @@ function PolicySelect<T extends string>({
     <Select
       id={id}
       aria-label={label}
-      className="w-48 text-xs"
+      className="w-48"
       selectedKey={value}
       isDisabled={disabled}
       onSelectionChange={(key) => {
         if (key != null) onChange(String(key) as T);
       }}
     >
-      <Select.Trigger className="h-8 text-xs">
+      <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
@@ -141,14 +145,14 @@ function HookModeSelect({
   return (
     <Select
       aria-label={`仓库 ${repoId} 钩子模式`}
-      className="w-40 text-[11px]"
+      className="w-40"
       selectedKey={value}
       isDisabled={disabled}
       onSelectionChange={(key) => {
         if (key != null) onChange(String(key) as HookMode);
       }}
     >
-      <Select.Trigger className="h-6 text-[11px]">
+      <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
@@ -204,6 +208,7 @@ export function AttributionSection() {
   const policyTimerRef = useRef<number | null>(null);
   const pendingPolicyRef = useRef<ActivityPolicy | null>(null);
   const [statusError, setStatusError] = useState(false);
+  const [writebackPaused, setWritebackPausedState] = useState(() => isWritebackPaused());
   const [bindingsError, setBindingsError] = useState(false);
   const [activeError, setActiveError] = useState(false);
   const [inspectByRepo, setInspectByRepo] = useState<Record<number, InspectState>>({});
@@ -213,7 +218,6 @@ export function AttributionSection() {
   const [newRepoId, setNewRepoId] = useState<number | null>(null);
   const [bindingNew, setBindingNew] = useState(false);
 
-  const { copy, copied } = useClipboard({ successMessage: '提交命令已复制' });
 
   // 首次进入：仅在 store 尚未持有时拉取策略，避免覆盖已有状态。
   useEffect(() => {
@@ -283,6 +287,9 @@ export function AttributionSection() {
   useEffect(() => {
     if (!repositories.length && settings?.hasPat) void loadRepos();
   }, [loadRepos, repositories.length, settings?.hasPat]);
+
+  // 动态回写暂停开关：本地持久化，设置页与后台写入器共享同一来源。
+  useEffect(() => subscribeWritebackPause(() => setWritebackPausedState(isWritebackPaused())), []);
 
   // 已绑定路径的 Git 真实状态（分支 / 脏工作区）；逐仓并行探测，失败只落行内。
   useEffect(() => {
@@ -545,7 +552,6 @@ export function AttributionSection() {
           size="sm"
           variant="soft"
           color={inspect.info.dirty ? 'warning' : 'success'}
-          className="h-5 px-1.5 text-[10px]"
         >
           {inspect.info.dirty ? '工作区有未提交修改' : '工作区干净'}
         </Chip>
@@ -557,15 +563,16 @@ export function AttributionSection() {
     <div className="flex flex-col gap-6">
       <SettingsGroup
         title="变更归属同步"
-        description="把云效仓库的提交、MR 与构建事件归属到工作项，并作为 Agent 回写的触发源。远程轮询是兜底，本地仓库钩子提供实时感知。"
+        description="把云效仓库的提交与 MR 归属到工作项，并作为 Agent 回写的触发源。构建事件暂未接入：流水线 / Jenkins 构建结果当前不会归属到工作项。远程轮询是兜底，本地仓库钩子提供实时感知。"
         action={(
           <Button
             type="button"
             size="sm"
             variant="outline"
             disabled={busy || !policy}
-            onClick={() => void syncNow()}
-            aria-label="立即同步变更归属"
+            // 手动同步：强制重新解析编号 + 忽略游标回填，让已索引但未归属的事件重新计算。
+            onClick={() => void syncNow({ force: true, full: true })}
+            aria-label="立即同步并强制重新解析编号"
           >
             {busy ? <Spinner className="size-3.5" /> : <RefreshCwIcon className="size-3.5" />}
             {busy ? '同步中…' : '立即同步'}
@@ -595,7 +602,7 @@ export function AttributionSection() {
           description={
             statusError
               ? '状态读取失败，可点击「立即同步」重试。'
-              : '最近一次成功同步的时间；同步中的状态会阻止重复触发。'
+              : '最近一次成功同步的时间；同步中的状态会阻止重复触发。「立即同步」会强制重新解析未命中的编号（不等 1 小时负缓存）并回填最近窗口重新计算归属。同步范围仅包含 commit / MR，构建事件暂未接入。'
           }
           control={(
             <div className="flex flex-col items-end gap-1">
@@ -615,8 +622,35 @@ export function AttributionSection() {
 
       <SettingsGroup
         title="回写策略"
-        description="控制 Agent 把代码变更写入云效工作项评论的频率与上限。评论采用 [nervd] 前缀，需求级只汇总里程碑或每日进展，避免刷屏。"
+        description="控制 Agent 把代码变更写入云效工作项评论的频率与上限。仅回写代码记录（提交 / MR / 构建），且只处理负责人是当前用户的工作项（父需求额外允许协同人 / 创建人是本人）：子任务只写自己的代码记录，父需求只写里程碑或每日代码汇总；工作项状态流转不写动态；没有新变更时不产生动态。"
       >
+        <SettingsRow
+          orientation="horizontal"
+          label="动态回写"
+          description={
+            writebackPaused
+              ? '已暂停：不会创建或更新云效评论；归属同步与时间线不受影响。'
+              : '已开启：有新变更时按下方策略更新云效评论。'
+          }
+          htmlFor="writeback-paused"
+          control={(
+            <Switch
+              id="writeback-paused"
+              aria-label="动态回写"
+              size="md"
+              isSelected={!writebackPaused}
+              onChange={(enabled) => {
+                const paused = !enabled;
+                setWritebackPaused(paused);
+                setWritebackPausedState(paused);
+                useApp.getState().setToast({
+                  kind: 'info',
+                  text: paused ? '已暂停动态回写' : '已恢复动态回写',
+                });
+              }}
+            />
+          )}
+        />
         {policyError && (
           <div
             role="alert"
@@ -627,7 +661,6 @@ export function AttributionSection() {
               type="button"
               size="xs"
               variant="outline"
-              className="h-5 px-1.5 text-[11px]"
               onClick={flushPolicy}
             >
               重试
@@ -636,7 +669,7 @@ export function AttributionSection() {
         )}
         {!allowWriteOps && (
           <div className="border-b border-border/50 px-4 py-3">
-            <Alert status="warning" className="rounded-md px-2.5 py-2 shadow-none">
+            <Alert status="warning">
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Title>当前处于只读保护模式</Alert.Title>
@@ -677,7 +710,7 @@ export function AttributionSection() {
             <SettingsRow
               orientation="horizontal"
               label="子项回写模式"
-              description="缺陷 / 子任务级评论。批量会把 10 分钟窗口内的提交聚合成一条；每条事件逐条评论，最及时但最吵。"
+              description="缺陷 / 子任务级评论。批量会把 10 分钟窗口内的提交汇总进滚动评论；每条事件则每次变更都更新评论，最及时但更频繁。"
               control={(
                 <PolicySelect
                   id="attribution-child-mode"
@@ -693,7 +726,7 @@ export function AttributionSection() {
             <SettingsRow
               orientation="horizontal"
               label="需求回写模式"
-              description="父需求级评论。里程碑只覆盖 MR 合入 / 关闭与构建失败；每日汇总按本地日期聚合当天全部变更。"
+              description="父需求级滚动评论。里程碑当前只覆盖 MR 合入 / 关闭；构建失败回写依赖构建事件归属，而构建事件暂未接入，因此暂不会触发。每日汇总按本地日期聚合当天全部变更。"
               control={(
                 <PolicySelect
                   id="attribution-parent-mode"
@@ -709,7 +742,7 @@ export function AttributionSection() {
             <SettingsRow
               orientation="horizontal"
               label="每日回写上限"
-              description="同一工作项每天最多回写的评论条数（1–20）。超出后事件会保留但不再自动评论。"
+              description="同一工作项每天最多更新滚动评论的次数（1–20）。超出后变更保留但当天不再自动更新评论。"
               htmlFor="attribution-max-per-day"
               error={
                 maxPerDayValid ? undefined : (
@@ -795,7 +828,6 @@ export function AttributionSection() {
                     type="button"
                     size="xs"
                     variant="ghost"
-                    className="h-5 px-1 text-[11px]"
                     onClick={() => useUi.getState().openSettings('connection')}
                   >
                     前往云效连接
@@ -823,9 +855,11 @@ export function AttributionSection() {
         )}
 
         {repoIds.length === 0 ? (
-          <div className="px-4 py-4 text-xs text-muted-foreground">
-            还没有默认扫描仓库，也没有已绑定仓库。用上方「绑定新的本地仓库」选择目录后，这里会显示每个仓库的 Git 状态与钩子开关。
-          </div>
+          <EmptyHint
+            compact
+            title="尚未绑定本地仓库"
+            description="还没有默认扫描仓库，也没有已绑定仓库。用上方「绑定新的本地仓库」选择目录后，这里会显示每个仓库的 Git 状态与钩子开关。"
+          />
         ) : (
           repoIds.map((repoId) => {
             const binding = bindingByRepo.get(repoId);
@@ -848,7 +882,6 @@ export function AttributionSection() {
                     size="sm"
                     variant="soft"
                     color={binding ? 'accent' : 'default'}
-                    className="h-5 px-1.5 text-[10px]"
                   >
                     {binding ? '已绑定' : '未绑定'}
                   </Chip>
@@ -906,7 +939,6 @@ export function AttributionSection() {
                         size="sm"
                         variant="soft"
                         color={hookInstalled ? 'success' : 'default'}
-                        className="h-5 px-1.5 text-[10px]"
                       >
                         {hookInstalled
                           ? `commit-msg 已安装 · ${HOOK_MODE_LABELS[hookMode]}`
@@ -929,7 +961,7 @@ export function AttributionSection() {
 
       <SettingsGroup
         title="Agent 接入"
-        description="Agent 通过仓库内的 commit-msg 钩子与 .nervd/active-workitem.json 读取当前工作项；提交时自动补 Refs，CI 再做一次归属兜底检查。"
+        description="Agent 通过仓库内的 commit-msg 钩子与 .nervd/active-workitem.json 读取当前工作项；提交时自动补 Refs，CI 再做一次归属兜底检查。点击「开始处理」还会在对应工程 .nervd/ 下生成 agent-task.md 与 scripts/（commit / read / check），可直接交给 Agent。"
       >
         <SettingsRow
           label="提交命令"
@@ -940,15 +972,7 @@ export function AttributionSection() {
                 {AGENT_COMMIT_COMMAND}
               </pre>
               <div className="flex justify-end">
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  onClick={() => void copy(AGENT_COMMIT_COMMAND)}
-                >
-                  <CopyIcon className="size-3" />
-                  {copied ? '已复制' : '复制'}
-                </Button>
+                <CopyButton text={AGENT_COMMIT_COMMAND} label="复制提交命令" />
               </div>
             </div>
           )}
@@ -970,7 +994,7 @@ export function AttributionSection() {
                 <Chip
                   size="sm"
                   variant="soft"
-                  className="max-w-56 gap-1 font-mono text-[11px]"
+                  className="max-w-56 gap-1 font-mono"
                   title={activeEntries.map((item) => repoLabel(item.repoId)).join('\n')}
                 >
                   <Chip.Label className="truncate">{repoLabel(activeEntry.repoId)}</Chip.Label>
@@ -995,7 +1019,7 @@ export function AttributionSection() {
         />
 
         <div className="border-b border-border/50 px-4 py-3 last:border-b-0">
-          <Alert status="default" className="rounded-md px-2.5 py-2 shadow-none">
+          <Alert status="default">
             <Alert.Indicator />
             <Alert.Content>
               <Alert.Description className="flex flex-col gap-1 text-xs leading-5">
@@ -1003,6 +1027,12 @@ export function AttributionSection() {
                   <TerminalIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
                   状态文件：<code className="font-mono text-[11px]">.nervd/active-workitem.json</code>
                   记录 repoId / workitemId / parentWorkitemId，仅供本机使用，不提交。
+                </span>
+                <span>
+                  「开始处理」同时生成 <code className="font-mono text-[11px]">.nervd/agent-task.md</code>
+                  （任务上下文与推荐命令）与 <code className="font-mono text-[11px]">.nervd/scripts/</code>
+                  （lib-attribution / agent-commit / read-active-workitem / check-commit-attribution），
+                  每次开始处理覆盖，脚本随 nervd 版本更新。
                 </span>
                 <span>
                   commit-msg 钩子默认 fill：缺少 Refs 时自动补全，不阻断提交；enforce 会拒绝缺少归属的提交。

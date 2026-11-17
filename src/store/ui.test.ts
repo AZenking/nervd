@@ -13,9 +13,11 @@ beforeEach(() => {
   });
 });
 
-it('starts on overview when no navigation record exists', () => {
+it('starts on the current iteration when no navigation record exists', () => {
   expect(localStorage.getItem('nervd-navigation')).toBeNull();
-  expect(useUi.getState().view).toBe('overview');
+  expect(useUi.getState().view).toBe('iteration');
+  // 详情页签为瞬态，启动默认「交付进展」
+  expect(useUi.getState().detailTab).toBe('repos');
 });
 
 describe('workspace navigation history', () => {
@@ -123,6 +125,35 @@ describe('workspace navigation history', () => {
     expect(afterPageHide.status).toBe('valid');
     if (afterPageHide.status === 'valid') expect(afterPageHide.value.current.scrollTop).toBe(91);
     scroll.remove();
+  });
+
+  it('keeps detail tab transient and carries it only through openWorkitem options', async () => {
+    localStorage.removeItem('nervd-navigation');
+    const originalSelect = useApp.getState().select;
+    useApp.setState({ select: async () => {} });
+    try {
+      useUi.getState().setDetailTab('activity');
+      // 缺省打开：回到默认「交付进展」
+      useUi.getState().openWorkitem('REQ-1', { workitemId: 'REQ-1', identifier: 'REQ-1' });
+      expect(useUi.getState().detailTab).toBe('repos');
+
+      // 分栏转全屏：显式携带页签
+      useUi.getState().openWorkitem(
+        'REQ-2',
+        { workitemId: 'REQ-2', identifier: 'REQ-2' },
+        undefined,
+        { detailTab: 'activity' },
+      );
+      expect(useUi.getState().detailTab).toBe('activity');
+
+      // 瞬态页签不写入导航快照
+      window.dispatchEvent(new Event('pagehide'));
+      const raw = localStorage.getItem('nervd-navigation');
+      expect(raw).not.toBeNull();
+      expect(raw).not.toContain('detailTab');
+    } finally {
+      useApp.setState({ select: originalSelect });
+    }
   });
 
   it('does not persist transient cursor / selection / collapsed state', () => {

@@ -137,7 +137,14 @@ pub async fn sync_local_repo(
     if repo_id <= 0 {
         return Err("repo_id 必须大于 0".into());
     }
-    crate::attribution::sync::sync_repos(state.inner(), Some(vec![repo_id]), false, Some(&app)).await
+    crate::attribution::sync::sync_repos(
+        state.inner(),
+        Some(vec![repo_id]),
+        false,
+        false,
+        Some(&app),
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------
@@ -258,8 +265,13 @@ pub async fn set_active_workitem(
         validate_workitem_id(parent)?;
     }
 
-    let active = resolve_active_workitem(state.inner(), repo_id, workitem_id, parent).await?;
+    let (active, subject) =
+        resolve_active_workitem(state.inner(), repo_id, workitem_id, parent).await?;
     lr::write_active_workitem(&binding.path, &active)?;
+    // Agent 配套文件是增强项：失败只记日志，不影响「已设为当前工作项」本身。
+    if let Err(error) = lr::write_agent_scaffold(&binding.path, &active, subject.as_deref()) {
+        eprintln!("[local-repo] 生成 Agent 脚手架失败: {error}");
+    }
     Ok(true)
 }
 
@@ -368,9 +380,9 @@ async fn resolve_active_workitem(
     repo_id: i64,
     workitem_id: &str,
     explicit_parent: Option<&str>,
-) -> Result<ActiveWorkitem, String> {
+) -> Result<(ActiveWorkitem, Option<String>), String> {
     match resolve_from_api(state, repo_id, workitem_id, explicit_parent).await {
-        Ok(active) => Ok(active),
+        Ok(resolved) => Ok(resolved),
         Err(api_error) => {
             let cached = {
                 let conn = db(state)?;
@@ -381,7 +393,7 @@ async fn resolve_active_workitem(
                     if let Some(parent) = explicit_parent {
                         active.parent_workitem_id = Some(parent.to_string());
                     }
-                    Ok(active)
+                    Ok((active, None))
                 }
                 None => Err(api_error),
             }
@@ -394,10 +406,11 @@ async fn resolve_from_api(
     repo_id: i64,
     workitem_id: &str,
     explicit_parent: Option<&str>,
-) -> Result<ActiveWorkitem, String> {
+) -> Result<(ActiveWorkitem, Option<String>), String> {
     let (client, org) = client_and_org(state)?;
     let detail = fetch_workitem(&client, &org, workitem_id).await?;
     let row = detail_row(&detail);
+    let subject = value_str(row, &["subject", "name"]);
 
     let identifier = value_str(row, &["identifier", "serialNumber"]).ok_or_else(|| {
         format!("工作项 {workitem_id} 详情缺少 identifier（serialNumber），无法写入 Refs")
@@ -428,15 +441,18 @@ async fn resolve_from_api(
         }
     }
 
-    Ok(ActiveWorkitem {
-        repo_id,
-        workitem_id: workitem_id.to_string(),
-        identifier,
-        category,
-        parent_workitem_id: parent_id,
-        parent_identifier,
-        updated_at: lr::now_ms(),
-    })
+    Ok((
+        ActiveWorkitem {
+            repo_id,
+            workitem_id: workitem_id.to_string(),
+            identifier,
+            category,
+            parent_workitem_id: parent_id,
+            parent_identifier,
+            updated_at: lr::now_ms(),
+        },
+        subject,
+    ))
 }
 
 // ---------------------------------------------------------------------------

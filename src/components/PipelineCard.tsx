@@ -2,6 +2,7 @@ import type { PipelineRunSummary } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { CopyButton } from '@/components/ui/copy-button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StatusBadge } from './StatusBadge';
 import { formatDateTime } from '../lib/format';
 import { BuildWorkbenchTrigger, openPipelineRunLogs } from './build-workbench';
@@ -27,9 +28,23 @@ export function PipelineCard({
           label="触发构建"
           title={`触发构建 ${pipelineName}`}
         />
-        <Button variant="ghost" size="sm" disabled={!latest} onPress={() => latest && void openPipelineRunLogs(pipelineId, latest.pipelineRunId, pipelineName)}>
-          日志
-        </Button>
+        {/* 禁用态用 aria-disabled 而非原生 disabled：保留 hover/focus，Tooltip 才能解释「为什么不可点」 */}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-disabled={!latest || undefined}
+                className={latest ? undefined : 'text-muted-foreground opacity-70'}
+                onPress={() => latest && void openPipelineRunLogs(pipelineId, latest.pipelineRunId, pipelineName)}
+              >
+                日志
+              </Button>
+            }
+          />
+          <TooltipContent>{latest ? '查看最近一次运行日志' : '暂无运行记录，无法查看日志'}</TooltipContent>
+        </Tooltip>
       </div>
       {latest && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5 text-xs text-muted-foreground">

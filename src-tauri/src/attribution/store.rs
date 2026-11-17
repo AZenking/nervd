@@ -5,7 +5,7 @@
 
 use crate::attribution::model::{
     ActivityCandidate, ActivityPolicy, AttributionRepoStatus, AttributionStatus, ChangeEvent,
-    ChangePage, ResolvedWorkitemRef, WorkitemChange,
+    ChangePage, ResolvedWorkitemRef, ViewerIdentity, WorkitemChange, WorkitemPerson,
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::Value;
@@ -726,12 +726,21 @@ pub fn list_activity_candidates(
     conn: &Connection,
     limit: Option<i64>,
     now: i64,
+    viewer: Option<&ViewerIdentity>,
 ) -> Result<Vec<ActivityCandidate>, String> {
+    // fail-closed：没有「我」的身份就不回写任何工作项，避免默认写到全组织。
+    let Some(viewer) = viewer.filter(|viewer| viewer.is_effective()) else {
+        return Ok(Vec::new());
+    };
+    let viewer_id = viewer.id.as_deref().unwrap_or("").trim().to_string();
+    let mut names = viewer.name_candidates();
+    names.resize(5, String::new());
     let limit = clamp_limit(limit);
     let sql = format!(
         "SELECT {EVENT_COLUMNS}, w.identifier, w.relation, w.workitem_id, ap.batch_key
          FROM event_workitems w
          JOIN code_events e ON e.id = w.event_id
+         LEFT JOIN workitem_identifiers wi ON wi.identifier = w.identifier
          LEFT JOIN activity_posts ap
                 ON ap.event_id = w.event_id AND ap.workitem_id = w.workitem_id
          WHERE w.workitem_id IS NOT NULL
@@ -743,6 +752,24 @@ pub fn list_activity_candidates(
                     AND (ap.next_retry_at IS NULL OR ap.next_retry_at <= ?3)
                 )
            )
+           -- 写回范围：只处理负责人是我的工作项；rollup（父需求）额外允许
+           -- 协同人 / 创建人是我，覆盖「子任务是我的、父需求与我相关」的场景。
+           AND EXISTS (
+                SELECT 1
+                FROM workitem_identifier_people p
+                WHERE p.identifier = w.identifier
+                  AND (
+                        (?4 <> '' AND p.person_id = ?4)
+                        OR (p.person_name <> '' AND p.person_name IN (?5, ?6, ?7, ?8, ?9))
+                  )
+                  AND (
+                        p.role = 'assignee'
+                        -- 父需求（rollup）：我负责，或我是协同人 / 创建人
+                        OR (w.relation = 'rollup' AND p.role IN ('participant', 'creator'))
+                        -- 需求级工作项：我参与 / 我创建，也视为「与我相关」
+                        OR (wi.category = 'Req' AND p.role IN ('participant', 'creator'))
+                  )
+           )
          ORDER BY e.occurred_at DESC, e.id DESC
          LIMIT ?1"
     );
@@ -750,7 +777,19 @@ pub fn list_activity_candidates(
         .prepare(&sql)
         .map_err(|e| format!("查询待回写候选失败: {e}"))?;
     let rows = statement
-        .query_map(params![limit, MAX_ATTEMPTS, now], |row| {
+        .query_map(
+            params![
+                limit,
+                MAX_ATTEMPTS,
+                now,
+                viewer_id,
+                names[0],
+                names[1],
+                names[2],
+                names[3],
+                names[4]
+            ],
+            |row| {
             let event = event_from_row(row, 0)?;
             let workitem_id: String = row.get(15)?;
             let batch_key: Option<String> = row.get(16)?;
@@ -772,6 +811,43 @@ pub fn list_activity_candidates(
         .map_err(|e| format!("查询待回写候选失败: {e}"))?;
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("读取待回写候选失败: {e}"))
+}
+
+/// 待回写候选里「已解析但还没有负责人索引」的编号（用于升级后一次性补齐人员索引）。
+pub fn identifiers_missing_ownership(
+    conn: &Connection,
+    limit: i64,
+) -> Result<Vec<String>, String> {
+    let limit = limit.clamp(1, 200);
+    let mut statement = conn
+        .prepare(
+            "SELECT DISTINCT w.identifier
+             FROM event_workitems w
+             JOIN workitem_identifiers wi ON wi.identifier = w.identifier
+             LEFT JOIN activity_posts ap
+                    ON ap.event_id = w.event_id AND ap.workitem_id = w.workitem_id
+             WHERE w.workitem_id IS NOT NULL
+               AND wi.workitem_id IS NOT NULL
+               AND (
+                    ap.event_id IS NULL
+                    OR (
+                        ap.status IN ('failed', 'pending')
+                        AND COALESCE(ap.attempts, 0) < ?2
+                    )
+               )
+               AND NOT EXISTS (
+                    SELECT 1 FROM workitem_identifier_people p
+                    WHERE p.identifier = w.identifier AND p.role = 'assignee'
+               )
+             ORDER BY w.identifier
+             LIMIT ?1",
+        )
+        .map_err(|e| format!("查询缺失负责人的编号失败: {e}"))?;
+    let rows = statement
+        .query_map(params![limit, MAX_ATTEMPTS], |row| row.get::<_, String>(0))
+        .map_err(|e| format!("读取缺失负责人的编号失败: {e}"))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("读取缺失负责人的编号失败: {e}"))
 }
 
 // ---------------------------------------------------------------------------
@@ -870,15 +946,121 @@ pub fn cached_identifiers(
                     parent_workitem_id: row.get(3)?,
                     parent_identifier: row.get(4)?,
                     error: row.get(5)?,
+                    assigned_to: None,
+                    creator: None,
+                    participants: Vec::new(),
                 })
             })
             .optional()
             .map_err(|e| format!("读取编号 {identifier} 缓存失败: {e}"))?;
-        if let Some(reference) = row {
+        if let Some(mut reference) = row {
+            let (assigned_to, creator, participants) = load_identifier_people(conn, identifier)?;
+            reference.assigned_to = assigned_to;
+            reference.creator = creator;
+            reference.participants = participants;
             out.insert(identifier.clone(), reference);
         }
     }
     Ok(out)
+}
+
+/// 工作项人员索引：(负责人, 创建人, 协同人列表)。
+type IdentifierPeople = (
+    Option<WorkitemPerson>,
+    Option<WorkitemPerson>,
+    Vec<WorkitemPerson>,
+);
+
+/// 读取工作项相关人员（assignee / creator / participants）。
+fn load_identifier_people(
+    conn: &Connection,
+    identifier: &str,
+) -> Result<IdentifierPeople, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT role, person_id, person_name
+             FROM workitem_identifier_people
+             WHERE identifier = ?1",
+        )
+        .map_err(|e| format!("准备人员查询失败: {e}"))?;
+    let rows = statement
+        .query_map(params![identifier], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .map_err(|e| format!("查询编号 {identifier} 人员失败: {e}"))?;
+    let mut assigned_to = None;
+    let mut creator = None;
+    let mut participants = Vec::new();
+    for row in rows {
+        let (role, id, name) = row.map_err(|e| format!("读取编号 {identifier} 人员失败: {e}"))?;
+        let person = WorkitemPerson {
+            id: (!id.trim().is_empty()).then_some(id),
+            name: (!name.trim().is_empty()).then_some(name),
+        };
+        if person.is_empty() {
+            continue;
+        }
+        match role.as_str() {
+            "assignee" => assigned_to = Some(person),
+            "creator" => creator = Some(person),
+            "participant" => participants.push(person),
+            _ => {}
+        }
+    }
+    Ok((assigned_to, creator, participants))
+}
+
+/// 覆盖写入某个编号的人员索引（先删后插，避免残留旧负责人）。
+fn replace_identifier_people(
+    conn: &Connection,
+    identifier: &str,
+    reference: &ResolvedWorkitemRef,
+) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM workitem_identifier_people WHERE identifier = ?1",
+        params![identifier],
+    )
+    .map_err(|e| format!("清理编号 {identifier} 人员索引失败: {e}"))?;
+
+    let mut entries: Vec<(&str, &WorkitemPerson)> = Vec::new();
+    if let Some(person) = reference.assigned_to.as_ref() {
+        entries.push(("assignee", person));
+    }
+    if let Some(person) = reference.creator.as_ref() {
+        entries.push(("creator", person));
+    }
+    for person in &reference.participants {
+        entries.push(("participant", person));
+    }
+    if entries.is_empty() {
+        return Ok(());
+    }
+
+    let mut statement = conn
+        .prepare(
+            "INSERT OR REPLACE INTO workitem_identifier_people
+                (identifier, role, person_id, person_name)
+             VALUES (?1, ?2, ?3, ?4)",
+        )
+        .map_err(|e| format!("准备人员写入失败: {e}"))?;
+    for (role, person) in entries {
+        if person.is_empty() {
+            continue;
+        }
+        statement
+            .execute(params![
+                identifier,
+                role,
+                person.id.clone().unwrap_or_default(),
+                person.name.clone().unwrap_or_default(),
+            ])
+            .map_err(|e| format!("写入编号 {identifier} 人员失败: {e}"))?;
+    }
+    Ok(())
 }
 
 /// 写入编号解析缓存（含负缓存：`workitem_id = None` + error）。
@@ -916,6 +1098,7 @@ pub fn put_identifier_cache(
                 reference.error
             ])
             .map_err(|e| format!("写入编号 {} 缓存失败: {e}", reference.identifier))?;
+        replace_identifier_people(conn, &reference.identifier, reference)?;
     }
     Ok(())
 }
@@ -924,6 +1107,24 @@ pub fn put_identifier_cache(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn seed_person(conn: &Connection, identifier: &str, role: &str, name: &str) {
+        conn.execute(
+            "INSERT OR REPLACE INTO workitem_identifier_people
+                (identifier, role, person_id, person_name)
+             VALUES (?1, ?2, '', ?3)",
+            params![identifier, role, name],
+        )
+        .unwrap();
+    }
+
+    fn viewer(name: &str) -> ViewerIdentity {
+        ViewerIdentity {
+            id: None,
+            name: Some(name.to_string()),
+            aliases: Vec::new(),
+        }
+    }
 
     fn test_conn() -> Connection {
         let conn = Connection::open_in_memory().expect("内存库应可打开");
@@ -1274,8 +1475,13 @@ mod tests {
         )
         .unwrap();
 
+        // 写回范围：REQ-1 的负责人是我；REQ-9 是父需求，协同人是我（rollup 允许协同人）。
+        seed_person(&conn, "REQ-1", "assignee", "dev");
+        seed_person(&conn, "REQ-9", "participant", "dev");
+        let viewer = viewer("dev");
+
         // rollup 也进入候选：父需求的里程碑/日报由前端 writer 过滤，不能让父需求永远收不到动态
-        let candidates = list_activity_candidates(&conn, None, now_ms()).unwrap();
+        let candidates = list_activity_candidates(&conn, None, now_ms(), Some(&viewer)).unwrap();
         assert_eq!(candidates.len(), 3);
         assert_eq!(
             candidates.iter().filter(|c| c.relation == "primary").count(),
@@ -1288,17 +1494,17 @@ mod tests {
 
         // posted 之后不再候选（rollup 仍待回写）
         mark_activity(&conn, "commit:1:a", "wi-1", "posted", Some("c-1"), None).unwrap();
-        let candidates = list_activity_candidates(&conn, None, now_ms()).unwrap();
+        let candidates = list_activity_candidates(&conn, None, now_ms(), Some(&viewer)).unwrap();
         assert_eq!(candidates.len(), 2);
         assert!(candidates.iter().all(|c| c.event_id == "commit:1:b"));
 
         // failed 未到重试时间不候选；到点后恢复候选；rollup 不受 primary 退避影响
         mark_activity(&conn, "commit:1:b", "wi-1", "failed", None, Some("boom")).unwrap();
-        let candidates = list_activity_candidates(&conn, None, now_ms()).unwrap();
+        let candidates = list_activity_candidates(&conn, None, now_ms(), Some(&viewer)).unwrap();
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].relation, "rollup");
         assert_eq!(
-            list_activity_candidates(&conn, None, now_ms() + 61_000)
+            list_activity_candidates(&conn, None, now_ms() + 61_000, Some(&viewer))
                 .unwrap()
                 .len(),
             2
@@ -1307,10 +1513,110 @@ mod tests {
         // 连续失败 3 次后 primary 彻底放弃；rollup 仍可回写
         mark_activity(&conn, "commit:1:b", "wi-1", "failed", None, Some("boom")).unwrap();
         mark_activity(&conn, "commit:1:b", "wi-1", "failed", None, Some("boom")).unwrap();
-        let candidates = list_activity_candidates(&conn, None, now_ms() + 86_400_000)
-            .unwrap();
+        let candidates =
+            list_activity_candidates(&conn, None, now_ms() + 86_400_000, Some(&viewer)).unwrap();
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].relation, "rollup");
+    }
+
+    #[test]
+    fn activity_candidates_are_scoped_to_my_workitems() {
+        let conn = test_conn();
+        insert_event(&conn, "commit:1:a", 1, 100, true);
+        replace_event_workitems(
+            &conn,
+            "commit:1:a",
+            &[
+                link("REQ-1", Some("wi-1"), "primary"), // 负责人是我
+                link("REQ-2", Some("wi-2"), "primary"), // 负责人是别人
+                link("REQ-3", Some("wi-3"), "rollup"),  // 父需求，我是协同人
+                link("TASK-4", Some("wi-4"), "related"), // 无负责人索引（未知）
+                link("REQ-5", Some("wi-5"), "primary"), // 需求级，我是协同人
+            ],
+        )
+        .unwrap();
+        // 需求级工作项需要 category=Req 才能命中「与我相关」规则。
+        put_identifier_cache(
+            &conn,
+            &[ResolvedWorkitemRef {
+                identifier: "REQ-5".into(),
+                workitem_id: Some("wi-5".into()),
+                category: Some("Req".into()),
+                subject: None,
+                parent_workitem_id: None,
+                parent_identifier: None,
+                error: None,
+                assigned_to: None,
+                creator: None,
+                participants: Vec::new(),
+            }],
+            now_ms(),
+        )
+        .unwrap();
+        seed_person(&conn, "REQ-1", "assignee", "dev");
+        seed_person(&conn, "REQ-2", "assignee", "other");
+        seed_person(&conn, "REQ-3", "participant", "dev");
+        seed_person(&conn, "REQ-5", "participant", "dev");
+
+        let scoped = |viewer: &ViewerIdentity| -> Vec<String> {
+            let mut identifiers: Vec<String> =
+                list_activity_candidates(&conn, None, now_ms(), Some(viewer))
+                    .unwrap()
+                    .into_iter()
+                    .map(|candidate| candidate.identifier)
+                    .collect();
+            identifiers.sort();
+            identifiers
+        };
+
+        // 我的子项/需求 + 我参与的父需求；别人的、以及负责人未知的一律不回写。
+        assert_eq!(scoped(&viewer("dev")), vec!["REQ-1", "REQ-3", "REQ-5"]);
+        // 别人的父需求：协同人不是他，不写。
+        assert_eq!(scoped(&viewer("other")), vec!["REQ-2"]);
+        // 没有身份时 fail-closed。
+        assert!(list_activity_candidates(&conn, None, now_ms(), None)
+            .unwrap()
+            .is_empty());
+        // 只有 ID 没有姓名的人员行，不能被「姓名空」的 viewer 误命中（REQ-6）。
+        replace_event_workitems(
+            &conn,
+            "commit:1:a",
+            &[
+                link("REQ-1", Some("wi-1"), "primary"),
+                link("REQ-2", Some("wi-2"), "primary"),
+                link("REQ-3", Some("wi-3"), "rollup"),
+                link("TASK-4", Some("wi-4"), "related"),
+                link("REQ-5", Some("wi-5"), "primary"),
+                link("REQ-6", Some("wi-6"), "primary"),
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO workitem_identifier_people
+                (identifier, role, person_id, person_name)
+             VALUES ('REQ-6', 'assignee', 'u-other', '')",
+            [],
+        )
+        .unwrap();
+        let id_only = ViewerIdentity {
+            id: Some("u-me".into()),
+            name: None,
+            aliases: Vec::new(),
+        };
+        assert!(
+            !scoped(&id_only).contains(&"REQ-6".to_string()),
+            "姓名留空的人员行不得被空姓名误命中"
+        );
+
+        // 只有别名、没有姓名/ID 也算有效身份（设置里的自定义花名）。
+        let alias_only = ViewerIdentity {
+            id: None,
+            name: None,
+            aliases: vec!["花名".into()],
+        };
+        assert!(list_activity_candidates(&conn, None, now_ms(), Some(&alias_only))
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -1403,6 +1709,9 @@ mod tests {
                 parent_workitem_id: None,
                 parent_identifier: None,
                 error: None,
+                assigned_to: None,
+                creator: None,
+                participants: Vec::new(),
             },
             ResolvedWorkitemRef {
                 identifier: "REQ-404".into(),
@@ -1412,6 +1721,9 @@ mod tests {
                 parent_workitem_id: None,
                 parent_identifier: None,
                 error: Some("未找到".into()),
+                assigned_to: None,
+                creator: None,
+                participants: Vec::new(),
             },
         ];
         put_identifier_cache(&conn, &refs, now).unwrap();

@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '@/store/app';
-import { useUi } from '@/store/ui';
+import { DEFAULT_DETAIL_TAB, useUi, type DetailTabKey } from '@/store/ui';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RequirementDetails } from '@/components/iteration/RequirementDetails';
@@ -11,8 +11,14 @@ export interface WorkitemPeekDrawerProps {
   workitemId: string | null;
   /** 关闭抽屉回调 */
   onClose: () => void;
-  /** 在独立工作台完整打开回调（若未传则默认使用 useUi.openWorkitem） */
-  onOpenWorkbench?: (workitemId: string, identifier?: string, subject?: string) => void;
+  /** 在独立工作台完整打开回调（若未传则默认使用 useUi.openWorkitem）。
+   *  detailTab 为抽屉当前页签：分栏 → 全屏需原样携带（缺省由 RequirementDetails 内部回落到默认）。 */
+  onOpenWorkbench?: (
+    workitemId: string,
+    identifier?: string,
+    subject?: string,
+    detailTab?: DetailTabKey,
+  ) => void;
   /** 钻取子工作项时记录的父项（面包屑「返回父需求」与 Esc 逐层退回共用） */
   parentWorkitem?: { workitemId: string; identifier: string; subject?: string } | null;
   /** 就地钻取子工作项回调（未传时详情内部仍走 ChildDetailDrawer 兜底） */
@@ -27,6 +33,9 @@ export interface WorkitemPeekDrawerProps {
  * - 抽屉内部以嵌入模态（embedded）渲染 RequirementDetails，支持子任务/缺陷就地钻取与逐层退回；
  * - 支持一键「全屏打开」切换至独立工作台并自动关闭抽屉；
  * - Dialog 带 data-workspace-peek-drawer 标记，供键盘层识别「仅抽屉开启」的浮层让路判定。
+ *
+ * 页签策略：抽屉持有受控页签（默认「交付进展」）。j/k 连续检视只换 workitemId，页签保留；
+ * 抽屉关闭（workitemId=null）重置回默认；「全屏打开」把当前页签经 openWorkitem options 带走。
  */
 export function WorkitemPeekDrawer({
   workitemId,
@@ -37,6 +46,7 @@ export function WorkitemPeekDrawer({
   onSelectParent,
 }: WorkitemPeekDrawerProps) {
   const openWorkitem = useUi((s) => s.openWorkitem);
+  const [detailTab, setDetailTab] = useState<DetailTabKey>(DEFAULT_DETAIL_TAB);
 
   useEffect(() => {
     if (!workitemId) return;
@@ -49,19 +59,39 @@ export function WorkitemPeekDrawer({
     }
   }, [workitemId]);
 
+  useEffect(() => {
+    if (workitemId) return;
+    // 关闭抽屉 → 重置页签：再次打开回到默认「交付进展」。
+    setDetailTab(DEFAULT_DETAIL_TAB);
+    useUi.getState().setDetailTab(DEFAULT_DETAIL_TAB);
+  }, [workitemId]);
+
+  const handleDetailTabChange = useCallback((tab: DetailTabKey) => {
+    setDetailTab(tab);
+    // RequirementDetails 也会写回 store；这里再同步一次，保证抽屉作为页签持有方时状态单一来源。
+    useUi.getState().setDetailTab(tab);
+  }, []);
+
   const handleOpenWorkbench = () => {
     if (!workitemId) return;
     // 一次性按 ID 取行，不订阅整张 items（避免任意列表变更都重渲抽屉）
     const it = useApp.getState().items.find((i) => i.workitemId === workitemId);
+    // 先取出当前页签：onClose 会把 workitemId 置空并触发回归重置，不能依赖重置后的状态。
+    const tab = detailTab;
     onClose();
     if (onOpenWorkbench) {
-      onOpenWorkbench(workitemId, it?.identifier, it?.subject);
+      onOpenWorkbench(workitemId, it?.identifier, it?.subject, tab);
     } else {
-      openWorkitem(workitemId, {
+      openWorkitem(
         workitemId,
-        identifier: it?.identifier ?? '',
-        subject: it?.subject,
-      });
+        {
+          workitemId,
+          identifier: it?.identifier ?? '',
+          subject: it?.subject,
+        },
+        undefined,
+        { detailTab: tab },
+      );
     }
   };
 
@@ -91,6 +121,8 @@ export function WorkitemPeekDrawer({
                 onSelectParent={onSelectParent}
                 onOpenWorkbench={handleOpenWorkbench}
                 onClose={onClose}
+                detailTab={detailTab}
+                onDetailTabChange={handleDetailTabChange}
               />
             )}
           </ScrollArea>

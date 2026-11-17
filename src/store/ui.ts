@@ -102,6 +102,13 @@ export function applyWorkitemFilters<T extends FilterableRow>(items: T[], f: Wor
 export type WorkspaceView = 'iteration' | 'requirement' | 'integration' | 'overview' | 'recents' | 'full-settings' | 'schedules';
 export type SettingsSection = 'connection' | 'trace' | 'attribution' | 'ci' | 'security' | 'ai' | 'about';
 export type IterationViewTab = 'workitems' | 'repos' | 'branches';
+/**
+ * 需求详情页签：交付进展（默认，复用原「关联仓库」页签）/ 描述 / 子工作项 / 活动动态。
+ * 纯前端瞬态状态：不写入导航快照、不落 localStorage；分栏（Peek 抽屉）与全屏工作台之间通过 store 传递。
+ */
+export type DetailTabKey = 'description' | 'repos' | 'children' | 'activity';
+/** 详情页首次打开 / 关闭后重新打开时的默认页签（交付进展）。 */
+export const DEFAULT_DETAIL_TAB: DetailTabKey = 'repos';
 
 /** 迭代列表的可恢复交互上下文，由 IterationView 同步当前本地状态。 */
 export interface IterationListContext {
@@ -336,6 +343,13 @@ interface UiStore {
   restoreNavigation(): Promise<void>;
   /** 需求详情的层级链（末位 = 当前详情）；从子任务进入时为 [父, 子] */
   chain: WorkitemCrumb[];
+  /**
+   * 需求详情当前页签（瞬态，不写入导航快照）。
+   * 分栏 Peek 抽屉由 WorkitemPeekDrawer 受控持有并同步到此字段；全屏工作台在挂载时读取该值，
+   * 因此「分栏 → 全屏」能保留页签，而中途关闭后重新打开会回到默认的「交付进展」。
+   */
+  detailTab: DetailTabKey;
+  setDetailTab(tab: DetailTabKey): void;
   setView(view: WorkspaceView): void;
   setSettingsSection(section: SettingsSection): void;
   openSettings(section?: SettingsSection): void;
@@ -343,8 +357,14 @@ interface UiStore {
   setIterationKey(key: string): void;
   toggleFilter(kind: keyof WorkitemFilters, value: string): void;
   clearFilters(): void;
-  /** 打开工作项详情：记录历史与层级链（parent 传入时形成 父 › 子 面包屑） */
-  openWorkitem(workitemId: string, crumb: WorkitemCrumb, parent?: WorkitemCrumb): void;
+  /** 打开工作项详情：记录历史与层级链（parent 传入时形成 父 › 子 面包屑）。
+   *  options.detailTab：显式携带页签（分栏转全屏用）；缺省回到默认「交付进展」。 */
+  openWorkitem(
+    workitemId: string,
+    crumb: WorkitemCrumb,
+    parent?: WorkitemCrumb,
+    options?: { detailTab?: DetailTabKey },
+  ): void;
   /** 后退一步（⌘←）；无历史时不动 */
   back(): Promise<void>;
   /** 前进一步（⌘]）；无前进记录时不动 */
@@ -522,7 +542,8 @@ if (storedNavigationAtStartup.status === 'valid') {
   persistedForwardHistory = storedNavigationAtStartup.value.forwardHistory.map((snapshot) => sanitizePersistedSnapshot(snapshot));
 }
 const defaultNavigationSnapshot: NavSnapshot = {
-  view: 'overview',
+  // 无历史导航记录时的默认落点：当前迭代（主入口）。已有有效导航记录仍按记录恢复。
+  view: 'iteration',
   settingsSection: 'connection',
   iterationKey: PLACEHOLDER_ITERATIONS[0].name,
   category: 'Req',
@@ -536,7 +557,8 @@ const defaultNavigationSnapshot: NavSnapshot = {
 const startupSnapshot = storedNavigationAtStartup.status === 'valid'
   ? storedNavigationAtStartup.value.current
   : storedNavigationAtStartup.status === 'invalid'
-    ? { ...defaultNavigationSnapshot, view: 'overview' as const }
+    // 记录损坏（等同无记录）：回到默认落点「当前迭代」，而不是旧的「总览」。
+    ? { ...defaultNavigationSnapshot, view: 'iteration' as const }
     : defaultNavigationSnapshot;
 
 /** 离开设置视图且草稿有未保存修改：无校验错误则静默保存放行，有阻断错误则弹窗确认 */
@@ -573,6 +595,8 @@ export const useUi = create<UiStore>((set, get) => {
       chain: restored.chain,
       listSearch: restored.listSearch,
       listContext: restored.listContext,
+      // 导航恢复（后退 / 前进 / 启动）回到详情默认页签「交付进展」。
+      detailTab: DEFAULT_DETAIL_TAB,
       restoreScroll: restored.scrollTop,
     });
     lastWorkspaceScrollTop = restored.scrollTop;
@@ -618,6 +642,8 @@ export const useUi = create<UiStore>((set, get) => {
       : [],
     restoreScroll: storedNavigationAtStartup.status === 'valid' ? startupSnapshot.scrollTop : null,
     chain: startupSnapshot.chain.map((crumb) => ({ ...crumb })),
+    detailTab: DEFAULT_DETAIL_TAB,
+    setDetailTab: (detailTab) => set({ detailTab }),
     commandOpen: false,
     setCommandOpen: (commandOpen) => set({ commandOpen }),
     toggleCommandMenu: () => set((st) => ({ commandOpen: !st.commandOpen })),
@@ -824,15 +850,18 @@ export const useUi = create<UiStore>((set, get) => {
       set({ filters: { assignees: [], related: [], statuses: [] } });
       scheduleNavigationPersist();
     },
-    openWorkitem: (workitemId, crumb, parent) => {
+    openWorkitem: (workitemId, crumb, parent, options) => {
       const st = get();
       const blocked = guardSettingsDraft(st.view, 'requirement');
       const chain = parent ? [parent, crumb] : [crumb];
+      // 详情页签为瞬态：默认回到「交付进展」；分栏转全屏时由调用方显式携带当前页签。
+      const detailTab = options?.detailTab ?? DEFAULT_DETAIL_TAB;
       // 选择与层级链先落地（只读操作）；被拦截时确认后将 setView 到详情。
       set(blocked
-        ? { chain }
+        ? { chain, detailTab }
         : {
             chain,
+            detailTab,
             view: 'requirement',
             history: pushHistory(st),
             forwardHistory: [],
@@ -881,7 +910,7 @@ export const useUi = create<UiStore>((set, get) => {
           return;
         }
 
-        const fallback = { ...defaultNavigationSnapshot, view: 'overview' as const };
+        const fallback = { ...defaultNavigationSnapshot, view: 'iteration' as const };
         set({
           view: fallback.view,
           settingsSection: fallback.settingsSection,
@@ -890,6 +919,7 @@ export const useUi = create<UiStore>((set, get) => {
           filters: cloneFilters(fallback.filters),
           listSearch: '',
           listContext: cloneListContext(DEFAULT_ITERATION_LIST_CONTEXT),
+          detailTab: DEFAULT_DETAIL_TAB,
           history: [],
           forwardHistory: [],
           restoreScroll: null,

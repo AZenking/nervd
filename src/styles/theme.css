@@ -212,13 +212,18 @@
   --overlay: #ffffff;
   --overlay-foreground: #26282d;
   /* HeroUI 角色 token 覆盖核对：--overlay / --default / --field-background / --muted /
-     --field-border 由本文件定义；--backdrop（黑 50% / 深 60%）与 --separator
-     沿用 @heroui/styles 默认值，对应 bg-backdrop / border-separator 工具类
-     已由上游 @theme inline 生成，无需在组件层补映射或另写 tooltip/dropdown 色。 */
+     --field-border / --separator 均由本文件定义（--separator 对齐 --border，见下）；
+     --backdrop（黑 50% / 深 60%）沿用 @heroui/styles 默认值，对应 bg-backdrop /
+     border-separator 工具类已由上游 @theme inline 生成，组件层无需补映射或另写浮层色。 */
   /* §A 浮层阴影统一：HeroUI 浮层组件（.popover/.dropdown/.tooltip 等）默认
      box-shadow: var(--overlay-shadow)，此处覆盖为 nervd level-2 档
      （值同下方 @theme inline 的 --shadow-level-2），浮层阴影唯一档位。 */
   --overlay-shadow: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
+  /* DESIGN §2.6：页内卡片一律 hairline、无阴影。上游 light 的 --surface-shadow 带双层投影，
+     此前靠业务层 27 处 shadow-none 逐点压制；在事实源清零后组件层不得再写 shadow-none。 */
+  --surface-shadow: none;
+  /* DESIGN §2.1：separator 与 border / hairline 同值，菜单、表格、卡片分隔不再差一档灰。 */
+  --separator: var(--border);
   --default: #f4f5f7;
   --default-foreground: #26282d;
   --segment: #ffffff;
@@ -316,6 +321,10 @@
   --overlay-foreground: #f7f8f8;
   /* §A 浮层阴影统一：同 :root，覆盖 HeroUI --overlay-shadow 为 level-2 档（barely-there） */
   --overlay-shadow: 0 1px 2px rgba(0, 0, 0, 0.01), 0 4px 18px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.05);
+  /* DESIGN §2.6：页内卡片无阴影（与浅色同口径，避免暗色下另行判断） */
+  --surface-shadow: none;
+  /* DESIGN §2.1：separator 与 border / hairline 同值 */
+  --separator: var(--border);
   --default: #222228;
   --default-foreground: #f7f8f8;
   --segment: #2a2a32;
@@ -606,38 +615,142 @@
   z-index: 1;
 }
 
-/* HeroUI Tabs: 禁止选项卡文字换行，水平模式自适应内容宽度 */
-.tabs__tab,
-[role="tab"],
-.tabs__tab *,
-[role="tab"] * {
-  white-space: nowrap !important;
-  flex-shrink: 0;
+/* ---------- Tabs / Accordion 形态纠正（统一收口在 components 层，分层见文件头注释） ----------
+   规范：DESIGN §2.2 拒绝胶囊、选项卡文字不换行；组件层不得再写 whitespace-nowrap / w-fit。
+   与上游同为 components 层且源码序在后，同权重即可生效，故不再使用 !important。 */
+@layer components {
+  .tabs__tab,
+  [role="tab"],
+  .tabs__tab *,
+  [role="tab"] * {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tabs[data-orientation="horizontal"] .tabs__tab,
+  .tabs__list[data-orientation="horizontal"] .tabs__tab,
+  .tabs__list-container .tabs__tab,
+  [role="tablist"][aria-orientation="horizontal"] [role="tab"] {
+    width: auto;
+    min-width: fit-content;
+    flex: 0 0 auto;
+  }
+
+  /* 隐藏 Tabs 滚动指示箭头：nervd 的选项卡集恒为内容宽度，滚动箭头会遮挡文字 */
+  .tabs__list-container__scroll-prev,
+  .tabs__list-container__scroll-next,
+  [data-slot="tabs-scroll-prev"],
+  [data-slot="tabs-scroll-next"] {
+    display: none;
+  }
+
+  /* Accordion 触发器保持通透；hover 用语义色合成，禁止裸 rgba（DESIGN §2.7） */
+  .accordion__trigger {
+    background-color: transparent;
+  }
+  .accordion__trigger:hover {
+    background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
+  }
 }
 
-.tabs[data-orientation="horizontal"] .tabs__tab,
-.tabs__list[data-orientation="horizontal"] .tabs__tab,
-.tabs__list-container .tabs__tab,
-[role="tablist"][aria-orientation="horizontal"] [role="tab"] {
-  width: auto !important;
-  min-width: fit-content;
-  flex: 0 0 auto;
-}
+/* ---------- 组件级圆角 / 密度统一（DESIGN §2.2 圆角刻度） ----------
+   上游 @heroui/styles 对 .card / .modal__dialog / .popover 用 min(32px, --radius-3xl)
+   （本项目 --radius-3xl=24px），在桌面高密度下等同胶囊；.menu-item 是 rounded-2xl + 36px 高。
+   规范值：卡片 / 面板 / 弹窗 8px、菜单项 6px / 32px 高、内联小徽标 4px、悬浮提示 6px。
+   这些覆盖此前散落在 30+ 个调用点的 className 里，现统一收到事实源，组件层不得再重复声明。 */
+@layer components {
+  .card,
+  .modal__dialog,
+  .popover {
+    border-radius: var(--radius-lg);
+  }
 
-/* 彻底隐藏所有 Tabs 滚动指示箭头与滚动阴影，避免误显示和遮挡选项卡 */
-.tabs__list-container__scroll-prev,
-.tabs__list-container__scroll-next,
-[data-slot="tabs-scroll-prev"],
-[data-slot="tabs-scroll-next"] {
-  display: none !important;
-}
+  .tooltip {
+    border-radius: var(--radius-md);
+  }
 
-/* HeroUI Accordion: 优化触发器背景，避免呈现死灰大长条，保持通透精致风格 */
-.accordion__trigger {
-  background-color: transparent !important;
-}
-.accordion__trigger:hover {
-  background-color: rgba(120, 120, 128, 0.08) !important;
+  /* 提示条紧凑密度（上游 16/12px 内距 + 16px 间距 + 24px 圆角；nervd 桌面密度 10/8px + 8px 间距） */
+  .alert {
+    padding-inline: 0.625rem;
+    padding-block: 0.5rem;
+    gap: 0.5rem;
+    border-radius: var(--radius-lg);
+  }
+
+  /* 浮层正文 13px（桌面高密度）：上游 .popover 默认 text-sm，组件层不再逐个写 text-[13px] */
+  .popover {
+    font-size: 0.8125rem;
+  }
+
+  .menu-item {
+    min-height: 2rem;
+    border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+  }
+
+  .badge {
+    border-radius: var(--radius-sm);
+  }
+
+  /* 桌面高密度表单：输入框 32px 高 / 13px 字，多行框保底 64px；与 ui/input、ui/textarea 同档 */
+  .input {
+    block-size: 2rem;
+    font-size: 0.8125rem;
+  }
+
+  .textarea {
+    min-block-size: 4rem;
+    font-size: 0.8125rem;
+  }
+
+  .label {
+    font-size: 0.8125rem;
+  }
+
+  /* DESIGN §2.3：快捷键键帽一律等宽 */
+  .kbd {
+    font-family: var(--font-mono);
+  }
+
+  /* 键帽紧凑档（ui/kbd 的 size="xs"，表格/徽标行内；替代 h-5! px-1.5! text-[11px]! 覆写） */
+  .kbd--xs {
+    block-size: 1.125rem;
+    padding-inline: 0.25rem;
+    font-size: 0.625rem;
+    border-radius: var(--radius-xs);
+  }
+
+  .toggle-button-group {
+    border-radius: var(--radius-md);
+  }
+
+  /* ---------- 表格密度（DESIGN §2.3 桌面高密度；ui/table 唯一落地件） ----------
+     上游默认 cell 16/12px、14px 字，表头 16/10px；nervd 收紧为 12/8px、12px 字，
+     避免调用点逐格写 `px-3 py-2.5 text-xs`、手写 hover / 选中底色。 */
+  .table__content {
+    font-size: 0.75rem;
+  }
+
+  .table__cell {
+    padding-inline: 0.75rem;
+    padding-block: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .table__column {
+    padding-inline: 0.75rem;
+    padding-block: 0.5rem;
+  }
+
+  .table__row:hover,
+  .table__row[data-hovered="true"] {
+    background-color: var(--surface-secondary);
+  }
+
+  .table__row[data-selected="true"],
+  .table__row[aria-selected="true"] {
+    background-color: var(--accent-soft);
+  }
 }
 
 /* ---------- 按钮圆角纠正（DESIGN.md §2.2：按钮紧凑档 6px，拒绝胶囊） ----------

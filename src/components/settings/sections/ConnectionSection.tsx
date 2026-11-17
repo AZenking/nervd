@@ -5,7 +5,9 @@ import { useApp } from '@/store/app';
 import { useSettingsDraft } from '@/store/settings-draft';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { cn } from '@/lib/utils';
-import { Avatar, Button, Chip } from '@heroui/react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -103,10 +105,10 @@ export function ConnectionSection() {
         <div className="flex flex-col gap-3 p-4 border-b border-border/50 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <Avatar size="md" className="border border-border/60 shrink-0">
-              {currentUser?.avatarUrl && <Avatar.Image src={currentUser.avatarUrl} alt={currentUser.name} />}
-              <Avatar.Fallback className="text-sm font-medium bg-primary/10 text-primary">
+              {currentUser?.avatarUrl && <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} />}
+              <AvatarFallback>
                 {currentUser?.name ? currentUser.name.charAt(0) : <UserCheckIcon className="size-4" />}
-              </Avatar.Fallback>
+              </AvatarFallback>
             </Avatar>
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex items-center gap-2">
@@ -114,7 +116,7 @@ export function ConnectionSection() {
                   {currentUser?.name || (loadingCurrentUser ? '正在识别云效用户…' : settings?.hasPat ? '未识别到用户' : '待配置访问令牌')}
                 </span>
                 {currentUser && (
-                  <Chip size="sm" variant="secondary" className="h-4.5 px-1.5 text-[10px] font-mono text-muted-foreground">
+                  <Chip size="sm" variant="secondary" className="font-mono text-muted-foreground">
                     {currentUser.id.slice(0, 8)}…
                   </Chip>
                 )}
@@ -170,7 +172,7 @@ export function ConnectionSection() {
                 size="sm"
                 variant="soft"
                 color="accent"
-                className="h-5 shrink-0 px-2 text-[10px] font-medium border border-primary/30 bg-primary/15 text-primary rounded-sm select-none"
+                className="shrink-0 select-none"
               >
                 我负责
               </Chip>
@@ -200,7 +202,7 @@ export function ConnectionSection() {
                 size="sm"
                 variant="soft"
                 color="warning"
-                className="h-5 shrink-0 px-2 text-[10px] font-medium border border-warning/30 bg-warning/15 text-warning rounded-sm select-none"
+                className="shrink-0 select-none"
               >
                 我参与
               </Chip>

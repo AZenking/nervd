@@ -186,6 +186,17 @@ describe('useAttribution store', () => {
     expect(useApp.getState().toast?.kind).toBe('ok');
   });
 
+  it('syncNow 手动同步时透传 force 标记（强制重新解析编号）', async () => {
+    vi.mocked(attributionApi.syncAttribution).mockResolvedValueOnce({
+      startedAt: 1,
+      finishedAt: 2,
+      repos: [],
+    });
+    useAttribution.setState({ syncing: false });
+    await useAttribution.getState().syncNow({ force: true, silent: true });
+    expect(attributionApi.syncAttribution).toHaveBeenCalledWith({ force: true, full: undefined });
+  });
+
   it('syncNow 更新 syncing 与最后同步时间', async () => {
     vi.mocked(attributionApi.syncAttribution).mockResolvedValueOnce({
       startedAt: 1,

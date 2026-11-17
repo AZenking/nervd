@@ -1,4 +1,4 @@
-import { Modal } from '@heroui/react';
+import { Dialog } from '@/components/ui/dialog';
 import { useUi } from '@/store/ui';
 import { Kbd } from '@/components/ui/kbd';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -63,7 +63,7 @@ function ShortcutGroup({ title, rows }: { title: string; rows: ShortcutRow[] }) 
               {row.keys.map((key, i) => (
                 <span key={key} className="flex items-center gap-1">
                   {i > 0 && <span className="text-xs text-muted-foreground">或</span>}
-                  <Kbd className="h-5! px-1.5! font-mono! text-[11px]!">{key}</Kbd>
+                  <Kbd className="h-5! px-1.5! text-[11px]!">{key}</Kbd>
                 </span>
               ))}
             </span>
@@ -79,26 +79,26 @@ export function ShortcutsDialog() {
   const setShortcutsOpen = useUi((s) => s.setShortcutsOpen);
 
   return (
-    <Modal isOpen={open} onOpenChange={setShortcutsOpen}>
-      <Modal.Backdrop>
-        <Modal.Container placement="center" size="sm">
-          <Modal.Dialog className="p-0 overflow-hidden sm:max-w-[480px]">
-            <Modal.Header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 py-0">
-              <Modal.Heading className="text-sm font-medium">
+    <Dialog isOpen={open} onOpenChange={setShortcutsOpen}>
+      <Dialog.Backdrop>
+        <Dialog.Container placement="center" size="sm">
+          <Dialog.Dialog className="p-0 overflow-hidden sm:max-w-[480px]">
+            <Dialog.Header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 py-0">
+              <Dialog.Heading className="text-sm font-medium">
                 键盘快捷键
-              </Modal.Heading>
-              <Modal.CloseTrigger />
-            </Modal.Header>
-            <Modal.Body className="p-0 max-h-[min(480px,80vh)]">
+              </Dialog.Heading>
+              <Dialog.CloseTrigger />
+            </Dialog.Header>
+            <Dialog.Body className="p-0 max-h-[min(480px,80vh)]">
               <ScrollArea className="max-h-[inherit]">
                 <ShortcutGroup title="导航" rows={NAV_ROWS} />
                 <ShortcutGroup title="列表" rows={LIST_ROWS} />
                 <ShortcutGroup title="布局" rows={LAYOUT_ROWS} />
               </ScrollArea>
-            </Modal.Body>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+            </Dialog.Body>
+          </Dialog.Dialog>
+        </Dialog.Container>
+      </Dialog.Backdrop>
+    </Dialog>
   );
 }

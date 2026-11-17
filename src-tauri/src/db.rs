@@ -15,6 +15,8 @@ use std::path::{Path, PathBuf};
 const SCHEMA_VERSION: i64 = 1;
 const KEY_SCHEMA_VERSION: &str = "schema_version";
 const KEY_LOCAL_STORAGE_IMPORTED: &str = "localStorageImported";
+/// 「待归属/手动指派」UI 下线后的一次性清理标记：清空历史手动归属与对应回写记账。
+const KEY_MANUAL_ATTRIBUTION_CLEARED: &str = "manualAttributionCleared";
 
 pub fn open_db(app: &tauri::AppHandle) -> Result<Connection, String> {
     let path = db_path(app)?;
@@ -164,6 +166,20 @@ pub fn init_conn(conn: &Connection) -> Result<(), String> {
             error TEXT
         );
 
+        -- 工作项相关人员索引：写回范围只处理「负责人是我」的工作项；
+        -- 父需求（rollup）额外允许「协同人 / 创建人是我」。按 identifier 关联解析缓存。
+        CREATE TABLE IF NOT EXISTS workitem_identifier_people (
+            identifier TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('assignee','participant','creator')),
+            person_id TEXT NOT NULL DEFAULT '',
+            person_name TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY(identifier, role, person_id, person_name)
+        );
+        CREATE INDEX IF NOT EXISTS ix_wip_identifier
+            ON workitem_identifier_people(identifier);
+        CREATE INDEX IF NOT EXISTS ix_wip_person
+            ON workitem_identifier_people(person_id, person_name);
+
         CREATE TABLE IF NOT EXISTS repo_sync_state (
             repo_id INTEGER NOT NULL,
             ref TEXT NOT NULL,
@@ -218,7 +234,29 @@ pub fn init_conn(conn: &Connection) -> Result<(), String> {
         );",
     )
     .map_err(|e| format!("初始化 nervd.db 表结构失败: {e}"))?;
+    clear_manual_attribution_history(conn)?;
     Ok(())
+}
+
+/// 一次性清理历史「手动归属」数据（只影响本地 SQLite，不触碰云效评论与事件索引）。
+///
+/// 背景：待归属队列与「指派」入口已下线，历史 `confidence='manual'` 的归属记录与
+/// 对应回写记账不再有 UI 入口，启动时清理一次并用 app_settings 标记幂等。
+fn clear_manual_attribution_history(conn: &Connection) -> Result<(), String> {
+    if get_app_setting(conn, KEY_MANUAL_ATTRIBUTION_CLEARED)?.as_deref() == Some("1") {
+        return Ok(());
+    }
+    conn.execute(
+        "DELETE FROM activity_posts
+         WHERE event_id IN (
+             SELECT event_id FROM event_workitems WHERE confidence = 'manual'
+         )",
+        [],
+    )
+    .map_err(|e| format!("清理手动归属回写记账失败: {e}"))?;
+    conn.execute("DELETE FROM event_workitems WHERE confidence = 'manual'", [])
+        .map_err(|e| format!("清理手动归属记录失败: {e}"))?;
+    upsert_app_setting(conn, KEY_MANUAL_ATTRIBUTION_CLEARED, "1")
 }
 
 /// 一次性迁移：settings.json → nervd.db（幂等：`schema_version` 已存在即跳过）
@@ -1090,4 +1128,63 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    #[test]
+    fn init_conn_clears_legacy_manual_attribution_once() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_conn(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO code_events
+                 (id, repo_id, kind, external_id, title, occurred_at, payload_json, source, created_at)
+             VALUES ('c1', 1, 'commit', 'x', 't', 1, '{}', 'remote', 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO event_workitems (event_id, workitem_id, identifier, relation, confidence)
+             VALUES ('c1', 'wi-1', 'TASK-1', 'primary', 'manual')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO activity_posts (event_id, workitem_id, status) VALUES ('c1', 'wi-1', 'posted')",
+            [],
+        )
+        .unwrap();
+
+        // 模拟升级前的旧库：清理标记尚不存在。
+        conn.execute(
+            "DELETE FROM app_settings WHERE key = ?1",
+            rusqlite::params![KEY_MANUAL_ATTRIBUTION_CLEARED],
+        )
+        .unwrap();
+        init_conn(&conn).unwrap();
+
+        let manual_links: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM event_workitems WHERE confidence = 'manual'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(manual_links, 0, "手动归属记录应被清空");
+        let posts: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM activity_posts WHERE event_id = 'c1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(posts, 0, "手动归属对应的回写记账应被清空");
+        assert_eq!(
+            get_app_setting(&conn, KEY_MANUAL_ATTRIBUTION_CLEARED)
+                .unwrap()
+                .as_deref(),
+            Some("1")
+        );
+
+        // 幂等：再次初始化不会报错，也不会影响新数据。
+        init_conn(&conn).unwrap();
+    }
+
 }

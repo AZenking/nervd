@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Surface } from '@heroui/react';
+import { Surface } from '@/components/ui/surface';
 import {
   ArrowRightIcon,
   ClockIcon,
@@ -30,7 +30,6 @@ import { Badge } from '@/components/ui/badge';
 import { Chip } from '@/components/ui/chip';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ListBox } from '@/components/ui/list-box';
 import { EmptyHint } from '@/components/empty-hint';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { READONLY_BTN_CLASS, WriteOpButton } from '@/components/WriteOpButton';
@@ -235,26 +234,22 @@ export function SchedulesView() {
               variant="outline"
               size="sm"
               onClick={() => handleOpenLogs(null)}
-              className="text-xs"
             >
               <FileTextIcon className="mr-1.5 size-3.5 text-muted-foreground" />
               查看调度日志
             </Button>
 
+            {/* 暂停态用 primary 语义变体，不再把状态信号色 bg-sig-run 当按钮底色 */}
             <Button
-              variant={globalPaused ? 'default' : 'outline'}
+              variant={globalPaused ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setGlobalPaused(!globalPaused)}
-              className={cn(
-                'text-xs',
-                globalPaused && 'bg-sig-run hover:bg-sig-run/90 text-primary-foreground',
-              )}
             >
               <ClockIcon className="mr-1.5 size-3.5" />
               {globalPaused ? '恢复全局调度' : '暂停全局调度'}
             </Button>
 
-            <Button size="sm" onClick={handleOpenCreate} className="text-xs">
+            <Button size="sm" onClick={handleOpenCreate}>
               <PlusIcon className="mr-1.5 size-3.5" />
               新建定时任务
             </Button>
@@ -277,7 +272,7 @@ export function SchedulesView() {
                     <Chip
                       size="sm"
                       variant="soft"
-                      className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums"
+                      className="font-mono tabular-nums"
                     >
                       {tasks.length}
                     </Chip>
@@ -288,7 +283,7 @@ export function SchedulesView() {
                     <Chip
                       size="sm"
                       variant="soft"
-                      className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums"
+                      className="font-mono tabular-nums"
                     >
                       {activeCount}
                     </Chip>
@@ -301,7 +296,7 @@ export function SchedulesView() {
                         size="sm"
                         variant="soft"
                         color="warning"
-                        className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums"
+                        className="font-mono tabular-nums"
                       >
                         {runningCount}
                       </Chip>
@@ -315,7 +310,7 @@ export function SchedulesView() {
                         size="sm"
                         variant="soft"
                         color="danger"
-                        className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums"
+                        className="font-mono tabular-nums"
                       >
                         {failedCount}
                       </Chip>
@@ -333,15 +328,15 @@ export function SchedulesView() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索任务名称、分支、Cron..."
                 aria-label="搜索定时任务"
-                className="h-8 pl-8 pr-7 text-xs"
+                className="pl-8 pr-7"
               />
               {search && (
                 <Button
                   isIconOnly
                   variant="ghost"
-                  size="sm"
+                  size="icon-xs"
                   onPress={() => setSearch('')}
-                  className="absolute right-1 top-1/2 size-6 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   aria-label="清空搜索"
                 >
                   <XIcon className="size-3" />
@@ -436,33 +431,22 @@ export function SchedulesView() {
               )}
             </div>
           ) : (
-            /* HeroUI ListBox：方向键 ↑↓ 在任务间漫游焦点，Enter / 单击行空白处打开编辑对话框；
-               行内操作按钮 / 开关不冒泡，不会误触发行级动作 */
-            <ListBox
-              aria-label="定时任务列表"
-              selectionMode="none"
-              onAction={(key) => {
-                const target = filteredTasks.find((t) => t.id === key);
-                if (target) handleOpenEdit(target);
-              }}
-              className="w-full p-0 space-y-3"
-            >
+            /* 任务行改为语义列表 ul/li：不再用 ListBox 的 option 承载含 Switch / Button 的复合行
+               （option 内嵌交互控件会破坏 ARIA 语义与键盘路径）。
+               鼠标点行空白处打开编辑；键盘路径由行尾「编辑任务配置」按钮提供。 */
+            <ul aria-label="定时任务列表" className="flex w-full flex-col gap-3">
               {filteredTasks.map((task) => {
                 const isRunning =
                   runningIds.has(task.id) || task.lastStatus === 'running';
 
                 return (
-                  <ListBox.Item
-                    key={task.id}
-                    id={task.id}
-                    textValue={task.name}
-                    className="w-full block p-0 border-none outline-none focus:outline-none data-[focused=true]:outline-none bg-transparent hover:bg-transparent data-[hovered=true]:bg-transparent active:scale-100 data-[pressed=true]:scale-100"
-                  >
+                  <li key={task.id}>
                     <Surface
                       variant="secondary"
+                      onClick={() => handleOpenEdit(task)}
                       className={cn(
-                        'w-full group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 rounded-xl border border-border/70 transition-all hover:border-border cursor-pointer group-data-[focused=true]:ring-2 group-data-[focused=true]:ring-primary/40',
-                        !task.enabled && 'opacity-60 bg-surface-secondary',
+                        'w-full group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 rounded-lg border border-border/70 transition-colors hover:border-border cursor-pointer',
+                        !task.enabled && 'opacity-60',
                       )}
                     >
                       {/* 状态点与任务主体 */}
@@ -493,7 +477,7 @@ export function SchedulesView() {
                             {/* 调度周期 Cron Tag */}
                             <Badge
                               variant="outline"
-                              className="font-mono text-[10px] text-muted-foreground bg-surface-secondary border-border/70"
+                              className="font-mono"
                             >
                               <ClockIcon className="mr-1 size-2.5 text-muted-foreground" />
                               {task.cronLabel || task.cron}
@@ -588,7 +572,7 @@ export function SchedulesView() {
                                       ? '任务已启用；只读模式下无法暂停'
                                       : '任务已暂停；只读模式下无法启用'
                                   }
-                                  className={cn('size-7 gap-0.5', READONLY_BTN_CLASS)}
+                                  className={cn('gap-0.5', READONLY_BTN_CLASS)}
                                   onPress={() => handleToggleTask(task)}
                                 >
                                   <span
@@ -614,7 +598,7 @@ export function SchedulesView() {
                                 variant="ghost"
                                 size="icon-sm"
                                 onClick={() => handleOpenLogs(task.id)}
-                                className="size-7 text-muted-foreground hover:text-foreground"
+                                className="text-muted-foreground hover:text-foreground"
                                 title="查看此任务的执行日志"
                                 aria-label="查看此任务的执行日志"
                               >
@@ -632,7 +616,7 @@ export function SchedulesView() {
                                 variant="ghost"
                                 size="icon-sm"
                                 onClick={() => handleOpenEdit(task)}
-                                className="size-7 text-muted-foreground hover:text-foreground"
+                                className="text-muted-foreground hover:text-foreground"
                                 title="编辑任务配置"
                                 aria-label="编辑任务配置"
                               >
@@ -655,10 +639,10 @@ export function SchedulesView() {
                         </ConfirmButton>
                       </div>
                     </Surface>
-                  </ListBox.Item>
+                  </li>
                 );
               })}
-            </ListBox>
+            </ul>
           )}
         </Card.Content>
 
@@ -826,14 +810,14 @@ export function ActionDetailTags({
         <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
           <Badge
             variant="outline"
-            className="border-border/80 text-foreground/90 bg-surface-secondary text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+            className="font-mono"
           >
             <WorkflowIcon className="size-3 text-success shrink-0" />
             <span>{pipelineDisplayName}</span>
           </Badge>
           <Badge
             variant="outline"
-            className="border-border/60 text-muted-foreground bg-background/60 text-[10px] font-mono px-1 py-0.5"
+            className="font-mono"
           >
             #{action.pipelineId}
           </Badge>
@@ -846,7 +830,7 @@ export function ActionDetailTags({
         <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
           <Badge
             variant="outline"
-            className="border-border/80 text-foreground/90 bg-surface-secondary text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+            className="font-mono"
           >
             <TerminalIcon className="size-3 text-chart-2 shrink-0" />
             <span>{action.jobFullName}</span>
@@ -854,7 +838,7 @@ export function ActionDetailTags({
           {paramCount > 0 && (
             <Badge
               variant="outline"
-              className="border-border/60 text-muted-foreground bg-background/60 text-[10px] font-mono inline-flex items-center gap-1 px-1.5 py-0.5"
+              className="font-mono"
             >
               <SlidersHorizontalIcon className="size-2.5 text-muted-foreground" />
               {paramCount} 个参数
@@ -868,7 +852,6 @@ export function ActionDetailTags({
         <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
           <Badge
             variant="outline"
-            className="border-border/80 text-muted-foreground bg-surface-secondary text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
           >
             <RefreshCwIcon className="size-2.5 text-warning shrink-0" />
             云效迭代与全量工作项状态巡检
@@ -880,9 +863,8 @@ export function ActionDetailTags({
         <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
           <Badge
             variant="outline"
-            className="border-border/80 text-muted-foreground bg-surface-secondary text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5"
           >
-            <GitCompareIcon className="size-2.5 text-(--ansi-magenta) shrink-0" />
+            <GitCompareIcon className="size-2.5 text-accent shrink-0" />
             {action.repoIds && action.repoIds.length > 0
               ? `指定 ${action.repoIds.length} 个代码库落差`
               : '全量纳管仓库集成分支落差'}
@@ -906,17 +888,11 @@ function TemplateCard({
   onClick: () => void;
 }) {
   return (
+    /* 不再手写 role="button" + Enter/Space 判定：整卡点击只是鼠标快捷方式，
+       真正的可聚焦操作是 Footer 里的 Button（键盘 Tab → Enter 即可使用模板）。 */
     <Card
-      role="button"
-      tabIndex={0}
       onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      className="cursor-pointer text-left transition-all hover:bg-surface-secondary hover:border-primary/50 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="cursor-pointer text-left transition-colors hover:bg-surface-secondary hover:border-primary/50"
     >
       <Card.Header className="flex flex-row items-center gap-2 pb-0">
         {icon}
@@ -926,9 +902,15 @@ function TemplateCard({
         <Card.Description className="text-[11px] leading-normal">{description}</Card.Description>
       </Card.Content>
       <Card.Footer className="pt-0">
-        <span className="text-[10px] text-primary font-medium group-hover:underline">
+        <Button
+          variant="link"
+          size="2xs"
+          onPress={onClick}
+          aria-label={`使用模板：${title}`}
+          className="font-medium"
+        >
           立即配置 →
-        </span>
+        </Button>
       </Card.Footer>
     </Card>
   );

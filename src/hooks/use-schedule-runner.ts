@@ -122,12 +122,14 @@ export async function runTaskNow(
       case 'jenkins': {
         const params = act.parameters ?? {};
         await api.triggerJenkinsJob(0, act.connectionId, act.jobFullName, params);
-        details = `已按计划触发 Jenkins 构建: ${act.jobFullName}`;
+        // 仅代表「触发提交」已受理：未轮询构建终态，不能等同于构建成功
+        details = `触发提交成功：已提交 Jenkins 构建触发 ${act.jobFullName}；最终构建成功需在 Jenkins 查看（未轮询终态，不代表构建成功）`;
         break;
       }
       case 'pipeline': {
         await api.startPipelineRun(act.pipelineId);
-        details = `已按计划触发云效流水线: ID #${act.pipelineId}`;
+        // 仅代表「触发提交」已受理：未轮询运行终态，不能等同于构建成功
+        details = `触发提交成功：已提交云效流水线运行触发 ID #${act.pipelineId}；最终构建成功需在云效 Flow 查看（未轮询终态，不代表构建成功）`;
         break;
       }
       case 'sync_workitems': {
@@ -229,7 +231,10 @@ export async function runTaskNow(
     (status === 'failed' && task.notifyOnFailure);
 
   if (shouldNotify) {
-    const notifTitle = `nervd · 定时任务 [${task.name}] ${status === 'success' ? '执行成功' : '执行失败'}`;
+    // 构建类任务成功仅代表触发提交成功，通知标题不得暗示最终构建成功
+    const isBuildTrigger = task.action.type === 'jenkins' || task.action.type === 'pipeline';
+    const successTitle = isBuildTrigger ? '触发提交成功' : '执行成功';
+    const notifTitle = `nervd · 定时任务 [${task.name}] ${status === 'success' ? successTitle : '执行失败'}`;
     const notifBody = (errorMessage || details || '任务运行完毕').slice(0, 120);
 
     void sendSystemNotification(notifTitle, notifBody);

@@ -27,8 +27,14 @@ export function isTauriRuntime(): boolean {
 export async function syncAttribution(input: {
   repoIds?: number[];
   full?: boolean;
+  /** true = 忽略编号解析负缓存，强制重新解析（手动「立即同步」用）。 */
+  force?: boolean;
 } = {}): Promise<SyncReport> {
-  return invoke('sync_attribution', { repoIds: input.repoIds, full: input.full });
+  return invoke('sync_attribution', {
+    repoIds: input.repoIds,
+    full: input.full,
+    force: input.force,
+  });
 }
 
 export async function getAttributionStatus(): Promise<AttributionStatus> {
@@ -46,6 +52,20 @@ export async function listWorkitemChanges(input: {
     limit: input.limit,
     before: input.before,
     includeRollup: input.includeRollup,
+  });
+}
+
+export async function updateWorkitemComment(input: {
+  workitemId: string;
+  commentId: string;
+  content: string;
+  formatType?: string;
+}): Promise<unknown> {
+  return invoke('update_workitem_comment', {
+    workitemId: input.workitemId,
+    commentId: input.commentId,
+    content: input.content,
+    formatType: input.formatType,
   });
 }
 
@@ -74,8 +94,21 @@ export async function resolveWorkitemIdentifiers(input: {
   return invoke('resolve_workitem_identifiers', { identifiers: input.identifiers });
 }
 
-export async function listActivityCandidates(input: { limit?: number } = {}): Promise<ActivityCandidate[]> {
-  return invoke('list_activity_candidates', { limit: input.limit });
+/** 「我」的身份：写回范围由后端按负责人过滤（父需求 rollup 额外允许协同人/创建人）。 */
+export interface ActivityViewer {
+  id?: string;
+  name?: string;
+  /** 设置里声明的别名（花名），仅在姓名匹配时生效 */
+  aliases?: string[];
+}
+
+export async function listActivityCandidates(
+  input: { limit?: number; viewer?: ActivityViewer } = {},
+): Promise<ActivityCandidate[]> {
+  return invoke('list_activity_candidates', {
+    limit: input.limit,
+    viewer: input.viewer ?? null,
+  });
 }
 
 export async function markActivity(input: {

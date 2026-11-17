@@ -7,7 +7,15 @@ import {
   RefreshCwIcon,
   SparklesIcon,
 } from 'lucide-react';
-import { Alert, Button, Chip, Input, ListBox, Pagination, Select, Table, Tooltip } from '@heroui/react';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Input } from '@/components/ui/input';
+import { ListBox } from '@/components/ui/list-box';
+import { Pagination } from '@/components/ui/pagination';
+import { Select } from '@/components/ui/select';
+import { Table } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import * as api from '@/lib/api';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { parseBranchList } from '@/lib/iteration-branches';
@@ -424,16 +432,19 @@ export function IntegrationView() {
         title="集成分支"
         actions={
           <Tooltip>
-            <Button
-              variant="ghost"
-              isIconOnly
-              size="sm"
-              aria-label="刷新"
-              onPress={handleRefresh}
-            >
-              <RefreshCwIcon className={cn(branchPhase === 'loading' && 'animate-spin')} />
-            </Button>
-            <Tooltip.Content>重新拉取分支数据</Tooltip.Content>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="刷新"
+                  onPress={handleRefresh}
+                >
+                  <RefreshCwIcon className={cn(branchPhase === 'loading' && 'animate-spin')} />
+                </Button>
+              }
+            />
+            <TooltipContent>重新拉取分支数据</TooltipContent>
           </Tooltip>
         }
       />
@@ -442,7 +453,7 @@ export function IntegrationView() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2.5">
           <Select
-            className="w-56 text-xs"
+            className="w-56"
             aria-label="切换仓库"
             placeholder="切换仓库"
             selectedKey={repoId == null ? null : String(repoId)}
@@ -471,7 +482,7 @@ export function IntegrationView() {
             onKeyDown={(e) => e.stopPropagation()}
             placeholder="基准分支 (如 master)"
             aria-label="基准分支"
-            className="h-8 w-28 font-mono text-xs"
+            className="w-28 font-mono"
           />
           <Input
             value={patterns}
@@ -479,7 +490,7 @@ export function IntegrationView() {
             onKeyDown={(e) => e.stopPropagation()}
             placeholder={DEFAULT_PATTERNS}
             aria-label="集成分支匹配模式"
-            className="h-8 w-56 font-mono text-xs"
+            className="w-56 font-mono"
           />
           {branchPhase === 'ready' && (
             <OverflowTooltip
@@ -567,18 +578,22 @@ export function IntegrationView() {
                 </Alert.Description>
               </Alert.Content>
               {totalPages > 1 && (
-                <Pagination size="sm" className="ml-auto shrink-0 self-center font-sans text-muted-foreground">
+                <Pagination size="sm" className="ml-auto shrink-0 self-center">
                   <Pagination.Content>
                     <Pagination.Item>
                       <Tooltip>
-                        <Pagination.Previous
-                          aria-label="上一页"
-                          isDisabled={page <= 1}
-                          onPress={() => setPage((p) => Math.max(1, p - 1))}
-                        >
-                          <Pagination.PreviousIcon />
-                        </Pagination.Previous>
-                        <Tooltip.Content>上一页（快捷键 [）</Tooltip.Content>
+                        <TooltipTrigger
+                          render={
+                            <Pagination.Previous
+                              aria-label="上一页"
+                              isDisabled={page <= 1}
+                              onPress={() => setPage((p) => Math.max(1, p - 1))}
+                            >
+                              <Pagination.PreviousIcon />
+                            </Pagination.Previous>
+                          }
+                        />
+                        <TooltipContent>上一页（快捷键 [）</TooltipContent>
                       </Tooltip>
                     </Pagination.Item>
                     <Pagination.Item>
@@ -588,14 +603,18 @@ export function IntegrationView() {
                     </Pagination.Item>
                     <Pagination.Item>
                       <Tooltip>
-                        <Pagination.Next
-                          aria-label="下一页"
-                          isDisabled={page >= totalPages}
-                          onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        >
-                          <Pagination.NextIcon />
-                        </Pagination.Next>
-                        <Tooltip.Content>下一页（快捷键 ]）</Tooltip.Content>
+                        <TooltipTrigger
+                          render={
+                            <Pagination.Next
+                              aria-label="下一页"
+                              isDisabled={page >= totalPages}
+                              onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            >
+                              <Pagination.NextIcon />
+                            </Pagination.Next>
+                          }
+                        />
+                        <TooltipContent>下一页（快捷键 ]）</TooltipContent>
                       </Tooltip>
                     </Pagination.Item>
                   </Pagination.Content>
@@ -628,11 +647,11 @@ export function IntegrationView() {
                           );
                         }
                         return (
-                          <button
+                          <Button
                             key={key}
-                            type="button"
-                            className="inline-flex cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                            onClick={() => {
+                            variant="ghost"
+                            size="xs"
+                            onPress={() => {
                               setDrawerWorkitemId(workitem.workitemId);
                               void useApp.getState().select(workitem.workitemId);
                             }}
@@ -645,7 +664,7 @@ export function IntegrationView() {
                             >
                               {key}
                             </Chip>
-                          </button>
+                          </Button>
                         );
                       });
 
@@ -679,31 +698,35 @@ export function IntegrationView() {
                           {/* 领先 / 落后基准（比对中展示微动画，比对完成即时呈现） */}
                           <Table.Cell>
                             <Tooltip>
-                              <span
-                                className={cn(
-                                  'flex items-center gap-1 font-mono tabular-nums',
-                                  row.comparing
-                                    ? 'text-muted-foreground'
-                                    : diverged
-                                      ? 'text-foreground font-medium'
-                                      : 'text-muted-foreground',
-                                )}
-                              >
-                                {row.comparing ? (
-                                  <span className="flex items-center gap-1 animate-pulse">
-                                    <RefreshCwIcon className="size-2.5 animate-spin" />
-                                    <span>比对中</span>
+                              <TooltipTrigger
+                                render={
+                                  <span
+                                    className={cn(
+                                      'flex items-center gap-1 font-mono tabular-nums',
+                                      row.comparing
+                                        ? 'text-muted-foreground'
+                                        : diverged
+                                          ? 'text-foreground font-medium'
+                                          : 'text-muted-foreground',
+                                    )}
+                                  >
+                                    {row.comparing ? (
+                                      <span className="flex items-center gap-1 animate-pulse">
+                                        <RefreshCwIcon className="size-2.5 animate-spin" />
+                                        <span>比对中</span>
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <ArrowUpIcon className="size-3" />
+                                        {row.ahead ?? '—'}
+                                        <ArrowDownIcon className="ml-1 size-3" />
+                                        {row.behind ?? '—'}
+                                      </>
+                                    )}
                                   </span>
-                                ) : (
-                                  <>
-                                    <ArrowUpIcon className="size-3" />
-                                    {row.ahead ?? '—'}
-                                    <ArrowDownIcon className="ml-1 size-3" />
-                                    {row.behind ?? '—'}
-                                  </>
-                                )}
-                              </span>
-                              <Tooltip.Content>{compareTooltip}</Tooltip.Content>
+                                }
+                              />
+                              <TooltipContent>{compareTooltip}</TooltipContent>
                             </Tooltip>
                           </Table.Cell>
 
@@ -728,18 +751,22 @@ export function IntegrationView() {
                           </Table.Cell>
 
                           <Table.Cell>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* P0：键盘 Tab 进入时同样可见（opacity-0 仅作用于未聚焦状态） */}
+                            <div className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                               <Tooltip>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onPress={() => setSelectedReleaseBranch(row)}
-                                >
-                                  <SparklesIcon className="size-3 text-primary" />
-                                  <span>交付报告</span>
-                                </Button>
-                                <Tooltip.Content>AI 生成此分支的发版交付报告 (Release Notes)</Tooltip.Content>
+                                <TooltipTrigger
+                                  render={
+                                    <Button
+                                      variant="ghost"
+                                      size="xs"
+                                      onPress={() => setSelectedReleaseBranch(row)}
+                                    >
+                                      <SparklesIcon className="size-3 text-primary" />
+                                      <span>交付报告</span>
+                                    </Button>
+                                  }
+                                />
+                                <TooltipContent>AI 生成此分支的发版交付报告 (Release Notes)</TooltipContent>
                               </Tooltip>
                             </div>
                           </Table.Cell>

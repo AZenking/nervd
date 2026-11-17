@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Alert } from '@heroui/react';
+import { Alert } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { SectionHeader } from '@/components/section-header';
 
@@ -43,7 +44,7 @@ export function SettingsGroup({
           {description && (
             // 组说明统一以 HeroUI Alert（default）承载：Indicator 图标 + Description，
             // 紧凑密度（text-xs / 小内距 / rounded-md）避免在 Card 头部喧宾夺主。
-            <Alert status="default" className="gap-2.5 rounded-md px-2.5 py-2 shadow-none">
+            <Alert status="default">
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Description className="text-xs leading-5 text-muted-foreground">
@@ -91,12 +92,15 @@ export function SettingsRow({
   const errorId = htmlFor ? `${htmlFor}-error` : undefined;
   const header = (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
-      <label
-        htmlFor={htmlFor}
-        className={`text-[13px] font-medium text-foreground ${htmlFor ? 'cursor-pointer' : ''}`}
-      >
-        {label}
-      </label>
+      {htmlFor ? (
+        // 有 htmlFor：走 ui/label 的 Label，点击标签聚焦关联控件（无障碍名由控件继承）
+        <Label htmlFor={htmlFor} className="cursor-pointer font-medium text-foreground">
+          {label}
+        </Label>
+      ) : (
+        // 无 htmlFor：本行没有可关联的表单控件（开关/按钮/徽标），只渲染文本，不产生孤儿 label
+        <span className="text-[13px] font-medium text-foreground">{label}</span>
+      )}
       {description && (
         <p className="text-xs leading-5 text-muted-foreground">{description}</p>
       )}

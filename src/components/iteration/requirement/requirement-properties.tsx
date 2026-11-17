@@ -1,7 +1,7 @@
 import {
   CalendarIcon, ClockIcon, DatabaseIcon, FolderIcon, GitBranchIcon, LayersIcon, UserIcon,
 } from 'lucide-react';
-import { ListBox } from '@heroui/react';
+import { ListBox } from '@/components/ui/list-box';
 import { useMemo, useState } from 'react';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { Descriptions } from '@/components/ui/descriptions';
@@ -50,10 +50,7 @@ export function DetailStatusPopover({
     'min-h-0 border-0 bg-transparent p-0 shadow-none',
     className,
   );
-  const chipCls = cn(
-    'h-8 max-w-44 gap-1.5 px-2 text-sm',
-    variant === 'cell' && 'h-7 text-xs',
-  );
+  const chipCls = 'max-w-44 gap-1.5';
 
   return (
     <Select
@@ -191,10 +188,7 @@ export function DetailAssigneePopover({
     'min-h-0 border-0 bg-transparent p-0 shadow-none',
     className,
   );
-  const chipCls = cn(
-    'h-8 max-w-44 gap-1.5 px-2 text-sm',
-    variant === 'cell' && 'h-7 text-xs',
-  );
+  const chipCls = 'max-w-44 gap-1.5';
 
   return (
     <Select

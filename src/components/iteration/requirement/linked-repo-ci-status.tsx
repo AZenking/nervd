@@ -1,5 +1,6 @@
 import type React from 'react';
 import {
+  AlertCircleIcon,
   InfoIcon,
   Loader2Icon,
   PlusIcon,
@@ -8,6 +9,7 @@ import {
 import type { CiRunSummary, RepoCiBinding, RepoCiSnapshot } from '@/types';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Separator } from '@/components/ui/separator';
 import { StatusIcon } from '@/components/status-icon';
 import { WriteOpGatedTrigger } from '@/components/WriteOpButton';
@@ -20,9 +22,16 @@ import type { BuildWorkbenchTarget } from '@/store/ui';
 
 export interface LinkedRepoCiStatusProps {
   loading?: boolean;
+  /** CI 查询失败（保留上次快照时仍展示说明，但绝不据此判定需求构建通过）。 */
+  error?: boolean;
   ciBinding?: RepoCiBinding;
   latestRun?: CiRunSummary;
   snapshot?: RepoCiSnapshot | null;
+  /**
+   * 无法确认最近构建属于该需求分支（Flow 未提供分支 / Jenkins 参数缺失或分支不一致）：
+   * 摘要标注「仓库最新构建」，仅作参考，不据此判定需求构建通过。
+   */
+  repoLatestBuild?: boolean;
   ciSummary: string;
   buildTarget: BuildWorkbenchTarget;
   onOpenCiModal: () => void;
@@ -30,9 +39,11 @@ export interface LinkedRepoCiStatusProps {
 
 export function LinkedRepoCiStatus({
   loading,
+  error,
   ciBinding,
   latestRun,
   snapshot,
+  repoLatestBuild,
   ciSummary,
   buildTarget,
   onOpenCiModal,
@@ -45,6 +56,33 @@ export function LinkedRepoCiStatus({
       </div>
     );
   }
+  if (error) {
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="inline"
+              onPress={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
+              className="group gap-1 text-destructive hover:text-destructive max-w-full font-normal truncate"
+              aria-label={`CI 查询失败，点击查看构建记录。${ciSummary}`}
+            >
+              <AlertCircleIcon className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">CI 查询失败</span>
+              {latestRun && (
+                <span className="font-mono text-[11px] text-muted-foreground shrink-0">
+                  · 上次 #{latestRun.runId}
+                </span>
+              )}
+            </Button>
+          }
+        />
+        <TooltipContent>{ciSummary}，点击查看构建记录</TooltipContent>
+      </Tooltip>
+    );
+  }
   if (!ciBinding) {
     return (
       <Tooltip>
@@ -55,7 +93,7 @@ export function LinkedRepoCiStatus({
               variant="ghost"
               size="xs"
               onPress={onOpenCiModal}
-              className="group h-auto p-1 gap-1 text-xs text-muted-foreground hover:text-foreground font-normal"
+              className="group gap-1 text-muted-foreground hover:text-foreground font-normal"
               aria-label="点击关联流水线"
             >
               <span>— 未关联 CI</span>
@@ -70,6 +108,9 @@ export function LinkedRepoCiStatus({
   if (latestRun) {
     const ciInfo = ciStatusInfo(latestRun.status);
     const providerLabel = snapshot?.provider === 'jenkins' ? 'Jenkins' : 'Flow';
+    const runTime = latestRun.startTime != null
+      ? formatRelativeTime(latestRun.startTime)
+      : '构建时间未知';
 
     return (
       <Tooltip>
@@ -78,23 +119,39 @@ export function LinkedRepoCiStatus({
             <Button
               type="button"
               variant="ghost"
-              size="xs"
+              size="inline"
               onPress={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
-              className="group h-auto p-1 gap-1.5 text-xs text-left max-w-full font-normal truncate"
+              className="group gap-1.5 text-left max-w-full font-normal truncate"
               aria-label={`${ciSummary}，点击查看构建记录`}
             >
-              <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+              <div className="flex min-w-0 items-center gap-1.5 shrink-0">
                 <StatusIcon status={latestRun.status} decorative className="size-3.5" />
                 <span className="font-mono text-[11px] font-medium text-foreground/90 group-hover:text-primary shrink-0">
                   {providerLabel} #{latestRun.runId}
                 </span>
                 {/* 行首已有状态图形：行尾不再重复文字徽标（AGENTS §3.4）；状态语义仅保留读屏文本 */}
                 <span className="sr-only">{ciInfo.label}</span>
+                <span className="truncate text-[11px] text-muted-foreground/80">· {runTime}</span>
+                {repoLatestBuild && (
+                  <Chip
+                    size="sm"
+                    variant="soft"
+                    color="warning"
+                    className="shrink-0 font-medium"
+                    title="无法确认该构建属于需求分支，仅作仓库最新构建参考，不据此判定需求构建通过"
+                  >
+                    仓库最新构建
+                  </Chip>
+                )}
               </div>
             </Button>
           }
         />
-        <TooltipContent>{ciSummary}，点击查看构建记录</TooltipContent>
+        <TooltipContent>
+          {ciSummary}
+          {repoLatestBuild ? '（无法确认属于该需求分支，不据此判定需求构建通过）' : ''}
+          ，点击查看构建记录
+        </TooltipContent>
       </Tooltip>
     );
   }
@@ -107,7 +164,7 @@ export function LinkedRepoCiStatus({
             variant="ghost"
             size="xs"
             onPress={onOpenCiModal}
-            className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground truncate font-normal"
+            className="text-muted-foreground hover:text-foreground truncate font-normal"
             aria-label="该仓库暂无运行记录，点击查看配置"
           >
             暂无运行记录
@@ -152,7 +209,7 @@ export function LinkedRepoBuildAction({
           size="sm"
           variant="outline"
           onPress={onOpenCiModal}
-          className="h-7 text-xs gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
+          className="gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
         >
           <PlusIcon className="size-3.5" />
           <span>关联 CI</span>
@@ -188,13 +245,15 @@ export function LinkedRepoCiSection({
         <Tooltip>
           <TooltipTrigger
             render={
-              <button
+              <Button
                 type="button"
-                aria-label="说明"
-                className="inline-flex cursor-help items-center rounded-sm text-muted-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="关于构建分支来源的说明"
+                className="cursor-help text-muted-foreground/70 hover:text-foreground"
               >
                 <InfoIcon className="size-3.5" aria-hidden="true" />
-              </button>
+              </Button>
             }
           />
           <TooltipContent className="max-w-72 text-xs">
@@ -210,7 +269,7 @@ export function LinkedRepoCiSection({
                   variant="ghost"
                   size="xs"
                   onPress={onOpenCiModal}
-                  className="group h-auto p-0 gap-1 font-mono text-[11px] text-muted-foreground hover:text-foreground truncate max-w-48 font-normal"
+                  className="group gap-1 font-mono text-muted-foreground hover:text-foreground truncate max-w-48 font-normal"
                   aria-label="点击修改关联的 CI 流水线"
                 >
                   <span className="truncate">
@@ -231,7 +290,7 @@ export function LinkedRepoCiSection({
                   variant="ghost"
                   size="xs"
                   onPress={onOpenCiModal}
-                  className="h-auto px-1.5 py-0.5 gap-1 rounded-md text-[11px] font-medium text-warning bg-warning/10 hover:bg-warning/20"
+                  className="gap-1 font-medium"
                   aria-label="该仓库尚未关联 CI，点击就地配置云效 Flow 或 Jenkins"
                 >
                   <PlusIcon className="size-3" />

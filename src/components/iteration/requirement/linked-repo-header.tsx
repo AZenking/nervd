@@ -1,38 +1,33 @@
-import { useState } from 'react';
 import type React from 'react';
 import {
+  AlertCircleIcon,
   ArrowRightIcon,
+  CheckIcon,
   ChevronRightIcon,
   GitBranchIcon,
-  GitPullRequestIcon,
   HistoryIcon,
+  Loader2Icon,
   RefreshCwIcon,
-  Settings2Icon,
-  UnlinkIcon,
-  WorkflowIcon,
 } from 'lucide-react';
-import type { RepoCiBinding, RepoSummary } from '@/types';
-import { Button, Dropdown, Label, Separator, Toolbar, Tooltip } from '@heroui/react';
+import type { RepoSummary } from '@/types';
+// Toolbar 暂无 `@/components/ui/*` 出口（BRIEF §0 归 lead），暂保留 @heroui/react 直连。
+import { Toolbar } from '@/components/ui/toolbar';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Chip } from '@/components/ui/chip';
 import { openBuildWorkbenchFromTrigger } from '@/components/build-workbench';
 import type { BuildWorkbenchTarget } from '@/store/ui';
 import { cn } from '@/lib/utils';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { toast } from '@/components/ui/toast';
-import { useApp } from '@/store/app';
-import { useUi } from '@/store/ui';
 import type { IterationBaselineCheck } from './types';
+import type { RepoTraceState } from './linked-repo-delivery';
 
 export interface LinkedRepoHeaderProps {
   repo: RepoSummary;
@@ -42,17 +37,17 @@ export interface LinkedRepoHeaderProps {
   developerBranch: string;
   developerBranchState: IterationBaselineCheck['state'];
   operationBaseBranch: string;
-  primaryAction: React.ReactNode;
+  /** 追溯（分支 / MR）查询状态：查询中 / 失败 / 就绪，直接呈现在仓库名旁。 */
+  traceState?: RepoTraceState;
+  /** 摘要行只读主操作（查看看 MR / 重试查询 / 前往配置等）；写操作只在展开后的交付详情中提供。 */
+  primaryAction?: React.ReactNode;
   cardRefreshing: boolean;
   onRefresh: () => void;
-  ciBinding?: RepoCiBinding;
   hasRuns: boolean;
   buildTarget: BuildWorkbenchTarget;
-  onOpenCiModal: () => void;
-  onCreateMr: () => void;
-  onUnlinkRepo?: (repoId: number) => void;
 }
 
+/** 紧凑摘要行：仓库名 + 追溯查询状态 + 交付分支 → 目标分支 + 只读主操作 / 只读更多入口。 */
 export function LinkedRepoHeader({
   repo,
   detailsOpen,
@@ -61,73 +56,40 @@ export function LinkedRepoHeader({
   developerBranch,
   developerBranchState,
   operationBaseBranch,
+  traceState,
   primaryAction,
   cardRefreshing,
   onRefresh,
-  ciBinding,
   hasRuns,
   buildTarget,
-  onOpenCiModal,
-  onCreateMr,
-  onUnlinkRepo,
 }: LinkedRepoHeaderProps) {
-  // 取消关联 = 破坏性远端写：只读态 Toast 引导，写模式走 AlertDialog 二次确认。
-  // 注意：AlertDialog 必须挂在菜单之外 —— HeroUI 菜单在选中项后立即关闭，
-  // 若把确认弹窗渲染在菜单项内部（如 WriteOpButton asMenuItem），会随菜单卸载而永不显示。
-  const [unlinkOpen, setUnlinkOpen] = useState(false);
-  const [unlinking, setUnlinking] = useState(false);
-  const allowWriteOps = useApp((state) => state.settings?.allowWriteOps ?? false);
-  const openSettings = useUi((state) => state.openSettings);
-
-  const requestUnlink = () => {
-    if (!onUnlinkRepo) return;
-    if (!allowWriteOps) {
-      toast.add({
-        title: '当前处于只读模式',
-        description: '「取消关联」是写操作。可在「设置 → 安全」中开启写权限后执行。',
-        type: 'warning',
-        actionProps: { children: '前往设置', onClick: () => openSettings('security') },
-      });
-      return;
-    }
-    setUnlinkOpen(true);
-  };
-
-  const confirmUnlink = async () => {
-    if (!onUnlinkRepo) return;
-    setUnlinking(true);
-    try {
-      await onUnlinkRepo(repo.id);
-      setUnlinkOpen(false);
-    } finally {
-      setUnlinking(false);
-    }
-  };
-
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3.5">
       {/* 左侧：展开折叠图标 + 仓库图标 + 仓库名称与分支拓扑 */}
       <div className="flex min-w-[240px] flex-1 items-center gap-2.5">
         {/* 展开折叠图标：HeroUI Button (ghost + isIconOnly) + HeroUI Tooltip */}
         <Tooltip>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            isIconOnly
-            onPress={onToggleDetails}
-            aria-label={detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}
-            aria-expanded={detailsOpen}
-            className="size-6 shrink-0 rounded-sm text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground"
-          >
-            <ChevronRightIcon
-              className={cn(
-                'size-3.5 transition-transform duration-200',
-                detailsOpen && 'rotate-90 text-primary',
-              )}
-            />
-          </Button>
-          <Tooltip.Content>{detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}</Tooltip.Content>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                onPress={onToggleDetails}
+                aria-label={detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}
+                aria-expanded={detailsOpen}
+                className="shrink-0 text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground"
+              >
+                <ChevronRightIcon
+                  className={cn(
+                    'size-3.5 transition-transform duration-200',
+                    detailsOpen && 'rotate-90 text-primary',
+                  )}
+                />
+              </Button>
+            }
+          />
+          <TooltipContent>{detailsOpen ? '收起分支与交付详情' : '展开分支与交付详情'}</TooltipContent>
         </Tooltip>
 
         {/* 仓库图标位：HeroUI Avatar 原语（调色板渐变 + GitBranch 图标回退） */}
@@ -153,9 +115,33 @@ export function LinkedRepoHeader({
               <Chip
                 size="sm"
                 variant="secondary"
-                className="h-5 max-w-72 min-w-0 cursor-default gap-1 px-2 font-mono text-[11px] font-normal text-muted-foreground"
+                className="max-w-72 min-w-0 cursor-default gap-1 font-mono font-normal text-muted-foreground"
               >
                 <OverflowTooltip text={repo.pathWithNamespace} className="truncate" />
+              </Chip>
+            )}
+            {traceState && (
+              <Chip
+                size="sm"
+                variant="soft"
+                color={traceState === 'error' ? 'danger' : traceState === 'ready' ? 'success' : 'default'}
+                className="shrink-0 gap-1 font-medium"
+                title={
+                  traceState === 'loading'
+                    ? '正在查询该仓库的分支与合并请求'
+                    : traceState === 'error'
+                      ? '分支与合并请求查询失败，可刷新此仓库重试'
+                      : '分支与合并请求已就绪'
+                }
+              >
+                {traceState === 'loading' ? (
+                  <Loader2Icon className="size-2.5 animate-spin" aria-hidden="true" />
+                ) : traceState === 'error' ? (
+                  <AlertCircleIcon className="size-2.5" aria-hidden="true" />
+                ) : (
+                  <CheckIcon className="size-2.5" aria-hidden="true" />
+                )}
+                <span>{traceState === 'loading' ? '追溯查询中' : traceState === 'error' ? '追溯查询失败' : '追溯就绪'}</span>
               </Chip>
             )}
           </div>
@@ -167,7 +153,7 @@ export function LinkedRepoHeader({
               size="sm"
               variant="soft"
               color={developerBranchState === 'missing' ? 'warning' : 'default'}
-              className="h-5 max-w-44 gap-1 px-2 font-mono text-[11px] font-medium sm:max-w-64"
+              className="max-w-44 gap-1 font-mono font-medium sm:max-w-64"
             >
               <OverflowTooltip
                 text={developerBranch || '未配置需求分支'}
@@ -179,7 +165,7 @@ export function LinkedRepoHeader({
               size="sm"
               variant="soft"
               color="accent"
-              className="h-5 max-w-44 gap-1 px-2 font-mono text-[11px] font-medium sm:max-w-64"
+              className="max-w-44 gap-1 font-mono font-medium sm:max-w-64"
             >
               <OverflowTooltip
                 text={operationBaseBranch || '未配置目标基准'}
@@ -190,107 +176,50 @@ export function LinkedRepoHeader({
         </div>
       </div>
 
-      {/* 右侧动作工具栏（主操作 + 更多下拉，HeroUI Toolbar + 原生 Dropdown 原语） */}
+      {/* 右侧摘要动作：只读主操作 + 只读「更多」（刷新 / 构建记录）；写操作一律在展开后的交付详情中 */}
       <Toolbar aria-label={`${repo.name} 关联仓库操作`} className="flex shrink-0 items-center gap-2">
         {primaryAction}
 
-        <Dropdown>
-          {/* Dropdown.Trigger 本身即 HeroUI 组件（react-aria Button 封装），内部严禁再嵌套 Button（button>button 非法 DOM）；
-              variant/size 对其无效（内部为无样式的 react-aria Button），紧凑外观由 className 覆盖 */}
-          <Dropdown.Trigger
-            type="button"
-            className="h-7 rounded-sm px-2 text-xs text-muted-foreground hover:bg-surface-secondary hover:text-foreground"
-            aria-label="更多仓库操作"
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label="更多只读仓库操作"
+                className="text-muted-foreground hover:bg-surface-secondary hover:text-foreground"
+              />
+            }
           >
             更多
-          </Dropdown.Trigger>
-          <Dropdown.Popover placement="bottom end" className="min-w-44">
-            <Dropdown.Menu
-              aria-label={`${repo.name} 仓库操作`}
-              onAction={(key) => {
-                switch (String(key)) {
-                  case 'refresh':
-                    onRefresh();
-                    break;
-                  case 'build':
-                    openBuildWorkbenchFromTrigger(buildTarget, 'parameters');
-                    break;
-                  case 'runs':
-                    openBuildWorkbenchFromTrigger(buildTarget, 'runs');
-                    break;
-                  case 'config-ci':
-                    onOpenCiModal();
-                    break;
-                  case 'create-mr':
-                    onCreateMr();
-                    break;
-                  case 'unlink':
-                    requestUnlink();
-                    break;
-                }
-              }}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            aria-label={`${repo.name} 只读仓库操作`}
+            className="min-w-40"
+          >
+            <DropdownMenuItem
+              textValue="刷新数据"
+              disabled={cardRefreshing}
+              onSelect={onRefresh}
             >
-              <Dropdown.Item id="refresh" textValue="刷新数据" isDisabled={cardRefreshing}>
-                <RefreshCwIcon className={cn('size-3.5 shrink-0 text-muted-foreground', cardRefreshing && 'animate-spin')} />
-                <Label>刷新数据</Label>
-              </Dropdown.Item>
-              {ciBinding && (
-                <Dropdown.Item id="build" textValue="发起构建">
-                  <WorkflowIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <Label>发起构建…</Label>
-                </Dropdown.Item>
-              )}
-              <Dropdown.Item id="runs" textValue="构建记录" isDisabled={!hasRuns}>
-                <HistoryIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                <Label>构建记录</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="config-ci" textValue={ciBinding ? '修改流水线' : '关联流水线'}>
-                <Settings2Icon className="size-3.5 shrink-0 text-muted-foreground" />
-                <Label>{ciBinding ? '修改流水线…' : '关联流水线…'}</Label>
-              </Dropdown.Item>
-              {developerBranch && (
-                <Dropdown.Item id="create-mr" textValue="创建 MR">
-                  <GitPullRequestIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <Label>创建 MR…</Label>
-                </Dropdown.Item>
-              )}
-              {onUnlinkRepo && (
-                <>
-                  <Separator className="my-1 bg-border/60" />
-                  {/* 破坏性远端写：菜单项只负责发起，二次确认由根部受控 AlertDialog 承载 */}
-                  <Dropdown.Item
-                    id="unlink"
-                    textValue="取消关联"
-                    variant="danger"
-                    className={cn(!allowWriteOps && 'opacity-60')}
-                  >
-                    <UnlinkIcon className="size-3.5 shrink-0 text-danger" />
-                    <Label>取消关联{!allowWriteOps ? '（写操作已关闭）' : ''}</Label>
-                  </Dropdown.Item>
-                </>
-              )}
-            </Dropdown.Menu>
-          </Dropdown.Popover>
-        </Dropdown>
+              <RefreshCwIcon
+                className={cn('size-3.5 shrink-0 text-muted-foreground', cardRefreshing && 'animate-spin')}
+              />
+              <span>刷新数据</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              textValue="构建记录"
+              disabled={!hasRuns}
+              onSelect={() => openBuildWorkbenchFromTrigger(buildTarget, 'runs')}
+            >
+              <HistoryIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <span>构建记录</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </Toolbar>
-
-      {/* 确认弹窗挂在菜单之外：菜单关闭不会卸载它（受控 open 由 requestUnlink 打开） */}
-      <AlertDialog open={unlinkOpen} onOpenChange={(next) => { if (!unlinking) setUnlinkOpen(next); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>取消关联仓库</AlertDialogTitle>
-            <AlertDialogDescription>
-              将解除「{repo.name}」与当前需求的关联，并清空该仓库的分支与 CI 绑定视图。此操作为写操作，将在远端实际生效。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={unlinking}>保留关联</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={unlinking} onPress={() => void confirmUnlink()}>
-              {unlinking ? '正在取消…' : '确认取消关联'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

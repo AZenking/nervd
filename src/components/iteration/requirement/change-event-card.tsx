@@ -32,6 +32,7 @@ import {
 } from '@/lib/attribution-format';
 import { openExternal } from '@/lib/yunxiao-link';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
@@ -183,7 +184,7 @@ function StatusPill({ label, tone }: { label: string; tone: StatusTone }) {
       size="sm"
       variant="soft"
       color={toneColor(tone)}
-      className="h-5 shrink-0 gap-1 px-1.5 text-[10px] font-medium"
+      className="shrink-0 gap-1 font-medium"
     >
       <Chip.Label>{label}</Chip.Label>
     </Chip>
@@ -200,14 +201,15 @@ function ExternalLinkButton({ url }: { url?: string }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             aria-label="在浏览器中打开"
-            className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            onClick={(event) => {
-              event.stopPropagation();
-              void openExternal(url);
-            }}
+            title="在浏览器中打开"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            onPress={() => void openExternal(url)}
+            onClick={(event) => event.stopPropagation()}
           />
         }
       >
@@ -307,7 +309,7 @@ export function ChangeEventCard({ change, compact = false }: ChangeEventCardProp
               <StatusPill label={buildStatusLabel(build.status)} tone={buildStatus.tone} />
             )}
             {isCommit && change.pushed === false && (
-              <Chip size="sm" variant="soft" color="warning" className="h-5 shrink-0 gap-1 px-1.5 text-[10px]">
+              <Chip size="sm" variant="soft" color="warning" className="shrink-0 gap-1">
                 <Chip.Label>本地未推送</Chip.Label>
               </Chip>
             )}

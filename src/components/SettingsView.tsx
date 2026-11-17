@@ -3,7 +3,9 @@ import { ArrowRightIcon, MonitorIcon, MoonIcon, SparklesIcon, SunIcon } from 'lu
 import { useApp } from '../store/app';
 import { useSettingsDraft } from '../store/settings-draft';
 import { useUi, type SettingsSection } from '../store/ui';
-import { Alert, Button, Card } from '@heroui/react';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { SETTINGS_SECTIONS } from './settings/sections';
 import { useWorkspaceCompact } from '@/hooks/use-workspace-compact';
 import { PageHeader } from './page-header';
@@ -124,7 +126,7 @@ export function SettingsView({
         />
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-20">
           {/* 分区功能说明（自页头下移正文首行，随内容滚动；HeroUI Alert default 呈现） */}
-          <Alert status="default" className="gap-2.5 rounded-md px-2.5 py-2 shadow-none">
+          <Alert status="default">
             <Alert.Indicator />
             <Alert.Content>
               <Alert.Description className="text-xs leading-5 text-muted-foreground">
@@ -154,10 +156,9 @@ export function SettingsView({
           <SettingsAutoSaveStatus />
           <Button
             type="button"
-            isIconOnly
             variant="ghost"
-            size="sm"
-            className="size-7 cursor-pointer text-muted-foreground hover:text-foreground"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
             onPress={(e) => toggleTheme({ clientX: e.x, clientY: e.y })}
             aria-label={
               theme === 'system'
@@ -182,7 +183,7 @@ export function SettingsView({
               size="sm"
               isDisabled={!canEnterWorkbench}
               onPress={onComplete}
-              className="h-7 cursor-pointer gap-1.5 px-3 text-xs"
+              className="gap-1.5"
               aria-label={!canEnterWorkbench ? '请先配置云效访问令牌与组织 ID' : '进入 nervd 桌面工作台'}
             >
               <span>进入工作台</span>
@@ -194,7 +195,7 @@ export function SettingsView({
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-6">
         {/* 最外层 Card：填充页头以下整个区域（透明底 + 细边框）；向导内容在卡内垂直居中，
             小窗口下内容超高时卡内自行滚动 */}
-        <Card className="flex min-h-0 flex-1 flex-col rounded-lg border border-border/60 bg-transparent p-6">
+        <Card variant="transparent" className="flex min-h-0 flex-1 flex-col p-6">
           <ScrollArea className="m-auto flex max-h-full w-full max-w-3xl flex-col gap-6">
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">

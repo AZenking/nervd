@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal } from '@heroui/react';
-import { Header } from 'react-aria-components';
+import { Header } from '@heroui/react';
+import { Dialog } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import {
   CalendarClockIcon,
@@ -340,17 +341,17 @@ export function CommandMenu() {
   };
 
   return (
-    <Modal isOpen={open} onOpenChange={handleOpenChange}>
-      <Modal.Backdrop>
-        <Modal.Container placement="top" size="lg">
-          <Modal.Dialog className="p-0 overflow-hidden sm:max-w-[640px] mt-[12vh]">
+    <Dialog isOpen={open} onOpenChange={handleOpenChange}>
+      <Dialog.Backdrop>
+        <Dialog.Container placement="top" size="lg">
+          <Dialog.Dialog className="p-0 overflow-hidden sm:max-w-[640px] mt-[12vh]">
             {/* 无障碍必需：sr-only 标题 */}
-            <Modal.Heading className="sr-only">命令面板</Modal.Heading>
+            <Dialog.Heading className="sr-only">命令面板</Dialog.Heading>
 
             {/* 搜索行 */}
           <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4">
             <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
-            <input
+            <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleInputKeyDown}
@@ -366,10 +367,10 @@ export function CommandMenu() {
               autoFocus
               autoComplete="off"
               spellCheck={false}
-              className="h-full w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+              className="h-full w-full border-0 bg-transparent px-0 text-sm shadow-none outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
             />
             {/* 可见关闭入口：Esc 之外的鼠标 / 触控兜底（保留 Esc 关闭） */}
-            <Modal.CloseTrigger aria-label="关闭命令面板" className="shrink-0" />
+            <Dialog.CloseTrigger aria-label="关闭命令面板" className="shrink-0" />
           </div>
 
           {/* 结果列表：HeroUI ListBox（Section 分组 + 语义 option 行，系统级 hover/焦点样式） */}
@@ -457,9 +458,9 @@ export function CommandMenu() {
               关闭
             </span>
           </div>
-        </Modal.Dialog>
-      </Modal.Container>
-    </Modal.Backdrop>
-  </Modal>
+        </Dialog.Dialog>
+      </Dialog.Container>
+    </Dialog.Backdrop>
+  </Dialog>
 );
 }

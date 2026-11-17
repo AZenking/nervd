@@ -232,7 +232,7 @@ export function CodeDiffViewer({
                     type="button"
                     variant="ghost"
                     size="xs"
-                    className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                    className="gap-1 text-muted-foreground hover:text-foreground"
                     onPress={expandAllDiffs}
                     aria-label="展开全部代码差异"
                   >
@@ -250,7 +250,7 @@ export function CodeDiffViewer({
                     type="button"
                     variant="ghost"
                     size="xs"
-                    className="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                    className="gap-1 text-muted-foreground hover:text-foreground"
                     onPress={collapseAllDiffs}
                     aria-label="折叠全部代码差异"
                   >

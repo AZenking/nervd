@@ -155,15 +155,15 @@ export function RichDescription({
           />
           <div className="flex items-center justify-between pt-2 border-t border-border/60">
             <span className="text-[11px] text-muted-foreground">
-              按 <Kbd className="h-5! px-1.5! text-[10px]!">⌘ + Enter</Kbd> 保存，
-              <Kbd className="h-5! px-1.5! text-[10px]!">Esc</Kbd> 取消
+              按 <Kbd className="h-5 px-1.5 text-[10px]">⌘ + Enter</Kbd> 保存，
+              <Kbd className="h-5 px-1.5 text-[10px]">Esc</Kbd> 取消
             </span>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
                 variant="ghost"
                 size="xs"
-                onClick={handleCancel}
+                onPress={handleCancel}
                 disabled={saving}
               >
                 <XIcon className="size-3 mr-1" />
@@ -173,7 +173,7 @@ export function RichDescription({
                 type="button"
                 variant="default"
                 size="xs"
-                onClick={handleSave}
+                onPress={handleSave}
                 disabled={saving}
               >
                 {saving ? (
@@ -196,8 +196,8 @@ export function RichDescription({
                     type="button"
                     variant="ghost"
                     size="xs"
-                    onClick={handleStartEdit}
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground bg-background/80 backdrop-blur-xs border border-border/60 shadow-level-2"
+                    onPress={handleStartEdit}
+                    className="text-muted-foreground hover:text-foreground"
                     title="编辑描述 (双击正文亦可快速编辑)"
                   >
                     <PencilIcon className="size-3 mr-1" />

@@ -2,7 +2,7 @@
 
 use crate::attribution::model::{
     ActivityCandidate, ActivityPolicy, AttributionStatus, ChangePage, ResolvedWorkitemRef,
-    SyncReport,
+    SyncReport, ViewerIdentity,
 };
 use crate::attribution::{store, sync};
 use crate::AppState;
@@ -17,6 +17,7 @@ pub async fn sync_attribution(
     state: State<'_, AppState>,
     repo_ids: Option<Vec<i64>>,
     full: Option<bool>,
+    force: Option<bool>,
 ) -> Result<SyncReport, String> {
     let repo_ids = match repo_ids {
         Some(ids) => {
@@ -30,7 +31,14 @@ pub async fn sync_attribution(
         }
         None => None,
     };
-    sync::sync_repos(state.inner(), repo_ids, full.unwrap_or(false), Some(&app)).await
+    sync::sync_repos(
+        state.inner(),
+        repo_ids,
+        full.unwrap_or(false),
+        force.unwrap_or(false),
+        Some(&app),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -132,14 +140,21 @@ pub async fn resolve_workitem_identifiers(
         .map(|identifier| identifier.trim().to_string())
         .filter(|identifier| !identifier.is_empty())
         .collect();
-    sync::resolve_workitem_identifiers(state.inner(), &identifiers).await
+    // 手动指派时强制重解析：忽略 1 小时负缓存，避免「刚刚未找到」阻塞人工归属。
+    sync::resolve_workitem_identifiers(state.inner(), &identifiers, true).await
 }
 
 #[tauri::command]
 pub async fn list_activity_candidates(
     state: State<'_, AppState>,
     limit: Option<i64>,
+    viewer: Option<ViewerIdentity>,
 ) -> Result<Vec<ActivityCandidate>, String> {
+    // 写回范围：只处理负责人是当前用户的工作项（父需求 rollup 允许协同人 / 创建人）。
+    // 没有身份时 fail-closed，避免把动态写到全组织。
+    let Some(viewer) = viewer.filter(|viewer| viewer.is_effective()) else {
+        return Ok(Vec::new());
+    };
     let (enabled, child_mode) = {
         let conn = state.db.lock().unwrap();
         let policy = store::load_policy(&conn)?;
@@ -150,7 +165,7 @@ pub async fn list_activity_candidates(
         return Ok(Vec::new());
     }
     let conn = state.db.lock().unwrap();
-    store::list_activity_candidates(&conn, limit, store::now_ms())
+    store::list_activity_candidates(&conn, limit, store::now_ms(), Some(&viewer))
 }
 
 #[tauri::command]

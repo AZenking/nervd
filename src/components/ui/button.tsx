@@ -6,8 +6,9 @@ import { cn } from '@/lib/utils'
 const buttonVariants = tv(
   {
     // 圆角规范：HeroUI v3 的 .button 默认 rounded-3xl（24px，h-8 下即胶囊），
-    // 按 DESIGN.md §2.2 收紧到 rounded-md（6px）；link 变体无背景形状，不受影响。
-    base: "rounded-md",
+    // 按 DESIGN.md §2.2 收紧到 6px —— 该覆盖统一在 theme.css 的 `@layer components .button`
+    // 中承载（避免包装层与事实源双写）；本层只负责密度档位。
+    base: "",
     variants: {
       variant: {
         default: "",
@@ -23,9 +24,13 @@ const buttonVariants = tv(
       },
       size: {
         default: "h-8 px-3 text-[13px]",
+        // 2xs：表格/徽标行内的微型图标或文字按钮（原调用点靠 h-5/h-6 + text-[11px] 手拼）
+        "2xs": "h-5 px-1 text-[11px] gap-1 [&_svg:not([class*='size-'])]:size-3",
         xs: "h-6 px-1.5 text-xs gap-1 in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
         sm: "h-7 px-2.5 text-xs gap-1 in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
         lg: "h-9 px-4 gap-2",
+        // inline：把状态徽标/文本当作按钮内容时不占固定行高（原调用点靠 h-auto py-1 手拼）
+        inline: "h-auto px-1.5 py-1 font-normal",
         icon: "size-8 p-0",
         "icon-xs": "size-6 p-0 rounded-sm in-data-[slot=button-group]:rounded-sm [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-7 p-0 rounded-sm in-data-[slot=button-group]:rounded-sm",

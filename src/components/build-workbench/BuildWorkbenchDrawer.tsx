@@ -8,7 +8,6 @@ import {
   WorkflowIcon,
   XIcon,
 } from 'lucide-react';
-import { Alert, Button, Card, Chip, Table } from '@heroui/react';
 import * as api from '@/lib/api';
 import { useApp } from '@/store/app';
 import { useQuickBuild } from '@/store/quick-build';
@@ -18,10 +17,23 @@ import { buildRunParameter, ciProviderLabel, ciStatusText } from '@/lib/ci';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import { formatCompactDateTime, formatDateTime, formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
+import { Table, TableEmptyRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 import { Descriptions } from '@/components/ui/descriptions';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyHint } from '@/components/empty-hint';
 import { StatusBadge } from '@/components/StatusBadge';
 import { WriteOpButton, WriteOpGatedTrigger } from '@/components/WriteOpButton';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
@@ -68,20 +80,21 @@ export function BuildWorkbenchTrigger({
   const open = () => openBuildWorkbenchFromTrigger(target, 'parameters');
   const heroVariant = variant === 'default' ? 'primary' : variant;
 
-  return (
-    <>
+  if (!allowWriteOps) {
+    return (
       <WriteOpGatedTrigger
         label={label}
         icon={<WorkflowIcon className="size-3.5" />}
         variant={variant as any}
       />
-      {allowWriteOps && (
-        <Button type="button" size="sm" variant={heroVariant} aria-label={title || label} onPress={open}>
-          <WorkflowIcon className="size-3.5" />
-          <span>{label}</span>
-        </Button>
-      )}
-    </>
+    );
+  }
+
+  return (
+    <Button type="button" size="sm" variant={heroVariant} aria-label={title || label} onPress={open}>
+      <WorkflowIcon className="size-3.5" />
+      <span>{label}</span>
+    </Button>
   );
 }
 
@@ -97,8 +110,8 @@ function RunRow({
   onOpen: () => void;
 }) {
   return (
-    <Table.Row id={String(run.runId)} className="border-b border-border/40 transition-colors hover:bg-surface-secondary">
-      <Table.Cell className="px-3 py-2.5 align-top">
+    <Table.Row id={String(run.runId)}>
+      <Table.Cell>
         <div className="font-mono text-xs font-semibold text-foreground">#{run.runId}</div>
         {run.startTime && (
           <div className="mt-0.5 font-mono text-[11px] text-muted-foreground" title={`开始时间：${formatDateTime(run.startTime)}`}>
@@ -112,20 +125,20 @@ function RunRow({
           />
         )}
       </Table.Cell>
-      <Table.Cell className="max-w-44 px-3 py-2.5 align-top">
+      <Table.Cell className="max-w-44">
         <OverflowTooltip text={branch} className="block truncate font-mono text-xs text-foreground" />
       </Table.Cell>
-      <Table.Cell className="max-w-36 px-3 py-2.5 align-top">
+      <Table.Cell className="max-w-36">
         <OverflowTooltip text={environment} className="block truncate text-xs text-muted-foreground" />
       </Table.Cell>
-      <Table.Cell className="px-3 py-2.5 align-top">
+      <Table.Cell>
         <StatusBadge status={run.status} size="sm" />
       </Table.Cell>
-      <Table.Cell className="px-3 py-2.5 align-top text-xs text-muted-foreground">
+      <Table.Cell className="text-xs text-muted-foreground">
         <span className="font-mono tabular-nums">{run.durationMs != null ? formatDuration(run.durationMs) : '—'}</span>
       </Table.Cell>
-      <Table.Cell className="px-3 py-2.5 text-right align-top">
-        <Button type="button" variant="ghost" size="sm" onPress={onOpen} className="h-7 gap-1 px-2 text-[11px]">
+      <Table.Cell className="text-right">
+        <Button type="button" variant="ghost" size="sm" onPress={onOpen}>
           <TerminalIcon className="size-3" />
           <span>日志</span>
         </Button>
@@ -254,13 +267,13 @@ function RepoRunsPage({
             <Table variant="secondary" className="w-full">
               <Table.ScrollContainer>
                 <Table.Content aria-label="最近运行记录" className="text-xs">
-                  <Table.Header className="border-b border-border/60 bg-transparent text-[11px] text-muted-foreground">
-                    <Table.Column isRowHeader className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">运行</Table.Column>
-                    <Table.Column className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">分支</Table.Column>
-                    <Table.Column className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">环境</Table.Column>
-                    <Table.Column className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">状态</Table.Column>
-                    <Table.Column className="px-3 py-2 text-start text-[11px] font-medium text-muted-foreground">耗时</Table.Column>
-                    <Table.Column className="px-3 py-2 text-end text-[11px] font-medium text-muted-foreground">操作</Table.Column>
+                  <Table.Header>
+                    <Table.Column isRowHeader>运行</Table.Column>
+                    <Table.Column>分支</Table.Column>
+                    <Table.Column>环境</Table.Column>
+                    <Table.Column>状态</Table.Column>
+                    <Table.Column>耗时</Table.Column>
+                    <Table.Column className="text-end">操作</Table.Column>
                   </Table.Header>
                   <Table.Body>
                     {runs.map((run) => (
@@ -285,21 +298,29 @@ function RepoRunsPage({
               </div>
             )}
             {!entry?.loading && !runs.length && (
-              <div className="flex flex-col items-center gap-3 p-8 text-center text-xs text-muted-foreground">
-                <p>
-                  {binding ? '暂无运行记录，发起一次构建后展示。' : '未绑定 CI，请先选择 Jenkins Job 或前往设置绑定。'}
-                </p>
-                {!binding && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onPress={() => openSettings('ci')}
-                  >
-                    <Link2Icon className="size-3.5" />
-                    <span>去绑定 CI</span>
-                  </Button>
-                )}
+              <div className="p-4">
+                <EmptyHint
+                  icon={TerminalIcon}
+                  title={binding ? '暂无运行记录' : '未绑定 CI'}
+                  description={
+                    binding
+                      ? '发起一次构建后在此展示运行记录。'
+                      : '请先选择 Jenkins Job 或前往设置绑定 CI。'
+                  }
+                  action={
+                    !binding ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onPress={() => openSettings('ci')}
+                      >
+                        <Link2Icon className="size-3.5" />
+                        <span>去绑定 CI</span>
+                      </Button>
+                    ) : undefined
+                  }
+                />
               </div>
             )}
           </Card.Content>
@@ -372,7 +393,7 @@ function FlowParametersPage({
             />
           </Card.Content>
         </Card>
-        <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-border/70 bg-popover/95 px-1 py-3 backdrop-blur-sm">
+        <DrawerFooter className="sticky bottom-0 -mx-1 border-t border-border/70 bg-popover/95 px-1 py-3 backdrop-blur-sm">
           <Button type="button" variant="outline" size="sm" onPress={onCancel}>返回</Button>
           <WriteOpButton
             label={submitting ? '提交中…' : '提交构建'}
@@ -383,7 +404,7 @@ function FlowParametersPage({
             disabledReason={binding?.provider === 'flow' ? undefined : '当前仓库的 CI 绑定已变化，请返回运行记录后重试'}
             onAction={submit}
           />
-        </div>
+        </DrawerFooter>
       </div>
     </ScrollArea>
   );
@@ -441,30 +462,50 @@ function PipelineRunsPage({
             <Chip size="sm" variant="soft" color="default"><span className="font-mono tabular-nums">{runs.length}</span> 次</Chip>
           </Card.Header>
           <Card.Content className="p-0">
-            <div className="flex flex-col divide-y divide-border/50">
-              {runs.map((run) => (
-                <div key={run.pipelineRunId} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                  <StatusBadge status={run.status} size="sm" />
-                  <span className="font-mono text-xs text-foreground">#{run.pipelineRunId}</span>
-                  {run.endTime && <span className="text-xs text-muted-foreground">{new Date(run.endTime).toLocaleString()}</span>}
-                  <span className="ml-auto flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onPress={() => {
-                        void openPipelineRunLogs(target.pipelineId, run.pipelineRunId, pipeline?.pipelineName || target.title, { internal: true });
-                        onNavigate('logs');
-                      }}
-                    >
-                      <TerminalIcon className="size-3.5" />
-                      <span>日志</span>
-                    </Button>
-                  </span>
-                </div>
-              ))}
-              {!runs.length && <p className="p-8 text-center text-xs text-muted-foreground">暂无流水线运行记录。</p>}
-            </div>
+            <Table variant="secondary" className="w-full">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="流水线运行记录">
+                  <Table.Header>
+                    <Table.Column isRowHeader>运行</Table.Column>
+                    <Table.Column>状态</Table.Column>
+                    <Table.Column>结束时间</Table.Column>
+                    <Table.Column className="text-end">操作</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {runs.map((run) => (
+                      <Table.Row key={run.pipelineRunId} id={String(run.pipelineRunId)}>
+                        <Table.Cell>
+                          <span className="font-mono tabular-nums text-xs text-foreground">#{run.pipelineRunId}</span>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <StatusBadge status={run.status} size="sm" />
+                        </Table.Cell>
+                        <Table.Cell className="text-xs text-muted-foreground">
+                          {run.endTime ? new Date(run.endTime).toLocaleString() : '—'}
+                        </Table.Cell>
+                        <Table.Cell className="text-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onPress={() => {
+                              void openPipelineRunLogs(target.pipelineId, run.pipelineRunId, pipeline?.pipelineName || target.title, { internal: true });
+                              onNavigate('logs');
+                            }}
+                          >
+                            <TerminalIcon className="size-3.5" />
+                            <span>日志</span>
+                          </Button>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                    {!runs.length && (
+                      <TableEmptyRow columns={4}>暂无流水线运行记录。</TableEmptyRow>
+                    )}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table>
           </Card.Content>
         </Card>
       </div>
@@ -525,7 +566,7 @@ function PipelineParametersPage({
             />
           </Card.Content>
         </Card>
-        <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-border/70 bg-popover/95 px-1 py-3 backdrop-blur-sm">
+        <DrawerFooter className="sticky bottom-0 -mx-1 border-t border-border/70 bg-popover/95 px-1 py-3 backdrop-blur-sm">
           <Button type="button" variant="outline" size="sm" onPress={onCancel}>返回</Button>
           <WriteOpButton
             label={submitting ? '提交中…' : '提交运行'}
@@ -535,7 +576,7 @@ function PipelineParametersPage({
             disabled={submitting}
             onAction={submit}
           />
-        </div>
+        </DrawerFooter>
       </div>
     </ScrollArea>
   );

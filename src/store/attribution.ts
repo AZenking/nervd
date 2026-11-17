@@ -25,6 +25,10 @@ const PAGE_SIZE = 50;
 export interface AttributionRequestOptions {
   /** 后台轮询使用：失败只进 console，不弹 toast。 */
   silent?: boolean;
+  /** 手动同步：强制重新解析编号（忽略 1 小时负缓存）。 */
+  force?: boolean;
+  /** 手动同步：忽略游标回填最近窗口，让已索引事件重新计算归属。 */
+  full?: boolean;
 }
 
 function toastFail(text: string, options?: AttributionRequestOptions): void {
@@ -269,7 +273,10 @@ export const useAttribution = create<AttributionState>()((set, get) => ({
     if (get().syncing) return null;
     set({ syncing: true });
     try {
-      const report = await attributionApi.syncAttribution({});
+      const report = await attributionApi.syncAttribution({
+        force: options?.force,
+        full: options?.full,
+      });
       const finishedAt = report.finishedAt || Date.now();
       set((state) => ({
         syncing: false,

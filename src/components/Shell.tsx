@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useSettingsDraft } from '../store/settings-draft';
-import { useUi, type WorkspaceView } from '../store/ui';
+import { useUi, DEFAULT_DETAIL_TAB, type WorkspaceView } from '../store/ui';
 import { AppSidebar } from './nav/app-sidebar';
 import { ScrollArea } from './ui/scroll-area';
 import { IterationView } from './iteration/IterationView';
@@ -42,7 +42,7 @@ import { PaneSeparator } from '@/components/ui/resizable';
 import { useElementWidth } from '@/hooks/use-element-width';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useLayout, SIDEBAR_PANE, NARROW_CONTAINER_WIDTH } from '@/store/layout';
-import { Card } from '@heroui/react';
+import { Card } from '@/components/ui/card';
 import { useGlobalCiScheduler } from '@/hooks/use-ci-polling';
 import { useScheduleRunner } from '@/hooks/use-schedule-runner';
 import { useAttributionSync } from '@/hooks/use-attribution-sync';
@@ -146,6 +146,12 @@ export function Shell() {
   const loadingDetail = useApp((s) => s.loadingDetail);
   const buildWorkbenchOpen = useUi((s) => s.buildWorkbenchOpen);
   const [workbenchMounted, setWorkbenchMounted] = useState(buildWorkbenchOpen);
+
+  // 离开需求详情页即重置瞬态页签：下次打开详情默认回到「交付进展」。
+  // 仅影响前端瞬态状态，不写导航快照 / localStorage，也不触发任何数据请求。
+  useEffect(() => {
+    if (view !== 'requirement') useUi.getState().setDetailTab(DEFAULT_DETAIL_TAB);
+  }, [view]);
 
   useEffect(() => {
     if (buildWorkbenchOpen) {
@@ -399,7 +405,7 @@ export function Shell() {
         <Card
           data-workspace-surface
           variant="default"
-          className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden rounded-xl border border-border/70 p-0 shadow-none"
+          className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0"
         >
           <div className="flex h-full min-h-0">
             <section ref={workspaceRef} data-workspace-content className="flex min-w-0 flex-1 flex-col h-full min-h-0 overflow-hidden">

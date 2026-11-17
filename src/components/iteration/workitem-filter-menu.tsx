@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { ListFilterIcon, XIcon } from 'lucide-react';
-import { Dropdown, Label } from '@heroui/react';
+import { Dropdown } from '@heroui/react';
+import { Label } from '@/components/ui/label';
+import { EmptyHint } from '@/components/empty-hint';
 import { Chip } from '@/components/ui/chip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -45,13 +47,13 @@ function FilterMenu({ label, kind, options }: {
           'inline-flex h-7 min-w-0 cursor-pointer select-none items-center gap-1 rounded-sm px-2 text-xs font-medium transition-colors outline-none',
           'focus-visible:ring-2 focus-visible:ring-ring/60',
           selected.length
-            ? 'bg-primary/10 text-primary hover:bg-primary/15'
+            ? 'bg-accent text-accent-foreground hover:bg-accent'
             : 'text-foreground/80 hover:bg-surface-secondary hover:text-foreground',
         )}
       >
         <span className="max-w-24 truncate">{label}</span>
         {selected.length > 0 && (
-          <Chip size="sm" variant="secondary" className="h-4 shrink-0 gap-0 bg-primary/15 px-1 font-mono text-[10px] text-primary">
+          <Chip size="sm" variant="secondary" className="shrink-0 gap-0 font-mono">
             {selected.length}
           </Chip>
         )}
@@ -59,9 +61,7 @@ function FilterMenu({ label, kind, options }: {
       <Dropdown.Popover placement="bottom end" className="max-h-72 min-w-52">
         <ScrollArea size={24} className="max-h-[inherit]">
         {sortedOptions.length === 0 ? (
-          <p className="px-2 py-3 text-center text-xs text-muted-foreground select-none">
-            暂无可筛选项
-          </p>
+          <EmptyHint compact title="暂无可筛选项" className="border-0 bg-transparent" />
         ) : (
           <Dropdown.Menu
             aria-label={label + '筛选'}
@@ -92,9 +92,9 @@ function FilterMenu({ label, kind, options }: {
                     <span className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate">{value}</span>
                       {isMe && (
-                        <span className="rounded bg-primary/15 px-1 py-0.5 text-[10px] font-medium leading-none text-primary">
+                        <Chip size="sm" variant="soft" color="accent" className="shrink-0 font-medium">
                           我
-                        </span>
+                        </Chip>
                       )}
                     </span>
                   </Label>
@@ -129,7 +129,7 @@ export function WorkitemFilterBar({ options, activeFilterCount }: {
       <FilterMenu label="关联人" kind="related" options={options.related} />
       <FilterMenu label="状态" kind="statuses" options={options.statuses} />
       {activeFilterCount > 0 && (
-        <Button variant="ghost" size="sm" onClick={clearFilters}>
+        <Button variant="ghost" size="sm" onPress={clearFilters}>
           <XIcon data-icon="inline-start" />
           清除（{activeFilterCount}）
         </Button>

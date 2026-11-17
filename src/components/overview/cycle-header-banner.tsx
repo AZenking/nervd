@@ -6,10 +6,18 @@ import {
   type IterationWorkitemBreakdown,
 } from '@/lib/iteration-period';
 import { cn } from '@/lib/utils';
-import { Button, Card, Chip, Dropdown, Label } from '@heroui/react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
+import { Label } from '@/components/ui/label';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { statusMeta } from '@/components/StatusBadge';
 import { StatusIcon } from '@/components/status-icon';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Kbd } from '@/components/ui/kbd';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 
@@ -51,62 +59,50 @@ export function CycleHeaderBanner({
 
           {/* 迭代名（支持在多迭代之间切换） */}
           {iterations.length > 1 ? (
-            <Dropdown>
-              <Dropdown.Trigger
-                className="flex items-center gap-1.5 rounded-sm text-sm sm:text-base font-semibold tracking-tight text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-sm text-sm font-semibold tracking-tight text-foreground transition-colors hover:text-primary sm:text-base">
                 <OverflowTooltip
                   text={iteration?.name || '当前迭代'}
                   className="max-w-[280px]"
                 />
                 <span className="text-[10px] text-muted-foreground">▼</span>
-              </Dropdown.Trigger>
-              <Dropdown.Popover className="min-w-52 max-h-80">
-                <ScrollArea size={24} className="max-h-[inherit]">
-                <Dropdown.Menu
-                  aria-label="切换迭代"
-                  onAction={(key) => onSelectIteration?.(String(key))}
-                >
-                  {iterations.map((it) => {
-                    const isSelected = it.id === iteration?.id;
-                    return (
-                      <Dropdown.Item
-                        key={it.id || it.name}
-                        id={it.id}
-                        textValue={it.name}
-                        className={cn(
-                          'flex items-center gap-2 justify-between cursor-pointer px-2.5 py-1.5',
-                          // 激活态配方：实色 accent 底 + accent-foreground 前景（禁止半透明 accent + 默认深色前景）
-                          isSelected && 'font-medium bg-accent text-accent-foreground',
+              </DropdownMenuTrigger>
+              <DropdownMenuContent aria-label="切换迭代" className="max-h-80 min-w-52">
+                {iterations.map((it) => {
+                  const isSelected = it.id === iteration?.id;
+                  return (
+                    <DropdownMenuItem
+                      key={it.id || it.name}
+                      id={it.id}
+                      textValue={it.name}
+                      onAction={() => onSelectIteration?.(String(it.id))}
+                      className={cn(
+                        'flex items-center gap-2 justify-between px-2.5 py-1.5',
+                        // 激活态配方：实色 accent 底 + accent-foreground 前景（禁止半透明 accent + 默认深色前景）
+                        isSelected && 'font-medium bg-accent text-accent-foreground',
+                      )}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <StatusIcon status={it.state} className="size-3.5 shrink-0" />
+                        <Label className={cn('min-w-0 truncate', isSelected && 'text-accent-foreground')}>
+                          <OverflowTooltip text={it.name} className="min-w-0" />
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        {isSelected ? (
+                          <span className="flex items-center gap-1 text-[11px] font-medium text-accent-foreground">
+                            <span>当前</span>
+                            <CheckIcon className="size-3" />
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">{it.state}</span>
                         )}
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <StatusIcon status={it.state} className="size-3.5 shrink-0" />
-                          <Label
-                            className={cn('min-w-0 truncate', isSelected && 'text-accent-foreground')}
-                          >
-                            <OverflowTooltip text={it.name} className="min-w-0" />
-                          </Label>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                          {isSelected ? (
-                            <span className="flex items-center gap-1 text-[11px] font-medium text-accent-foreground">
-                              <span>当前</span>
-                              <CheckIcon className="size-3" />
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-muted-foreground">
-                              {it.state}
-                            </span>
-                          )}
-                        </div>
-                      </Dropdown.Item>
-                    );
-                  })}
-                </Dropdown.Menu>
-                </ScrollArea>
-              </Dropdown.Popover>
-            </Dropdown>
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <span className="text-sm sm:text-base font-semibold tracking-tight text-foreground">
               {iteration?.name || '当前迭代'}
@@ -150,14 +146,11 @@ export function CycleHeaderBanner({
         {/* 右侧进入工作台操作 */}
         <Button
           variant="ghost"
-          size="sm"
           onPress={() => onOpenIterationWorkbench?.(iteration?.name ?? '')}
-          className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:bg-surface-secondary hover:text-foreground"
+          className="gap-1.5 text-muted-foreground hover:text-foreground"
         >
           <span>进入迭代工作台</span>
-          <Kbd variant="light" className="hidden! sm:inline-flex! h-auto! rounded-sm! px-1! py-0! font-mono! text-[10px]!">
-            g i
-          </Kbd>
+          <Kbd>g i</Kbd>
           <ChevronRightIcon className="size-3.5" />
         </Button>
       </Card.Header>

@@ -398,9 +398,8 @@ export default function BranchStateDiagram({
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="h-6 px-1.5 text-xs"
-              onClick={() => openSettings('trace')}
+              size="xs"
+              onPress={() => openSettings('trace')}
             >
               前往设置配置分支规则
             </Button>
@@ -409,10 +408,9 @@ export default function BranchStateDiagram({
         <Button
           type="button"
           variant="outline"
-          size="sm"
-          className="h-6 px-1.5 text-xs"
+          size="xs"
           disabled={!eligible.length || pendingCount > 0}
-          onClick={() => setRefreshKey((value) => value + 1)}
+          onPress={() => setRefreshKey((value) => value + 1)}
         >
           重新比较
         </Button>

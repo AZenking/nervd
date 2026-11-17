@@ -294,7 +294,7 @@ export function AiBreakdownDialog({
               </Button>
             </div>
           ) : (
-            <Card className="flex flex-col divide-y divide-border/40 rounded-lg border border-border/50 bg-background/50 shadow-none overflow-hidden">
+            <Card className="flex flex-col divide-y divide-border/40 overflow-hidden">
               {items.map((item) => {
                 return (
                   <div
@@ -336,9 +336,9 @@ export function AiBreakdownDialog({
                           <Button
                             type="button"
                             variant="outline"
-                            size="xs"
+                            size="sm"
                             disabled={creating}
-                            className="h-7 flex items-center gap-1 shrink-0 px-2 text-xs font-normal max-w-28"
+                            className="flex items-center gap-1 shrink-0 font-normal max-w-28"
                             aria-label="选择该子任务的处理人"
                           />
                         }
@@ -410,9 +410,9 @@ export function AiBreakdownDialog({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="xs"
+                  size="sm"
                   onPress={toggleSelectAll}
-                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   {items.every((i) => i.selected) ? '全不选' : '全选'}
                 </Button>
@@ -424,8 +424,8 @@ export function AiBreakdownDialog({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="xs"
-                          className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                          size="sm"
+                          className="gap-1 text-muted-foreground hover:text-foreground"
                         />
                       }
                     >
@@ -450,10 +450,10 @@ export function AiBreakdownDialog({
 
               <Button
                 type="button"
-                variant="ghost"
-                size="xs"
+                variant="tertiary"
+                size="sm"
                 onPress={addItem}
-                className="h-7 gap-1 text-xs text-primary hover:text-primary hover:bg-primary/10"
+                className="gap-1"
               >
                 <PlusIcon className="size-3" />
                 新增一条

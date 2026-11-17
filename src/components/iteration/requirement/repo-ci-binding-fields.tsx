@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Surface } from '@heroui/react';
+import { Surface } from '@/components/ui/surface';
 import { AlertCircleIcon, RefreshCwIcon, ServerIcon, SparklesIcon, WorkflowIcon } from 'lucide-react';
 import type { JenkinsConnectionView, JenkinsJobSummary, PipelineSummary, RepoCiBinding } from '@/types';
 import { cn } from '@/lib/utils';
@@ -165,7 +165,7 @@ export function RepoCiBindingFields({
     binding.pipelineId === recommendedPipeline.pipelineId;
 
   return (
-    <Surface variant="secondary" className="flex flex-col gap-3 rounded-lg border border-border/60 p-3.5">
+    <Surface variant="secondary" className="flex flex-col gap-3 p-3.5">
       <SectionHeader
         level="h3"
         title={(
@@ -175,7 +175,7 @@ export function RepoCiBindingFields({
           </span>
         )}
         action={isMatchedRecommendation ? (
-          <Chip size="sm" color="accent" variant="soft" className="gap-1 text-[11px] font-medium">
+          <Chip size="sm" color="accent" variant="soft" className="gap-1 font-medium">
             <SparklesIcon className="size-3" />
             <span>智能匹配</span>
           </Chip>
@@ -194,7 +194,7 @@ export function RepoCiBindingFields({
             value={currentProvider}
             onValueChange={(val) => handleProviderChange(val as any)}
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -219,7 +219,7 @@ export function RepoCiBindingFields({
                         size="xs"
                         onPress={() => void handleRefresh()}
                         disabled={refreshing || loadingPipelines || disabled}
-                        className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
+                        className="gap-1 text-muted-foreground hover:text-foreground font-normal"
                         aria-label="刷新云效流水线列表"
                       >
                         <RefreshCwIcon className={cn('size-3', (refreshing || loadingPipelines) && 'animate-spin')} />
@@ -338,7 +338,7 @@ export function RepoCiBindingFields({
                         size="xs"
                         onPress={() => setJenkinsJobsRefresh((c) => c + 1)}
                         disabled={loadingJenkinsJobs || disabled || !selectedConnectionId}
-                        className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-normal"
+                        className="gap-1 text-muted-foreground hover:text-foreground font-normal"
                         aria-label="刷新 Jenkins Job 列表"
                       >
                         <RefreshCwIcon className={cn('size-3', loadingJenkinsJobs && 'animate-spin')} />

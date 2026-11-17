@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Surface } from '@heroui/react';
+import { ChevronRightIcon, FileCodeIcon, ScrollTextIcon } from 'lucide-react';
+import { Surface } from '@/components/ui/surface';
 import { ciStatusText } from '@/lib/ci';
 import { formatDateTime, formatDuration } from '@/lib/format';
 import { useApp } from '@/store/app';
@@ -8,6 +9,7 @@ import { useUi } from '@/store/ui';
 import type { BranchRuleTemplate, MrSummary, RepoSummary } from '@/types';
 import type { ScopedBranchRuleTemplate } from '@/lib/iteration-templates';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import type { BuildWorkbenchTarget } from '@/store/ui';
 import { useBranchDivergence } from '../BranchDivergenceCheck';
@@ -15,7 +17,8 @@ import { CreateMrDialog } from './create-mr-dialog';
 import { RepoCiModal } from './repo-ci-modal';
 import { Card } from '@/components/ui/card';
 import { SectionHeader } from '@/components/section-header';
-import { openBuildWorkbenchFromTrigger } from '@/components/build-workbench';
+import { openBuildWorkbenchFromTrigger, openRepoBuildLogs } from '@/components/build-workbench';
+import { WriteOpButton } from '@/components/WriteOpButton';
 import { cn } from '@/lib/utils';
 import type {
   IterationBaselineCheck,
@@ -25,6 +28,7 @@ import {
   boundJenkinsRunBranch,
   deriveLinkedRepoDelivery,
   latestCiRun,
+  type LinkedRepoDeliveryDecision,
   type RepoTraceState,
 } from './linked-repo-delivery';
 import { LinkedRepoBranchSection } from './linked-repo-branch-section';
@@ -37,6 +41,16 @@ import { LinkedRepoHeader } from './linked-repo-header';
 import { LinkedRepoStatusStrip } from './linked-repo-status-strip';
 import { LinkedRepoPrimaryAction } from './linked-repo-primary-action';
 import { useLinkedRepoBranchOps } from './linked-repo-branch-ops';
+import { CodeDiffDrawer } from './code-diff-drawer';
+
+/** 交付主操作中的写操作：只能出现在展开后的交付详情中，摘要行不得常驻。 */
+const WRITE_DELIVERY_ACTIONS = new Set<LinkedRepoDeliveryDecision['action']>([
+  'create-baseline',
+  'create-workitem-branch',
+  'create-mr',
+  'build',
+  'blocked',
+]);
 
 export {
   LinkedRepoBranchSection,
@@ -201,6 +215,7 @@ export function LinkedRepoCard({
   const [ciModalOpen, setCiModalOpen] = useState(false);
   const [autoOpenWorkbenchOnBind, setAutoOpenWorkbenchOnBind] = useState(false);
   const [pendingMrScrollId, setPendingMrScrollId] = useState<number | null>(null);
+  const [diffDrawerOpen, setDiffDrawerOpen] = useState(false);
 
   // 稳定 ref 间接层：让 ops 先于 divergence hook 调用（ops 需要 refetch，divergence 需要 ops 的 developerBranchState）
   const divergenceRefetchRef = useRef<() => void>(() => {});
@@ -240,6 +255,8 @@ export function LinkedRepoCard({
     baselineState,
     developerBranchState,
   );
+  /** 分支差异（摘要「查看差异」与 diff 抽屉共用同一份数据，不额外发起状态计算）。 */
+  const branchDiffs = divergence.diffs ?? [];
   useEffect(() => {
     divergenceRefetchRef.current = divergence.refetch;
   });
@@ -312,6 +329,9 @@ export function LinkedRepoCard({
       ? developerBranch
       : (effectiveOperationBaseBranch || 'master');
 
+  // 写操作一律收进展开后的交付详情：摘要行只保留只读主操作与只读入口。
+  const isWriteAction = WRITE_DELIVERY_ACTIONS.has(delivery.action);
+
   const buildTarget: BuildWorkbenchTarget = {
     kind: 'repo',
     repoId: repo.id,
@@ -324,8 +344,14 @@ export function LinkedRepoCard({
   const actualJenkinsBranch = snapshot?.provider === 'jenkins' && ciBinding?.provider === 'jenkins'
     ? boundJenkinsRunBranch(latestRun, ciBinding.branchParameter)
     : undefined;
+  // 只有 Jenkins 运行记录里能读到与本需求开发分支一致的实际分支时，才可把构建归属到需求分支。
+  // Flow 未提供分支、Jenkins 参数缺失或分支不一致时，一律视为「仓库最新构建」，不得判定需求构建通过。
+  const ciBranchConfirmed = snapshot?.provider === 'jenkins'
+    ? Boolean(actualJenkinsBranch && developerBranch && actualJenkinsBranch === developerBranch)
+    : false;
+  const repoLatestBuild = Boolean(snapshot && latestRun && !ciBranchConfirmed);
   const ciScope = snapshot?.provider === 'flow'
-    ? '仓库最近构建 · 分支未提供'
+    ? '分支未提供'
     : snapshot?.provider === 'jenkins'
       ? (actualJenkinsBranch ? '分支 ' + actualJenkinsBranch : '分支未记录')
       : undefined;
@@ -335,6 +361,9 @@ export function LinkedRepoCard({
     : '';
   const runDurationSuffix = latestRun?.durationMs != null && latestRun.durationMs > 0
     ? ` · 耗时 ${formatDuration(latestRun.durationMs)}`
+    : '';
+  const ciAttributionSuffix = snapshot && latestRun && !ciBranchConfirmed
+    ? ' · 仓库最新构建（无法确认属于该需求分支，不据此判定需求构建通过）'
     : '';
   const ciSummary = entry?.error
     ? 'CI 查询失败' + (latestRun
@@ -346,6 +375,7 @@ export function LinkedRepoCard({
         + ' · ' + latestCiStatus
         + runTimeSuffix
         + runDurationSuffix
+        + ciAttributionSuffix
       : entry?.loading
         ? 'CI 查询中'
         : ciBinding
@@ -396,85 +426,157 @@ export function LinkedRepoCard({
 
   const palette = getRepoPalette(repo.name);
 
+  const primaryActionNode = (
+    <LinkedRepoPrimaryAction
+      action={delivery.action}
+      baselineCreating={baselineCreating}
+      operationBaseBranch={effectiveOperationBaseBranch}
+      onCreateIterationBaseline={createIterationBaseline}
+      branchCreating={branchCreating}
+      developerBranch={developerBranch}
+      branchDisabledReason={branchDisabledReason}
+      onCreateDeveloperBranch={createDeveloperBranch}
+      targetActiveMr={targetActiveMr}
+      onViewMr={handleViewMr}
+      onCreateMr={() => setCreateMrOpen(true)}
+      ciBinding={ciBinding}
+      repoName={repo.name}
+      buildTarget={buildTarget}
+      onOpenCiModal={() => {
+        setAutoOpenWorkbenchOnBind(true);
+        setCiModalOpen(true);
+      }}
+      cardRefreshing={cardRefreshing}
+      onRefresh={() => void handleRefreshSingleRepo()}
+      onConfigureRule={handleConfigureRule}
+      onOpenDetails={() => setDetailsOpen(true)}
+    />
+  );
+
+  /** 「查看差异」复用 BranchDivergenceCheck 的差异数据与 CodeDiffDrawer 抽屉能力。 */
+  const handleViewDiff = () => {
+    if (divergence.check.status === 'ready' && branchDiffs.length > 0) {
+      setDiffDrawerOpen(true);
+      return;
+    }
+    // 差异尚未就绪 / 已对齐：展开交付详情，就地查看分支同步结论。
+    setDetailsOpen(true);
+  };
+
+  /** 「查看日志」复用构建工作台 / LogViewer：有运行记录直接进日志页，否则先看运行记录。 */
+  const handleViewLogs = () => {
+    if (latestRun) {
+      void openRepoBuildLogs(repo.id, latestRun.runId, `${repo.name} #${latestRun.runId}`);
+      return;
+    }
+    openBuildWorkbenchFromTrigger(buildTarget, 'runs');
+  };
+
   return (
     <Card
       data-testid={`linked-repo-card-${repo.id}`}
       className={cn(
-        'group relative overflow-hidden border border-border p-0 shadow-none transition-colors duration-150',
+        'group relative overflow-hidden p-0 transition-colors duration-150',
         detailsOpen && 'ring-1 ring-border/50',
       )}
     >
-      {/* Tier 1: 仓库主行 */}
-      <LinkedRepoHeader
-        repo={repo}
-        detailsOpen={detailsOpen}
-        onToggleDetails={() => setDetailsOpen((prev) => !prev)}
-        palette={palette}
-        developerBranch={developerBranch}
-        developerBranchState={developerBranchState}
-        operationBaseBranch={effectiveOperationBaseBranch}
-        primaryAction={
-          <LinkedRepoPrimaryAction
-            action={delivery.action}
-            baselineCreating={baselineCreating}
-            operationBaseBranch={effectiveOperationBaseBranch}
-            onCreateIterationBaseline={createIterationBaseline}
-            branchCreating={branchCreating}
-            developerBranch={developerBranch}
-            branchDisabledReason={branchDisabledReason}
-            onCreateDeveloperBranch={createDeveloperBranch}
-            targetActiveMr={targetActiveMr}
-            onViewMr={handleViewMr}
-            onCreateMr={() => setCreateMrOpen(true)}
-            ciBinding={ciBinding}
-            repoName={repo.name}
-            buildTarget={buildTarget}
-            onOpenCiModal={() => {
-              setAutoOpenWorkbenchOnBind(true);
-              setCiModalOpen(true);
-            }}
-            cardRefreshing={cardRefreshing}
-            onRefresh={() => void handleRefreshSingleRepo()}
-            onConfigureRule={handleConfigureRule}
-            onOpenDetails={() => setDetailsOpen(true)}
-          />
-        }
-        cardRefreshing={cardRefreshing}
-        onRefresh={() => void handleRefreshSingleRepo()}
-        ciBinding={ciBinding}
-        hasRuns={Boolean(snapshot?.runs.length)}
-        buildTarget={buildTarget}
-        onOpenCiModal={() => {
-          setAutoOpenWorkbenchOnBind(false);
-          setCiModalOpen(true);
-        }}
-        onCreateMr={() => setCreateMrOpen(true)}
-        onUnlinkRepo={onUnlinkRepo}
-      />
+      <div data-testid="delivery-summary">
+        {/* Tier 1: 仓库主行（摘要） */}
+        <LinkedRepoHeader
+          repo={repo}
+          detailsOpen={detailsOpen}
+          onToggleDetails={() => setDetailsOpen((prev) => !prev)}
+          palette={palette}
+          developerBranch={developerBranch}
+          developerBranchState={developerBranchState}
+          operationBaseBranch={effectiveOperationBaseBranch}
+          traceState={traceState}
+          primaryAction={isWriteAction ? undefined : primaryActionNode}
+          cardRefreshing={cardRefreshing}
+          onRefresh={() => void handleRefreshSingleRepo()}
+          hasRuns={Boolean(snapshot?.runs.length)}
+          buildTarget={buildTarget}
+        />
 
-      {/* Tier 2: 交付状态与指标条 (Status Strip) */}
-      <LinkedRepoStatusStrip
-        developerBranchState={developerBranchState}
-        traceState={traceState}
-        divergence={divergence}
-        targetActiveMr={targetActiveMr}
-        developerBranch={developerBranch}
-        operationBaseBranch={effectiveOperationBaseBranch}
-        historyMrs={historyMrs}
-        hasMatchingMergedMr={hasMatchingMergedMr}
-        onViewMr={handleViewMr}
-        onCreateMr={() => setCreateMrOpen(true)}
-        loadingCi={entry?.loading}
-        ciBinding={ciBinding}
-        latestRun={latestRun}
-        snapshot={snapshot}
-        ciSummary={ciSummary}
-        buildTarget={buildTarget}
-        onOpenCiModal={() => {
-          setAutoOpenWorkbenchOnBind(false);
-          setCiModalOpen(true);
-        }}
-      />
+        {/* Tier 2: 交付状态与指标条 (Status Strip) */}
+        <LinkedRepoStatusStrip
+          developerBranchState={developerBranchState}
+          traceState={traceState}
+          divergence={divergence}
+          targetActiveMr={targetActiveMr}
+          developerBranch={developerBranch}
+          operationBaseBranch={effectiveOperationBaseBranch}
+          historyMrs={historyMrs}
+          hasMatchingMergedMr={hasMatchingMergedMr}
+          onViewMr={handleViewMr}
+          loadingCi={entry?.loading}
+          ciError={Boolean(entry?.error)}
+          repoLatestBuild={repoLatestBuild}
+          ciBinding={ciBinding}
+          latestRun={latestRun}
+          snapshot={snapshot}
+          ciSummary={ciSummary}
+          buildTarget={buildTarget}
+          onOpenCiModal={() => {
+            setAutoOpenWorkbenchOnBind(false);
+            setCiModalOpen(true);
+          }}
+        />
+
+        {/* Tier 2.5: 摘要常驻入口（只读）——查看详情 / 查看差异 / 查看日志 */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/40 px-4 py-2">
+          <div className="flex flex-wrap items-center gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="gap-1 text-muted-foreground hover:text-foreground"
+              onPress={() => setDetailsOpen((prev) => !prev)}
+              aria-expanded={detailsOpen}
+            >
+              <ChevronRightIcon
+                className={cn('size-3 transition-transform', detailsOpen && 'rotate-90 text-primary')}
+                aria-hidden="true"
+              />
+              {detailsOpen ? '收起详情' : '查看详情'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="gap-1 text-muted-foreground hover:text-foreground"
+              onPress={handleViewDiff}
+              title={
+                divergence.check.status === 'ready' && branchDiffs.length > 0
+                  ? `查看 ${developerBranch} 与 ${effectiveOperationBaseBranch} 的代码差异`
+                  : '差异尚未就绪或分支已对齐：展开交付详情查看分支同步结论'
+              }
+            >
+              <FileCodeIcon className="size-3" aria-hidden="true" />
+              查看差异
+              {divergence.check.status === 'ready' && branchDiffs.length > 0 && (
+                <span className="font-mono tabular-nums">({branchDiffs.length})</span>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="gap-1 text-muted-foreground hover:text-foreground"
+              onPress={handleViewLogs}
+              title={latestRun ? `查看构建 #${latestRun.runId} 的日志` : '暂无构建运行记录，先打开运行记录'}
+            >
+              <ScrollTextIcon className="size-3" aria-hidden="true" />
+              查看日志
+            </Button>
+          </div>
+          {isWriteAction && (
+            <span className="text-[11px] text-warning">
+              待处理：{delivery.conclusion} · 展开交付详情执行
+            </span>
+          )}
+        </div>
+      </div>
       {/* 下沉展开折叠面板 */}
       <Collapsible
         open={detailsOpen}
@@ -485,6 +587,20 @@ export function LinkedRepoCard({
             否则收起后仍残留 py + border 的空白条（卡片底部假下边距）。 */}
         <CollapsibleContent className="transition-all">
           <Surface variant="secondary" className="flex flex-col gap-3 border-t border-border/50 px-4 py-3.5">
+            {/* 写操作只在展开后的交付详情中出现：建/迭代基准、需求分支、创建 MR、构建参数、取消关联 */}
+            {isWriteAction && (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0 text-[11px] text-muted-foreground">
+                    交付操作（写操作）· {delivery.conclusion}
+                  </span>
+                  <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                    {primaryActionNode}
+                  </div>
+                </div>
+                <Separator className="bg-border/40" />
+              </>
+            )}
             {/* 展开面板顶栏（收合由表头展开按钮控制，HeroUI Separator 分隔） */}
             <SectionHeader
               level="h3"
@@ -543,9 +659,37 @@ export function LinkedRepoCard({
                 setCiModalOpen(true);
               }}
             />
+
+            {/* 解除关联（破坏性写操作，同样只出现在展开后的交付详情中） */}
+            {onUnlinkRepo && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2">
+                <span className="text-[11px] text-muted-foreground">
+                  解除「{repo.name}」与需求的关联（写操作）
+                </span>
+                <WriteOpButton
+                  label="取消关联"
+                  title={`取消关联仓库 ${repo.name}`}
+                  confirmLabel="确认取消关联"
+                  variant="outline"
+                  onAction={async () => { onUnlinkRepo(repo.id); }}
+                />
+              </div>
+            )}
           </Surface>
         </CollapsibleContent>
       </Collapsible>
+
+      {/* 摘要「查看差异」入口复用的分支差异抽屉（数据来自 useBranchDivergence，不新增状态计算） */}
+      {diffDrawerOpen && (
+        <CodeDiffDrawer
+          open
+          onOpenChange={(open) => { if (!open) setDiffDrawerOpen(false); }}
+          title={`${repo.name} · 需求分支差异`}
+          sourceBranch={developerBranch}
+          targetBranch={effectiveOperationBaseBranch}
+          diffs={branchDiffs}
+        />
+      )}
 
       <RepoCiModal
         open={ciModalOpen}

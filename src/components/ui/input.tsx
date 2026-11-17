@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Input as HeroUIInput } from "@heroui/react"
-import { cn } from '@/lib/utils'
 
 type BaseHeroUIInputProps = Omit<
   React.ComponentPropsWithRef<typeof HeroUIInput>,
@@ -49,7 +48,8 @@ function Input({
       data-slot="input"
       // react-aria 的 Input 只认 DOM 的 disabled；传 isDisabled 会泄漏到 DOM 触发 React 告警
       disabled={isDisabled ?? disabled}
-      className={cn("h-8 text-[13px]", className)}
+      // 尺寸与字号由 theme.css 的 `.input` 统一承载（32px / 13px），调用点只传业务类
+      className={className}
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
       {...(props as any)}

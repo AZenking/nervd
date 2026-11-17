@@ -10,10 +10,22 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/searchable-select';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { SectionHeader } from '@/components/section-header';
+import { StatusIcon } from '@/components/status-icon';
 import { BranchDivergenceCheck, useBranchDivergence } from '../BranchDivergenceCheck';
 import { IterationDevDivergence } from './iteration-dev-divergence';
 import type { IterationBaselineCheck } from './types';
 import type { RepoTraceState } from './linked-repo-delivery';
+
+/**
+ * 分支状态点的语义色调载体：StatusIcon 只接受状态串，这里用规范状态词承载四档色调，
+ * 可见相邻文本已完整表达语义，故图形固定 decorative（从无障碍树移除，避免读屏重复播报）。
+ */
+const BRANCH_TONE_STATUS = {
+  idle: '未开始',
+  fail: '查询失败',
+  ok: '已完成',
+  warn: '等待同步',
+} as const;
 
 export interface LinkedRepoBranchStatusProps {
   developerBranchState: IterationBaselineCheck['state'];
@@ -37,7 +49,7 @@ export function LinkedRepoBranchStatus({
   if (developerBranchState === 'missing') {
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span className="size-2 rounded-full bg-sig-idle shrink-0" />
+        <StatusIcon status={BRANCH_TONE_STATUS.idle} decorative className="size-3 shrink-0" />
         <span className="truncate">未创建需求分支</span>
       </div>
     );
@@ -45,7 +57,7 @@ export function LinkedRepoBranchStatus({
   if (developerBranchState === 'error') {
     return (
       <div className="flex items-center gap-1.5 text-xs text-destructive">
-        <span className="size-2 rounded-full bg-destructive shrink-0" />
+        <StatusIcon status={BRANCH_TONE_STATUS.fail} decorative className="size-3 shrink-0" />
         <span className="truncate">分支查询失败</span>
       </div>
     );
@@ -56,7 +68,7 @@ export function LinkedRepoBranchStatus({
     if (devOnly > 0) {
       return (
         <div className="flex items-center gap-1.5 text-xs font-medium text-success">
-          <span className="size-2 rounded-full bg-success shrink-0" />
+          <StatusIcon status={BRANCH_TONE_STATUS.ok} decorative className="size-3 shrink-0" />
           <span className="truncate">超前 {devOnly} 提交</span>
           {baseOnly > 0 && (
             <span className="text-[11px] text-warning font-normal truncate">
@@ -69,21 +81,21 @@ export function LinkedRepoBranchStatus({
     if (baseOnly > 0) {
       return (
         <div className="flex items-center gap-1.5 text-xs font-medium text-warning">
-          <span className="size-2 rounded-full bg-warning shrink-0" />
+          <StatusIcon status={BRANCH_TONE_STATUS.warn} decorative className="size-3 shrink-0" />
           <span className="truncate">落后基准 {baseOnly} 提交</span>
         </div>
       );
     }
     return (
       <div className="flex items-center gap-1.5 text-xs text-success">
-        <span className="size-2 rounded-full bg-success shrink-0" />
+        <StatusIcon status={BRANCH_TONE_STATUS.ok} decorative className="size-3 shrink-0" />
         <span className="truncate">与基准已对齐</span>
       </div>
     );
   }
   return (
     <div className="flex items-center gap-1.5 text-xs text-success">
-      <span className="size-2 rounded-full bg-success shrink-0" />
+      <StatusIcon status={BRANCH_TONE_STATUS.ok} decorative className="size-3 shrink-0" />
       <span className="truncate">需求分支已就绪</span>
     </div>
   );
@@ -154,20 +166,20 @@ export function LinkedRepoBranchSection({
               <Chip
                 size="sm"
                 variant="soft"
-                className="h-5 max-w-36 gap-1 px-1.5 font-mono text-xs font-semibold sm:max-w-48"
+                className="max-w-36 gap-1 font-mono text-xs font-semibold sm:max-w-48"
               >
                 <OverflowTooltip text={developerBranch} className="max-w-32 truncate sm:max-w-44" />
               </Chip>
               <CopyButton text={developerBranch} label="复制需求分支名" />
               {developerBranchState === 'exists' && (
-                <Chip size="sm" variant="soft" color="success" className="h-5 gap-1 px-1.5 text-[11px]">
+                <Chip size="sm" variant="soft" color="success" className="gap-1">
                   <CheckIcon className="size-3" aria-hidden="true" />
                   已存在
                 </Chip>
               )}
               {developerBranchState === 'loading' && <Skeleton className="h-4 w-10 rounded-sm" />}
               {developerBranchState === 'error' && (
-                <Chip size="sm" variant="soft" color="danger" className="h-5 px-1.5 text-[11px]">
+                <Chip size="sm" variant="soft" color="danger">
                   查询失败
                 </Chip>
               )}
@@ -176,7 +188,7 @@ export function LinkedRepoBranchSection({
             <Chip
               size="sm"
               variant="tertiary"
-              className="h-5 px-1.5 font-mono text-xs text-muted-foreground"
+              className="font-mono text-xs text-muted-foreground"
             >
               未配置
             </Chip>
@@ -195,7 +207,7 @@ export function LinkedRepoBranchSection({
                       size="sm"
                       variant="soft"
                       color="accent"
-                      className="h-5 max-w-36 cursor-help gap-1 px-1.5 font-mono text-xs sm:max-w-48"
+                      className="max-w-36 cursor-help gap-1 font-mono text-xs sm:max-w-48"
                     >
                       <span className="max-w-32 truncate sm:max-w-44">{operationBaseBranch}</span>
                     </Chip>
@@ -208,7 +220,7 @@ export function LinkedRepoBranchSection({
               </Tooltip>
               <CopyButton text={operationBaseBranch} label="复制目标基准分支名" />
               {iterationId && baselineState === 'missing' && (
-                <Chip size="sm" variant="soft" color="warning" className="h-5 px-1.5 text-[11px]">
+                <Chip size="sm" variant="soft" color="warning">
                   {/* 直连主干无"创建迭代基准"动作：缺失即模板源分支本身不可用 */}
                   {directConnect ? '源分支缺失' : '未创建'}
                 </Chip>
@@ -217,8 +229,8 @@ export function LinkedRepoBranchSection({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="xs"
-                  className="h-5 px-1 text-[10px] text-destructive"
+                  size="2xs"
+                  className="text-destructive"
                   onPress={onRetryBaseline}
                 >
                   重试
@@ -229,7 +241,7 @@ export function LinkedRepoBranchSection({
             <Chip
               size="sm"
               variant="tertiary"
-              className="h-5 px-1.5 font-mono text-xs text-muted-foreground"
+              className="font-mono text-xs text-muted-foreground"
             >
               未配置
             </Chip>
@@ -270,7 +282,7 @@ export function LinkedRepoBranchSection({
               <Chip
                 size="sm"
                 variant="secondary"
-                className="h-5 shrink-0 gap-1 px-1.5 text-[11px] text-muted-foreground"
+                className="shrink-0 gap-1 text-muted-foreground"
               >
                 <span className="shrink-0">轨道：</span>
                 <OverflowTooltip text={trackTemplateName} className="max-w-28 truncate font-mono" />
@@ -280,7 +292,7 @@ export function LinkedRepoBranchSection({
               <Chip
                 size="sm"
                 variant="secondary"
-                className="h-5 shrink-0 gap-1 px-1.5 text-[11px] text-muted-foreground"
+                className="shrink-0 gap-1 text-muted-foreground"
               >
                 <span className="shrink-0">继承：</span>
                 <OverflowTooltip text={trackTemplateName} className="max-w-28 truncate font-mono" />
@@ -300,7 +312,7 @@ export function LinkedRepoBranchSection({
               <Chip
                 size="sm"
                 variant="secondary"
-                className="h-5 max-w-32 gap-1 px-1.5 font-mono text-xs font-normal"
+                className="max-w-32 gap-1 font-mono text-xs font-normal"
               >
                 <OverflowTooltip text={templateSourceBranch} className="max-w-28 truncate" />
               </Chip>
@@ -353,7 +365,7 @@ export function LinkedRepoBranchSection({
                   <Chip
                     size="sm"
                     variant="secondary"
-                    className="h-5 max-w-64 gap-1 px-1.5 font-mono text-xs font-normal"
+                    className="max-w-64 gap-1 font-mono text-xs font-normal"
                   >
                     <OverflowTooltip text={branch} className="max-w-56 truncate" />
                   </Chip>

@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GitBranchIcon, GitFork, PlusIcon, XIcon } from 'lucide-react';
-import { Alert, Button as HeroButton, Description, Input, Label, Pagination, TextField } from '@heroui/react';
 import { useApp } from '@/store/app';
 import { getBranchTrackDefault, setBranchTrackDefault } from '@/lib/api';
 import { isTauriRuntime } from '@/lib/attribution-api';
 import { branchTrackWarnings } from '@/lib/branch-track-warnings';
 import { errorLog, humanizeError } from '@/lib/error-format';
 import type { BranchRuleTemplate } from '@/types';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Descriptions } from '@/components/ui/descriptions';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
+import { Table } from '@/components/ui/table';
 import {
   Drawer,
   DrawerBody,
@@ -21,6 +26,8 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { EmptyHint } from '@/components/empty-hint';
+import { SectionHeader } from '@/components/section-header';
+import { WriteOpButton } from '@/components/WriteOpButton';
 import { SettingsGroup, SettingsRow } from '@/components/settings/settings-group';
 import { expandBranchPattern } from '@/components/iteration/requirement/types';
 import { BranchTopologyFields } from './BranchTopologyFields';
@@ -296,102 +303,118 @@ export function BranchTemplatesManager({
   const listContent = (
     <>
       {templates.length > 0 ? (
-        <div className="flex flex-col divide-y divide-border/50">
-          {paginatedTemplates.map((template) => (
-            <div
-              key={template.id}
-              className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-            >
-              <div className="flex min-w-0 flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-medium text-foreground">{template.name}</span>
-                  <Badge
-                    variant={scope === 'iteration' ? 'soft' : 'outline'}
-                    color={scope === 'iteration' ? 'accent' : 'default'}
-                    className="font-mono"
-                  >
-                    {scope === 'iteration' ? '迭代专属' : '全局通用'}
-                  </Badge>
-                  {defaultTrackId === template.id && (
-                    <Badge variant="soft" color="accent" className="font-mono">
-                      默认
-                    </Badge>
-                  )}
-                  {usageCount(template.id) > 0 && (
-                    <Badge variant="secondary" className="font-mono">
-                      {usageCount(template.id)} 个需求仓库使用
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Badge variant="outline" className="font-mono text-foreground/80">
-                    {template.sourceBranch}
-                  </Badge>
-                  <span className="text-muted-foreground/50">→</span>
-                  <Badge variant="outline" className="font-mono text-foreground/80">
-                    {template.baselineBranchPattern}
-                  </Badge>
-                  <span className="text-muted-foreground/50">→</span>
-                  <Badge variant="soft" color="accent" className="font-mono">
-                    {template.workitemBranchPattern}
-                  </Badge>
-                </div>
-                {branchTrackWarnings(template, scope).map((warning) => (
-                  <p
-                    key={warning.code}
-                    className={warning.severity === 'error' ? 'text-[11px] text-danger' : 'text-[11px] text-warning'}
-                  >
-                    {warning.message}
-                  </p>
-                ))}
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="h-6 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
-                  onClick={() => setTopologyModalTemplate(template)}
-                  title="查看该交付轨道的完整分支拓扑图"
-                  aria-label={`查看 ${template.name} 分支拓扑图`}
-                >
-                  <GitFork className="size-3 text-primary" />
-                  <span>拓扑图</span>
-                </Button>
-                {defaultTrackId !== template.id && (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                    onClick={() => void handleSetDefault(template.id)}
-                  >
-                    设为默认
-                  </Button>
-                )}
-                <Button variant="outline" size="xs" onClick={() => startEdit(template)}>
-                  编辑
-                </Button>
-                <ConfirmButton
-                  label="删除"
-                  title={`删除模板「${template.name}」？`}
-                  description={
-                    usageCount(template.id)
-                      ? `该模板正被 ${usageCount(template.id)} 个需求仓库使用，删除后会一并清除这些模板选择。`
-                      : '删除后不可恢复，已创建的远端分支不受影响。'
-                  }
-                  confirmLabel="删除模板"
-                  size="xs"
-                  onConfirm={() => remove(template)}
-                />
-              </div>
-            </div>
-          ))}
+        <>
+          <Table variant="secondary" className="w-full">
+            <Table.ScrollContainer>
+              <Table.Content aria-label="分支模板列表">
+                <Table.Header>
+                  <Table.Column isRowHeader>模板</Table.Column>
+                  <Table.Column>分支链</Table.Column>
+                  <Table.Column>使用情况</Table.Column>
+                  <Table.Column className="text-end">操作</Table.Column>
+                </Table.Header>
+                <Table.Body>
+                  {paginatedTemplates.map((template) => (
+                    <Table.Row key={template.id} id={template.id}>
+                      <Table.Cell>
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[13px] font-medium text-foreground">{template.name}</span>
+                            <Badge
+                              variant={scope === 'iteration' ? 'soft' : 'outline'}
+                              color={scope === 'iteration' ? 'accent' : 'default'}
+                              className="font-mono"
+                            >
+                              {scope === 'iteration' ? '迭代专属' : '全局通用'}
+                            </Badge>
+                            {defaultTrackId === template.id && (
+                              <Badge variant="soft" color="accent" className="font-mono">
+                                默认
+                              </Badge>
+                            )}
+                          </div>
+                          {branchTrackWarnings(template, scope).map((warning) => (
+                            <p
+                              key={warning.code}
+                              className={warning.severity === 'error' ? 'text-[11px] text-danger' : 'text-[11px] text-warning'}
+                            >
+                              {warning.message}
+                            </p>
+                          ))}
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <Badge variant="outline" className="font-mono text-foreground/80">
+                            {template.sourceBranch}
+                          </Badge>
+                          <span className="text-muted-foreground/50">→</span>
+                          <Badge variant="outline" className="font-mono text-foreground/80">
+                            {template.baselineBranchPattern}
+                          </Badge>
+                          <span className="text-muted-foreground/50">→</span>
+                          <Badge variant="soft" color="accent" className="font-mono">
+                            {template.workitemBranchPattern}
+                          </Badge>
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        {usageCount(template.id) > 0 ? (
+                          <Badge variant="secondary" className="font-mono">
+                            {usageCount(template.id)} 个需求仓库使用
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">未使用</span>
+                        )}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex shrink-0 items-center justify-end gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => setTopologyModalTemplate(template)}
+                            title="查看该交付轨道的完整分支拓扑图"
+                            aria-label={`查看 ${template.name} 分支拓扑图`}
+                          >
+                            <GitFork className="size-3 text-primary" />
+                            <span>拓扑图</span>
+                          </Button>
+                          {defaultTrackId !== template.id && (
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => void handleSetDefault(template.id)}
+                            >
+                              设为默认
+                            </Button>
+                          )}
+                          <Button variant="outline" size="xs" onClick={() => startEdit(template)}>
+                            编辑
+                          </Button>
+                          <ConfirmButton
+                            label="删除"
+                            title={`删除模板「${template.name}」？`}
+                            description={
+                              usageCount(template.id)
+                                ? `该模板正被 ${usageCount(template.id)} 个需求仓库使用，删除后会一并清除这些模板选择。`
+                                : '删除后不可恢复，已创建的远端分支不受影响。'
+                            }
+                            confirmLabel="删除模板"
+                            size="xs"
+                            onConfirm={() => remove(template)}
+                          />
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
 
           {totalPages > 1 && (
-            <Pagination
-              size="sm"
-              className="flex w-full flex-wrap items-center justify-between gap-2 border-t border-border/40 bg-surface-secondary px-4 py-2 text-xs text-muted-foreground"
-            >
-              <Pagination.Summary className="text-[11px] text-muted-foreground">
+            <Pagination size="sm" className="w-full border-t border-border/40 px-4 py-2">
+              <Pagination.Summary>
                 共 {templates.length} 个模板（第 {(currentPage - 1) * TEMPLATE_PAGE_SIZE + 1} -{' '}
                 {Math.min(currentPage * TEMPLATE_PAGE_SIZE, templates.length)}）
               </Pagination.Summary>
@@ -424,7 +447,7 @@ export function BranchTemplatesManager({
               </Pagination.Content>
             </Pagination>
           )}
-        </div>
+        </>
       ) : (
         <div className="p-6">
           <EmptyHint
@@ -459,6 +482,9 @@ export function BranchTemplatesManager({
     </div>
   );
 
+  const draftWarnings = branchTrackWarnings(draft, scope);
+  const draftHasError = draftWarnings.some((warning) => warning.severity === 'error');
+
   return (
     <>
       {inSettingsCard ? (
@@ -473,31 +499,23 @@ export function BranchTemplatesManager({
         </SettingsGroup>
       ) : (
         <div className="flex flex-col gap-3">
-          {/* 标题、说明与变量通配说明合并为 Alert，置于模板列表上方 */}
-          <Alert status="default">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>{title}</Alert.Title>
-              <Alert.Description className="flex flex-col gap-1.5">
-                <span>{description}</span>
-                <span className="flex flex-wrap items-center gap-x-1 text-muted-foreground">
-                  基准模板支持
-                  <Badge variant="outline" className="font-mono">{'{iteration}'}</Badge>、
-                  <Badge variant="outline" className="font-mono">{'{track}'}</Badge>
-                  （交付轨道 Track/局点名，等价
-                  <Badge variant="outline" className="font-mono">{'{iterationEnd}'}</Badge>
-                  ，推荐新配置使用），需求分支支持
-                  <Badge variant="outline" className="font-mono">{'{identifier}'}</Badge>
-                  。
-                </span>
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
+          <SectionHeader title={title} />
+          <p className="text-[13px] leading-normal text-muted-foreground">{description}</p>
+          <p className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+            基准模板支持
+            <Badge variant="outline" className="font-mono">{'{iteration}'}</Badge>、
+            <Badge variant="outline" className="font-mono">{'{track}'}</Badge>
+            （交付轨道 Track/局点名，等价
+            <Badge variant="outline" className="font-mono">{'{iterationEnd}'}</Badge>
+            ，推荐新配置使用），需求分支支持
+            <Badge variant="outline" className="font-mono">{'{identifier}'}</Badge>
+            。
+          </p>
 
           <div className="flex justify-end">{addButton}</div>
 
-          <Card className="p-0 overflow-hidden">
-            {listContent}
+          <Card>
+            <Card.Content>{listContent}</Card.Content>
           </Card>
         </div>
       )}
@@ -517,34 +535,32 @@ export function BranchTemplatesManager({
                   ? `编辑${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`
                   : `新增${scope === 'iteration' ? '迭代专属' : '全局'}分支模板`}
               </DrawerTitle>
-              <HeroButton
+              <Button
                 type="button"
                 variant="ghost"
                 isIconOnly
                 size="sm"
                 aria-label="关闭"
-                isDisabled={saving}
-                onPress={closeDrawer}
+                aria-disabled={saving || undefined}
+                onPress={() => {
+                  if (saving) return;
+                  closeDrawer();
+                }}
               >
                 <XIcon className="size-4" />
-              </HeroButton>
+              </Button>
             </div>
           </DrawerHeader>
 
           <DrawerBody className="flex min-h-0 flex-1 flex-col px-5 py-4">
             {/* 滚动与边缘渐隐由 ScrollArea 承担，DrawerBody 只做弹性布局壳 */}
             <ScrollArea className="flex min-h-0 flex-1 flex-col gap-3">
-            {/* 作用域与变量说明（HeroUI Alert） */}
-            <Alert status="default">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Description>
-                  {scope === 'iteration'
-                    ? '仅在当前迭代生效，构成该迭代的专属交付轨道（Track/局点）。支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd} 与 {identifier} 动态变量。'
-                    : '保存在本机作为全局预设模板，每条模板即一条交付轨道（Track/局点），所有迭代与需求均可选用。支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd} 与 {identifier} 动态变量。'}
-                </Alert.Description>
-              </Alert.Content>
-            </Alert>
+            {/* 作用域与变量说明 */}
+            <FieldDescription>
+              {scope === 'iteration'
+                ? '仅在当前迭代生效，构成该迭代的专属交付轨道（Track/局点）。支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd} 与 {identifier} 动态变量。'
+                : '保存在本机作为全局预设模板，每条模板即一条交付轨道（Track/局点），所有迭代与需求均可选用。支持 {iteration}、{track}、{iterationEnd}、{yyyy}/{MM}/{dd} 与 {identifier} 动态变量。'}
+            </FieldDescription>
 
             {/* 一键预设：仅填充草稿字段（含建议名称，可改），不自动保存 */}
             <div className="flex flex-wrap items-center gap-1.5">
@@ -555,7 +571,6 @@ export function BranchTemplatesManager({
                   type="button"
                   variant="outline"
                   size="xs"
-                  className="h-6 rounded-md font-normal text-muted-foreground hover:text-foreground"
                   onClick={() => setDraft((prev) => ({ ...prev, ...preset.draft }))}
                 >
                   {preset.label}
@@ -563,24 +578,24 @@ export function BranchTemplatesManager({
               ))}
             </div>
 
-            <TextField
+            <Field
               isRequired
               value={draft.name}
               onChange={(value) => setDraft({ ...draft, name: value })}
             >
-              <Label>模板名称</Label>
+              <FieldLabel>模板名称</FieldLabel>
               <Input placeholder="A 局点 / B 局点 / Hotfix" />
-              <Description>即交付轨道（Track/局点）名称，用于 {'{track}'} 占位符展开。</Description>
-            </TextField>
-            <TextField
+              <FieldDescription>即交付轨道（Track/局点）名称，用于 {'{track}'} 占位符展开。</FieldDescription>
+            </Field>
+            <Field
               isRequired
               value={draft.sourceBranch}
               onChange={(value) => setDraft({ ...draft, sourceBranch: value })}
             >
-              <Label>迭代基准的源分支</Label>
+              <FieldLabel>迭代基准的源分支</FieldLabel>
               <Input className="font-mono" placeholder="master 或 test" />
-              <Description>迭代基准分支的切出基点；与基准分支同名时即为单主干直连（Trunk-Based），无需创建迭代基准。</Description>
-            </TextField>
+              <FieldDescription>迭代基准分支的切出基点；与基准分支同名时即为单主干直连（Trunk-Based），无需创建迭代基准。</FieldDescription>
+            </Field>
             <BranchPatternField
               label="迭代基准分支命名模板"
               value={draft.baselineBranchPattern}
@@ -601,20 +616,15 @@ export function BranchTemplatesManager({
               description="支持 {identifier}（需求编号，如 REQ-101）。"
             />
 
-            {branchTrackWarnings(draft, scope).length > 0 && (
-              <Alert status="default">
+            {draftWarnings.length > 0 && (
+              <Alert status={draftHasError ? 'danger' : 'warning'}>
                 <Alert.Indicator />
                 <Alert.Content>
                   <Alert.Title>命名规则提示</Alert.Title>
                   <Alert.Description>
                     <span className="flex flex-col gap-1">
-                      {branchTrackWarnings(draft, scope).map((warning) => (
-                        <span
-                          key={warning.code}
-                          className={warning.severity === 'error' ? 'text-danger' : 'text-warning'}
-                        >
-                          {warning.message}
-                        </span>
+                      {draftWarnings.map((warning) => (
+                        <span key={warning.code}>{warning.message}</span>
                       ))}
                     </span>
                   </Alert.Description>
@@ -630,35 +640,42 @@ export function BranchTemplatesManager({
                 iterationEndDate={iterationEndDate}
                 baselinePattern={draft.baselineBranchPattern}
                 workitemPattern={draft.workitemBranchPattern}
-                readOnly={settings?.allowWriteOps === false}
+                readOnly={settings?.allowWriteOps !== true}
               />
             ) : (
-              <Alert status="default">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Description>
-                    保存模板后可配置子分支拓扑（legacy / 不建子分支 / 自定义模式、基点与 MR 目标）。
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
+              <FieldDescription>
+                保存模板后可配置子分支拓扑（legacy / 不建子分支 / 自定义模式、基点与 MR 目标）。
+              </FieldDescription>
             )}
 
-            {/* 实时分支生成预览（HeroUI Alert） */}
+            {/* 实时分支生成预览 */}
             {(previewBaseline || previewWorkitem) && (
-              <Alert status="accent">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>命名预览</Alert.Title>
-                  <Alert.Description className="flex flex-col gap-1 font-mono text-[11px]">
-                    <span>
-                      基准分支：<span className="text-foreground/90">{previewBaseline}</span>
-                    </span>
-                    <span>
-                      需求分支：<span className="text-primary">{previewWorkitem}</span>
-                    </span>
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
+              <div className="flex flex-col gap-1.5">
+                <SectionHeader level="h3" title="命名预览" />
+                <Descriptions
+                  variant="plain"
+                  items={[
+                    {
+                      key: 'baseline',
+                      label: '基准分支',
+                      children: (
+                        <span className="min-w-0 truncate font-mono text-[11px] text-foreground/90">
+                          {previewBaseline || '—'}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: 'workitem',
+                      label: '需求分支',
+                      children: (
+                        <span className="min-w-0 truncate font-mono text-[11px] text-primary">
+                          {previewWorkitem || '—'}
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+              </div>
             )}
 
             {/* 交付轨道拓扑实时预览：输入源分支与两条命名规则时重绘；基准≡源主干时自动切直连两节点 */}
@@ -680,12 +697,27 @@ export function BranchTemplatesManager({
           </DrawerBody>
 
           <DrawerFooter className="shrink-0 justify-end gap-2 border-t border-border/70 px-5 py-3">
-            <HeroButton type="button" variant="secondary" isDisabled={saving} onPress={closeDrawer}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              aria-disabled={saving || undefined}
+              onPress={() => {
+                if (saving) return;
+                closeDrawer();
+              }}
+            >
               取消
-            </HeroButton>
-            <HeroButton type="button" isDisabled={saving} onPress={() => void save()}>
-              {saving ? '保存中…' : editingId ? '保存修改' : '添加模板'}
-            </HeroButton>
+            </Button>
+            <WriteOpButton
+              label={editingId ? '保存修改' : '添加模板'}
+              title={editingId ? '保存分支模板修改' : '添加分支模板'}
+              confirm="inline"
+              confirmLabel="确认保存"
+              disabled={saving}
+              disabledReason="正在保存分支模板…"
+              onAction={save}
+            />
           </DrawerFooter>
         </DrawerContent>
       </Drawer>

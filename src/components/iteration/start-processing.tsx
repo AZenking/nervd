@@ -33,6 +33,11 @@ export interface StartProcessingButtonProps {
   /** 紧凑工具条（详情页/抽屉头部）里的纯图标按钮 */
   iconOnly?: boolean;
   className?: string;
+  /**
+   * 跳过挂载时的 loadActiveWorkitems：列表内每行一个实例时由父级统一加载一次，
+   * 避免 N 行并发重复读取本地仓库状态。
+   */
+  disableAutoLoad?: boolean;
 }
 
 /**
@@ -51,6 +56,7 @@ export function StartProcessingButton({
   size = 'sm',
   iconOnly = false,
   className,
+  disableAutoLoad = false,
 }: StartProcessingButtonProps) {
   const settings = useApp((state) => state.settings);
   const repositories = useApp((state) => state.repositories);
@@ -68,9 +74,10 @@ export function StartProcessingButton({
   const allowWrite = settings?.allowWriteOps ?? false;
 
   useEffect(() => {
+    if (disableAutoLoad) return;
     // 活动状态按仓库汇总；切换工作项时重新读取，失败静默退回「开始处理」
     void loadActiveWorkitems({ silent: true });
-  }, [loadActiveWorkitems, workitemId]);
+  }, [disableAutoLoad, loadActiveWorkitems, workitemId]);
 
   const linkedRepoIds = useMemo(() => {
     if (!settings) return [];
@@ -121,18 +128,29 @@ export function StartProcessingButton({
     const hookMode = info?.hookMode ?? binding.hookMode;
     const label = repoLabel(binding.repoId);
 
+    // 只读分支检查：开始处理不切分支/不提交，但把本地分支现场如实告知，避免在错误分支或脏工作区上开始。
+    const branchName = info?.currentBranch?.trim() || '';
+    const detachedHead = Boolean(info?.isGit && !branchName && info?.headSha);
+    const branchNotes: string[] = [];
+    if (detachedHead) branchNotes.push('当前仓库处于游离 HEAD（不在任何分支上）');
+    if (info?.dirty) branchNotes.push('工作区有未提交修改');
+    const branchInfo = branchName ? `当前分支 ${branchName}。` : '';
+    const branchTip = branchNotes.length
+      ? `${branchNotes.join('，')}；开始处理不会自动提交或切换分支，请确认后再提交。`
+      : '';
+
     if (hookInstalled && hookMode !== 'off') {
       toast.add({
-        type: 'success',
+        type: branchNotes.length ? 'warning' : 'success',
         title: '已设为当前工作项',
-        description: `${label}：后续提交将自动补充 Refs（${hookMode} 模式）。`,
+        description: `${label}：后续提交将自动补充 Refs（${hookMode} 模式）。${branchInfo}${branchTip} 已生成 .nervd/agent-task.md 与 .nervd/scripts/，可直接交给 Agent。`,
       });
       return;
     }
     toast.add({
       type: 'warning',
       title: '已设为当前工作项，但钩子未启用',
-      description: `${label} 的 commit-msg 钩子不可用，后续提交不会自动补 Refs；请安装钩子，或使用 ${AGENT_COMMIT_COMMAND} 提交。`,
+      description: `${label} 的 commit-msg 钩子不可用，后续提交不会自动补 Refs；请安装钩子，或使用 ${AGENT_COMMIT_COMMAND} 提交。${branchTip} 已生成 .nervd/agent-task.md 与 .nervd/scripts/。`,
       actionProps: {
         children: '前往安装',
         onClick: () => openSettings('attribution'),
@@ -213,7 +231,7 @@ export function StartProcessingButton({
         busy && 'cursor-wait',
         className,
       )}
-      onClick={() => void handleStart()}
+      onPress={() => void handleStart()}
       aria-label={iconOnly ? label : undefined}
     >
       {busy ? (
@@ -256,9 +274,9 @@ export function StartProcessingButton({
                 <Button
                   key={binding.repoId}
                   variant="ghost"
-                  size="sm"
-                  className="h-auto w-full min-w-0 justify-start gap-2 overflow-hidden py-1.5"
-                  onClick={() => void choose(binding)}
+                  size="inline"
+                  className="w-full min-w-0 justify-start gap-2 overflow-hidden"
+                  onPress={() => void choose(binding)}
                 >
                   <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
                   <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left">
@@ -279,7 +297,7 @@ export function StartProcessingButton({
                     size="sm"
                     variant="soft"
                     color={hookReady ? 'success' : 'default'}
-                    className="h-5 shrink-0 border border-border/60 px-1.5 text-[10px]"
+                    className="shrink-0"
                     title={
                       hookReady
                         ? `该仓库的 commit-msg 钩子已安装并启用（${binding.hookMode}）：提交时自动补充 Refs`
@@ -293,7 +311,7 @@ export function StartProcessingButton({
             })}
           </div>
           <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setPickerOpen(false)}>
+            <Button variant="ghost" size="sm" onPress={() => setPickerOpen(false)}>
               取消
             </Button>
           </DialogFooter>

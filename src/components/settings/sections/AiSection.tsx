@@ -6,9 +6,11 @@ import {
 import {
   deleteAiApiKey, getAiSettings, saveAiApiKey, saveAiSettings, testAiConnection,
 } from '@/lib/ai-api';
-import { Button, Chip, TextArea, toast } from '@heroui/react';
-import { Button as UiButton } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from '@/components/ui/toast';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import type { AiBreakdownMode, AiCustomPrompts, AiProvider, AiSettingsView, AiTestConnectionResult } from '@/types/ai';
 import { SettingsGroup, SettingsRow } from '../settings-group';
@@ -418,7 +420,7 @@ export function AiSection() {
         action={
           <div className="flex items-center gap-2">
             {testResult && (
-              <Chip size="sm" variant="secondary" color="success" className="font-mono text-xs">
+              <Chip size="sm" variant="secondary" color="success" className="font-mono">
                 <CheckIcon className="size-3 mr-1 inline" />
                 {testResult.latencyMs}ms 连通正常
               </Chip>
@@ -492,7 +494,7 @@ export function AiSection() {
                 aria-invalid={Boolean(baseUrlError)}
                 aria-describedby={baseUrlError ? 'ai-base-url-error' : undefined}
                 placeholder="https://..."
-                className="h-8 font-mono text-xs"
+                className="font-mono"
               />
               {baseUrlError && (
                 <p id="ai-base-url-error" className="text-[11px] leading-4 text-destructive">
@@ -534,7 +536,7 @@ export function AiSection() {
                 }
               }}
               placeholder="qwen-plus"
-              className="h-8 font-mono text-xs"
+              className="font-mono"
             />
           }
         />
@@ -552,12 +554,12 @@ export function AiSection() {
             <div className="flex items-center gap-2">
               <span>API Key</span>
               {settings.hasApiKey ? (
-                <Chip size="sm" variant="secondary" color="success" className="text-[11px] font-normal">
+                <Chip size="sm" variant="secondary" color="success" className="font-normal">
                   <KeyRoundIcon className="size-3 mr-1 inline" />
                   已安全保存在 macOS Keychain
                 </Chip>
               ) : (
-                <Chip size="sm" variant="soft" className="text-[11px] font-normal text-muted-foreground">
+                <Chip size="sm" variant="soft" className="font-normal text-muted-foreground">
                   未配置密钥
                 </Chip>
               )}
@@ -590,9 +592,9 @@ export function AiSection() {
                     }
                   }}
                   placeholder={settings.hasApiKey ? '••••••••••••••••••••••••••••••••（已加密存储，输入可覆盖）' : '请输入 API Key，如 sk-...'}
-                  className="h-8 pr-8 font-mono text-xs"
+                  className="pr-8 font-mono"
                 />
-                <UiButton
+                <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
@@ -602,7 +604,7 @@ export function AiSection() {
                   onPress={() => setShowApiKey((v) => !v)}
                 >
                   {showApiKey ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
-                </UiButton>
+                </Button>
               </div>
 
               {savingKey && <span className="text-xs text-muted-foreground">保存中…</span>}
@@ -684,13 +686,13 @@ export function AiSection() {
           label="子任务拆解工程规范 (Breakdown Rules)"
           description="定义拆解子任务时的团队约束。例如：必须包含自测任务、后端需注明 RPC 接口、标题动宾结构等。"
           control={
-            <TextArea
+            <Textarea
               id="ai-prompt-breakdown"
               value={settings.customPrompts?.breakdown ?? ''}
               onChange={(e) => handleUpdatePrompt('breakdown', e.target.value)}
               onBlur={() => void commitPrompts()}
               placeholder="例如：每个需求必须包含一个自测任务；后端任务注明涉及的 RPC 接口；标题严格在 25 字以内。"
-              className="min-h-16 font-sans text-xs"
+              rows={3}
             />
           }
         />
@@ -702,13 +704,13 @@ export function AiSection() {
           label="评论讨论纪要规则 (Discussion Summary)"
           description="提炼需求讨论历史时的侧重偏好。例如：重点关注交付时间变更、明确阻塞项责任人等。"
           control={
-            <TextArea
+            <Textarea
               id="ai-prompt-comment-summary"
               value={settings.customPrompts?.commentSummary ?? ''}
               onChange={(e) => handleUpdatePrompt('commentSummary', e.target.value)}
               onBlur={() => void commitPrompts()}
               placeholder="例如：关注技术方案共识与对上线排期的影响，必须明确标出每个阻塞项的责任人。"
-              className="min-h-16 font-sans text-xs"
+              rows={3}
             />
           }
         />
@@ -720,13 +722,13 @@ export function AiSection() {
           label="评论与提测/进度生成偏好 (Comment Generation)"
           description="定制自动生成研发进度同步、提测交付说明或评论润色时的语言风格与标准段落格式。"
           control={
-            <TextArea
+            <Textarea
               id="ai-prompt-comment-draft"
               value={settings.customPrompts?.commentDraft ?? ''}
               onChange={(e) => handleUpdatePrompt('commentDraft', e.target.value)}
               onBlur={() => void commitPrompts()}
               placeholder="例如：提测说明必须包含部署环境和测试账号说明；研发进度汇报按「已完成、进行中、风险项」排版。"
-              className="min-h-16 font-sans text-xs"
+              rows={3}
             />
           }
         />
@@ -738,13 +740,13 @@ export function AiSection() {
           label="代码仓库架构背景说明 (Repo Recommendation Rules)"
           description="向 AI 提供团队组织的代码仓库命名习惯与业务域归属，帮助 AI 更精准推荐需求应关联的仓库。"
           control={
-            <TextArea
+            <Textarea
               id="ai-prompt-repo-recommendation"
               value={settings.customPrompts?.repoRecommendation ?? ''}
               onChange={(e) => handleUpdatePrompt('repoRecommendation', e.target.value)}
               onBlur={() => void commitPrompts()}
               placeholder="例如：trade-* 为交易履约核心服务，fed-* 为前端应用，crm-* 为客户中心，common-* 为公共底层库。"
-              className="min-h-16 font-sans text-xs"
+              rows={3}
             />
           }
         />
@@ -756,13 +758,13 @@ export function AiSection() {
           label="Merge Request 描述规范 (MR Rules)"
           description="生成 MR 标题与描述时的规范要求。例如：强制遵循 Conventional Commits、包含自测验证清单等。"
           control={
-            <TextArea
+            <Textarea
               id="ai-prompt-merge-request"
               value={settings.customPrompts?.mergeRequest ?? ''}
               onChange={(e) => handleUpdatePrompt('mergeRequest', e.target.value)}
               onBlur={() => void commitPrompts()}
               placeholder="例如：标题强制遵循 Conventional Commits 规范；描述必须包含自测用例清单与回归检查点；跳过 WIP 提交。"
-              className="min-h-16 font-sans text-xs"
+              rows={3}
             />
           }
         />

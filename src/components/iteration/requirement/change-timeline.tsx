@@ -2,8 +2,8 @@
 //
 // 数据全部来自 `useAttribution`（Agent C 已实现），组件只负责：
 // 按本地日期分组、倒序渲染、分页「加载更多」、同步状态与错误重试；
-// 待归属变更在顶部以内嵌队列呈现（compact 形态只保留一行计数）。
-import { useEffect, useMemo, useRef } from 'react';
+// 顶部「待归属变更（指派）」队列已下线，仅保留自动归属后的时间线。
+import { useEffect, useMemo } from 'react';
 import { AlertTriangleIcon, GitCommitIcon, RefreshCwIcon } from 'lucide-react';
 import type { WorkitemChange } from '@/types/attribution';
 import { localDateKey } from '@/lib/attribution-format';
@@ -16,7 +16,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { EmptyHint } from '@/components/empty-hint';
 import { SectionHeader } from '@/components/section-header';
 import { ChangeEventCard } from './change-event-card';
-import { UnattributedChanges } from './unattributed-changes';
 
 export interface ChangeTimelineProps {
   workitemId: string;
@@ -169,16 +168,13 @@ export function ChangeTimeline({
   const loading = useAttribution((state) => Boolean(state.loadingTimeline[workitemId]));
   const error = useAttribution((state) => state.timelineError[workitemId] ?? null);
   const nextBefore = useAttribution((state) => state.timelineNextBefore[workitemId]);
-  const unassigned = useAttribution((state) => state.unassigned);
   const syncing = useAttribution((state) => state.syncing);
   const status = useAttribution((state) => state.status);
   const loadTimeline = useAttribution((state) => state.loadTimeline);
   const loadMore = useAttribution((state) => state.loadMore);
-  const loadUnassigned = useAttribution((state) => state.loadUnassigned);
   const refreshStatus = useAttribution((state) => state.refreshStatus);
   const syncNow = useAttribution((state) => state.syncNow);
 
-  const requestedUnassigned = useRef(false);
 
   useEffect(() => {
     if (!workitemId) return;
@@ -189,13 +185,6 @@ export function ChangeTimeline({
     if (status) return;
     void refreshStatus({ silent: true });
   }, [status, refreshStatus]);
-
-  // 待归属队列是全局数据：每次挂载最多拉取一次，compact 形态不额外发请求。
-  useEffect(() => {
-    if (compact || requestedUnassigned.current) return;
-    requestedUnassigned.current = true;
-    if (unassigned.length === 0) void loadUnassigned({ silent: true });
-  }, [compact, unassigned.length, loadUnassigned]);
 
   const { visible: visibleTimeline, rollupCommits } = useMemo(
     () => partitionTimeline(timeline),
@@ -254,14 +243,6 @@ export function ChangeTimeline({
         level={compact ? 'h3' : 'h2'}
         action={syncButton}
       />
-
-      {compact
-        ? unassigned.length > 0 && (
-            <p className="text-[11px] text-muted-foreground" data-testid="change-timeline-unassigned-count">
-              {unassigned.length} 条变更待归属
-            </p>
-          )
-        : unassigned.length > 0 && <UnattributedChanges limit={5} />}
 
       {showSkeleton ? (
         <TimelineSkeleton compact={compact} />

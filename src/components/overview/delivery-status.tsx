@@ -1,5 +1,8 @@
-import { GitBranchIcon } from 'lucide-react';
-import { Alert, Button, Card, Chip } from '@heroui/react';
+import { GitBranchIcon, WorkflowIcon } from 'lucide-react';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { useShallow } from 'zustand/react/shallow';
@@ -46,8 +49,8 @@ export function RepoCiSummary() {
     <Card>
       <Card.Header className="flex flex-row items-center justify-between gap-3 pb-0">
         <div>
-          <Card.Title className="text-[13px] font-semibold tracking-tight text-foreground">重点仓库 CI</Card.Title>
-          <Card.Description className="mt-1 text-[11px]">按仓库展示最近一次 CI 状态，保留查询上下文。</Card.Description>
+          <Card.Title>重点仓库 CI</Card.Title>
+          <Card.Description className="mt-1">按仓库展示最近一次 CI 状态，保留查询上下文。</Card.Description>
         </div>
         <Chip size="sm" variant="soft" color="default" className="font-mono tabular-nums">
           {watchedRepos.length} 个仓库
@@ -123,9 +126,9 @@ export function RepoCiSummary() {
                   {isUnbound ? (
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="xs"
                       onPress={() => openSettings('ci')}
-                      className="h-6 shrink-0 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                      className="shrink-0 text-muted-foreground hover:text-foreground"
                     >
                       绑定 CI
                     </Button>
@@ -161,8 +164,8 @@ export function FlowPipelineSummary() {
     <Card>
       <Card.Header className="flex flex-row items-center justify-between gap-3 pb-0">
         <div>
-          <Card.Title className="text-[13px] font-semibold tracking-tight text-foreground">组织级 Flow</Card.Title>
-          <Card.Description className="mt-1 text-[11px]">全局 Flow 流水线运行概况。</Card.Description>
+          <Card.Title>组织级 Flow</Card.Title>
+          <Card.Description className="mt-1">全局 Flow 流水线运行概况。</Card.Description>
         </div>
         <Chip size="sm" variant="soft" color="default" className="font-mono tabular-nums">
           {pipelines.length} 条流水线
@@ -176,7 +179,11 @@ export function FlowPipelineSummary() {
             ))}
           </ul>
         ) : pipelines.length === 0 ? (
-          <div className="py-8 text-center text-xs text-muted-foreground">暂无组织级 Flow 运行数据</div>
+          <EmptyHint
+            icon={WorkflowIcon}
+            title="暂无组织级 Flow 运行数据"
+            className="border-0 bg-transparent py-8"
+          />
         ) : (
           <ul className="divide-y divide-border/60 max-h-80 overflow-y-auto overscroll-contain pr-1" aria-label="组织级 Flow 状态列表">
             {pipelines.map((pipeline) => {

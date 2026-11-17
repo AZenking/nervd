@@ -8,7 +8,7 @@ import { LinkedRepoCard } from './linked-repo-card';
 vi.mock('@/store/app', () => ({
   useApp: () => ({
     repoCiByRepo: {},
-    settings: { repoCiBindings: {} },
+    settings: { repoCiBindings: {}, allowWriteOps: true },
     loadTrace: vi.fn().mockResolvedValue({ status: 'success', errors: [] }),
     loadRepoCi: vi.fn(),
     setToast: vi.fn(),
@@ -124,9 +124,14 @@ describe('LinkedRepoCard 缺陷上下文（缺陷单号分支 → 需求单号�
   };
 
   const openMrDialog = async () => {
-    // 主操作为 create-mr（缺陷分支领先 3 个提交），点击「发起 MR」
+    // 创建 MR 是写操作：先展开交付详情（摘要行不再常驻写操作入口），再点击「创建 MR」
+    const expandBtn = host.querySelector('button[aria-label="展开分支与交付详情"]');
+    expect(expandBtn).not.toBeNull();
+    await act(async () => {
+      expandBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
     const mrBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('发起 MR'),
+      b.textContent?.includes('创建 MR'),
     );
     expect(mrBtn).not.toBeUndefined();
     await act(async () => {

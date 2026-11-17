@@ -4,7 +4,9 @@ import {
   SearchXIcon,
   Link2Icon,
 } from 'lucide-react';
-import { Accordion, Chip, ListBox } from '@heroui/react';
+import { Accordion } from '@/components/ui/accordion';
+import { Chip } from '@/components/ui/chip';
+import { ListBox } from '@/components/ui/list-box';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -21,6 +23,7 @@ import { useApp } from '@/store/app';
 import { useShallow } from 'zustand/react/shallow';
 import {
   useUi, iterationsOrFallback, scopedItems, applyWorkitemFilters, buildWorkitemFilterOptions, UNPLANNED_ITERATION,
+  type DetailTabKey,
 } from '@/store/ui';
 import { CATEGORY_LABELS, type Category } from '@/types';
 import { PageHeader } from '../page-header';
@@ -38,7 +41,7 @@ import { WorkitemFilterBar } from './workitem-filter-menu';
 import { IterationBranches } from './IterationBranches';
 import { useFusedBranchTemplates } from '@/lib/iteration-templates';
 import { openWorkitemInYunxiao } from '@/lib/yunxiao-link';
-import { WorkitemStatusDropdown } from './workitem-status-dropdown';
+import { toneToChipColor, WorkitemStatusDropdown } from './workitem-status-dropdown';
 import { FloatingBatchBar } from './floating-batch-bar';
 import { KeyboardPagination } from './keyboard-pagination';
 import { IterationRepoTab } from './iteration-repo-tab';
@@ -49,18 +52,9 @@ import { hasWorkspaceOverlay, isEditing, isWorkspacePeekDrawerOnly } from '@/lib
 const PAGE_SIZE = 30;
 const ROW_PREVIEW_DELAY_MS = 140;
 
-function getStatusGroupChipClass(status: string): string {
-  const tone = statusMeta(status).tone;
-  if (tone === 'run') {
-    return 'border-warning/25 bg-warning/10 text-warning font-semibold';
-  }
-  if (tone === 'fail') {
-    return 'border-danger/25 bg-danger/10 text-danger font-semibold';
-  }
-  if (tone === 'ok') {
-    return 'border-success/25 bg-success/10 text-success font-semibold';
-  }
-  return 'border-border/60 bg-surface-secondary text-muted-foreground font-medium';
+/** 组头计数徽标：语义色一律走 Chip 的 color 变体（不再自造 tint / 裸色板） */
+function groupChipColor(status: string): 'success' | 'warning' | 'danger' | 'default' {
+  return toneToChipColor(statusMeta(status).tone);
 }
 
 /** 工作项行类型：直接从 app store 的 items 元素推导，避免再引一层 lib/api */
@@ -199,10 +193,8 @@ const WorkitemRow = memo(function WorkitemRow({
           variant="soft"
           color="accent"
           className={cn(
-            'h-5 shrink-0 px-2 text-[11px] font-medium rounded-sm select-none border',
-            isActive
-              ? 'border-accent-foreground/40 bg-accent-foreground/15 text-accent-foreground'
-              : 'border-primary/30 bg-primary/15 text-primary',
+            'shrink-0 select-none font-medium',
+            isActive && 'bg-accent-foreground/15 text-accent-foreground',
           )}
         >
           我负责
@@ -213,10 +205,8 @@ const WorkitemRow = memo(function WorkitemRow({
           variant="soft"
           color="warning"
           className={cn(
-            'h-5 shrink-0 px-2 text-[11px] font-medium rounded-sm select-none border',
-            isActive
-              ? 'border-accent-foreground/40 bg-accent-foreground/15 text-accent-foreground'
-              : 'border-warning/30 bg-warning/15 text-warning',
+            'shrink-0 select-none font-medium',
+            isActive && 'bg-accent-foreground/15 text-accent-foreground',
           )}
         >
           我参与
@@ -345,7 +335,10 @@ export function IterationView() {
   const { refreshCi } = useCiPolling({ repositories });
 
   const iterations = iterationsOrFallback(realIterations);
-  const iteration = iterations.find((it) => it.name === iterationKey) ?? iterations[0];
+  // 默认落点「当前迭代」：无历史记录（或记录中的迭代已不存在）时优先进入进行中的迭代，其次回退首个。
+  const iteration = iterations.find((it) => it.name === iterationKey)
+    ?? iterations.find((it) => it.state === '进行中')
+    ?? iterations[0];
   const isUnplanned = iteration.name === UNPLANNED_ITERATION.name;
   const usingFallback = !realIterations.length;
   const activeFilterCount = filters.assignees.length + filters.related.length + filters.statuses.length;
@@ -547,17 +540,22 @@ export function IterationView() {
     }
   }, [cancelPeekSelect, cancelPreviewClick]);
 
-  /** 在独立工作台全屏打开（转入完整页面并收起抽屉） */
-  const openInWorkbench = useCallback((item: WorkitemItem) => {
+  /** 在独立工作台全屏打开（转入完整页面并收起抽屉）；detailTab 用于把分栏当前页签带到全屏工作台 */
+  const openInWorkbench = useCallback((item: WorkitemItem, detailTab?: DetailTabKey) => {
     cancelPreviewClick();
     cancelPeekSelect();
     setPeekWorkitemId(null);
     setPeekParentWorkitemId(null);
-    openWorkitem(item.workitemId, {
-      workitemId: item.workitemId,
-      identifier: item.identifier,
-      subject: item.subject,
-    });
+    openWorkitem(
+      item.workitemId,
+      {
+        workitemId: item.workitemId,
+        identifier: item.identifier,
+        subject: item.subject,
+      },
+      undefined,
+      detailTab ? { detailTab } : undefined,
+    );
   }, [openWorkitem, cancelPeekSelect, cancelPreviewClick]);
 
   /** 复制文本到剪贴板并 toast 反馈 */
@@ -1023,10 +1021,8 @@ export function IterationView() {
                   <Chip
                     size="sm"
                     variant="soft"
-                    className={cn(
-                      "h-4.5 min-w-5 px-1.5 text-[11px] font-mono tabular-nums border rounded-sm transition-colors",
-                      getStatusGroupChipClass(group.status)
-                    )}
+                    color={groupChipColor(group.status)}
+                    className="min-w-5 font-mono tabular-nums transition-colors"
                   >
                     {group.items.length}
                   </Chip>
@@ -1121,7 +1117,7 @@ export function IterationView() {
               size="xs"
               data-testid="load-more"
               aria-disabled={loadingList || undefined}
-              className={cn('h-7 gap-1.5 text-xs', loadingList && 'cursor-wait opacity-70')}
+              className={cn('gap-1.5', loadingList && 'cursor-wait opacity-70')}
               onPress={() => {
                 if (loadingList) return;
                 void loadList(true);
@@ -1242,17 +1238,28 @@ export function IterationView() {
     void useApp.getState().select(parentId);
   }, [cancelPeekSelect]);
 
-  /** 抽屉内「全屏打开」：转入独立工作台并收起抽屉（钻取的子项不在主列表时按面包屑参数兜底） */
-  const handlePeekOpenWorkbench = useCallback((id: string, identifier?: string, subject?: string) => {
+  /** 抽屉内「全屏打开」：转入独立工作台并收起抽屉（钻取的子项不在主列表时按面包屑参数兜底）；
+   *  同时把抽屉当前页签经 openWorkitem(..., { detailTab }) 带到全屏工作台。 */
+  const handlePeekOpenWorkbench = useCallback((
+    id: string,
+    identifier?: string,
+    subject?: string,
+    detailTab?: DetailTabKey,
+  ) => {
     cancelPeekSelect();
     const item = itemById.get(id);
     setPeekParentWorkitemId(null);
     if (item) {
-      openInWorkbench(item);
+      openInWorkbench(item, detailTab);
       return;
     }
     setPeekWorkitemId(null);
-    openWorkitem(id, { workitemId: id, identifier: identifier ?? '', subject });
+    openWorkitem(
+      id,
+      { workitemId: id, identifier: identifier ?? '', subject },
+      undefined,
+      detailTab ? { detailTab } : undefined,
+    );
   }, [cancelPeekSelect, itemById, openInWorkbench, openWorkitem]);
 
   // 全宽模式：居中单栏浏览形态（单栏窄窗下页头 compact 化）；详情检视统一为右侧 Peek 抽屉
@@ -1284,7 +1291,7 @@ export function IterationView() {
                   <Chip
                     size="sm"
                     variant="soft"
-                    className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums border border-border/40 bg-surface-secondary text-muted-foreground"
+                    className="min-w-4 font-mono tabular-nums text-muted-foreground"
                   >
                     {filtered.length}
                   </Chip>
@@ -1295,7 +1302,7 @@ export function IterationView() {
                     <Chip
                       size="sm"
                       variant="soft"
-                      className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums border border-border/40 bg-surface-secondary text-muted-foreground"
+                      className="min-w-4 font-mono tabular-nums text-muted-foreground"
                     >
                       {scopedRepoCount}
                     </Chip>
@@ -1308,7 +1315,7 @@ export function IterationView() {
                       <Chip
                         size="sm"
                         variant="soft"
-                        className="h-4 min-w-4 px-1 text-[10px] font-mono tabular-nums border border-border/40 bg-surface-secondary text-muted-foreground"
+                        className="min-w-4 font-mono tabular-nums text-muted-foreground"
                       >
                         {templateCount}
                       </Chip>
@@ -1323,7 +1330,7 @@ export function IterationView() {
               aria-label="刷新"
               data-workspace-refresh
               disabled={loadingList || revalidatingList}
-              onClick={() => {
+              onPress={() => {
                 // 手动刷新覆盖本页全部数据源：工作项 + 迭代 + 各仓库 CI（双缓冲平滑更新，杜绝列表坍塌与闪烁）
                 void (items.length ? revalidateList() : loadList(false));
                 void loadIterations();
@@ -1361,7 +1368,7 @@ export function IterationView() {
             <Button
               variant="ghost"
               size="xs"
-              onClick={() => useUi.getState().openSettings('ci')}
+              onPress={() => useUi.getState().openSettings('ci')}
               className="gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
               <Link2Icon className="size-3" />

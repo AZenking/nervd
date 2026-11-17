@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChevronRightIcon } from 'lucide-react';
-import { Surface } from '@heroui/react';
+import { Surface } from '@/components/ui/surface';
 import { useApp } from '@/store/app';
 import { useUi } from '@/store/ui';
 import { Button } from '@/components/ui/button';
@@ -99,7 +99,7 @@ export function FloatingBatchBar({
     <Surface
       variant="default"
       data-testid="floating-batch-bar"
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md border border-border shadow-level-2 rounded-lg px-3.5 py-2 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
+      className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 px-3.5 py-2 animate-in fade-in slide-in-from-bottom-2 duration-150"
     >
       <Chip
         data-testid="batch-bar-count"
@@ -117,11 +117,11 @@ export function FloatingBatchBar({
           <TooltipTrigger
             render={
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 aria-disabled="true"
                 data-testid="batch-status-trigger"
-                className={`gap-1.5 text-xs h-7 ${READONLY_BTN_CLASS}`}
+                className={`gap-1.5 ${READONLY_BTN_CLASS}`}
                 onPress={notifyReadonly}
               >
                 <span>变更状态</span>
@@ -143,17 +143,16 @@ export function FloatingBatchBar({
             将 <span className="font-mono font-semibold tabular-nums">{selectedIds.size}</span> 项流转为「{pendingLabel}」？
           </span>
           <Button
-            size="xs"
+            size="sm"
             variant="destructive"
-            className="h-7 text-xs"
             onPress={() => applyBatchStatus(pendingStatus)}
           >
             确认流转
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
-            className="h-7 text-xs text-muted-foreground"
+            className="text-muted-foreground"
             onPress={() => setPendingStatus(null)}
           >
             取消
@@ -164,10 +163,10 @@ export function FloatingBatchBar({
           <DropdownMenuTrigger
             render={
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 data-testid="batch-status-trigger"
-                className="gap-1.5 text-xs h-7"
+                className="gap-1.5"
               >
                 <span>变更状态</span>
                 <ChevronRightIcon className="size-3 rotate-90 text-muted-foreground" />
@@ -176,7 +175,7 @@ export function FloatingBatchBar({
           />
           <DropdownMenuContent
             align="center"
-            className="w-36 p-1 z-50"
+            className="w-36"
             header={
               <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider">
                 批量流转为
@@ -198,10 +197,10 @@ export function FloatingBatchBar({
       )}
 
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
-        onClick={onClear}
-        className="text-xs text-muted-foreground hover:text-foreground h-7"
+        onPress={onClear}
+        className="text-muted-foreground hover:text-foreground"
       >
         取消 (Esc)
       </Button>

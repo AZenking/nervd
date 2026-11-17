@@ -18,7 +18,11 @@ import type { RepoSummary } from '@/types';
 import { buildRunParameter, ciProviderLabel, ciStatusInfo, ciStatusText } from '@/lib/ci';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { Alert, Button, Card, Chip, Toolbar } from '@heroui/react';
+import { Toolbar } from '@/components/ui/toolbar';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { OverflowTooltip } from '@/components/overflow-tooltip';
 import { EmptyHint } from '@/components/empty-hint';
@@ -130,7 +134,7 @@ export function IterationRepoCard({
                 <span className="font-mono text-[11px] text-muted-foreground/70">
                   #{repo.id}
                 </span>
-                <Chip size="sm" variant="tertiary" className="text-[11px] h-5 px-1.5 font-normal">
+                <Chip size="sm" variant="tertiary" className="font-normal">
                   {providerLabel}
                 </Chip>
                 {suggestedBranch && (
@@ -140,7 +144,7 @@ export function IterationRepoCard({
                         size="sm"
                         variant="soft"
                         color="default"
-                        className="font-mono text-[11px] max-w-56 cursor-default gap-1.5 inline-flex items-center border border-border/60 bg-surface-secondary px-2 py-0.5"
+                        className="font-mono max-w-56 cursor-default gap-1.5"
                       >
                         <GitBranchIcon className="size-3 text-muted-foreground shrink-0" />
                         <span className="truncate">{suggestedBranch}</span>
@@ -165,7 +169,7 @@ export function IterationRepoCard({
                 size="sm"
               />
             ) : (
-              <Chip size="sm" variant="soft" className="text-xs text-muted-foreground">
+              <Chip size="sm" variant="soft" className="text-muted-foreground">
                 未绑定 CI
               </Chip>
             )}
@@ -203,7 +207,6 @@ export function IterationRepoCard({
               variant="outline"
               size="sm"
               onPress={() => openBuildWorkbenchFromTrigger({ kind: 'repo', repoId: repo.id, title: repo.name }, 'runs')}
-              className="text-xs h-7"
             >
               CI 详情
             </Button>
@@ -214,7 +217,7 @@ export function IterationRepoCard({
         {isRunning && runningRun && (
           <Alert
             status="warning"
-            className="mt-3.5 flex flex-col gap-2 rounded-lg border border-warning/30 p-3 text-xs"
+            className="mt-3.5 flex flex-col gap-2 text-xs"
           >
             <div className="flex w-full items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
@@ -230,8 +233,8 @@ export function IterationRepoCard({
               </div>
               <Button
                 variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs text-warning hover:bg-warning/20 gap-1 shrink-0"
+                size="xs"
+                className="gap-1 text-warning shrink-0"
                 onPress={() => openRepoBuildLogs(repo.id, runningRun.runId, `${repo.name} · #${runningRun.runId}`)}
               >
                 <TerminalIcon className="size-3" />
@@ -279,7 +282,7 @@ export function IterationRepoCard({
         {!isRunning && latestRun && (
           <Alert
             status="default"
-            className="mt-3 flex flex-row items-center justify-between gap-2 rounded-lg border border-border/40 py-2 px-3 text-xs text-muted-foreground"
+            className="mt-3 flex flex-row items-center justify-between gap-2 text-xs text-muted-foreground"
           >
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 flex-1">
               <span className="text-[11px] text-muted-foreground/80 shrink-0 font-medium">最近验证：</span>
@@ -305,8 +308,8 @@ export function IterationRepoCard({
             </div>
             <Button
               variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0 gap-1"
+              size="xs"
+              className="text-muted-foreground hover:text-foreground shrink-0 gap-1"
               onPress={() => openRepoBuildLogs(repo.id, latestRun.runId, `${repo.name} · #${latestRun.runId}`)}
             >
               <TerminalIcon className="size-3" />
@@ -325,13 +328,16 @@ export function IterationRepoCard({
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {workitems.map((item) => (
-                <button
+                <Button
                   key={item.workitemId}
                   type="button"
-                  className="inline-flex cursor-pointer rounded-sm transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  onClick={() => onOpenDetail?.(item)}
+                  variant="ghost"
+                  size="inline"
+                  className="gap-1.5 p-0 font-normal"
+                  aria-label={`查看 ${item.identifier} 详情`}
+                  onPress={() => onOpenDetail?.(item)}
                 >
-                  <Chip size="sm" variant="soft" className="gap-1.5 px-2 py-1 text-xs text-foreground/90">
+                  <Chip size="sm" variant="soft" className="gap-1.5 text-foreground/90">
                     <StatusIcon status={item.status} className="size-3 shrink-0" />
                     <span className="font-mono text-[11px] font-medium text-muted-foreground">
                       {item.identifier}
@@ -343,7 +349,7 @@ export function IterationRepoCard({
                     />
                     <ChevronRightIcon className="size-3 text-muted-foreground/40" />
                   </Chip>
-                </button>
+                </Button>
               ))}
             </div>
           </div>

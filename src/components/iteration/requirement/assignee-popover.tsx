@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { UserIcon } from 'lucide-react';
-import { ListBox } from '@heroui/react';
+import { ListBox } from '@/components/ui/list-box';
 import { Avatar, AvatarFallback, getAvatarColorClass } from '@/components/ui/avatar';
 import { Chip } from '@/components/ui/chip';
 import { Select } from '@/components/ui/select';
@@ -196,7 +196,7 @@ export function SearchableAssigneePopover({
           variant="soft"
           title="点击更改负责人"
           className={cn(
-            'group/assignee max-w-32 cursor-pointer gap-1.5 rounded-md text-foreground transition-colors select-none hover:bg-surface-secondary',
+            'group/assignee max-w-32 cursor-pointer gap-1.5 text-foreground transition-colors select-none hover:bg-surface-secondary',
             updatingCls,
           )}
         >

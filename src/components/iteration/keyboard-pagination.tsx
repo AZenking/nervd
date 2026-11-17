@@ -1,4 +1,4 @@
-import { Pagination } from '@heroui/react';
+import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
 
 export interface KeyboardPaginationProps {

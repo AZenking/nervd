@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { ProgressBar, Label } from '@heroui/react';
+import { ProgressBar } from '@/components/ui/progress-bar';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 export interface StartupSplashProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -43,9 +44,8 @@ export function StartupSplash({ fading = false, className, ...props }: StartupSp
           isIndeterminate
           aria-label="正在加载 nervd..."
           size="sm"
-          color="accent"
         >
-          <Label className="text-xs text-muted-foreground">正在加载 nervd…</Label>
+          <Label className="text-muted-foreground">正在加载 nervd…</Label>
           <ProgressBar.Track>
             <ProgressBar.Fill />
           </ProgressBar.Track>

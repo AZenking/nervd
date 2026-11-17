@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ClockIcon, ExternalLinkIcon, Trash2Icon } from 'lucide-react';
-import { Table } from '@heroui/react';
+import { Table } from '@/components/ui/table';
 import { useRecentWorkitems, type RecentWorkitem } from '@/store/recent-workitems';
-import { useUi } from '@/store/ui';
+import { useUi, type DetailTabKey } from '@/store/ui';
 import { useApp } from '@/store/app';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
@@ -40,9 +40,20 @@ export function RecentsView() {
     void selectWorkitem(item.workitemId);
   };
 
-  const handleOpenWorkbench = (id: string, identifier?: string, subject?: string) => {
+  const handleOpenWorkbench = (
+    id: string,
+    identifier?: string,
+    subject?: string,
+    detailTab?: DetailTabKey,
+  ) => {
     setPeekId(null);
-    openWorkitem(id, { workitemId: id, identifier: identifier || '', subject: subject || '' });
+    // 分栏（Peek）转全屏时携带当前页签：缺省由 openWorkitem 重置为「交付进展」。
+    openWorkitem(
+      id,
+      { workitemId: id, identifier: identifier || '', subject: subject || '' },
+      undefined,
+      detailTab ? { detailTab } : undefined,
+    );
   };
 
   // 键盘 j / k 移动光标，Enter 打开详情抽屉
@@ -111,7 +122,7 @@ export function RecentsView() {
               variant="ghost"
               size="sm"
               onClick={clearRecents}
-              className="h-7 text-xs text-muted-foreground hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
             >
               <Trash2Icon className="size-3.5 mr-1" />
               清空记录

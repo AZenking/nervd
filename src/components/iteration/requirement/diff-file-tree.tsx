@@ -241,7 +241,7 @@ export function DiffFileTree({
               }
             }}
             placeholder="搜索改动文件..."
-            className="h-7 rounded-md bg-background/80 pl-7 pr-6 text-xs"
+            className="bg-background/80 pl-7 pr-6"
           />
           {searchQuery && (
             <Tooltip>
@@ -252,7 +252,7 @@ export function DiffFileTree({
                     variant="ghost"
                     size="icon-xs"
                     onPress={() => setSearchQuery('')}
-                    className="absolute right-1 text-muted-foreground hover:text-foreground size-5"
+                    className="absolute right-1 text-muted-foreground hover:text-foreground"
                     aria-label="清空搜索"
                   >
                     <XIcon className="size-3" />
@@ -278,8 +278,8 @@ export function DiffFileTree({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="size-5 text-muted-foreground hover:text-foreground"
+                    size="icon-xs"
+                    className="text-muted-foreground hover:text-foreground"
                     onPress={expandAll}
                     aria-label="展开全部目录"
                   >
@@ -295,8 +295,8 @@ export function DiffFileTree({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="size-5 text-muted-foreground hover:text-foreground"
+                    size="icon-xs"
+                    className="text-muted-foreground hover:text-foreground"
                     onPress={collapseAll}
                     aria-label="折叠全部目录"
                   >

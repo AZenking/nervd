@@ -220,7 +220,7 @@ describe('OverviewView Component', () => {
     }
   });
 
-  it('完整渲染总览：类别范围、交付状态、两张统计图与最近更新', () => {
+  it('完整渲染总览：按「需要处理优先」顺序组织区块，统计图默认折叠', () => {
     act(() => {
       root?.render(
         <SidebarProvider>
@@ -229,30 +229,96 @@ describe('OverviewView Component', () => {
       );
     });
 
-    // 1. 统一页头
-    expect(container?.textContent).toContain('总览');
+    const text = container?.textContent ?? '';
 
-    // 2. Linear CycleHeaderBanner
-    expect(container?.textContent).toContain('Sprint-20261029');
-    expect(container?.textContent).toContain('进入迭代工作台');
-    expect(container?.textContent).toContain('共 2 项');
+    // 0. 统一页头
+    expect(text).toContain('总览');
 
-    // 3. 连接与交付状态
-    expect(container?.textContent).toContain('已连接');
-    expect(container?.textContent).toContain('仓库 CI');
-    expect(container?.textContent).toContain('组织级 Flow');
+    // 1. 需要关注：三项异常细分 + 合并后的异常总数（不再有重复的 KPI 统计卡）
+    expect(text).toContain('需要关注');
+    expect(text).toContain('失败构建');
+    expect(text).toContain('CI 查询失败');
+    expect(text).toContain('未绑定 CI');
+    expect(text).toContain('一切正常');
+    expect(text).not.toContain('交付监控资产');
+    expect(text).not.toContain('活跃构建任务');
+    expect(text).not.toContain('当前工作项 (');
 
-    // 4. 工作项速览与生命周期状态
-    expect(container?.textContent).toContain('工作项速览');
-    expect(container?.textContent).toContain('最近更新');
+    // 2. 活跃构建：QuickBuildConsole 承载运行状态/耗时/日志入口与触发按钮
+    expect(text).toContain('快捷构建控制台');
+    expect(text).toContain('就绪待命');
+
+    // 3. 当前迭代：周期横幅 + 已加载范围提示 + 进入迭代工作台 + 工作项列表
+    expect(text).toContain('Sprint-20261029');
+    expect(text).toContain('进入迭代工作台');
+    expect(text).toContain('共 2 项');
+    expect(text).toContain('工作项速览');
+    expect(text).toContain('最近更新');
+    expect(text).toContain('REQ-101');
+    expect(text).toContain('REQ-102');
+
+    // 4. 仓库与 Flow 状态
+    expect(text).toContain('已连接');
+    expect(text).toContain('重点仓库 CI');
+    expect(text).toContain('组织级 Flow');
+
+    // 5. 迭代统计：区块存在，但默认折叠（面板 aria-hidden）
+    expect(text).toContain('迭代统计');
+    expect(text).toContain('展开统计');
+    expect(container?.querySelector('[data-slot="collapsible-content"]')?.getAttribute('aria-hidden')).toBe('true');
+    expect(text).not.toContain('通过率');
+
+    // 顺序断言：需要关注 → 活跃构建 → 当前迭代 → 仓库与 Flow → 迭代统计
+    const order = ['需要关注', '快捷构建控制台', 'Sprint-20261029', '重点仓库 CI', '迭代统计'];
+    const positions = order.map((label) => text.indexOf(label));
+    positions.forEach((position, index) => {
+      expect(position).toBeGreaterThanOrEqual(0);
+      if (index > 0) expect(position).toBeGreaterThan(positions[index - 1]);
+    });
+
+    // 静态的冗长流水线墙与仓库卡片已被成功去除
+    expect(text).not.toContain('去绑定 CI');
+    expect(text).not.toContain('设置中的默认云效仓库');
+  });
+
+  it('迭代统计默认折叠，展开状态由会话内 useState 控制且 aria-expanded 正确', () => {
+    act(() => {
+      root?.render(
+        <SidebarProvider>
+          <OverviewView />
+        </SidebarProvider>,
+      );
+    });
+
+    const statsTrigger = Array.from(container?.querySelectorAll('button') ?? []).find((button) =>
+      button.textContent?.includes('展开统计'),
+    ) as HTMLButtonElement | undefined;
+    expect(statsTrigger).toBeDefined();
+    expect(statsTrigger?.getAttribute('aria-expanded')).toBe('false');
+
+    const panel = container?.querySelector('[data-slot="collapsible-content"]');
+    expect(panel).not.toBeNull();
+    expect(panel?.getAttribute('aria-hidden')).toBe('true');
+    // 折叠时图表不占用首屏可见区域，但内容已随数据挂载（展开无需额外请求）
+    expect(panel?.textContent).toContain('状态分布');
+
+    act(() => {
+      statsTrigger?.click();
+    });
+
+    expect(statsTrigger?.getAttribute('aria-expanded')).toBe('true');
+    expect(panel?.getAttribute('aria-hidden')).toBe('false');
+    expect(container?.textContent).toContain('收起统计');
+    expect(container?.textContent).toContain('状态分布');
     expect(container?.textContent).toContain('更新时间分布');
-    expect(container?.textContent).toContain('REQ-101');
-    expect(container?.textContent).toContain('REQ-102');
-    expect(container?.textContent).not.toContain('通过率');
 
-    // 5. 静态的冗长流水线墙与仓库卡片已被成功去除
-    expect(container?.textContent).not.toContain('去绑定 CI');
-    expect(container?.textContent).not.toContain('设置中的默认云效仓库');
+    act(() => {
+      statsTrigger?.click();
+    });
+
+    expect(statsTrigger?.getAttribute('aria-expanded')).toBe('false');
+    expect(panel?.getAttribute('aria-hidden')).toBe('true');
+    expect(container?.textContent).toContain('展开统计');
   });
 
   it('迭代接口失败时显示错误态，不注入示例迭代', () => {

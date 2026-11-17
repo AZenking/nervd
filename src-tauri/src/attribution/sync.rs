@@ -6,7 +6,9 @@
 //! - 单仓库/单分支失败不阻断其它仓库，错误中文化写回 `repo_sync_state`；
 //! - `state.sync_inflight` 防重入，同仓库并发调用直接跳过。
 
-use crate::attribution::model::{ResolvedWorkitemRef, SyncRepoReport, SyncReport};
+use crate::attribution::model::{
+    ResolvedWorkitemRef, SyncRepoReport, SyncReport, WorkitemPerson,
+};
 use crate::attribution::{refs, store};
 use crate::credentials::Settings;
 use crate::yunxiao::YunxiaoClient;
@@ -45,6 +47,7 @@ pub async fn sync_repos(
     state: &AppState,
     repo_ids: Option<Vec<i64>>,
     full: bool,
+    force_identifiers: bool,
     app: Option<&tauri::AppHandle>,
 ) -> Result<SyncReport, String> {
     let started_at = store::now_ms();
@@ -99,6 +102,7 @@ pub async fn sync_repos(
             &settings,
             repo_id,
             full,
+            force_identifiers,
             remote_ready,
             &mut touched_workitems,
         )
@@ -132,6 +136,19 @@ pub async fn sync_repos(
                     error: Some(error),
                 });
             }
+        }
+    }
+
+    // 写回范围 fail-closed 依赖负责人索引：升级后历史编号缓存没有人员行时，
+    // 对应候选会被永久跳过。这里对「仍有待回写候选、但缺负责人」的编号做一次定向补解析
+    // （受批大小限制，失败不阻断本轮同步，下一轮继续）。
+    if remote_ready {
+        let pending = {
+            let conn = state.db.lock().unwrap();
+            store::identifiers_missing_ownership(&conn, 20).unwrap_or_default()
+        };
+        if !pending.is_empty() {
+            let _ = resolve_workitem_identifiers(state, &pending, false).await;
         }
     }
 
@@ -243,6 +260,7 @@ async fn sync_one_repo(
     settings: &Settings,
     repo_id: i64,
     full: bool,
+    force_identifiers: bool,
     remote_ready: bool,
     touched_workitems: &mut HashSet<String>,
 ) -> Result<SyncRepoReport, String> {
@@ -411,8 +429,8 @@ async fn sync_one_repo(
         }
     }
     identifiers.truncate(MAX_IDENTIFIERS_PER_REPO);
-    let resolved: HashMap<String, ResolvedWorkitemRef> =
-        match resolve_workitem_identifiers(state, &identifiers).await {
+    let mut resolved: HashMap<String, ResolvedWorkitemRef> =
+        match resolve_workitem_identifiers(state, &identifiers, force_identifiers).await {
             Ok(references) => references
                 .into_iter()
                 .map(|reference| (reference.identifier.clone(), reference))
@@ -423,6 +441,35 @@ async fn sync_one_repo(
                 HashMap::new()
             }
         };
+
+    // 4b) rollup 父需求编号也要解析：写回范围需要父需求的负责人 / 协同人，
+    // 否则父需求会因「人员未知」被 fail-closed 跳过，永远收不到里程碑动态。
+    let mut parent_identifiers: Vec<String> = Vec::new();
+    for reference in resolved.values() {
+        let Some(parent) = reference.parent_identifier.as_deref() else {
+            continue;
+        };
+        let Some(normalized) = refs::normalize_identifier(parent) else {
+            continue;
+        };
+        if identifiers.contains(&normalized) || parent_identifiers.contains(&normalized) {
+            continue;
+        }
+        parent_identifiers.push(normalized);
+    }
+    parent_identifiers.truncate(MAX_IDENTIFIERS_PER_REPO);
+    if !parent_identifiers.is_empty() {
+        match resolve_workitem_identifiers(state, &parent_identifiers, force_identifiers).await {
+            Ok(parents) => {
+                for reference in parents {
+                    resolved.entry(reference.identifier.clone()).or_insert(reference);
+                }
+            }
+            Err(error) => {
+                eprintln!("[attribution] 仓库 {repo_id} 父需求编号解析失败: {error}");
+            }
+        }
+    }
 
     // 5) 归属（含 rollup）→ 落库
     let mut prepared: Vec<(DraftEvent, Vec<StoredLink>)> = Vec::with_capacity(drafts.len());
@@ -570,6 +617,51 @@ fn truncate_join(messages: &[String], max: usize) -> String {
 // ---------------------------------------------------------------------------
 // 网络拉取
 // ---------------------------------------------------------------------------
+
+/// 从云效的人员字段（对象 / 字符串）解析出 `WorkitemPerson`。
+fn person_from_value(value: Option<&Value>) -> Option<WorkitemPerson> {
+    let value = value?;
+    let person = match value {
+        Value::Object(_) => WorkitemPerson {
+            id: non_empty(s2(value, "id", "userId")),
+            name: non_empty(s2(value, "name", "realName")),
+        },
+        Value::String(name) => WorkitemPerson {
+            id: None,
+            name: non_empty(name.clone()),
+        },
+        _ => return None,
+    };
+    (!person.is_empty()).then_some(person)
+}
+
+/// 解析多人字段（数组 / 单对象 / 字符串），按 id+name 去重。
+fn people_from_value(row: &Value, keys: &[&str]) -> Vec<WorkitemPerson> {
+    let mut people: Vec<WorkitemPerson> = Vec::new();
+    for key in keys {
+        let Some(value) = row.get(*key) else {
+            continue;
+        };
+        let entries: Vec<Value> = match value {
+            Value::Array(items) => items.clone(),
+            other => vec![other.clone()],
+        };
+        for entry in entries {
+            let Some(person) = person_from_value(Some(&entry)) else {
+                continue;
+            };
+            if !people.contains(&person) {
+                people.push(person);
+            }
+        }
+    }
+    people
+}
+
+fn non_empty(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_string())
+}
 
 fn as_array(value: &Value) -> Vec<Value> {
     match value {
@@ -1080,108 +1172,119 @@ fn build_links(
 }
 
 /// 批量解析编号（供命令与同步复用）：缓存 1h 优先，未命中按 Req/Bug/Task 搜索。
-pub async fn resolve_workitem_identifiers(
-    state: &AppState,
-    identifiers: &[String],
-) -> Result<Vec<ResolvedWorkitemRef>, String> {
-    if identifiers.is_empty() {
-        return Ok(Vec::new());
+/// 未解析编号的占位引用（写入负缓存，供前端展示原因）。
+fn unresolved_identifier(identifier: &str, error: &str) -> ResolvedWorkitemRef {
+    ResolvedWorkitemRef {
+        identifier: identifier.to_string(),
+        workitem_id: None,
+        category: refs::category_of(identifier).map(str::to_string),
+        subject: None,
+        parent_workitem_id: None,
+        parent_identifier: None,
+        error: Some(error.to_string()),
+        assigned_to: None,
+        creator: None,
+        participants: Vec::new(),
     }
-    let (client, settings) = snapshot(state)?;
-    if settings.organization_id.trim().is_empty() {
-        return Err("NOT_CONFIGURED: 请先在设置中填写组织 ID".into());
-    }
-
-    let mut order: Vec<String> = Vec::new();
-    let mut invalid: Vec<ResolvedWorkitemRef> = Vec::new();
-    for raw in identifiers {
-        match refs::normalize_identifier(raw) {
-            Some(identifier) => {
-                if !order.contains(&identifier) {
-                    order.push(identifier);
-                }
-            }
-            None => {
-                let identifier = raw.trim().to_string();
-                if !invalid.iter().any(|item| item.identifier == identifier) {
-                    invalid.push(ResolvedWorkitemRef {
-                        identifier: identifier.clone(),
-                        workitem_id: None,
-                        category: None,
-                        subject: None,
-                        parent_workitem_id: None,
-                        parent_identifier: None,
-                        error: Some(format!("标识符格式无效: {identifier}")),
-                    });
-                }
-            }
-        }
-    }
-
-    let now = store::now_ms();
-    let mut resolved: HashMap<String, ResolvedWorkitemRef> = HashMap::new();
-    for chunk in order.chunks(MAX_RESOLVE_BATCH) {
-        let cached = {
-            let conn = state.db.lock().unwrap();
-            store::cached_identifiers(&conn, chunk, now)?
-        };
-        resolved.extend(cached);
-        let missing: Vec<String> = chunk
-            .iter()
-            .filter(|identifier| !resolved.contains_key(*identifier))
-            .cloned()
-            .collect();
-        if missing.is_empty() {
-            continue;
-        }
-        let mut fresh: Vec<ResolvedWorkitemRef> = Vec::with_capacity(missing.len());
-        for identifier in &missing {
-            fresh.push(resolve_one(&client, &settings, identifier).await?);
-        }
-        {
-            let conn = state.db.lock().unwrap();
-            for reference in &mut fresh {
-                if reference.parent_identifier.is_none() {
-                    if let Some(parent_id) = reference.parent_workitem_id.clone() {
-                        reference.parent_identifier =
-                            store::identifier_for_workitem(&conn, &parent_id)?;
-                    }
-                }
-            }
-            store::put_identifier_cache(&conn, &fresh, now)?;
-        }
-        for reference in fresh {
-            resolved.insert(reference.identifier.clone(), reference);
-        }
-    }
-
-    let mut output: Vec<ResolvedWorkitemRef> = order
-        .into_iter()
-        .filter_map(|identifier| resolved.remove(&identifier))
-        .collect();
-    output.extend(invalid);
-    Ok(output)
 }
 
-async fn resolve_one(
-    client: &YunxiaoClient,
-    settings: &Settings,
-    identifier: &str,
-) -> Result<ResolvedWorkitemRef, String> {
-    let org = settings.organization_id.trim();
-    let space = settings.default_space_identifier.trim();
-    let category_hint = refs::category_of(identifier).map(str::to_string);
-    if space.is_empty() {
-        return Ok(ResolvedWorkitemRef {
-            identifier: identifier.to_string(),
-            workitem_id: None,
-            category: category_hint,
-            subject: None,
-            parent_workitem_id: None,
-            parent_identifier: None,
-            error: Some("NOT_CONFIGURED: 请先在设置中选择默认项目空间".into()),
-        });
+/// 本地已绑定仓库 `.nervd/active-workitem.json` 的「编号 → 工作项 ID」映射。
+///
+/// 「开始处理」写入的上下文既包含工作项编号与内部 ID，也包含父需求编号与内部 ID；
+/// 编号搜索接口受项目空间范围限制时，这里能离线兜底归属，避免事件永久停在待归属。
+fn local_active_identifier_map(state: &AppState) -> HashMap<String, ResolvedWorkitemRef> {
+    let bindings = {
+        let Ok(conn) = state.db.lock() else {
+            return HashMap::new();
+        };
+        crate::local_repo::list_local_repo_bindings(&conn).unwrap_or_default()
+    };
+    let mut map: HashMap<String, ResolvedWorkitemRef> = HashMap::new();
+    for binding in bindings {
+        let Ok(Some(active)) =
+            crate::local_repo::read_active_workitem_at(binding.repo_id, &binding.path)
+        else {
+            continue;
+        };
+        map.entry(active.identifier.clone())
+            .or_insert(ResolvedWorkitemRef {
+                identifier: active.identifier.clone(),
+                workitem_id: Some(active.workitem_id.clone()),
+                category: Some(active.category.clone()),
+                subject: None,
+                parent_workitem_id: active.parent_workitem_id.clone(),
+                parent_identifier: active.parent_identifier.clone(),
+                error: None,
+                assigned_to: None,
+                creator: None,
+                participants: Vec::new(),
+            });
+        if let (Some(parent_id), Some(parent_identifier)) =
+            (active.parent_workitem_id, active.parent_identifier)
+        {
+            map.entry(parent_identifier.clone())
+                .or_insert(ResolvedWorkitemRef {
+                    identifier: parent_identifier,
+                    workitem_id: Some(parent_id),
+                    category: Some("Req".into()),
+                    subject: None,
+                    parent_workitem_id: None,
+                    parent_identifier: None,
+                    error: None,
+                    assigned_to: None,
+                    creator: None,
+                    participants: Vec::new(),
+                });
+        }
     }
+    map
+}
+
+/// 组织下全部项目空间（用于默认空间未命中时的回退搜索），最多 200 个。
+async fn fetch_project_spaces(
+    client: &YunxiaoClient,
+    org: &str,
+) -> Result<Vec<String>, String> {
+    let mut spaces: Vec<String> = Vec::new();
+    for page in 1..=4 {
+        let response = client
+            .post(
+                &format!("/oapi/v1/projex/organizations/{org}/projects:search"),
+                &[],
+                json!({ "page": page, "perPage": 50 }),
+            )
+            .await?;
+        let rows = as_array(&response);
+        if rows.is_empty() {
+            break;
+        }
+        for row in &rows {
+            let identifier = {
+                let value = s(row, "identifier");
+                if value.is_empty() {
+                    s(row, "id")
+                } else {
+                    value
+                }
+            };
+            if !identifier.is_empty() && !spaces.contains(&identifier) {
+                spaces.push(identifier);
+            }
+        }
+        if rows.len() < 50 || spaces.len() >= 200 {
+            break;
+        }
+    }
+    Ok(spaces)
+}
+
+/// 在指定项目空间内按 Req/Bug/Task 搜索编号，命中即返回工作项引用。
+async fn search_identifier_in_space(
+    client: &YunxiaoClient,
+    org: &str,
+    identifier: &str,
+    space: &str,
+) -> Result<Option<ResolvedWorkitemRef>, String> {
     let mut categories: Vec<&str> = Vec::new();
     if let Some(hint) = refs::category_of(identifier) {
         categories.push(hint);
@@ -1254,7 +1357,12 @@ async fn resolve_one(
                     Some(value)
                 }
             };
-            return Ok(ResolvedWorkitemRef {
+            // 负责人 / 创建人 / 协同人：写回范围判定用（search 响应已包含，不额外发请求）。
+            let assigned_to = person_from_value(row.get("assignedTo"));
+            let creator = person_from_value(row.get("creator"));
+            let participants =
+                people_from_value(row, &["participant", "participants", "relatedUsers"]);
+            return Ok(Some(ResolvedWorkitemRef {
                 identifier: identifier.to_string(),
                 workitem_id: Some(workitem_id),
                 category,
@@ -1266,18 +1374,232 @@ async fn resolve_one(
                 },
                 parent_identifier: refs::normalize_identifier(&parent_identifier),
                 error: None,
-            });
+                assigned_to,
+                creator,
+                participants,
+            }));
         }
     }
-    Ok(ResolvedWorkitemRef {
-        identifier: identifier.to_string(),
-        workitem_id: None,
-        category: category_hint,
-        subject: None,
-        parent_workitem_id: None,
-        parent_identifier: None,
-        error: Some(format!("未找到编号 {identifier} 对应的工作项")),
-    })
+    Ok(None)
+}
+
+/// 默认空间未命中时，回退搜索其余项目空间的最大数量（控制批量同步的请求放大）。
+const MAX_FALLBACK_SPACES: usize = 20;
+/// 单次解析最多对多少个「默认空间未命中」编号做跨空间回退（超过则等待下一轮）。
+const MAX_FALLBACK_IDENTIFIERS: usize = 20;
+
+/// 批量解析编号（供命令与同步复用）。
+///
+/// 解析顺序：TTL 缓存（`force=true` 时跳过负缓存）→ 本地 active-workitem 映射 →
+/// 默认项目空间搜索 → 其余项目空间回退（默认空间跨项目工作项的场景）。
+pub async fn resolve_workitem_identifiers(
+    state: &AppState,
+    identifiers: &[String],
+    force: bool,
+) -> Result<Vec<ResolvedWorkitemRef>, String> {
+    if identifiers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let (client, settings) = snapshot(state)?;
+    if settings.organization_id.trim().is_empty() {
+        return Err("NOT_CONFIGURED: 请先在设置中填写组织 ID".into());
+    }
+
+    let mut order: Vec<String> = Vec::new();
+    let mut invalid: Vec<ResolvedWorkitemRef> = Vec::new();
+    for raw in identifiers {
+        match refs::normalize_identifier(raw) {
+            Some(identifier) => {
+                if !order.contains(&identifier) {
+                    order.push(identifier);
+                }
+            }
+            None => {
+                let identifier = raw.trim().to_string();
+                if !invalid.iter().any(|item| item.identifier == identifier) {
+                    invalid.push(ResolvedWorkitemRef {
+                        identifier: identifier.clone(),
+                        workitem_id: None,
+                        category: None,
+                        subject: None,
+                        parent_workitem_id: None,
+                        parent_identifier: None,
+                        error: Some(format!("标识符格式无效: {identifier}")),
+                        assigned_to: None,
+                        creator: None,
+                        participants: Vec::new(),
+                    });
+                }
+            }
+        }
+    }
+
+    let now = store::now_ms();
+    let local_map = local_active_identifier_map(state);
+    let mut resolved: HashMap<String, ResolvedWorkitemRef> = HashMap::new();
+    for chunk in order.chunks(MAX_RESOLVE_BATCH) {
+        let cached = {
+            let conn = state.db.lock().unwrap();
+            let mut cached = store::cached_identifiers(&conn, chunk, now)?;
+            // 强制重解析：丢弃负缓存，避免「未找到」在 1 小时 TTL 内反复命中。
+            if force {
+                cached.retain(|_, reference| reference.workitem_id.is_some());
+            }
+            // 升级前写入的缓存没有负责人索引：已解析但无负责人的条目视为未命中，
+            // 重新拉一次（工作项必有 assignedTo，正常情况下一次即可补齐）。
+            cached.retain(|_, reference| {
+                reference.workitem_id.is_none() || reference.assigned_to.is_some()
+            });
+            cached
+        };
+        resolved.extend(cached);
+        let missing: Vec<String> = chunk
+            .iter()
+            .filter(|identifier| !resolved.contains_key(*identifier))
+            .cloned()
+            .collect();
+        if missing.is_empty() {
+            continue;
+        }
+
+        let mut fresh: Vec<ResolvedWorkitemRef> = Vec::with_capacity(missing.len());
+        let mut still_missing: Vec<String> = Vec::new();
+        let default_space = settings.default_space_identifier.trim();
+        for identifier in &missing {
+            if default_space.is_empty() {
+                // 未配置项目空间时无法搜索，只能用本地 active-workitem 映射兜底；
+                // 这类引用没有负责人信息，写回会 fail-closed 跳过。
+                if let Some(local) = local_map.get(identifier) {
+                    fresh.push(local.clone());
+                } else {
+                    fresh.push(unresolved_identifier(
+                        identifier,
+                        "NOT_CONFIGURED: 请先在设置中选择默认项目空间",
+                    ));
+                }
+                continue;
+            }
+            // 远端搜索优先：search 响应自带负责人 / 协同人，写回范围依赖它。
+            match search_identifier_in_space(
+                &client,
+                settings.organization_id.trim(),
+                identifier,
+                default_space,
+            )
+            .await
+            {
+                Ok(Some(reference)) => fresh.push(reference),
+                Ok(None) => {
+                    // 远端未命中（工作项尚未索引等）时回退本地映射，保证归属不丢。
+                    if let Some(local) = local_map.get(identifier) {
+                        fresh.push(local.clone());
+                    } else {
+                        still_missing.push(identifier.clone());
+                    }
+                }
+                Err(error) => {
+                    if let Some(local) = local_map.get(identifier) {
+                        fresh.push(local.clone());
+                    } else {
+                        fresh.push(unresolved_identifier(
+                            identifier,
+                            &format!("解析编号 {identifier} 失败: {error}"),
+                        ));
+                    }
+                }
+            }
+        }
+
+        // 默认项目空间未命中：回退其余项目空间（覆盖「工作项在另一个项目空间」的场景）。
+        if !still_missing.is_empty() && !default_space.is_empty() {
+            let other_spaces = match fetch_project_spaces(&client, settings.organization_id.trim())
+                .await
+            {
+                Ok(spaces) => spaces
+                    .into_iter()
+                    .filter(|space| space != default_space)
+                    .take(MAX_FALLBACK_SPACES)
+                    .collect::<Vec<_>>(),
+                Err(_) => Vec::new(),
+            };
+            let lookups = still_missing.len().min(MAX_FALLBACK_IDENTIFIERS);
+            for identifier in still_missing.iter().take(lookups) {
+                let mut found: Option<ResolvedWorkitemRef> = None;
+                for space in &other_spaces {
+                    match search_identifier_in_space(
+                        &client,
+                        settings.organization_id.trim(),
+                        identifier,
+                        space,
+                    )
+                    .await
+                    {
+                        Ok(Some(reference)) => {
+                            found = Some(reference);
+                            break;
+                        }
+                        Ok(None) => continue,
+                        Err(_) => continue,
+                    }
+                }
+                match found {
+                    Some(reference) => fresh.push(reference),
+                    None => {
+                        let detail = if other_spaces.is_empty() {
+                            "（仅搜索了默认项目空间）".to_string()
+                        } else {
+                            format!(
+                                "（已搜索默认空间与 {} 个项目空间）",
+                                other_spaces.len()
+                            )
+                        };
+                        fresh.push(unresolved_identifier(
+                            identifier,
+                            &format!("未找到编号 {identifier} 对应的工作项{detail}"),
+                        ));
+                    }
+                }
+            }
+            for identifier in still_missing.iter().skip(lookups) {
+                fresh.push(unresolved_identifier(
+                    identifier,
+                    &format!(
+                        "未找到编号 {identifier} 对应的工作项（本轮跨项目回退已达上限，下次同步重试）"
+                    ),
+                ));
+            }
+        } else {
+            for identifier in &still_missing {
+                fresh.push(unresolved_identifier(
+                    identifier,
+                    &format!("未找到编号 {identifier} 对应的工作项"),
+                ));
+            }
+        }
+
+        {
+            let conn = state.db.lock().unwrap();
+            for reference in &mut fresh {
+                if reference.parent_identifier.is_none() {
+                    if let Some(parent_id) = reference.parent_workitem_id.clone() {
+                        reference.parent_identifier =
+                            store::identifier_for_workitem(&conn, &parent_id)?;
+                    }
+                }
+            }
+            store::put_identifier_cache(&conn, &fresh, now)?;
+        }
+        for reference in fresh {
+            resolved.insert(reference.identifier.clone(), reference);
+        }
+    }
+
+    let mut output: Vec<ResolvedWorkitemRef> = order
+        .into_iter()
+        .filter_map(|identifier| resolved.remove(&identifier))
+        .collect();
+    output.extend(invalid);
+    Ok(output)
 }
 
 #[cfg(test)]
@@ -1401,6 +1723,9 @@ mod tests {
                 parent_workitem_id: Some("wi-req".into()),
                 parent_identifier: Some("REQ-9".into()),
                 error: None,
+                assigned_to: None,
+                creator: None,
+                participants: Vec::new(),
             },
         );
         let links = build_links(&mut attributions, &resolved);
@@ -1430,6 +1755,18 @@ mod tests {
         assert_eq!(links[0].identifier, "REQ-404");
         assert_eq!(links[0].relation, "primary");
         assert!(links[0].workitem_id.is_none());
+    }
+
+    #[test]
+    fn unresolved_identifier_keeps_category_hint_and_error() {
+        let reference = unresolved_identifier("TASK-42", "未找到编号 TASK-42 对应的工作项");
+        assert!(reference.workitem_id.is_none());
+        assert_eq!(reference.category.as_deref(), Some("Task"));
+        assert!(reference
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("TASK-42"));
     }
 
     #[test]

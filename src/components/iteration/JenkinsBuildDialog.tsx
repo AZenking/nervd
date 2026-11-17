@@ -19,8 +19,11 @@ import { useQuickBuild } from '@/store/quick-build';
 import { isBranchParameterName, isEnvironmentParameterName, sortJenkinsJobsWithRecommendation } from '@/lib/ci';
 import type { JenkinsJobParameter, JenkinsJobSummary, RepoCiBinding } from '@/types';
 import { errorLog, humanizeError } from '@/lib/error-format';
-import { Alert, Card, Surface } from '@heroui/react';
+import { Alert } from '@/components/ui/alert';
+import { Card } from '@/components/ui/card';
+import { Surface } from '@/components/ui/surface';
 import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -95,12 +98,12 @@ function ParameterField({
         </FieldLabel>
         <div className="flex items-center gap-1.5">
           {isBranch && (
-            <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/20">
+            <Badge variant="soft" color="accent" className="font-normal">
               代码分支
             </Badge>
           )}
           {isEnv && (
-            <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-4 bg-warning/10 text-warning border-warning/20">
+            <Badge variant="soft" color="warning" className="font-normal">
               部署环境
             </Badge>
           )}
@@ -127,7 +130,7 @@ function ParameterField({
               }
             }}
             placeholder="输入分支名（如 master，支持手动填写）"
-            className="font-mono text-xs h-8 flex-1"
+            className="font-mono flex-1"
           />
           {(branchOptions.length > 0 || branchesLoading) && (
             <DropdownMenu>
@@ -136,8 +139,8 @@ function ParameterField({
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
-                    className="h-8 shrink-0 gap-1 px-2.5 text-xs"
+                    size="default"
+                    className="shrink-0 gap-1"
                     aria-label="从已有分支列表中选择并填充"
                   />
                 }
@@ -172,9 +175,9 @@ function ParameterField({
                     <OverflowTooltip text={b} className="min-w-0 truncate" />
                     <div className="flex items-center gap-1 shrink-0 font-sans">
                       {b === defaultBranch && (
-                        <span className="text-[10px] text-success font-medium bg-success/10 px-1 py-0.5 rounded-sm">
+                        <Chip size="sm" variant="soft" color="success" className="font-medium">
                           推荐
-                        </span>
+                        </Chip>
                       )}
                       {b === value && <span className="text-[10px] text-primary">当前</span>}
                     </div>
@@ -191,7 +194,6 @@ function ParameterField({
           onValueChange={(v) => onChange(v && v !== '__none' ? v : '')}
           placeholder={`选择 ${parameter.name}`}
           items={parameter.choices.map((c) => ({ label: c, value: c }))}
-          className="text-xs h-8"
         />
       ) : isBoolean ? (
         <div className="flex items-center gap-2 pt-0.5">
@@ -220,7 +222,6 @@ function ParameterField({
             }
           }}
           placeholder={`输入 ${parameter.name}`}
-          className="text-xs h-8"
         />
       )}
     </Field>
@@ -461,16 +462,16 @@ export function JenkinsBuildParameters({
         let badge: React.ReactNode = undefined;
         if (item.isSaved) {
           badge = (
-            <span className="inline-flex items-center gap-1 rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary border border-primary/20 font-sans">
-              已绑定
-            </span>
+            <Chip size="sm" variant="soft" color="accent" className="gap-1 font-medium">
+              <Chip.Label>已绑定</Chip.Label>
+            </Chip>
           );
         } else if (item.isRecommended) {
           badge = (
-            <span className="inline-flex items-center gap-1 rounded-sm bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success border border-success/20 font-sans">
+            <Chip size="sm" variant="soft" color="success" className="gap-1 font-medium">
               <SparklesIcon className="size-2.5" />
-              推荐
-            </span>
+              <Chip.Label>推荐</Chip.Label>
+            </Chip>
           );
         }
 
@@ -574,7 +575,7 @@ export function JenkinsBuildParameters({
                 <FieldLabel htmlFor="jenkins-job">Job</FieldLabel>
                 <Button
                   type="button" variant="outline" size="sm" disabled={jobsLoading}
-                  onClick={() => {
+                  onPress={() => {
                     setJobsRefresh((current) => current + 1);
                   }}
                 >
@@ -597,7 +598,7 @@ export function JenkinsBuildParameters({
 
             {jobFullName && !parametersLoading && parameters.length > 0 && (
               <>
-                <Card className="border border-border/60 shadow-none">
+                <Card>
                   <Card.Header className="flex flex-row items-center justify-between pb-2">
                     <div className="flex items-center gap-2">
                       <Card.Title className="text-xs font-semibold text-foreground">
@@ -632,7 +633,7 @@ export function JenkinsBuildParameters({
                   </Card.Content>
                 </Card>
 
-                <Surface variant="secondary" className="rounded-md border border-border/60 overflow-hidden">
+                <Surface variant="secondary" className="overflow-hidden">
                   <Collapsible className="px-3 py-2 text-xs">
                     <CollapsibleTrigger className="flex w-full items-center justify-between font-medium text-muted-foreground hover:text-foreground">
                       <span className="flex items-center gap-1.5">
@@ -662,7 +663,7 @@ export function JenkinsBuildParameters({
                                   disabled: p.name === environmentParameter,
                                 })),
                               ]}
-                              className="text-xs h-8"
+
                             />
                           </Field>
                           <Field className="gap-1">
@@ -678,7 +679,7 @@ export function JenkinsBuildParameters({
                                   disabled: p.name === branchParameter,
                                 })),
                               ]}
-                              className="text-xs h-8"
+
                             />
                           </Field>
                         </div>
@@ -733,7 +734,7 @@ export function JenkinsBuildParameters({
           </div>
         )}
         <div className="sticky bottom-0 -mx-1 flex items-center justify-end gap-2 border-t border-border/70 bg-popover/95 px-1 pt-3 backdrop-blur-sm">
-          {onCancel && <Button type="button" variant="outline" size="sm" onClick={onCancel}>取消</Button>}
+          {onCancel && <Button type="button" variant="outline" size="sm" onPress={onCancel}>取消</Button>}
           {/* UX A5：向导内两段式确认，不再弹窗套弹窗 */}
           <WriteOpButton
             label={triggering ? '构建中…' : '开始构建'}
@@ -776,7 +777,7 @@ export function JenkinsBuildDialog({
         variant={buttonVariant}
       />
       {allowWriteOps && (
-        <Button size="sm" variant={buttonVariant} onClick={openWorkbench}>
+        <Button size="sm" variant={buttonVariant} onPress={openWorkbench}>
           <WorkflowIcon data-icon="inline-start" />
           {buttonLabel}
         </Button>

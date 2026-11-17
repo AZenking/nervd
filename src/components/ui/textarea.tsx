@@ -1,6 +1,5 @@
 import * as React from "react"
 import { TextArea as HeroUITextArea } from "@heroui/react"
-import { cn } from '@/lib/utils'
 
 type BaseHeroUITextAreaProps = Omit<
   React.ComponentPropsWithRef<typeof HeroUITextArea>,
@@ -26,7 +25,8 @@ function Textarea({
       ref={ref}
       data-slot="textarea"
       isDisabled={isDisabled ?? disabled}
-      className={cn("min-h-16 text-[13px]", className)}
+      // 尺寸与字号由 theme.css 的 `.textarea` 统一承载（保底 64px / 13px）
+      className={className}
       {...(props as any)}
     />
   )

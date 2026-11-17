@@ -77,7 +77,7 @@ describe('NavProjects HeroUI Accordion', () => {
     // 验证 Accordion.Trigger 包含迭代统计
     const trigger = container?.querySelector('[data-slot="accordion-trigger"]');
     expect(trigger).toBeTruthy();
-    expect(trigger?.textContent).toContain('迭代（2）');
+    expect(trigger?.textContent).toContain('迭代列表（2）');
 
     // 验证 Indicator 存在
     const indicator = container?.querySelector('[data-slot="accordion-indicator"]');

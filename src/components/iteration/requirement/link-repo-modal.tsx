@@ -212,7 +212,7 @@ export function LinkRepoModal({
                       variant="ghost"
                       size="xs"
                       onPress={onClearRecommendations}
-                      className="h-6 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                      className="text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       清空推荐
                     </Button>
@@ -250,7 +250,7 @@ export function LinkRepoModal({
                     <Card
                       key={rec.repoId}
                       className={cn(
-                        'justify-between p-3 shadow-none transition-colors',
+                        'justify-between p-3 transition-colors',
                         isAlreadyLinked
                           ? 'border-sig-ok/30 bg-sig-ok/5'
                           : 'border-primary/25 hover:border-primary/50',
@@ -266,7 +266,7 @@ export function LinkRepoModal({
                             />
                           </div>
                           {rec.confidence === 'high' && (
-                            <Chip size="sm" variant="soft" color="success" className="text-[10px] font-medium shrink-0">
+                            <Chip size="sm" variant="soft" color="success" className="font-medium shrink-0">
                               高置信
                             </Chip>
                           )}

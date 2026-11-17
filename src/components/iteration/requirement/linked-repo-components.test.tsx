@@ -46,8 +46,6 @@ describe('Linked Repo Subcomponents', () => {
             onRefresh={vi.fn()}
             hasRuns={false}
             buildTarget={{ kind: 'repo', repoId: 123, title: 'test', defaultBranch: 'master' }}
-            onOpenCiModal={vi.fn()}
-            onCreateMr={vi.fn()}
           />,
         );
       });
@@ -57,6 +55,61 @@ describe('Linked Repo Subcomponents', () => {
       expect(host.textContent).toContain('feature/REQ-101');
       expect(host.textContent).toContain('master');
       expect(host.textContent).toContain('Action');
+    });
+
+    it('renders trace query state next to the repository name', async () => {
+      const renderHeader = async (traceState: 'loading' | 'ready' | 'error') => {
+        await act(() => {
+          root.render(
+            <LinkedRepoHeader
+              repo={mockRepo}
+              detailsOpen={false}
+              onToggleDetails={vi.fn()}
+              palette="from-(--brand-indigo)/20"
+              developerBranch="feature/REQ-101"
+              developerBranchState="exists"
+              operationBaseBranch="master"
+              traceState={traceState}
+              cardRefreshing={false}
+              onRefresh={vi.fn()}
+              hasRuns={false}
+              buildTarget={{ kind: 'repo', repoId: 123, title: 'test', defaultBranch: 'master' }}
+            />,
+          );
+        });
+      };
+
+      await renderHeader('loading');
+      expect(host.textContent).toContain('追溯查询中');
+      await renderHeader('error');
+      expect(host.textContent).toContain('追溯查询失败');
+      await renderHeader('ready');
+      expect(host.textContent).toContain('追溯就绪');
+    });
+
+    it('keeps write operations out of the summary row (no build/config/unlink menu items)', async () => {
+      await act(() => {
+        root.render(
+          <LinkedRepoHeader
+            repo={mockRepo}
+            detailsOpen={false}
+            onToggleDetails={vi.fn()}
+            palette="from-(--brand-indigo)/20"
+            developerBranch="feature/REQ-101"
+            developerBranchState="exists"
+            operationBaseBranch="master"
+            cardRefreshing={false}
+            onRefresh={vi.fn()}
+            hasRuns
+            buildTarget={{ kind: 'repo', repoId: 123, title: 'test', defaultBranch: 'master' }}
+          />,
+        );
+      });
+      // 构建 / 关联流水线 / 创建 MR / 取消关联 均只允许出现在展开后的交付详情中
+      expect(host.textContent).not.toContain('发起构建');
+      expect(host.textContent).not.toContain('关联流水线');
+      expect(host.textContent).not.toContain('创建 MR');
+      expect(host.textContent).not.toContain('取消关联');
     });
   });
 
@@ -212,13 +265,37 @@ describe('Linked Repo Subcomponents', () => {
               refetch: vi.fn(),
             } as any}
             onViewMr={vi.fn()}
-            onCreateMr={vi.fn()}
           />,
         );
       });
 
       expect(host.textContent).toContain('!88');
       expect(host.textContent).toContain('待合入');
+      // MR 状态与合入目标同屏呈现
+      expect(host.textContent).toContain('→ master');
+    });
+
+    it('does not expose a create-MR write action in the summary status row', async () => {
+      await act(() => {
+        root.render(
+          <LinkedRepoMrStatus
+            developerBranch="feature/REQ-101"
+            developerBranchState="exists"
+            operationBaseBranch="master"
+            historyMrs={[]}
+            hasMatchingMergedMr={false}
+            divergence={{
+              check: { status: 'ready', developmentOnly: 3, baselineOnly: 0 },
+              loading: false,
+              refetch: vi.fn(),
+            } as any}
+            onViewMr={vi.fn()}
+          />,
+        );
+      });
+      expect(host.textContent).toContain('待合入');
+      expect(host.textContent).not.toContain('发起 MR');
+      expect(host.textContent).toContain('在交付详情中操作');
     });
 
     it('renders no MR indicator when there are no merge requests and branch is missing', async () => {
@@ -236,7 +313,6 @@ describe('Linked Repo Subcomponents', () => {
               refetch: vi.fn(),
             } as any}
             onViewMr={vi.fn()}
-            onCreateMr={vi.fn()}
           />,
         );
       });
@@ -282,6 +358,42 @@ describe('Linked Repo Subcomponents', () => {
 
       expect(host.textContent).toContain('Flow #105');
       expect(host.textContent).toContain('成功');
+    });
+
+    it('marks an unconfirmable build as repository latest build (not a requirement build pass)', async () => {
+      await act(() => {
+        root.render(
+          <LinkedRepoCiStatus
+            loading={false}
+            ciBinding={{ provider: 'flow', pipelineId: 1, pipelineName: 'flow-pipe' }}
+            latestRun={{ runId: '105', status: 'SUCCESS', startTime: Date.now() - 60000 }}
+            snapshot={{ provider: 'flow', name: 'flow-pipe', runs: [] }}
+            repoLatestBuild
+            ciSummary="CI #105 · 成功"
+            buildTarget={{ kind: 'repo', repoId: 123, title: 'test', defaultBranch: 'master' }}
+            onOpenCiModal={vi.fn()}
+          />,
+        );
+      });
+      expect(host.textContent).toContain('仓库最新构建');
+      // 状态图形仍表示该次运行的状态，但语义标注为「仓库最新构建」，不据此判定需求构建通过
+      expect(host.textContent).not.toContain('仓库最新构建 · 需求构建通过');
+    });
+
+    it('renders a visible CI query failure state', async () => {
+      await act(() => {
+        root.render(
+          <LinkedRepoCiStatus
+            loading={false}
+            error
+            ciBinding={{ provider: 'flow', pipelineId: 1, pipelineName: 'flow-pipe' }}
+            ciSummary="CI 查询失败"
+            buildTarget={{ kind: 'repo', repoId: 123, title: 'test', defaultBranch: 'master' }}
+            onOpenCiModal={vi.fn()}
+          />,
+        );
+      });
+      expect(host.textContent).toContain('CI 查询失败');
     });
   });
 });

@@ -102,7 +102,7 @@ function PopoverContent({
       offset={sideOffset}
       crossOffset={alignOffset}
       className={cn(
-        "z-50 flex w-72 flex-col gap-1 rounded-lg border border-border bg-popover p-1 text-[13px] text-popover-foreground outline-hidden duration-100",
+        "z-50 flex w-72 flex-col gap-1 border border-border p-1 text-popover-foreground outline-hidden duration-100",
         className
       )}
       {...(props as any)}

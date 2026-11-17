@@ -152,6 +152,9 @@ describe('StartProcessingButton', () => {
     const calls = toastMock.add.mock.calls;
     const last = calls[calls.length - 1]?.[0] as { description?: string } | undefined;
     expect(String(last?.description)).toContain('自动补充 Refs');
+    // 开始处理同时生成 Agent 脚手架（任务说明 + 脚本）
+    expect(String(last?.description)).toContain('.nervd/agent-task.md');
+    expect(String(last?.description)).toContain('.nervd/scripts/');
   });
 
   it('活动状态按仓库回显“正在处理 · 仓库”', async () => {
@@ -210,5 +213,69 @@ describe('StartProcessingButton', () => {
     const calls = toastMock.add.mock.calls;
     const last = calls[calls.length - 1]?.[0] as { description?: string } | undefined;
     expect(String(last?.description)).toContain('agent-commit.sh');
+  });
+
+  it('写入后提示本地当前分支（只读分支检查）', async () => {
+    appStore.settings = { ...appStore.settings, workitemRepos: { 'req-1': [101] } };
+    apiMock.inspectLocalRepo.mockResolvedValue({
+      path: '/tmp/order-api',
+      isGit: true,
+      currentBranch: 'feature/REQ-1',
+      headSha: 'abc1234',
+      dirty: false,
+      hookInstalled: true,
+      hookMode: 'fill',
+    });
+    await render();
+    await clickButton('开始处理');
+
+    const calls = toastMock.add.mock.calls;
+    const last = calls[calls.length - 1]?.[0] as { type?: string; description?: string } | undefined;
+    expect(last?.type).toBe('success');
+    expect(String(last?.description)).toContain('当前分支 feature/REQ-1');
+  });
+
+  it('工作区有未提交修改时给出警告，但仍写入当前工作项', async () => {
+    appStore.settings = { ...appStore.settings, workitemRepos: { 'req-1': [101] } };
+    apiMock.inspectLocalRepo.mockResolvedValue({
+      path: '/tmp/order-api',
+      isGit: true,
+      currentBranch: 'feature/REQ-1',
+      headSha: 'abc1234',
+      dirty: true,
+      hookInstalled: true,
+      hookMode: 'fill',
+    });
+    await render();
+    await clickButton('开始处理');
+
+    expect(attributionStore.setActive).toHaveBeenCalledWith(
+      { repoId: 101, workitemId: 'wi-task', parentWorkitemId: 'req-1' },
+      { silent: true },
+    );
+    const calls = toastMock.add.mock.calls;
+    const last = calls[calls.length - 1]?.[0] as { type?: string; description?: string } | undefined;
+    expect(last?.type).toBe('warning');
+    expect(String(last?.description)).toContain('工作区有未提交修改');
+    expect(String(last?.description)).toContain('不会自动提交或切换分支');
+  });
+
+  it('游离 HEAD 时提示不在分支上', async () => {
+    appStore.settings = { ...appStore.settings, workitemRepos: { 'req-1': [101] } };
+    apiMock.inspectLocalRepo.mockResolvedValue({
+      path: '/tmp/order-api',
+      isGit: true,
+      headSha: 'abc1234',
+      dirty: false,
+      hookInstalled: true,
+      hookMode: 'fill',
+    });
+    await render();
+    await clickButton('开始处理');
+
+    const calls = toastMock.add.mock.calls;
+    const last = calls[calls.length - 1]?.[0] as { type?: string; description?: string } | undefined;
+    expect(last?.type).toBe('warning');
+    expect(String(last?.description)).toContain('游离 HEAD');
   });
 });

@@ -9,7 +9,10 @@ import {
   WrapTextIcon,
   XIcon,
 } from 'lucide-react';
-import { Accordion, Button, Surface, Tabs } from '@heroui/react';
+import { Accordion } from '@/components/ui/accordion';
+import { Button } from '@/components/ui/button';
+import { Surface } from '@/components/ui/surface';
+import { Tabs } from '@/components/ui/tabs';
 import { useApp } from '../store/app';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -267,8 +270,7 @@ export function LogViewerContent({
                 <Button
                   type="button"
                   variant="ghost"
-                  isIconOnly
-                  size="sm"
+                  size="icon-sm"
                   aria-label="返回运行记录"
                   onPress={onBack}
                 >
@@ -297,8 +299,7 @@ export function LogViewerContent({
             <div className="flex shrink-0 items-center gap-1">
               <Button
                 variant={wrapLines ? 'secondary' : 'ghost'}
-                isIconOnly
-                size="sm"
+                size="icon-sm"
                 onPress={() => setWrapLines((v) => !v)}
                 aria-label={wrapLines ? '关闭自动换行 (单行横向滚动)' : '开启自动换行'}
               >
@@ -306,8 +307,7 @@ export function LogViewerContent({
               </Button>
               <Button
                 variant="ghost"
-                isIconOnly
-                size="sm"
+                size="icon-sm"
                 onPress={copyAll}
                 aria-label="复制全部日志"
               >
@@ -315,8 +315,7 @@ export function LogViewerContent({
               </Button>
               <Button
                 variant="ghost"
-                isIconOnly
-                size="sm"
+                size="icon-sm"
                 onPress={onClose ?? closeLogs}
                 aria-label="关闭构建工作台 (Esc)"
               >
@@ -362,10 +361,10 @@ export function LogViewerContent({
 
           {stats.firstErrorLine && (
             <Button
-              variant="outline"
+              variant="danger-soft"
               size="sm"
               onPress={scrollToFirstError}
-              className="h-7 gap-1 border-destructive/30 bg-destructive/10 text-destructive text-[11px] hover:bg-destructive/20 cursor-pointer"
+              className="gap-1"
               aria-label={`直接滚动至第 ${stats.firstErrorLine} 行报错`}
             >
               <AlertTriangleIcon className="size-3" />
@@ -553,7 +552,7 @@ export function LogViewerContent({
                   variant="outline"
                   size="sm"
                   onPress={resumeFollow}
-                  className="h-7 gap-1 text-[11px]"
+                  className="gap-1"
                   aria-label="已暂停跟随，回到最新日志"
                 >
                   <ArrowDownIcon className="size-3" aria-hidden="true" />

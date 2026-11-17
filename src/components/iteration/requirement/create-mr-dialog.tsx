@@ -9,6 +9,7 @@ import { comparisonCommits } from '../BranchDivergenceCheck';
 import { mergeRequestRows, mergeRequestBranch } from './types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -433,7 +434,7 @@ export function CreateMrDialog({
         </DialogHeader>
 
         {/* 分支选择区（可搜索、支持自定义输入、支持分页补拉） */}
-        <Card className="border border-border/60 shadow-none">
+        <Card>
           <Card.Header className="flex flex-row items-center justify-between gap-2 pb-2">
             <Card.Title className="text-xs font-semibold text-foreground">分支流转</Card.Title>
             <Button
@@ -491,7 +492,7 @@ export function CreateMrDialog({
         {/* 表单内容 */}
         <div className="flex flex-col gap-3 py-1">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="create-mr-title" className="text-xs font-medium text-foreground">MR 标题</label>
+            <Label htmlFor="create-mr-title" className="text-xs text-foreground">MR 标题</Label>
             <Input
               id="create-mr-title"
               value={title}
@@ -524,7 +525,7 @@ export function CreateMrDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="create-mr-description" className="text-xs font-medium text-foreground">详细变更说明 (Markdown)</label>
+            <Label htmlFor="create-mr-description" className="text-xs text-foreground">详细变更说明 (Markdown)</Label>
             <Textarea
               id="create-mr-description"
               value={description}

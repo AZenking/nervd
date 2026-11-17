@@ -258,6 +258,8 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 1. **theme.css 是唯一事实源**：token 变更先改代码，再回填 2.1–2.5 表格。
 2. 上游契约（第一部分）更新时重新收录并在 front matter `contract_collected` 注明日期；冲突时以已安装 `@heroui` 版本为准。
 3. 新增界面严禁硬编码色值 / 阴影 / 圆角，一律走语义 token 与既有工具类。
+4. **组件层禁止覆盖 HeroUI 的尺寸 / 圆角 / 字号 / 底色**：密度与形态统一由 `theme.css` 的 `@layer components` 承载（`.card / .modal__dialog / .popover` 8px、`.menu-item` 32px/6px、`.table__*` 12px 密度、`.input / .textarea / .label`、`.alert`、`.kbd`、`.chip`、`.toggle-button-group`）。业务层只传语义变体与 `size` 档（`Button`: `2xs|xs|sm|default|lg|inline|icon*`；`Chip`: `sm|md|lg`），不再写 `h-* / px-* / text-[Npx] / rounded-* / shadow-*`。
+5. **业务层只消费 `src/components/ui/*`**：`Button / Card / Chip / Table / Alert / Surface / Pagination / Accordion / Toolbar / ProgressBar / ToggleButton(Group) / RadioGroup / TagGroup / TimeField / Input / Select / ListBox / Label / Field / Dialog / Popover / DropdownMenu / Tooltip / Tabs / Drawer` 均有出口，禁止再直接 `import from '@heroui/react'`（`command-menu` 的 `Header` 等无包装必要的原子件除外，须注释说明）。
 
 ---
 
@@ -280,7 +282,7 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 
 | 信息性质 | 形态 | 组件 | 现有示例 |
 |---|---|---|---|
-| 总览聚合指标 | 既有 overview 聚合组件（周期横幅 / 健康分布 / 交付状态 / 进行中构建条） | `overview/cycle-header-banner` · `health-distribution` · `delivery-status` · `active-builds-bar` | OverviewView（原 `ui/stat` Stat/StatBand 已于 2026-11 退役删除，勿再引用） |
+| 总览聚合指标 | 既有 overview 聚合组件（周期横幅 / 交付状态 / 指标区块） | `overview/cycle-header-banner` · `overview/delivery-status` · `overview/iteration-stats-section` | OverviewView（原 `ui/stat`、`overview/health-distribution`、`overview/active-builds-bar`、`overview/segmented-progress-bar` 已分别于 2026-11 退役删除，勿再引用） |
 | 区块内概要、构建详情 | `Descriptions` card | `ui/descriptions` | 迭代概要、CI 构建详情 |
 | 对象属性（标题下方元信息） | `Descriptions` plain | `ui/descriptions` | 需求属性区、子任务/缺陷详情抽屉 |
 | 抽屉 / 弹窗内完整详情 | `Descriptions` plain（与页面属性区同语言） | `ui/descriptions` | 子任务详情抽屉 |
@@ -329,7 +331,7 @@ nervd 在 `@theme inline` 中以**固定值**覆盖 HeroUI 的 `calc(var(--radiu
 ## E. 维护规则
 
 1. 新增详情 / 概要 / 区块前先查 B 节决策表；不确定形态时优先与既有同类页面对齐
-2. 总览/概要指标复用 `overview/` 既有聚合组件形态（`cycle-header-banner`、`health-distribution`、`delivery-status`、`active-builds-bar` 等），不再重建统计卡片（原 `ui/stat` Stat/StatBand 已退役删除）；区块标题不允许内联复刻 `SectionHeader`
+2. 总览/概要指标复用 `overview/` 既有聚合组件形态（`cycle-header-banner`、`delivery-status`、`iteration-stats-section` 等），不再重建统计卡片（原 `ui/stat`、`overview/health-distribution`、`overview/active-builds-bar`、`overview/segmented-progress-bar` 已退役删除）；区块标题不允许内联复刻 `SectionHeader`
 3. key-value 展示一律走 `Descriptions`，不再新增 `InfoItem` / `PropertyRow` 类一次性组件（两者已退役）
 4. 拷贝位统一用 `ui/copy-button`，反馈为图标切换，不弹全局 toast
 5. **禁用暖纸色系（Notion 遗留，如 `#f6f5f4` 类），新增界面一律冷灰 + Linear Violet 体系**

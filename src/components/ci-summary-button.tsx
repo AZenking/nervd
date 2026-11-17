@@ -26,8 +26,8 @@ export function CiSummaryButton({
         render={
           <Button
             variant="ghost"
-            size="sm"
-            className="h-auto gap-1.5 px-1.5 py-1 font-normal"
+            size="inline"
+            className="gap-1.5"
             onPress={onOpen}
           />
         }

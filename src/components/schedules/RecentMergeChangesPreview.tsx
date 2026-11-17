@@ -64,8 +64,7 @@ export function RecentMergeChangesPreview({
   const firstCommit = displayCommits[0];
 
   // 点击需求号处理：优先打开工作项 Peek/工作台抽屉，未命中则复制到剪贴板
-  const handleWorkitemClick = async (key: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleWorkitemClick = async (key: string) => {
     const matched = items.find((i) => i.identifier.toUpperCase() === key.toUpperCase());
     if (matched) {
       openWorkitem(matched.workitemId, {
@@ -176,15 +175,17 @@ export function RecentMergeChangesPreview({
 
             {/* 提取的需求编号徽标 */}
             {firstCommit.workitems?.map((wi) => (
-              <button
+              <Button
                 key={wi}
                 type="button"
-                onClick={(e) => handleWorkitemClick(wi, e)}
+                variant="link"
+                size="2xs"
+                onPress={() => void handleWorkitemClick(wi)}
                 title={`查看或复制需求 ${wi}`}
-                className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 bg-primary/10 text-primary hover:bg-primary/20 text-[10px] font-mono font-medium transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="font-mono font-medium shrink-0"
               >
-                <span>{wi}</span>
-              </button>
+                {wi}
+              </Button>
             ))}
 
             {/* 提交作者 */}
@@ -203,10 +204,13 @@ export function RecentMergeChangesPreview({
 
             {/* 多条折叠展开按钮 */}
             {displayCommits.length > 1 && (
-              <button
+              <Button
                 type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline font-mono shrink-0 ml-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                variant="link"
+                size="2xs"
+                aria-expanded={expanded}
+                onPress={() => setExpanded((v) => !v)}
+                className="font-mono shrink-0 ml-1"
               >
                 <span>{expanded ? '收起' : `+${displayCommits.length - 1} 条`}</span>
                 {expanded ? (
@@ -214,7 +218,7 @@ export function RecentMergeChangesPreview({
                 ) : (
                   <ChevronDownIcon className="size-2.5" />
                 )}
-              </button>
+              </Button>
             )}
 
             {/* 右侧微型快捷操作 */}
@@ -227,7 +231,7 @@ export function RecentMergeChangesPreview({
                       variant="ghost"
                       size="xs"
                       disabled={loadingDiff}
-                      className="h-5 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                      className="text-muted-foreground hover:text-foreground gap-1"
                       onClick={handleOpenDiffDrawer}
                     >
                       {loadingDiff ? (
@@ -250,7 +254,7 @@ export function RecentMergeChangesPreview({
                       variant="ghost"
                       size="icon-xs"
                       disabled={probing}
-                      className="size-5 text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground"
                       onClick={handleProbeChanges}
                       aria-label="探测最新分支落差与待合入变更点"
                     >
@@ -276,15 +280,17 @@ export function RecentMergeChangesPreview({
                   </code>
                   <span className="truncate text-foreground/85 font-medium">{c.title}</span>
                   {c.workitems?.map((wi) => (
-                    <button
+                    <Button
                       key={wi}
                       type="button"
-                      onClick={(e) => handleWorkitemClick(wi, e)}
+                      variant="link"
+                      size="2xs"
+                      onPress={() => void handleWorkitemClick(wi)}
                       title={`查看或复制需求 ${wi}`}
-                      className="inline-flex items-center rounded px-0.5 bg-primary/10 text-primary hover:bg-primary/20 text-[10px] font-mono cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      className="font-mono shrink-0"
                     >
                       {wi}
-                    </button>
+                    </Button>
                   ))}
                   {c.authorName && (
                     <span className="font-mono text-[10px] text-muted-foreground shrink-0">
@@ -309,7 +315,7 @@ export function RecentMergeChangesPreview({
                   variant="ghost"
                   size="icon-xs"
                   disabled={probing}
-                  className="size-5 text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground"
                   onClick={handleProbeChanges}
                   aria-label="探测最新分支落差"
                 >
@@ -330,15 +336,17 @@ export function RecentMergeChangesPreview({
         /* 场景 4：尚未执行过合并 */
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <span className="text-muted-foreground">尚未执行合并</span>
-          <button
+          <Button
             type="button"
-            onClick={handleProbeChanges}
-            disabled={probing}
-            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium cursor-pointer ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:no-underline"
+            variant="link"
+            size="2xs"
+            isDisabled={probing}
+            onPress={handleProbeChanges}
+            className="font-medium ml-1"
           >
             <RefreshCwIcon className={cn('size-2.5', probing && 'animate-spin text-primary')} />
             <span>探测待合入变更</span>
-          </button>
+          </Button>
         </div>
       )}
 

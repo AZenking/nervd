@@ -20,7 +20,7 @@ export interface NavMainItem {
 export function NavMain({ items }: { items: NavMainItem[] }) {
   const { setView, view } = useUi();
   return (
-    <SidebarGroup className="px-0 py-0">
+    <SidebarGroup data-nav-group="main" className="px-0 py-0">
       <SidebarMenu className="gap-1">
         {items.map((item) => {
           const isActive = item.isActive ?? (item.view != null && item.view === view);
