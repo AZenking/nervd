@@ -3,12 +3,23 @@
 All notable changes to **nervd** will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.2.0](https://github.com/AZenking/nervd/releases/tag/v1.2.0) - 2026-11-17
+
+### 🚀 Features
+
+- *(attribution)* Implement change attribution engine and branch topology backend ([9dc1b93](https://github.com/AZenking/nervd/commit/9dc1b934d32f84c12419462d96113aeaedc4406d))
+- *(workbench)* Refine overview layout, detail tab flow and attribution sync ([d9d8d75](https://github.com/AZenking/nervd/commit/d9d8d758840ab50d69efff398260c56d6386522a))
+
+### ♻️ Refactor
+
+- *(ui)* Align design system and components with HeroUI v3 and DESIGN.md v2 ([85f10ea](https://github.com/AZenking/nervd/commit/85f10ea2732b727b9bf64c08c36b111b888f39e5))
 ## [1.1.3](https://github.com/AZenking/nervd/releases/tag/v1.1.3) - 2026-11-12
 
 ### 🐛 Bug Fixes
 
 - *(backend)* Harden update path, fix timezone and settings data loss ([3d6ba07](https://github.com/AZenking/nervd/commit/3d6ba079ac46c1fe2da1b4e73be67e0f38eb0d20))
 - *(ui)* Align design tokens with DESIGN.md and close write-gating gaps ([4c33510](https://github.com/AZenking/nervd/commit/4c335106c8cce829fccbd07ac3477ae1dfa461be))
+- *(release)* Restore build steps accidentally removed with signing cleanup ([8ae60e3](https://github.com/AZenking/nervd/commit/8ae60e300c3a0d2d6d599fa787667cb29deeca00))
 
 ### ⚡ Performance
 
@@ -21,6 +32,13 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 ### Build
 
 - *(gate)* Make verification catch what it previously could not ([a1e7818](https://github.com/AZenking/nervd/commit/a1e781851d70bc3fdfa5c02681b8887ff3816028))
+- *(ci)* Pin pnpm minimum-release-age to match local behaviour ([353cd11](https://github.com/AZenking/nervd/commit/353cd11f118eb1eba2787d45e31e6c90436371b9))
+- *(ci)* Pass minimumReleaseAge=0 explicitly on install ([0d97a8d](https://github.com/AZenking/nervd/commit/0d97a8d4215c6d572202c898d270acd61e4b150f))
+- *(ci)* Pin Rust toolchain and fix clippy sort_by lint ([5c2fe5b](https://github.com/AZenking/nervd/commit/5c2fe5b3ee248f227d0bdf88e8980c9874150314))
+- *(ci)* Move e2e continue-on-error to step level ([84ec4de](https://github.com/AZenking/nervd/commit/84ec4debcbaf6f1d83fc64badf9fc22b910a7eac))
+- *(ci)* Fix duplicate 'with' keys in release workflow ([c20ac96](https://github.com/AZenking/nervd/commit/c20ac961a2f42351dcfcd82ecd1956029b199d1a))
+- *(release)* Disable half-configured signing that broke macOS builds ([0f8ec06](https://github.com/AZenking/nervd/commit/0f8ec064220e470ea2945d31973d32816178a723))
+- *(ci)* Disable pnpm release-age gate via npm_config env for all invocations ([c211c71](https://github.com/AZenking/nervd/commit/c211c71a5a146bb3d995b1bfa259ed349feac653))
 ## [1.1.2](https://github.com/AZenking/nervd/releases/tag/v1.1.2) - 2026-11-11
 
 ### 🐛 Bug Fixes
