@@ -68,7 +68,9 @@ describe('activity-summary', () => {
     expect(markdown).toContain('!12 已合入');
     expect(markdown).toContain('[提交](https://codeup.aliyun.com/demo/repo/commit/7a3f8b1c9d)');
     expect(markdown).toContain('[MR](https://codeup.aliyun.com/demo/repo/change/12)');
-    expect(markdown).toContain('11-13 09:59');
+    const d = new Date(NOW - 60_000);
+    const expectedTime = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    expect(markdown).toContain(expectedTime);
   });
 
   it('没有可见变更时返回空串（调用方跳过、不产生动态）', () => {
